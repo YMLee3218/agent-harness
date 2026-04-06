@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pwd)",
+      "Bash(ls *)",
+      "Bash(rg *)",
+      "Bash(fd *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(mise *)",
+      "Bash(uv *)",
+      "Bash(python --version)",
+      "Bash(node --version)"
+    ],
+    "deny": [
+      "Read(~/.ssh/**)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(curl *)",
+      "Bash(rm *)",
+      "Bash(mv *)"
+    ]
+  },
+  "model": "opusplan",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(rm -rf cycles|drop table|truncate)' && echo 'BLOCKED: destructive command' && exit 1 || exit 0"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "afplay /System/Library/Sounds/Glass.aiff 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/notify-stop.sh"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/Users/svc/.local/share/mise/installs/node/22.22.1/lib/node_modules/claude-remote-approver/bin/cli.mjs\" hook"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  },
+  "enabledPlugins": {
+    "telegram@claude-plugins-official": true,
+    "context7-plugin@context7-marketplace": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "context7-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "upstash/context7"
+      }
+    }
+  },
+  "showClearContextOnPlanAccept": true,
+  "autoDreamEnabled": true,
+  "skipDangerousModePermissionPrompt": true
+}
