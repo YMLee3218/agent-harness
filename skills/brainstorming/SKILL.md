@@ -1,44 +1,40 @@
 ---
 name: brainstorming
 description: >
-  Decomposes requirements into VSA features and DDD domain concepts before any spec or code is written. Trigger when the user has confirmed they want to start work on a new feature or modification — not during exploratory discussion or open-ended questions. Typical triggers: "let's build X", "we need to add Y", "change the behaviour of Z", "I want to implement X". Do not trigger on vague curiosity ("what if we did X?") or questions without a committed direction. For a brand-new empty repo with no src/ structure yet, prefer `initializing-project` first. Always run this before writing-spec.
+  Decomposes requirements into VSA features and DDD domain concepts before any spec or code is written.
+  Trigger when the user has confirmed they want to start work on a new feature or modification — not during
+  exploratory discussion. Typical triggers: "let's build X", "we need to add Y", "change the behaviour of Z".
+  For a brand-new empty repo, prefer `initializing-project` first. Always run before writing-spec.
 ---
 
 # Brainstorming Workflow
 
-Determine first: is this a **new feature** or a **modification**?
+Layer rules: @reference/layers.md
+
+Determine first: **new feature** or **modification**?
 
 ---
 
 ## New Feature Flow
 
-### Step 1 — Clarify
+### Step 1 — Read plan file + clarify
 
-Use `EnterPlanMode`, then `Glob` `features/` to find reusable existing features.
+Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 
-Use `AskUserQuestion` to resolve ambiguity — at most three questions per turn:
+Use `EnterPlanMode`, then `Glob` `src/features/` to find reusable existing features.
+
+Use `AskUserQuestion` to resolve ambiguity — at most three questions:
 - "What does success look like?"
 - "What external systems or events are involved?"
 - "What are the failure cases?"
 
-Stay in plan mode. Do not proceed to Step 2 until behaviour, conditions, and outcomes are clear.
-
 ### Step 2 — Decompose
 
-Classify each candidate:
+Classify each candidate per @reference/layers.md (Small / Large feature). Name format: `{verb}-{noun}` kebab-case. Domain concepts: `{noun}` singular kebab-case.
 
-```
-Small feature = calls one or a few domains; single responsibility
-Large feature = composes small features into a higher-level flow
-```
+List each candidate with layer assignment. Write decomposition to plan file. Call `ExitPlanMode` to request approval.
 
-Name format: Features: `{verb}-{noun}` kebab-case. Domain concepts: `{noun}` singular kebab-case.
-
-List each candidate with its layer assignment.
-
-Write the decomposition to the plan file. Call `ExitPlanMode` to request approval.
-
-### Step 3 — Write Output and Create Branch
+### Step 3 — Write output + create branch
 
 After approval, create `docs/requirements/{name}.md`:
 
@@ -61,88 +57,58 @@ After approval, create `docs/requirements/{name}.md`:
 - {explicitly excluded items}
 ```
 
-Before creating the feature branch, check for these conditions and use `AskUserQuestion` if any apply:
-- **Not a git repo**: `git rev-parse --git-dir` fails → ask the user whether to initialise one first.
-- **Dirty working tree**: `git status --porcelain` returns changes → ask whether to stash or commit before branching.
-- **Branch already exists**: `git show-ref --verify refs/heads/feature/{name}` succeeds → ask whether to reuse or choose a different name.
+Pre-branch checks — use `AskUserQuestion` if any apply:
+- Not a git repo: `git rev-parse --git-dir` fails
+- Dirty working tree: `git status --porcelain` returns changes
+- Branch already exists: `git show-ref --verify refs/heads/feature/{name}` succeeds
 
-Then create the feature branch:
+Then: `git checkout -b feature/{name}`
 
-```bash
-git checkout -b feature/{name}
-```
+Update plan file Phase to `brainstorm`.
 
-### Step 4 — Run critic-feature
+### Step 4 — Run critic-feature (max 2 iterations)
 
 ```
-Task(
-  subagent_type: "critic-feature",
-  prompt: "Review docs/requirements/{name}.md.
-           Original requirement: [paste requirement]."
-)
+Skill("critic-feature", "Review docs/requirements/{name}.md. Original requirement: [paste requirement].")
 ```
+
+**Iteration counter starts at 1.**
 
 If Critic returns FAIL:
-1. Output the full verdict to the user
-2. Write a fix plan (reclassifications, renamed features, missing features to add)
-3. Use `AskUserQuestion` to confirm the fix plan before editing
+1. Output the full verdict
+2. Write a fix plan (reclassifications, renames, missing features)
+3. Use `AskUserQuestion` to confirm the fix plan
 4. Apply fixes with `Edit`
-5. Re-run `critic-feature` via `Task` with the same requirements doc and original requirement
+5. If iteration < 2: increment counter, re-run Skill("critic-feature"). Else: use `AskUserQuestion` — "critic-feature has failed twice. Paste the latest verdict for manual review, or describe how to proceed."
+
+Append verdict to plan file `## Critic Verdicts`.
 
 ---
 
 ## Modification Flow
 
-### Step 1 — Identify Impact
+### Step 1 — Identify impact
 
 Use `EnterPlanMode`, then:
-- `Read` relevant `docs/requirements/*.md`
-- `Read` relevant `docs/*.md` — domain knowledge (SOT)
-- `Glob` to list `features/` and `domain/` directories
+- `Read` relevant `docs/requirements/*.md` and `docs/*.md`
+- `Glob` `src/features/` and `src/domain/`
 
-Do not read implementation code — read `docs/` only.
+Do not read `src/` implementation. If the modification conflicts with `docs/*.md`, list required doc updates. Write impact list to plan file. Call `ExitPlanMode`.
 
-Check whether the modification conflicts with existing `docs/*.md`:
-- If the requirement changes domain rules documented in `docs/*.md`, those docs must be updated first (SOT).
-- List which `docs/*.md` files need updating and what changes are required.
+### Step 2 — Update docs (if needed)
 
-Use `AskUserQuestion` if the scope of change is unclear.
+Update affected `docs/*.md` (SOT) before proceeding.
 
-Write impact list to plan file. Include any required `docs/*.md` updates. Call `ExitPlanMode` to request approval.
+### Step 3 — Write output + run critic-feature
 
-### Step 2 — Update Docs (if needed)
-
-If Step 1 identified `docs/*.md` conflicts, update the affected `docs/*.md` files first (SOT).
-
-### Step 3 — Write Output and Run critic-feature
-
-Create `docs/requirements/{name}.md` with the impact list.
-
-Apply the same git pre-check (not a git repo / dirty tree / branch exists) from New Feature Flow Step 3 before running:
-
-```bash
-git checkout -b feature/{name}
-```
-
-Then run:
-
-```
-Task(
-  subagent_type: "critic-feature",
-  prompt: "Review docs/requirements/{name}.md.
-           Original requirement: [paste requirement]."
-)
-```
-
-If Critic returns FAIL, apply the same fix loop as New Feature Flow Step 4.
+Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Feature Flow Step 3. Run critic-feature with the same max-2 iteration guard.
 
 ---
 
 ## Hard Stop
 
 Do not move to `writing-spec` until:
-- Every feature has a verb-noun name
-- Every feature is classified as small or large
-- Layer assignment is stated for each
+- Every feature has a `{verb}-{noun}` name
+- Every feature is classified as small or large with layer assignment
 - User has approved via `ExitPlanMode`
-- `critic-feature` returns PASS
+- critic-feature returns PASS (or user has approved manual override after 2 iterations)

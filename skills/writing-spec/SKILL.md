@@ -1,12 +1,20 @@
 ---
 name: writing-spec
 description: >
-  Writes BDD spec.md files using Given/When/Then scenarios for features and domain concepts. Trigger after brainstorming is approved and the user says "write the spec", "define scenarios", "document the behaviour", or signals readiness to spec a feature. Also trigger for "spec", "scenario", "Given/When/Then", or "how should X behave". Reference only docs/*.md and brainstorming output — never read src/.
+  Writes BDD spec.md files using Given/When/Then scenarios for features and domain concepts.
+  Trigger after brainstorming is approved and the user says "write the spec", "define scenarios",
+  "document the behaviour", or signals readiness to spec a feature. Reference only docs/*.md and
+  brainstorming output — never read src/.
 ---
 
 # BDD Spec Writing
 
-## Step 1 — Read Sources (plan mode only)
+Scenario templates: @reference/bdd-template.md
+Layer rules: @reference/layers.md
+
+## Step 1 — Read plan file + sources
+
+Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `brainstorm` or `spec`.
 
 Use `EnterPlanMode`, then read only:
 1. `docs/requirements/*.md` — brainstorming output
@@ -14,54 +22,30 @@ Use `EnterPlanMode`, then read only:
 
 Do not `Read` or `Glob` anything in `src/`.
 
-If this is a modification, verify `docs/*.md` reflects the updated domain knowledge. If docs appear stale or contradictory, use `AskUserQuestion` to confirm with the user:
+If `docs/*.md` appears stale or contradictory to the requirement, use `AskUserQuestion`:
 - "docs/{file}.md still says X, but the requirement implies Y. Should docs be updated first?"
 
-If the user confirms docs need updating, stop. Do not proceed to Step 2. The user must update `docs/*.md` first and re-invoke this skill.
+If docs need updating, stop. Re-invoke after `docs/*.md` is updated.
 
-Use `AskUserQuestion` if spec type or scope is ambiguous:
-- "Is this a feature spec or a domain spec?"
-- "Which domain concepts does this feature interact with?"
+## Step 2 — Draft scenarios
 
-## Step 2 — Draft Scenarios
-
-Write the full scenario structure to the plan file:
-
-```gherkin
-Feature: {feature name}
-
-  Scenario: {happy path}
-    Given {initial condition}
-    When  {action}
-    Then  {expected outcome}
-
-  Scenario: {failure case}
-    Given {initial condition}
-    When  {action}
-    Then  {expected outcome}
-
-  Scenario Outline: {parameterised case}
-    Given {condition}
-    When  {action}
-    Then  {outcome}
-
-    Examples:
-      | {input1} | {input2} | {result} |
-      | value    | value    | value    |
-```
-
-Cover for every scenario:
+Write the full scenario structure to the plan file. Cover for every scenario:
 - Fails / partially succeeds / times out / external system down?
 - Same request while processing? Prior step incomplete?
 - Events out of order? Duplicate events?
 
-Every `Scenario Outline` Examples table covers boundaries **applicable to the input type** (numeric: zero, negative one, maximum; collection: empty; nullable: null).
+Every `Scenario Outline` Examples table must include boundaries for the input type:
+- **Numeric**: zero (`0`), negative one (`-1`), maximum
+- **Collection**: empty (`[]`)
+- **String**: empty (`""`), max-length
+- **Nullable**: `null` / absent
+- **Boolean**: `true`, `false`
 
-Call `ExitPlanMode` to request approval of the scenario structure.
+Call `ExitPlanMode` to request approval.
 
 ## Step 3 — Write spec.md
 
-After approval, write to the correct path:
+After approval:
 
 ```
 features/{verb}-{noun}/spec.md   ← feature spec
@@ -70,26 +54,27 @@ domain/{concept}/spec.md         ← domain spec
 
 Domain specs: no DB, HTTP, queue, or file system references.
 
-## Step 4 — Run critic-spec
+Update plan file Phase to `spec`.
+
+## Step 4 — Run critic-spec (max 2 iterations)
 
 ```
-Task(
-  subagent_type: "critic-spec",
-  prompt: "Review spec at [path]. Relevant docs: [paths]."
-)
+Skill("critic-spec", "Review spec at [path]. Relevant docs: [paths].")
 ```
+
+**Iteration counter starts at 1.**
 
 If Critic returns FAIL:
-1. Output the full verdict to the user
-2. If the verdict contains `[DOCS CONTRADICTION]`:
-   - Use `AskUserQuestion`: "Should docs be updated to match the spec, or should the spec be fixed to match docs?"
-   - If docs update: update `docs/*.md` first, then fix spec if needed
-   - If spec fix: write fix plan for spec changes
-3. Otherwise:
-   - Write a fix plan (which scenarios to add or which structural issues to resolve)
-4. Use `AskUserQuestion` to confirm the fix plan before editing
+1. Output the full verdict
+2. If `[DOCS CONTRADICTION]`: use `AskUserQuestion` — "Should docs be updated to match the spec, or spec fixed to match docs?"
+   - Docs update: update `docs/*.md` first, then fix spec
+   - Spec fix: write fix plan for spec changes
+3. Otherwise: write fix plan (which scenarios to add or structural issues to resolve)
+4. Use `AskUserQuestion` to confirm fix plan
 5. Apply fixes with `Edit`
-6. Re-run `critic-spec` via `Task` with the same spec path and docs paths
+6. If iteration < 2: increment counter, re-run Skill("critic-spec"). Else: use `AskUserQuestion` — "critic-spec has failed twice. Paste the latest verdict for manual review, or describe how to proceed."
+
+Append verdict to plan file `## Critic Verdicts`.
 
 ## Rules
 

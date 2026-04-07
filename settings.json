@@ -12,22 +12,21 @@
       "Bash(mise *)",
       "Bash(uv *)",
       "Bash(python --version)",
-      "Bash(node --version)",
-      "Bash(git commit -m:*)"
-    ],
-    "deny": [
-      "Read(~/.ssh/**)"
+      "Bash(node --version)"
     ],
     "ask": [
-      "Bash(git commit --no-verify:*)",
-      "Bash(git commit --amend:*)",
+      "Bash(git commit *)",
       "Bash(git push *)",
       "Bash(curl *)",
       "Bash(rm *)",
       "Bash(mv *)"
+    ],
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Bash(git commit * --no-verify*)",
+      "Bash(git commit --no-verify*)"
     ]
   },
-  "model": "opusplan",
   "hooks": {
     "PreToolUse": [
       {
@@ -35,42 +34,43 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/scripts/pretooluse-bash.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/pretooluse-bash.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/phase-gate.sh\" write"
           }
         ]
       }
     ],
-    "Stop": [
+    "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "afplay /System/Library/Sounds/Glass.aiff 2>/dev/null || true"
-          },
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/notify-stop.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/phase-gate.sh\" prompt"
           }
         ]
       }
     ],
-    "PermissionRequest": [
+    "SubagentStop": [
       {
+        "matcher": "critic-.*",
         "hooks": [
           {
             "type": "command",
-            "command": "bash $CLAUDE_PROJECT_DIR/.claude/scripts/claude-remote-approver.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-verdict"
           }
         ]
       }
     ]
   },
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/statusline.sh"
-  },
   "enabledPlugins": {
-    "telegram@claude-plugins-official": true,
     "context7-plugin@context7-marketplace": true,
     "pr-review-toolkit@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true
@@ -82,8 +82,5 @@
         "repo": "upstash/context7"
       }
     }
-  },
-  "showClearContextOnPlanAccept": true,
-  "autoDreamEnabled": true,
-  "skipDangerousModePermissionPrompt": true
+  }
 }

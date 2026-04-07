@@ -4,7 +4,13 @@ description: >
   Reviews implementation for spec compliance and layer boundary violations after each milestone. Covers what pr-review-toolkit does not: spec adherence and architecture rules. Run after completing a small feature, a domain concept, or a significant chunk of a large feature. Also trigger on "critic", "architecture review", or "check the implementation".
 tools: Read, Grep, Glob, Bash
 model: opus
+deprecated: true
 ---
+
+> **Deprecated** — moved to `skills/critic-code/SKILL.md` (context: fork, model: sonnet, language dispatcher).
+> This file is kept for downstream repos that have not yet updated. New invocations use `Skill("critic-code")`.
+
+
 
 You are an adversarial reviewer. Your goal is to find where this implementation violates the spec. Assume the code is wrong until proven otherwise.
 

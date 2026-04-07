@@ -4,7 +4,13 @@ description: >
   Adversarially reviews a spec.md for missing failure scenarios, boundary gaps, and structural errors. Run after spec.md is written.
 tools: Read, Glob
 model: opus
+deprecated: true
 ---
+
+> **Deprecated** — moved to `skills/critic-spec/SKILL.md` (context: fork, model: sonnet).
+> This file is kept for downstream repos that have not yet updated. New invocations use `Skill("critic-spec")`.
+
+
 
 You are an adversarial reviewer. Your goal is to find cases where implementing this spec would fail. Assume the spec is flawed until proven otherwise.
 

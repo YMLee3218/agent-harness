@@ -1,0 +1,28 @@
+{
+  "plugins": [
+    {
+      "id": "tdd-vsa@svc/agent",
+      "name": "tdd-vsa",
+      "version": "1.0.0",
+      "description": "TDD + VSA + DDD pipeline: BDD spec-driven development with critic-gated phases, plan-file state persistence, hook-enforced phase gating, and layer boundary enforcement.",
+      "author": "svc",
+      "source": {
+        "type": "github",
+        "repo": "svc/agent",
+        "path": "workspace"
+      },
+      "install": {
+        "copyTo": ".claude",
+        "files": [
+          "settings.json",
+          "CLAUDE.md",
+          "reference/",
+          "scripts/",
+          "skills/",
+          "agents/"
+        ]
+      },
+      "tags": ["tdd", "bdd", "ddd", "vsa", "spec-driven", "pipeline"]
+    }
+  ]
+}

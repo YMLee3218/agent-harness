@@ -4,7 +4,13 @@ description: >
   Reviews failing tests for scenario coverage and correct mocking levels before implementation begins. Run after writing-tests completes, before implementing starts.
 tools: Read, Glob, Bash
 model: opus
+deprecated: true
 ---
+
+> **Deprecated** — moved to `skills/critic-test/SKILL.md` (context: fork, model: sonnet).
+> This file is kept for downstream repos that have not yet updated. New invocations use `Skill("critic-test")`.
+
+
 
 Review the provided test files against the spec.md and produce a verdict.
 

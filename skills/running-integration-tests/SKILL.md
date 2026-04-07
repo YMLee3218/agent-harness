@@ -1,50 +1,64 @@
 ---
 name: running-integration-tests
 description: >
-  Runs end-to-end integration tests with real domain + feature + infrastructure connections. Trigger on "integration test", "e2e test", "end-to-end", or before deployment milestones. Run at milestone boundaries when major features are completed.
+  Runs end-to-end integration tests with real domain + feature + infrastructure connections.
+  Trigger on "integration test", "e2e test", "end-to-end", or before deployment milestones.
+  Run at milestone boundaries when major features are completed.
 disable-model-invocation: true
+paths:
+  - "tests/integration/**"
 ---
 
 # Integration Testing
 
 User-invocable only via `/running-integration-tests`.
 
-## When to Run
+## When to run
 
 - Major features completed (milestone boundary)
 - Before deployment
 - User explicitly requests
 
-## Step 1 — Identify Scope
+## Step 1 — Identify scope
 
 Use `EnterPlanMode`, then:
 - `Read` `docs/requirements/*.md` to determine which features are in scope
 - `Glob` `tests/integration/` to find existing integration tests
-- `Read` project `CLAUDE.md` for the test command
+- `Read` project `CLAUDE.md` for the integration test command
 
 Write scope summary to plan file. Call `ExitPlanMode` to request approval.
 
-## Step 2 — Run Tests
+## Step 2 — Run tests
 
 Execute the integration test command from project CLAUDE.md.
 
 No mocks — real domain + feature + infrastructure connections.
 
-## Step 3 — Handle Failures
+Update plan file Phase to `integration`.
+
+## Step 3 — Handle failures
+
+If tests pass: update plan file Phase to `done`. Done.
 
 If tests fail:
 
-1. Record the failure in the relevant `docs/requirements/` document
+1. Record each failure in `docs/requirements/{affected-feature}.md`
 2. Determine the failure category:
 
-**docs conflict** — implementation contradicts documented domain rules
-  → Update `docs/*.md` first, then re-enter work cycle at `writing-spec`
+**docs conflict** — implementation contradicts documented domain rules:
+→ Update `docs/*.md` (SOT) first
+→ Automatically invoke `writing-spec` skill for the affected feature
+→ Then invoke `writing-tests` and `implementing` as needed
 
-**spec gap** — scenario not covered in existing specs
-  → Re-enter work cycle at `writing-spec` for the affected feature
+**spec gap** — scenario not covered in existing specs:
+→ Automatically invoke `writing-spec` skill for the affected feature
+→ Then invoke `writing-tests` and `implementing` as needed
 
-**implementation bug** — spec is correct but code does not match
-  → Re-enter work cycle at `implementing` for the affected feature
+**implementation bug** — spec is correct but code does not match:
+→ Automatically invoke `implementing` skill for the affected feature
 
-3. Use `AskUserQuestion` to confirm the failure category and re-entry point
-4. Direct the user to the appropriate skill
+3. Use `AskUserQuestion` to confirm the failure category before auto-invoking the skill:
+   "Integration test failed: [{test name}]. Category: docs conflict / spec gap / implementation bug?
+   I will invoke {skill name} automatically after you confirm."
+
+4. After confirmation, invoke the appropriate skill via `Skill(...)`.
