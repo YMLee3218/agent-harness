@@ -1,10 +1,9 @@
 ---
 name: writing-spec
 description: >
-  Writes BDD spec.md files using Given/When/Then scenarios for features and domain concepts.
-  Trigger after brainstorming is approved and the user says "write the spec", "define scenarios",
-  "document the behaviour", or signals readiness to spec a feature. Reference only docs/*.md and
-  brainstorming output — never read src/.
+  Write BDD spec.md (Given/When/Then scenarios) for features and domain concepts.
+  Trigger: "write the spec", "define scenarios", "document the behaviour", after brainstorming is approved.
+  References only docs/*.md and brainstorming output — never reads src/.
 ---
 
 # BDD Spec Writing

@@ -1,4 +1,4 @@
-.PHONY: test test-phase-gate test-plan-file test-pretooluse
+.PHONY: test test-phase-gate test-plan-file test-pretooluse lint lint-lang
 
 test: test-phase-gate test-plan-file test-pretooluse
 
@@ -13,3 +13,9 @@ test-plan-file:
 test-pretooluse:
 	@echo "=== pretooluse-bash tests ==="
 	@bash scripts/tests/pretooluse-bash.test.sh
+
+lint: lint-lang
+
+lint-lang:
+	@echo "=== lang-lint: Hangul detection in LLM-facing files ==="
+	@bash scripts/lint-lang.sh

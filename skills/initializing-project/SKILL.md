@@ -1,9 +1,9 @@
 ---
 name: initializing-project
 description: >
-  Sets up the VSA+DDD directory structure and generates a project-level CLAUDE.md. Trigger whenever
-  the user starts a new project, says "set up the project", "initialise", "create the project structure",
-  or provides docs files and wants to begin development. Also trigger when no src/ directory exists yet.
+  Initialize VSA+DDD project structure and generate a project-level CLAUDE.md.
+  Trigger: "set up the project", "initialise", "create the project structure", new project start, no src/ exists.
+  Scaffolds src/features, src/domain, src/infrastructure, tests/integration, docs/requirements, plans/.
 ---
 
 # Project Initialisation

@@ -107,7 +107,20 @@ cmd_find_active() {
       | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true
   }
 
-  # Try branch-based lookup first: plans/{branch-slug}.md
+  # 1. Explicit env override (highest priority — use in multi-plan or CI scenarios)
+  if [ -n "${CLAUDE_PLAN_FILE:-}" ]; then
+    if [ -f "$CLAUDE_PLAN_FILE" ]; then
+      local envphase
+      envphase=$(_read_phase "$CLAUDE_PLAN_FILE")
+      if [ -n "$envphase" ] && [ "$envphase" != "done" ]; then
+        echo "$CLAUDE_PLAN_FILE"
+        return 0
+      fi
+    fi
+    # CLAUDE_PLAN_FILE set but not usable → fall through to other strategies
+  fi
+
+  # 2. Branch-based lookup: plans/{branch-slug}.md
   local branch
   branch=$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" symbolic-ref --short HEAD 2>/dev/null \
            | sed 's|.*/||; s|[^A-Za-z0-9_-]|-|g' || true)
@@ -120,7 +133,7 @@ cmd_find_active() {
     fi
   fi
 
-  # Fallback: newest plan file where Phase != done
+  # 3. Fallback: newest plan file where Phase != done
   local found=""
   while IFS= read -r f; do
     local phase
@@ -179,9 +192,39 @@ cmd_record_verdict() {
   if [ -z "$verdict" ]; then
     echo "[record-verdict] missing verdict marker from ${agent_name}" >&2
     cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
+    exit 2  # Signal hook failure so Claude Code can flag the missing marker
   else
     cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: ${verdict}"
   fi
+}
+
+cmd_context() {
+  # Outputs JSON additionalContext for SessionStart hook injection.
+  # If no active plan exists, exits 0 with no output (no context to inject).
+  local plan_file
+  plan_file=$(cmd_find_active 2>/dev/null) || exit 0
+
+  local phase
+  phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
+
+  # Extract last 3 verdict lines from ## Critic Verdicts section
+  local verdicts
+  verdicts=$(awk '/^## Critic Verdicts$/{found=1; next} found && /^## /{found=0} found && /^- /{print}' \
+    "$plan_file" 2>/dev/null | tail -3 | sed 's/^- //' | tr '\n' '|' | sed 's/|$//' || echo "none")
+
+  # Extract open questions (non-blank lines in ## Open Questions section)
+  local questions
+  questions=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/{print}' \
+    "$plan_file" 2>/dev/null | head -5 | tr '\n' '|' | sed 's/|$//' || echo "none")
+
+  # Emit JSON for hook additionalContext injection
+  # Newlines inside JSON strings must be escaped; use printf with \n literal
+  local body
+  body="$(printf 'Active plan: %s | Phase: %s | Recent verdicts: %s | Open questions: %s' \
+    "$plan_file" "$phase" "${verdicts:-none}" "${questions:-none}")"
+
+  printf '{"additionalContext":"%s"}\n' \
+    "$(printf '%s' "$body" | sed 's/"/\\"/g')"
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
@@ -195,5 +238,6 @@ case "$1" in
   find-active)    cmd_find_active ;;
   find-latest)    cmd_find_latest ;;
   record-verdict) cmd_record_verdict ;;
+  context)        cmd_context ;;
   *) die "Unknown command: $1" ;;
 esac

@@ -34,6 +34,18 @@ Append verdict to plan file `## Critic Verdicts` and proceed to the next step.
 4. Use `AskUserQuestion` to confirm the fix plan before applying changes.
 5. Apply fixes with `Edit`.
 6. If `iteration < 2`: increment counter and re-run the critic.  
-   If `iteration == 2`: use `AskUserQuestion` — "This critic has failed twice. Paste the latest verdict for manual review, or describe how to proceed."
+   If `iteration == 2`:
+   - **Interactive mode** (default): use `AskUserQuestion` — "This critic has failed twice. Paste the latest verdict for manual review, or describe how to proceed."
+   - **Non-interactive mode** (`CLAUDE_CRITIC_NONINTERACTIVE=1`): append `[BLOCKED] critic failed twice — manual review required` to `## Open Questions` in the plan file, then stop. Do not invoke `AskUserQuestion`. The next session will resume from this blocked state.
 
 Append the verdict (PASS or FAIL) to plan file `## Critic Verdicts` after every run.
+
+## Non-interactive mode
+
+When `CLAUDE_CRITIC_NONINTERACTIVE=1` is set (e.g. in CI pipelines):
+
+- Replace all `AskUserQuestion` calls in the critic loop with plan file writes.
+- On first FAIL: write `[BLOCKED-1] {critic}: {reason}` to `## Open Questions` instead of asking.
+- On second FAIL: write `[BLOCKED-FINAL] {critic}: requires manual review` to `## Open Questions` and stop.
+- The pipeline stops cleanly rather than hanging on interactive prompts.
+- The next session (with `CLAUDE_CRITIC_NONINTERACTIVE` unset) reads `## Open Questions` and resumes.

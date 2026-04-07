@@ -1,8 +1,8 @@
 ---
 name: critic-feature
 description: >
-  Reviews feature decomposition for classification errors, layer misassignment, and missing features.
-  Run after brainstorming produces a candidate list, before writing-spec begins.
+  Review feature decomposition: classification errors, layer misassignment, naming, missing features.
+  Trigger: after brainstorming produces a candidate list, before writing-spec begins.
 context: fork
 agent: critic-feature
 allowed-tools: [Read, Glob]

@@ -46,10 +46,46 @@ run "git commit --no-verify -m x"      "$(j 'git commit --no-verify -m x')"     
 run "ls -rf /tmp (safe)"               "$(j 'ls -rf /tmp')"                         0
 run "git push origin feature/x"        "$(j 'git push origin feature/x')"           0
 run "git commit -m x (safe)"           "$(j 'git commit -m x')"                     0
-run "git commit --amend (warn only)"   "$(j 'git commit --amend')"                  0
-run "git commit -m x --amend"          "$(j 'git commit -m x --amend')"             0
 run "git commit --fixup HEAD"          "$(j 'git commit --fixup HEAD')"             0
 run "truncate table_backup.sql"        "$(j 'truncate table_backup.sql')"           0
+
+# --- git commit --amend: context-sensitive ---
+# When HEAD is in a remote tracking branch: blocked (exit 2).
+# When not in a remote: warn and allow (exit 0).
+# The test runs in a temp dir with no git → git branch -r fails → warn-only path.
+TMPAMEND=$(mktemp -d)
+cleanup_amend() { rm -rf "$TMPAMEND"; }
+trap "cleanup_amend; ${_cleanup_prev:-true}" EXIT
+
+(cd "$TMPAMEND" && {
+  # No git repo → git branch -r returns nothing → warn-only (exit 0)
+  printf '%s' "$(j 'git commit --amend')" | bash "$SCRIPT" >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ]; then
+    echo "PASS: git commit --amend (no remote): warn-only exit 0"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: git commit --amend (no remote): expected exit 0, got $got"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+(cd "$TMPAMEND" && {
+  # Simulate pushed commit: create a git repo with a fake remote ref containing HEAD
+  git init -q && git config user.email "t@t" && git config user.name "T"
+  echo x > f.txt && git add f.txt && git commit -q -m "init"
+  # Create a fake remote tracking ref pointing at HEAD
+  git update-ref refs/remotes/origin/main "$(git rev-parse HEAD)"
+  printf '%s' "$(j 'git commit --amend')" | bash "$SCRIPT" >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 2 ]; then
+    echo "PASS: git commit --amend (HEAD in remote): blocked exit 2"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: git commit --amend (HEAD in remote): expected exit 2, got $got"
+    FAIL=$((FAIL + 1))
+  fi
+})
 
 # --- Bypass patterns (exit 2) ---
 run "pipe-to-bash: echo payload | bash"    "$(j 'echo rm -rf / | bash')"               2

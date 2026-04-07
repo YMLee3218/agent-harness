@@ -1,11 +1,10 @@
 ---
 name: brainstorming
 description: >
-  Decomposes requirements into VSA features and DDD domain concepts before any spec or code is written.
-  Trigger when the user has confirmed they want to start work on a new feature or modification — not during
-  exploratory discussion. Typical triggers: "let's build X", "we need to add Y", "change the behaviour of Z",
-  "X 만들자", "Y 추가해줘", "Z 필요해", or any casual phrasing that implies new functionality.
-  For a brand-new empty repo, prefer `initializing-project` first. Always run before writing-spec.
+  Brainstorm/decompose new features into VSA Small/Large features and DDD domain concepts.
+  Trigger: "build X", "add Y", "need Z", "만들자", "추가", "feature", or any new-functionality phrasing.
+  Decomposes requirements before any spec or code is written.
+  Always run before writing-spec. For brand-new repos, run initializing-project first.
 ---
 
 # Brainstorming Workflow

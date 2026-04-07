@@ -1,10 +1,9 @@
 ---
 name: critic-code
 description: >
-  Reviews implementation for spec compliance and layer boundary violations after each milestone.
-  Covers what pr-review-toolkit does not: spec adherence and architecture rules. Run after completing
-  a small feature, a domain concept, or a significant chunk of a large feature. Also trigger on
-  "critic", "architecture review", or "check the implementation".
+  Review implementation for spec compliance and layer boundary violations after each milestone.
+  Trigger: "critic", "architecture review", "check the implementation", after completing a small feature,
+  a domain concept, or a significant chunk. Covers spec adherence and architecture rules.
 context: fork
 agent: critic-code
 allowed-tools: [Read, Grep, Glob, Bash]

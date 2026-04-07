@@ -1,9 +1,9 @@
 ---
 name: running-integration-tests
 description: >
-  Runs end-to-end integration tests with real domain + feature + infrastructure connections.
-  Trigger on "integration test", "e2e test", "end-to-end", or before deployment milestones.
-  Run at milestone boundaries when major features are completed.
+  Run end-to-end integration tests (no mocks, real connections).
+  Trigger: "integration test", "e2e test", "end-to-end", before deployment, at major feature milestones.
+  Handles failures by auto-invoking writing-spec, writing-tests, or implementing as appropriate.
 disable-model-invocation: true
 paths:
   - "tests/integration/**"

@@ -1,9 +1,9 @@
 ---
 name: writing-tests
 description: >
-  Writes failing tests (Red phase) for every scenario in an approved spec.md. Trigger after spec is
-  approved and the user says "write the tests", "write failing tests", "Red phase", or "start TDD".
-  Do not write any implementation code — tests must fail.
+  Write failing Red-phase tests for every Scenario in an approved spec.md.
+  Trigger: "write the tests", "write failing tests", "Red phase", "start TDD", after spec is approved.
+  Never writes implementation code — all tests must fail.
 ---
 
 # Writing Failing Tests

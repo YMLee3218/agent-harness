@@ -66,10 +66,15 @@ if printf '%s' "$cmd" | grep -iqE \
   exit 2
 fi
 
-# git commit --amend: warn but allow (amending unpublished commits is legitimate)
+# git commit --amend: block if HEAD is already pushed; warn-only if unpublished
 if printf '%s' "$cmd" | grep -iqE \
   'git[[:space:]]+commit[[:space:]]+.*--amend'; then
-  echo "WARNING: git commit --amend detected — ensure commit is not yet pushed" >&2
+  # Check whether HEAD appears in any remote tracking branch (already pushed)
+  if git branch -r --contains HEAD 2>/dev/null | grep -q .; then
+    echo "BLOCKED: git commit --amend on a commit already pushed to remote. Create a new commit instead to avoid requiring force-push." >&2
+    exit 2
+  fi
+  echo "WARNING: git commit --amend detected — commit is not yet pushed (safe to amend)" >&2
   # exit 0: allowed with warning
 fi
 

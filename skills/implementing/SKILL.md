@@ -1,10 +1,9 @@
 ---
 name: implementing
 description: >
-  Implements code to make failing tests pass (Green), then refactors (Refactor). Trigger after
-  critic-test returns PASS and the user says "implement", "make the tests pass", "Green phase",
-  "go", or "proceed". Run plan mode first to propose implementation order, then execute with
-  isolated subagents per task.
+  Implement Green phase (make failing tests pass) then Refactor.
+  Trigger: "implement", "make the tests pass", "Green phase", "go", "proceed", after critic-test returns PASS.
+  Plans implementation order (domain first), then executes with isolated subagents per task.
 ---
 
 # Implementation Workflow

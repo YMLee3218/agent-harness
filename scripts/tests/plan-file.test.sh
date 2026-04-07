@@ -134,14 +134,15 @@ T6=$(mktemp -d -p "$TMPDIR_BASE")
 T7=$(mktemp -d -p "$TMPDIR_BASE")
 f7=$(make_plan "$T7" "rec-feature" "spec")
 (cd "$T7" && {
-  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"## critic-spec Review\n\n### Verdict\nPASS"}'
+  # Message includes mandatory <!-- verdict: PASS --> marker (jq interprets \n as newline)
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"## critic-spec Review\n\n### Verdict\nPASS\n<!-- verdict: PASS -->"}'
   printf '%s' "$input" | bash "$SCRIPT" record-verdict
   got=$?
-  if [ "$got" -eq 0 ] && grep -q "critic-spec" "$f7"; then
-    echo "PASS: record-verdict: PASS recorded in plan file"
+  if [ "$got" -eq 0 ] && grep -q "critic-spec: PASS" "$f7"; then
+    echo "PASS: record-verdict: PASS marker recorded in plan file"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: record-verdict: expected exit 0 and verdict in file (got exit=$got)"
+    echo "FAIL: record-verdict: expected exit 0 and PASS in file (got exit=$got)"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -270,6 +271,69 @@ f15=$(make_plan "$T15" "marker-missing" "spec")
     PASS=$((PASS + 1))
   else
     echo "FAIL: record-verdict strict: missing marker case failed (file has PARSE_ERROR=$(grep -c PARSE_ERROR "$f15" 2>/dev/null), stderr='$stderr_out')"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: record-verdict PARSE_ERROR exits with code 2 ─────────────────────
+# Missing verdict marker must cause exit 2 so the SubagentStop hook signals failure.
+
+T16=$(mktemp -d -p "$TMPDIR_BASE")
+f16=$(make_plan "$T16" "exit2-feat" "spec")
+(cd "$T16" && {
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"No marker here"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 2 ] && grep -q "PARSE_ERROR" "$f16"; then
+    echo "PASS: record-verdict: missing marker → exit 2 + PARSE_ERROR in file"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: expected exit 2 + PARSE_ERROR (got exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: find-active honours CLAUDE_PLAN_FILE env override ─────────────────
+
+T17=$(mktemp -d -p "$TMPDIR_BASE")
+f17a=$(make_plan "$T17" "env-feat" "green")
+make_plan "$T17" "other-feat" "brainstorm" >/dev/null
+(cd "$T17" && {
+  got=$(CLAUDE_PLAN_FILE="$f17a" bash "$SCRIPT" find-active 2>/dev/null)
+  if [ "$got" = "$f17a" ]; then
+    echo "PASS: find-active: CLAUDE_PLAN_FILE env override respected"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: find-active: expected '$f17a', got '$got'"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: context subcommand emits additionalContext JSON ───────────────────
+
+T18=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T18" "ctx-feat" "green" >/dev/null
+(cd "$T18" && {
+  out=$(bash "$SCRIPT" context 2>/dev/null)
+  if printf '%s' "$out" | grep -q '"additionalContext"' && \
+     printf '%s' "$out" | grep -q 'green'; then
+    echo "PASS: context: outputs additionalContext JSON with current phase"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: context: expected JSON with additionalContext and phase (got='$out')"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+T19=$(mktemp -d -p "$TMPDIR_BASE")
+(cd "$T19" && {
+  # No plan → exit 0, no output
+  out=$(bash "$SCRIPT" context 2>/dev/null)
+  if [ $? -eq 0 ] && [ -z "$out" ]; then
+    echo "PASS: context: no active plan → exit 0, no output"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: context: expected exit 0 + empty output when no plan (got='$out')"
     FAIL=$((FAIL + 1))
   fi
 })

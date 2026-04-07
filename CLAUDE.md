@@ -28,7 +28,9 @@ export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:*.test.*:*.spec.ts:*.spec.js"
 
 Defaults cover Maven (`src/main/kotlin/`, `src/main/java/`), standard JS/Python (`src/{domain,features,infrastructure}/`), and monorepos (`packages/*/src/`). Set these in `initializing-project` step for the project.
 
-`PHASE_GATE_STRICT=1` — when set, the phase gate blocks all writes if no active plan file exists (fail-closed mode). Default is fail-open: writes are allowed with a stderr warning. Use in CI or mature projects where writes outside a plan should never be silent.
+`PHASE_GATE_STRICT=1` — when set, the phase gate blocks all writes if no active plan file exists (fail-closed mode). **Default in this bundle is `1` (fail-closed).** Override to `0` in downstream projects that need fail-open behaviour.
+
+`CLAUDE_PLAN_FILE=/path/to/plan.md` — pins the active plan file for `plan-file.sh find-active`. Highest priority override — use when multiple features run in parallel on the same branch, or in CI where branch-based lookup is unreliable.
 
 # Prerequisites (global settings)
 
@@ -55,12 +57,22 @@ Example:
 
 Feature work state is preserved in `plans/{feature-slug}.md`. Phase can be recovered after `/compact`.
 
+Frontmatter (optional fields for multi-plan disambiguation):
+```yaml
+---
+feature: {feature-slug}
+phase: brainstorm
+session_id: {optional — pin with CLAUDE_PLAN_FILE env for parallel sessions}
+---
+```
+
 Structure:
 ```
 ## Vision
 ## Scenarios
 ## Test Manifest
 ## Phase       (brainstorm | spec | red | green | refactor | integration | done)
+## Phase Transitions
 ## Critic Verdicts
 ## Open Questions
 ```
@@ -69,6 +81,8 @@ Phase transitions are made via:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" {phase}
 ```
+
+`find-active` resolution order: `CLAUDE_PLAN_FILE` env → branch-slug match → newest non-done plan.
 
 # Library documentation
 

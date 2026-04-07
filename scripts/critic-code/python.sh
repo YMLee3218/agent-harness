@@ -2,6 +2,9 @@
 # Layer boundary checker for Python projects.
 # Usage: python.sh <domain_root> <infra_root> <features_root>
 # Prints violations to stdout. Exit 0 always (let critic-code interpret results).
+#
+# Preferred: uses ruff --select TID (banned imports) if available.
+# Fallback:  grep-based heuristics.
 
 domain="${1:-src/domain}"
 infra="${2:-src/infrastructure}"
@@ -10,6 +13,21 @@ features="${3:-src/features}"
 EXCLUDES="--exclude-dir=.venv --exclude-dir=venv --exclude-dir=__pycache__ --exclude-dir=.mypy_cache --exclude-dir=dist --exclude-dir=build"
 
 echo "=== Python layer boundary check ==="
+
+# ── Preferred: ruff TID (banned import paths) ────────────────────────────────
+if command -v ruff >/dev/null 2>&1; then
+  echo "--- ruff --select TID (banned-api / restricted-import violations) ---"
+  ruff check --select TID --output-format json "$domain/" "$infra/" "$features/" 2>/dev/null \
+    | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for d in data:
+    print(f\"{d['filename']}:{d['location']['row']} [{d['code']}] {d['message']}\")
+" 2>/dev/null || echo "(ruff json parse failed — see grep fallback below)"
+  echo ""
+fi
+
+# ── Fallback / supplemental: grep heuristics ─────────────────────────────────
 
 echo "--- domain/ must not import infrastructure/ or features/ ---"
 grep -rn $EXCLUDES \
