@@ -7,7 +7,6 @@ description: >
 context: fork
 agent: critic-code
 allowed-tools: [Read, Grep, Glob, Bash]
-model: sonnet
 effort: high
 ---
 

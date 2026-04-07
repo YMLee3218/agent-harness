@@ -7,9 +7,18 @@ Read the test files and spec.md at the paths provided before reviewing. Run the 
 
 If git is available, run:
 ```bash
+git log --grep='^test(red):' --format='%H %s' -- <test file path(s) from prompt> | head -1
+```
+This finds the Red-phase commit (identified by the `test(red):` commit message prefix written by `writing-tests`). Then run:
+```bash
+git log --oneline <red-commit-sha>..HEAD -- <test file path(s) from prompt>
+```
+If this returns any commits, the test file was modified after the Red phase commit.
+If no `test(red):` commit exists for the file, fall back to:
+```bash
 git log --oneline HEAD -- <test file path(s) from prompt>
 ```
-Compare against the commit where Red phase began (the commit that added the test files).
+and treat the oldest commit touching the file as the Red commit.
 If any test file was modified after the Red phase commit, emit immediately:
 
 ```

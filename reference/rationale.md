@@ -18,7 +18,7 @@ Links are listed first so a downstream reader can verify the primary source.
 | Evaluator-optimizer critic loop (max 2 iter) | Building Effective Agents — evaluator-optimizer pattern | Measurable improvement loop with escape hatch on stale iteration |
 | Orchestrator-workers: `implementing` → coder subagents | Building Effective Agents — orchestrator-workers pattern; Multi-Agent Research | Lead LLM delegates, each worker isolated to one task; enables parallelisation |
 | External plan file FSM (`plans/{slug}.md`) | Multi-Agent Research — external state for context handoff | Survives `/compact`, session restart, and worktree switches |
-| Critic tool allowlists (Read/Glob/Grep only) | Building Effective Agents — "minimal tool surface" | Critics must not be able to mutate state; allowlist enforces read-only |
+| Critic tool allowlists (minimal surface; Bash restricted to read-only git/grep dispatchers) | Building Effective Agents — "minimal tool surface" | Critics must not mutate state; critic-test and critic-code use Bash only for read-only git log and language-specific grep dispatchers |
 | Model routing: Haiku critics / Sonnet coders | Claude Code Docs — cost-aware model routing (40-50% savings) | Haiku for classification/routing tasks; Sonnet for judgment and implementation |
 | Category-aware FAIL escalation (consecutive same-category → human) | Building Effective Agents — evaluator-optimizer valid only when measurable improvement exists | Same-category repeated FAIL signals the loop cannot converge; human required |
 | Verdict HTML marker (`<!-- verdict: X -->`) machine-parsed by hook | Claude Code Docs — SubagentStop hook payload | Structured output allows automation without fragile regex on prose |

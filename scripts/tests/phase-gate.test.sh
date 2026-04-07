@@ -180,6 +180,27 @@ T15=$(mktemp -d -p "$TMPDIR_BASE")
 write_input "src/domain/foo.py" | CLAUDE_PROJECT_DIR="$T15" PHASE_GATE_STRICT=1 bash "$SCRIPT" write >/dev/null 2>&1
 check "write/no-plan + PHASE_GATE_STRICT=1: blocked" 2 $?
 
+# ── Test 16: write/done — non-source file allowed (P0-3 regression) ──────────
+
+T16=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T16" "feat" "done" >/dev/null
+write_input "README.md" | CLAUDE_PROJECT_DIR="$T16" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/done: non-source file allowed" 0 $?
+
+# ── Test 17: write/done — source file still blocked ──────────────────────────
+
+T17=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T17" "feat" "done" >/dev/null
+write_input "src/domain/foo.py" | CLAUDE_PROJECT_DIR="$T17" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/done: source file still blocked after done" 2 $?
+
+# ── Test 18: write/done — test file still blocked ────────────────────────────
+
+T18=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T18" "feat" "done" >/dev/null
+write_input "tests/test_foo.py" | CLAUDE_PROJECT_DIR="$T18" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/done: test file still blocked after done" 2 $?
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 echo ""

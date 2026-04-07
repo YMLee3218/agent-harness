@@ -14,7 +14,6 @@ Layer rules: @reference/layers.md
 
 Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `red`.
 
-Use `EnterPlanMode`, then:
 - `Read` the failing tests and `spec.md`
 - `Glob` and `Read` existing domain/feature structure to determine dependencies
 
@@ -33,7 +32,7 @@ Task N: {verb} {object}
 
 Layer order: domain tasks first, then features, then infrastructure. Mark tasks that can run in parallel within the same layer tier (no cross-task dependency within the tier).
 
-Call `ExitPlanMode` to request approval.
+Use `AskUserQuestion` to present the task list and request approval before proceeding.
 
 ## Step 2 — Track tasks
 

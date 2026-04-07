@@ -35,7 +35,24 @@
   "reference": [
     "reference/layers.md",
     "reference/severity.md",
-    "reference/bdd-template.md"
+    "reference/bdd-template.md",
+    "reference/critic-loop.md",
+    "reference/critic-feature-body.md",
+    "reference/critic-spec-body.md",
+    "reference/critic-test-body.md",
+    "reference/critic-code-body.md",
+    "reference/docs-policy.md",
+    "reference/rationale.md"
+  ],
+  "scripts": [
+    "scripts/critic-code/python.sh",
+    "scripts/critic-code/go.sh",
+    "scripts/critic-code/ts.sh",
+    "scripts/critic-code/java.sh",
+    "scripts/critic-code/kotlin.sh",
+    "scripts/critic-code/rb.sh",
+    "scripts/critic-code/cs.sh",
+    "scripts/critic-code/rust.sh"
   ],
   "engines": {
     "claude-code": ">=1.0.0"

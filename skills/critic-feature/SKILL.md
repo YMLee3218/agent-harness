@@ -6,7 +6,6 @@ description: >
 context: fork
 agent: critic-feature
 allowed-tools: [Read, Glob]
-model: sonnet
 effort: high
 ---
 

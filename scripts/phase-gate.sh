@@ -8,7 +8,8 @@
 # Exit 2 = block the tool call (Write/Edit mode only)
 # Exit 0 = allow; if stdout is valid JSON with "additionalContext", Claude receives it (prompt mode)
 #
-# Fail-open: if plan-file is absent or Phase cannot be read, allow unconditionally.
+# Fail-closed when PHASE_GATE_STRICT=1 (default): if no active plan file exists, block all writes.
+# Fail-open when PHASE_GATE_STRICT=0: if no active plan file, allow unconditionally with a warning.
 
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 
@@ -108,8 +109,12 @@ mode_write() {
       fi
       ;;
     done)
-      echo "BLOCKED [phase-gate]: Phase is 'done'. This feature is complete. Create a new plan file to start a new feature." >&2
-      exit 2
+      if is_source_path "$file_path" || is_test_path "$file_path"; then
+        echo "BLOCKED [phase-gate]: Phase is 'done' and '$file_path' is a source/test path. Run /initializing-project to start a new feature, or set CLAUDE_PLAN_FILE=plans/{new-slug}.md to continue." >&2
+        exit 2
+      fi
+      echo "[phase-gate] warning: most recent plan is 'done' but '$file_path' is not a source/test file — allowing. To start a new feature, run /initializing-project." >&2
+      exit 0
       ;;
   esac
 
@@ -128,7 +133,9 @@ mode_prompt() {
   local prompt_text
   prompt_text=$(printf '%s' "$input" | jq -r '.prompt // ""' 2>/dev/null)
 
-  # Check if the prompt contains implementation keywords but plan phase is too early
+  # Check if the prompt contains implementation keywords but plan phase is too early.
+  # Korean terms (구현, 코딩, 작성해) are intentional: user-facing prompts are in Korean;
+  # only LLM-internal text (skills, agents, references) is restricted to English.
   local impl_pattern='implement|구현|make.*pass|go ahead|proceed|start coding|코딩|작성해'
   if printf '%s' "$prompt_text" | grep -iqE "$impl_pattern"; then
     case "$phase" in

@@ -21,7 +21,7 @@ if [ "$filter" = "--fixture" ]; then
 fi
 
 run_eval() {
-  local fixture_name="$1" agent_type="$2"
+  local fixture_name="$1" agent_type="$2" prompt_prefix="${3:-Review the following. Path:}"
   local fixture_file="$FIXTURES_DIR/${fixture_name}"
   local expected_file="$EXPECTED_DIR/${fixture_name%.md}.verdict"
 
@@ -33,9 +33,11 @@ run_eval() {
 
   echo -n "eval: $fixture_name ($agent_type) ... "
 
-  # Run critic agent headlessly; capture stdout
+  # Run critic agent headlessly; capture stdout.
+  # --model uses the agent's own frontmatter model when --agent resolves the definition;
+  # the flag here is a fallback for headless invocation without agent resolution.
   local output
-  output=$(claude -p "Review the following requirements/spec. Path: $fixture_file" \
+  output=$(claude -p "$prompt_prefix $fixture_file" \
              --model claude-haiku-4-5-20251001 \
              --agent "$agent_type" \
              --output-format text 2>/dev/null || echo "")
@@ -66,18 +68,34 @@ run_eval() {
 
 # Feature critic evals
 if [ -z "$filter" ] || [[ "feature-good-1" == *"$filter"* ]]; then
-  run_eval "feature-good-1.md" "critic-feature"
+  run_eval "feature-good-1.md" "critic-feature" "Review the following requirements decomposition."
 fi
 if [ -z "$filter" ] || [[ "feature-bad-layer-misassignment" == *"$filter"* ]]; then
-  run_eval "feature-bad-layer-misassignment.md" "critic-feature"
+  run_eval "feature-bad-layer-misassignment.md" "critic-feature" "Review the following requirements decomposition."
 fi
 
 # Spec critic evals
 if [ -z "$filter" ] || [[ "spec-good-1" == *"$filter"* ]]; then
-  run_eval "spec-good-1.md" "critic-spec"
+  run_eval "spec-good-1.md" "critic-spec" "Review the following BDD spec."
 fi
 if [ -z "$filter" ] || [[ "spec-bad-missing-error-scenario" == *"$filter"* ]]; then
-  run_eval "spec-bad-missing-error-scenario.md" "critic-spec"
+  run_eval "spec-bad-missing-error-scenario.md" "critic-spec" "Review the following BDD spec."
+fi
+
+# Test critic evals
+if [ -z "$filter" ] || [[ "test-good-1" == *"$filter"* ]]; then
+  run_eval "test-good-1.md" "critic-test" "Review the following test file. The embedded Test Manifest and Test Command Result show whether tests pass or fail."
+fi
+if [ -z "$filter" ] || [[ "test-bad-modified-after-red" == *"$filter"* ]]; then
+  run_eval "test-bad-modified-after-red.md" "critic-test" "Review the following test file. The embedded Test Manifest and Test Command Result show whether tests pass or fail."
+fi
+
+# Code critic evals
+if [ -z "$filter" ] || [[ "code-good-1" == *"$filter"* ]]; then
+  run_eval "code-good-1.md" "critic-code" "Review the following implementation for spec compliance and layer boundary violations. The spec, docs, implementation, and layer analysis are all embedded in the file."
+fi
+if [ -z "$filter" ] || [[ "code-bad-layer-violation" == *"$filter"* ]]; then
+  run_eval "code-bad-layer-violation.md" "critic-code" "Review the following implementation for spec compliance and layer boundary violations. The spec, docs, implementation, and layer analysis are all embedded in the file."
 fi
 
 echo ""

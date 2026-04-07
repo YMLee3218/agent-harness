@@ -77,6 +77,8 @@ Structure:
 ## Phase Transitions
 ## Critic Verdicts
 ## Open Questions
+## Task Ledger           (written by implementing — one row per coder subagent task)
+## Integration Failures  (written by running-integration-tests — one entry per failed run)
 ```
 
 Phase transitions are made via:
