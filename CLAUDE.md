@@ -92,6 +92,12 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.
 
 Look up library/framework APIs with context7: `/context7-plugin:docs {library-name}`
 
+When a `writing-spec` or `implementing` step introduces an external library dependency, verify the API via context7 before finalising the design. See `reference/docs-policy.md`.
+
+# Design rationale
+
+Anthropic source-mapping for every major harness decision: `reference/rationale.md`
+
 # Harness tests
 
 ```bash

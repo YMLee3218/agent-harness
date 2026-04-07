@@ -20,8 +20,17 @@
 #
 #   plan-file.sh record-verdict
 #       Reads SubagentStop JSON from stdin; extracts agent name + last PASS/FAIL line;
-#       appends verdict to the active plan file.
+#       appends verdict to the active plan file. Detects consecutive same-category FAILs
+#       and writes [BLOCKED-CATEGORY] to ## Open Questions when detected.
 #       Exit 0 = success; exit 1 = error; exit 2 = no active plan
+#
+#   plan-file.sh add-task <plan-file> <task-id> <layer>
+#       Adds a row to ## Task Ledger with status=pending.
+#       Exit 0 = success; exit 1 = error
+#
+#   plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]
+#       Updates an existing row in ## Task Ledger. Status: pending|in_progress|completed|blocked.
+#       Exit 0 = success; exit 1 = error
 
 set -euo pipefail
 
@@ -219,9 +228,97 @@ cmd_record_verdict() {
       ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
     fi
     exit 2  # Signal hook failure so Claude Code can flag the missing marker
-  else
-    cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: ${verdict}"
   fi
+
+  # Extract category from <!-- category: X --> marker (required on FAIL, optional on PASS)
+  local category=""
+  category=$(printf '%s' "$output" | grep -o '<!-- category: [A-Z_]* -->' | head -1 \
+             | sed 's/<!-- category: //; s/ -->//' || true)
+
+  # Build verdict label (include category if present)
+  local verdict_label="${current_phase}/${agent_name}: ${verdict}"
+  if [ -n "$category" ]; then
+    verdict_label="${verdict_label} [category: ${category}]"
+  fi
+
+  # Consecutive same-category FAIL detection
+  if [ "$verdict" = "FAIL" ] && [ -n "$category" ]; then
+    # Look at the last verdict line for this agent in the plan file
+    local last_verdict_line
+    last_verdict_line=$(grep "/${agent_name}: FAIL" "$plan_file" 2>/dev/null | tail -1 || true)
+    if [ -n "$last_verdict_line" ]; then
+      local last_category
+      last_category=$(printf '%s' "$last_verdict_line" | grep -o '\[category: [A-Z_]*\]' \
+                      | sed 's/\[category: //; s/\]//' || true)
+      if [ -n "$last_category" ] && [ "$last_category" = "$category" ]; then
+        local blocked_marker="[BLOCKED-CATEGORY] ${agent_name}: category ${category} failed twice — fix the root cause before retrying"
+        if grep -q "^## Open Questions$" "$plan_file"; then
+          awk -v marker="$blocked_marker" '
+            /^## Open Questions$/ { print; in_section=1; next }
+            in_section && /^## / { print marker; print ""; print; in_section=0; next }
+            { print }
+            END { if (in_section) print marker }
+          ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
+        fi
+        cmd_append_verdict "$plan_file" "$verdict_label"
+        echo "[record-verdict] consecutive same-category FAIL (${category}) from ${agent_name} — blocked" >&2
+        exit 2
+      fi
+    fi
+  fi
+
+  cmd_append_verdict "$plan_file" "$verdict_label"
+}
+
+cmd_add_task() {
+  local plan_file="$1" task_id="$2" layer="$3"
+  require_file "$plan_file"
+  local row="| ${task_id} | ${layer} | pending | - |"
+  if grep -q "^## Task Ledger$" "$plan_file"; then
+    # Append row before the next ## section (or at end)
+    awk -v row="$row" '
+      /^## Task Ledger$/ { print; in_section=1; next }
+      in_section && /^\| task-id/ { print; next }
+      in_section && /^\|---/ { print; next }
+      in_section && /^## / { print row; print ""; print; in_section=0; next }
+      { print }
+      END { if (in_section) print row }
+    ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
+  else
+    # Create Task Ledger section at end of file
+    {
+      echo ""
+      echo "## Task Ledger"
+      echo "| task-id | layer | status | commit-sha |"
+      echo "|---------|-------|--------|------------|"
+      echo "$row"
+    } >> "$plan_file"
+  fi
+}
+
+cmd_update_task() {
+  local plan_file="$1" task_id="$2" status="$3" commit_sha="${4:--}"
+  require_file "$plan_file"
+  local valid_statuses="pending in_progress completed blocked"
+  local valid=0
+  for s in $valid_statuses; do [ "$s" = "$status" ] && valid=1 && break; done
+  [ "$valid" -eq 1 ] || die "invalid status: $status (must be one of: $valid_statuses)"
+  # Replace the matching row
+  awk -v tid="$task_id" -v status="$status" -v sha="$commit_sha" '
+    /^\| / {
+      # Extract task-id field (second | delimited field)
+      n = split($0, fields, "|")
+      if (n >= 5) {
+        id = fields[2]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", id)
+        if (id == tid) {
+          layer = fields[3]
+          printf "| %s |%s| %s | %s |\n", tid, layer, status, sha
+          next
+        }
+      }
+    }
+    { print }
+  ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
 }
 
 cmd_context() {
@@ -265,5 +362,7 @@ case "$1" in
   find-latest)    cmd_find_latest ;;
   record-verdict) cmd_record_verdict ;;
   context)        cmd_context ;;
+  add-task)       [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
+  update-task)    [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
   *) die "Unknown command: $1" ;;
 esac

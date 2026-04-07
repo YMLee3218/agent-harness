@@ -2,6 +2,7 @@
 name: coder
 description: >
   Implements a single task (Green→Refactor→commit) within the TDD cycle. Enforces layer boundary rules; aborts immediately if a forbidden import is detected.
+  Invoked only by the implementing skill. Do not auto-trigger.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
 ---

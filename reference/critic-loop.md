@@ -14,9 +14,37 @@ or
 
 ```
 <!-- verdict: FAIL -->
+<!-- category: {CATEGORY} -->
 ```
 
-This marker is machine-parsed by `plan-file.sh record-verdict`. Output that does not end with this marker will be recorded as `PARSE_ERROR` in the plan file.
+Both markers are machine-parsed by `plan-file.sh record-verdict`. Output that does not end with these markers will be recorded as `PARSE_ERROR` in the plan file.
+
+## FAIL categories
+
+On FAIL, the critic **must** also emit a `<!-- category: X -->` marker on the line immediately following the verdict. Use exactly one of:
+
+| Category | When to use |
+|---|---|
+| `MISSING_SCENARIO` | A required scenario or boundary case is absent from spec or tests |
+| `LAYER_VIOLATION` | Incorrect layer assignment, forbidden import, or wrong mocking level |
+| `DOCS_CONTRADICTION` | Spec or implementation contradicts `docs/*.md` |
+| `STRUCTURAL` | BDD format error, naming convention violation, or wrong file placement |
+| `TEST_INTEGRITY` | Test file was modified after Red phase, or a test passes before implementation |
+| `TEST_QUALITY` | Test maps multiple scenarios, has implementation logic inside, or uses wrong naming |
+| `SPEC_COMPLIANCE` | Implementation does not satisfy a scenario from spec.md |
+
+If a single FAIL has multiple root causes from different categories, choose the **highest-severity** one:  
+`LAYER_VIOLATION` > `DOCS_CONTRADICTION` > `SPEC_COMPLIANCE` > `MISSING_SCENARIO` > `TEST_INTEGRITY` > `TEST_QUALITY` > `STRUCTURAL`
+
+## Consecutive same-category escalation
+
+`plan-file.sh record-verdict` tracks the last FAIL category per critic. If the same critic emits **two consecutive FAILs with the same category**, the script writes:
+
+```
+[BLOCKED-CATEGORY] {critic}: category {CATEGORY} failed twice — fix the root cause before retrying
+```
+
+to `## Open Questions` in the plan file, and exits 2 (blocking further progress). The loop cannot converge when the same structural problem recurs; human review is required.
 
 ## Running the critic
 

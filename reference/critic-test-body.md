@@ -73,8 +73,11 @@ or
 ### Verdict
 FAIL — {comma-separated reasons}
 <!-- verdict: FAIL -->
+<!-- category: {CATEGORY} -->
 ```
 
-The last line of your output must be exactly `<!-- verdict: PASS -->` or `<!-- verdict: FAIL -->`.
+On FAIL, choose one category per @reference/critic-loop.md category table.
+Common categories for this critic: `MISSING_SCENARIO`, `LAYER_VIOLATION`, `TEST_INTEGRITY`, `TEST_QUALITY`.
+The last two lines of your output on FAIL must be `<!-- verdict: FAIL -->` then `<!-- category: X -->`.
 
 FAIL blocks progress to `implementing`.

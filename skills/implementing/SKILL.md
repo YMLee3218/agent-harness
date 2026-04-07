@@ -26,11 +26,12 @@ Write task list to plan file:
 ```
 Task N: {verb} {object}
   Files: {exact paths}
+  Layer: domain|infrastructure|small-feature|large-feature
   Depends on: Task M (omit if none)
   Parallel: yes/no
 ```
 
-Layer order: domain tasks first, then features, then infrastructure. Mark tasks that can run in parallel.
+Layer order: domain tasks first, then features, then infrastructure. Mark tasks that can run in parallel within the same layer tier (no cross-task dependency within the tier).
 
 Call `ExitPlanMode` to request approval.
 
@@ -44,6 +45,13 @@ TaskCreate: "Implement {task 2 — feature: ...}"
 ...
 ```
 
+Register tasks in the plan file Task Ledger:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" add-task "plans/{slug}.md" "task-1" "domain"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" add-task "plans/{slug}.md" "task-2" "small-feature"
+# ... one call per task
+```
+
 Set plan file phase:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" green
@@ -51,9 +59,14 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.
 
 ## Step 3 — Execute per task (isolated subagents)
 
-Use `TaskList` to find the first `pending` task. Mark it `in_progress`, then:
+Use `TaskList` to identify pending tasks grouped by layer tier. Within a tier, tasks marked `Parallel: yes` with no mutual dependencies **MUST be spawned in parallel** — issue all their `Agent(...)` calls in a single assistant turn.
 
-Before spawning the subagent, determine the current file's layer by checking its path:
+Before spawning any subagent, mark each task `in_progress` in the Task Ledger:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "in_progress"
+```
+
+Determine each task's layer by checking its target path:
 - `src/domain/` → **Domain**
 - `src/infrastructure/` → **Infrastructure**
 - `src/features/` small → **Small Feature**
@@ -75,7 +88,12 @@ Agent(
 
 Do not pass the full plan or other tasks' state to subagents.
 
-Mark task `completed` after subagent returns. Use `TaskList` to move to next task.
+After each subagent returns, mark it completed in the Task Ledger (include commit sha when available):
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "completed" "{commit-sha}"
+```
+
+Then mark the corresponding `TaskCreate` task `completed`. Move to the next tier.
 
 After all tasks complete, set plan file phase:
 ```bash
@@ -133,7 +151,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.
 
 ## Session Recovery
 
-Use `TaskList` to find the first `pending` or `in_progress` task and resume there. Read `plans/{slug}.md` to determine the current phase.
+Use `TaskList` to find the first `pending` or `in_progress` task and resume there. For `in_progress` tasks, check the Task Ledger in `plans/{slug}.md` — if a commit-sha is recorded the task was committed; mark it `completed` and continue. Read `plans/{slug}.md` to determine the current phase.
 
 ## Hard Stop
 

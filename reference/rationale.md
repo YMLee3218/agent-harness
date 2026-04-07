@@ -1,0 +1,30 @@
+# Harness Rationale — Anthropic Source Mapping
+
+This file maps every major harness decision to the Anthropic document that motivates it.
+Links are listed first so a downstream reader can verify the primary source.
+
+## Authoritative sources
+
+1. **Building Effective Agents** — engineering blog post on workflow patterns, tool design, and the simplicity principle.
+2. **Writing Tools for Agents** — tool description quality, namespacing, error messages, and eval-driven iteration.
+3. **Multi-Agent Research System** — orchestrator-worker architecture, context isolation, parallelisation, checkpoint strategy.
+4. **Claude Code Documentation** — skills, subagents, hooks, plan mode, TDD enforcement, model cost routing.
+
+## Decision → source mapping
+
+| Harness decision | Source | Rationale |
+|---|---|---|
+| Hook-enforced phase gate (PreToolUse write block) | Building Effective Agents — "hooks/code enforce invariants; prompts cannot" | Prompts are advisory; a phase-gate hook is the only reliable write barrier |
+| Evaluator-optimizer critic loop (max 2 iter) | Building Effective Agents — evaluator-optimizer pattern | Measurable improvement loop with escape hatch on stale iteration |
+| Orchestrator-workers: `implementing` → coder subagents | Building Effective Agents — orchestrator-workers pattern; Multi-Agent Research | Lead LLM delegates, each worker isolated to one task; enables parallelisation |
+| External plan file FSM (`plans/{slug}.md`) | Multi-Agent Research — external state for context handoff | Survives `/compact`, session restart, and worktree switches |
+| Critic tool allowlists (Read/Glob/Grep only) | Building Effective Agents — "minimal tool surface" | Critics must not be able to mutate state; allowlist enforces read-only |
+| Model routing: Haiku critics / Sonnet coders | Claude Code Docs — cost-aware model routing (40-50% savings) | Haiku for classification/routing tasks; Sonnet for judgment and implementation |
+| Category-aware FAIL escalation (consecutive same-category → human) | Building Effective Agents — evaluator-optimizer valid only when measurable improvement exists | Same-category repeated FAIL signals the loop cannot converge; human required |
+| Verdict HTML marker (`<!-- verdict: X -->`) machine-parsed by hook | Claude Code Docs — SubagentStop hook payload | Structured output allows automation without fragile regex on prose |
+| `running-dev-cycle` profiles (trivial/patch/feature/greenfield) | Building Effective Agents — "use simplest path; add complexity only when needed" | Single 6-phase FSM for a comment fix is over-engineering; profiles match cost to task |
+| Task ledger in plan file | Multi-Agent Research — checkpoint system for long-running tasks | Enables `--resume` and debugging without replaying full git log |
+| Parallel coder subagents for independent tasks | Multi-Agent Research — parallel subagents for 90% time reduction | Tasks in the same layer with no dependencies can be spawned in one turn |
+| Lang lint (LLM-facing = English) | Claude Code Docs — model performance is best in English | Prompts seen only by Claude use English; user-visible output uses the project locale |
+| `context7-plugin` for library API verification | Writing Tools for Agents — verify tool descriptions against actual API docs | External library docs change; context7 fetches current docs before use |
+| Skill routing eval (`eval/routing/`) | Writing Tools for Agents — eval-driven tool/skill iteration | Skill description quality is measurable; fixtures make regressions detectable |

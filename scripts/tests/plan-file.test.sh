@@ -400,6 +400,112 @@ f22=$(make_plan "$T22" "transcript-no-marker" "spec")
   fi
 })
 
+# ── Tests: add-task ──────────────────────────────────────────────────────────
+
+T23=$(mktemp -d -p "$TMPDIR_BASE")
+f23=$(make_plan "$T23" "task-ledger-feat" "green")
+
+run "add-task: creates Task Ledger section" 0 bash "$SCRIPT" add-task "$f23" "task-1" "domain"
+if grep -q "## Task Ledger" "$f23" && grep -q "task-1" "$f23"; then
+  echo "PASS: add-task: Task Ledger section and row created"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: add-task: Task Ledger section or row missing"
+  FAIL=$((FAIL + 1))
+fi
+
+run "add-task: second row appended" 0 bash "$SCRIPT" add-task "$f23" "task-2" "small-feature"
+if grep -q "task-2" "$f23"; then
+  echo "PASS: add-task: second row appended"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: add-task: second row missing"
+  FAIL=$((FAIL + 1))
+fi
+
+# ── Tests: update-task ────────────────────────────────────────────────────────
+
+T24=$(mktemp -d -p "$TMPDIR_BASE")
+f24=$(make_plan "$T24" "update-task-feat" "green")
+bash "$SCRIPT" add-task "$f24" "task-1" "domain" >/dev/null
+bash "$SCRIPT" add-task "$f24" "task-2" "infrastructure" >/dev/null
+
+run "update-task: set in_progress" 0 bash "$SCRIPT" update-task "$f24" "task-1" "in_progress"
+if grep -q "in_progress" "$f24"; then
+  echo "PASS: update-task: in_progress status set"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: update-task: in_progress status not found"
+  FAIL=$((FAIL + 1))
+fi
+
+run "update-task: set completed with sha" 0 bash "$SCRIPT" update-task "$f24" "task-1" "completed" "abc1234"
+if grep -q "completed" "$f24" && grep -q "abc1234" "$f24"; then
+  echo "PASS: update-task: completed + commit-sha recorded"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: update-task: completed or commit-sha not found"
+  FAIL=$((FAIL + 1))
+fi
+
+run "update-task: invalid status rejected" 1 bash "$SCRIPT" update-task "$f24" "task-2" "flying"
+
+# ── Tests: record-verdict with category ──────────────────────────────────────
+
+T25=$(mktemp -d -p "$TMPDIR_BASE")
+f25=$(make_plan "$T25" "category-feat" "spec")
+(cd "$T25" && {
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->\n<!-- category: MISSING_SCENARIO -->"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  if grep -q "FAIL \[category: MISSING_SCENARIO\]" "$f25"; then
+    echo "PASS: record-verdict: FAIL category recorded in verdict label"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: FAIL category not found in verdict label"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: record-verdict consecutive same-category FAIL → BLOCKED-CATEGORY ──
+
+T26=$(mktemp -d -p "$TMPDIR_BASE")
+f26=$(make_plan "$T26" "consec-fail-feat" "spec")
+(cd "$T26" && {
+  # First FAIL with MISSING_SCENARIO
+  input1='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->\n<!-- category: MISSING_SCENARIO -->"}'
+  printf '%s' "$input1" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+
+  # Second FAIL with same category → should write BLOCKED-CATEGORY
+  input2='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — still missing scenario\n<!-- verdict: FAIL -->\n<!-- category: MISSING_SCENARIO -->"}'
+  printf '%s' "$input2" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 2 ] && grep -q "BLOCKED-CATEGORY" "$f26"; then
+    echo "PASS: record-verdict: consecutive same-category FAIL → exit 2 + BLOCKED-CATEGORY in plan"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: expected exit 2 + BLOCKED-CATEGORY (exit=$got, BLOCKED=$(grep -c BLOCKED-CATEGORY "$f26" 2>/dev/null))"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# Different category on second FAIL must NOT block
+T27=$(mktemp -d -p "$TMPDIR_BASE")
+f27=$(make_plan "$T27" "diff-category-feat" "spec")
+(cd "$T27" && {
+  input1='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->\n<!-- category: MISSING_SCENARIO -->"}'
+  printf '%s' "$input1" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  input2='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — structural issue\n<!-- verdict: FAIL -->\n<!-- category: STRUCTURAL -->"}'
+  printf '%s' "$input2" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && ! grep -q "BLOCKED-CATEGORY" "$f27"; then
+    echo "PASS: record-verdict: different category on second FAIL → no BLOCKED-CATEGORY"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: different category should not block (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 echo ""

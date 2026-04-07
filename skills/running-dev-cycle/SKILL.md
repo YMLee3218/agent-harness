@@ -15,19 +15,26 @@ Run each skill in order. Do not skip or reorder steps. Wait for each step to ful
 
 > **Multi-feature parallel work**: if multiple features will run concurrently on the same repository, start each in its own git worktree (`git worktree add .worktrees/feature-x feature/x`) or set `CLAUDE_PLAN_FILE` to the feature's plan path. Running two features on the same branch without disambiguation causes `find-active` to fall back to the newest plan, which may be wrong.
 
-## Mode selection
+## Profile selection
 
-**Default: feature-slice mode** — processes each feature fully (spec → tests → implement) before starting the next. Reduces WIP and limits blast radius when a spec turns out wrong.
+Choose the profile that matches the scope of the change. Profiles control which phases and critics run.
 
-**Batch mode** — writes all specs first, then all tests, then implements everything. Use only when the user explicitly requests it (`/running-dev-cycle --batch`).
+| Profile | Flag | Phases active | Critics active | When to use |
+|---------|------|--------------|----------------|-------------|
+| **trivial** | `--profile trivial` or `--trivial` | implementing only | critic-code, pr-review-toolkit | Single-file typo/comment fix that cannot affect behaviour |
+| **patch** | `--profile patch` | spec + implementing | critic-spec, critic-code, pr-review-toolkit | Bug fix or small change with a clear, bounded scope |
+| **feature** | `--profile feature` *(default)* | full cycle | all four critics | New feature or behaviour change |
+| **greenfield** | `--profile greenfield` | full cycle + batch mode | all four critics | New project or major domain rewrite where all specs must align before any tests |
 
-**Trivial mode** — for single-file typo fixes, comment corrections, or other changes that cannot affect behaviour. Skip brainstorm/spec/test phases and go directly to implementing (critic-code and pr-review-toolkit still run). Use only when the user explicitly requests it (`/running-dev-cycle --trivial`). Set `mode: trivial` in the plan file frontmatter to track.
+> Use the simplest profile that is safe for the change. When in doubt, use `feature`. Never use `trivial` or `patch` for changes that add, remove, or alter conditional logic.
 
-> Do not use `--trivial` for any change that adds, removes, or alters conditional logic — when in doubt, use the full cycle.
+**Batch mode** — writes all specs first, then all tests, then implements everything. Enabled automatically by `--profile greenfield`, or explicitly via `--batch` on any profile. Use only when the user explicitly requests it.
+
+Set `mode: {profile}` in the plan file frontmatter to track the active profile.
 
 ---
 
-## Step 1 — Brainstorming
+## Step 1 — Brainstorming (`feature` and `greenfield` profiles only)
 
 Invoke the `brainstorming` skill.
 
@@ -37,23 +44,29 @@ Do not proceed to Step 2 until:
 - critic-feature returns PASS (or user has approved manual override)
 - Plan file `plans/{slug}.md` exists with Phase `brainstorm`
 
+*Skip Step 1 for `trivial` and `patch` profiles. Create the plan file manually with Phase `brainstorm` and proceed.*
+
 ---
 
-## Feature-slice mode (default)
+## Feature-slice mode (`feature` profile, default)
 
 Read `docs/requirements/{name}.md` to get the full feature list (Small Features + Large Features sections).
 
 **For each feature in the list, in dependency order:**
 
-### Step 2a — Spec
+### Step 2a — Spec (`feature` and `patch` profiles)
 
 Invoke the `writing-spec` skill for the feature. Wait for critic-spec PASS.
 
-### Step 2b — Tests
+*Skip for `trivial` profile.*
+
+### Step 2b — Tests (`feature` profile only)
 
 Invoke the `writing-tests` skill for the feature. Wait for critic-test PASS and Plan file Phase `red`.
 
-### Step 2c — Implementation
+*Skip for `trivial` and `patch` profiles. Set Phase to `green` directly and proceed to implementing.*
+
+### Step 2c — Implementation (all profiles)
 
 Invoke the `implementing` skill for the feature. Wait until the feature's tasks are `completed`.
 
@@ -61,7 +74,7 @@ Then move to the next feature. Repeat until all features are done.
 
 ---
 
-## Batch mode (opt-in)
+## Batch mode (`greenfield` profile, or explicit `--batch`)
 
 ### Step 2 — Spec (all features)
 
