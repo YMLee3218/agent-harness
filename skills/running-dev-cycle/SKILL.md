@@ -40,7 +40,6 @@ Do not proceed to Step 4 until:
 
 Invoke the `implementing` skill.
 
-Cycle is complete when:
-- All tasks are checked off in TaskList
-- `critic-code` returns PASS
-- `pr-review-toolkit` returns no unresolved issues
+The `implementing` skill handles `critic-code` and `pr-review-toolkit` internally (Steps 4–5 of that skill). Do not run them separately here.
+
+Cycle is complete when the `implementing` skill reports all tasks complete with no unresolved issues.

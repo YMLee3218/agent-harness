@@ -6,6 +6,8 @@ tools: Read, Glob
 model: opus
 ---
 
+Read the requirements document at the path provided in the prompt before reviewing.
+
 Review the provided feature decomposition and produce a verdict.
 
 ## Layer Reference

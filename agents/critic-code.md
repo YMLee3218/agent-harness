@@ -12,14 +12,14 @@ Review the provided implementation and produce a verdict.
 
 ## Layer Reference
 
-- `features/` — orchestrates business flows using domain decisions
-- `domain/` — business rules and decisions; no external dependencies
-- `infrastructure/` — technical execution (DB, HTTP, file I/O)
+- `src/features/` — orchestrates business flows using domain decisions
+- `src/domain/` — business rules and decisions; no external dependencies
+- `src/infrastructure/` — technical execution (DB, HTTP, file I/O)
 - Small feature: calls one or a few domains directly; single responsibility
 - Large feature: composes small features; never calls domain directly
 
-Allowed dependencies: `features/` → `domain/`, `features/` → `infrastructure/`, `infrastructure/` → `domain/` (interface only).
-`domain/` and `infrastructure/` never import from `features/`. `domain/` never imports from `infrastructure/`.
+Allowed dependencies: `src/features/` → `src/domain/`, `src/features/` → `src/infrastructure/`, `src/infrastructure/` → `src/domain/` (interface only).
+`src/domain/` and `src/infrastructure/` never import from `src/features/`. `src/domain/` never imports from `src/infrastructure/`.
 
 ## Severity Criteria
 

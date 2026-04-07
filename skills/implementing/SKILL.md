@@ -84,9 +84,10 @@ If Critic returns FAIL:
    - Write fix plan in order: spec → tests → code
 3. Otherwise:
    - Write a fix plan in order: spec changes (if any) → test changes → code changes
+   - If no spec changes are needed, the fix path is: test changes → code changes only
 4. Use `AskUserQuestion` to confirm the fix plan before editing
 5. Apply fixes with `Edit`
-6. Re-run `critic-spec` via `Task` with the same spec path and docs paths
+6. **Only if spec was actually modified**: Re-run `critic-spec` via `Task` with the same spec path and docs paths. Skip this step if the fix was code-only or test-only.
 7. Re-run `critic-test` via `Task` with the same test paths, spec path, and test command
 8. Run the test command from project CLAUDE.md — all tests must pass
 9. Re-run `critic-code` via `Task` with the same changed files, spec path, and docs paths

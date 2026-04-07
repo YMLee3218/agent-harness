@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /Users/svc/agent/workspace/scripts/pretooluse-bash.sh"
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/scripts/pretooluse-bash.sh"
           }
         ]
       }
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /Users/svc/agent/workspace/scripts/claude-remote-approver.sh"
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/scripts/claude-remote-approver.sh"
           }
         ]
       }

@@ -1,7 +1,7 @@
 ---
 name: brainstorming
 description: >
-  Decomposes requirements into VSA features and DDD domain concepts before any spec or code is written. Trigger whenever the user mentions a new feature, requirement, or anything to build — even casual phrasing like "I want to add X", "we need Y", "let's build Z". Also trigger for modification requests: "change X", "update Y", "fix the behaviour of Z". Always run this before writing-spec.
+  Decomposes requirements into VSA features and DDD domain concepts before any spec or code is written. Trigger when the user has confirmed they want to start work on a new feature or modification — not during exploratory discussion or open-ended questions. Typical triggers: "let's build X", "we need to add Y", "change the behaviour of Z", "I want to implement X". Do not trigger on vague curiosity ("what if we did X?") or questions without a committed direction. For a brand-new empty repo with no src/ structure yet, prefer `initializing-project` first. Always run this before writing-spec.
 ---
 
 # Brainstorming Workflow
