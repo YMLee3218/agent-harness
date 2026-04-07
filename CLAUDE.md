@@ -26,7 +26,7 @@ export PHASE_GATE_SRC_GLOB="src/domain/*:src/features/*:src/infrastructure/*:app
 export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:*.test.*:*.spec.ts:*.spec.js"
 ```
 
-Defaults cover Maven (`src/main/kotlin/`, `src/main/java/`), standard JS/Python (`src/{domain,features,infrastructure}/`), and monorepos (`packages/*/src/`). Set these in `initializing-project` step for the project.
+Defaults cover Maven (`src/main/kotlin/`, `src/main/java/`), standard JS/Python (`src/{domain,features,infrastructure}/`), monorepos (`packages/*/src/`, `apps/*/src/`), Go (`internal/`, `cmd/`), Rails (`app/`), Rust (`crates/*/src/`), and generic `lib/`. Set these in `initializing-project` step for projects with non-standard layouts.
 
 `PHASE_GATE_STRICT=1` — when set, the phase gate blocks all writes if no active plan file exists (fail-closed mode). **Default in this bundle is `1` (fail-closed).** Override to `0` in downstream projects that need fail-open behaviour.
 
@@ -38,6 +38,8 @@ The following belong in **each developer's `~/.claude/settings.json`**, not in t
 
 - **Stop hook** — `afplay /System/Library/Sounds/Glass.aiff` + `~/.claude/hooks/notify-stop.sh`
 - **PermissionRequest hook** — `~/.claude/hooks/claude-remote-approver.sh hook`
+  - Install: copy `workspace/scripts/claude-remote-approver.sh` to `~/.claude/hooks/claude-remote-approver.sh` and `chmod +x` it.
+  - The copy in `workspace/scripts/` is a placeholder; the active version must live in the user dir.
 - **model** — personal model preference (e.g. `opusplan`)
 - **skipDangerousModePermissionPrompt** — per-machine setting
 
@@ -82,7 +84,9 @@ Phase transitions are made via:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" {phase}
 ```
 
-`find-active` resolution order: `CLAUDE_PLAN_FILE` env → branch-slug match → newest non-done plan.
+`find-active` resolution order: `CLAUDE_PLAN_FILE` env → branch-slug match → newest non-done plan (warns to stderr when falling back).
+
+**Parallel features**: when running multiple features concurrently, use a separate git worktree per feature (`git worktree add .worktrees/feature-x feature/x`) or pin `CLAUDE_PLAN_FILE` to avoid the fallback picking the wrong plan.
 
 # Library documentation
 

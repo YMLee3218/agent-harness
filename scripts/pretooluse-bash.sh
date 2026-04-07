@@ -2,6 +2,10 @@
 # PreToolUse hook for Bash tool.
 # Reads JSON from stdin, extracts .tool_input.command, blocks destructive patterns.
 # Exit 2 = blocked; exit 0 = allowed.
+#
+# NOTE: This is a *mistake-prevention* gate, not a security boundary.
+# Pattern matching can be bypassed via base64/eval/variable expansion.
+# Treat it as a guardrail against accidental destructive commands, not a hardened sandbox.
 set -uo pipefail
 
 input=$(cat)

@@ -13,11 +13,17 @@ User-invocable only via `/running-dev-cycle`.
 
 Run each skill in order. Do not skip or reorder steps. Wait for each step to fully complete — including critic PASS and user approval — before invoking the next.
 
+> **Multi-feature parallel work**: if multiple features will run concurrently on the same repository, start each in its own git worktree (`git worktree add .worktrees/feature-x feature/x`) or set `CLAUDE_PLAN_FILE` to the feature's plan path. Running two features on the same branch without disambiguation causes `find-active` to fall back to the newest plan, which may be wrong.
+
 ## Mode selection
 
 **Default: feature-slice mode** — processes each feature fully (spec → tests → implement) before starting the next. Reduces WIP and limits blast radius when a spec turns out wrong.
 
 **Batch mode** — writes all specs first, then all tests, then implements everything. Use only when the user explicitly requests it (`/running-dev-cycle --batch`).
+
+**Trivial mode** — for single-file typo fixes, comment corrections, or other changes that cannot affect behaviour. Skip brainstorm/spec/test phases and go directly to implementing (critic-code and pr-review-toolkit still run). Use only when the user explicitly requests it (`/running-dev-cycle --trivial`). Set `mode: trivial` in the plan file frontmatter to track.
+
+> Do not use `--trivial` for any change that adds, removes, or alters conditional logic — when in doubt, use the full cycle.
 
 ---
 

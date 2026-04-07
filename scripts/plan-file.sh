@@ -144,6 +144,7 @@ cmd_find_active() {
     fi
   done < <(ls -t "$plans_dir"/*.md 2>/dev/null)
   if [ -n "$found" ]; then
+    echo "[plan-file] WARNING: falling back to newest plan ($found). Set CLAUDE_PLAN_FILE or use worktrees to disambiguate when running multiple features in parallel." >&2
     echo "$found"
   else
     exit 2
@@ -162,17 +163,30 @@ cmd_record_verdict() {
   require_jq
   local input
   input=$(cat)
-  # Extract agent/subagent name and output
+  # Extract agent/subagent name
   # Field names per Claude Code SubagentStop payload; include fallback aliases
-  local agent_name output
+  local agent_name
   agent_name=$(printf '%s' "$input" | jq -r '.agent_type // .subagent_type // "unknown"' 2>/dev/null || echo "unknown")
-  output=$(printf '%s' "$input" | jq -r '.last_assistant_message // .tool_response // ""' 2>/dev/null || echo "")
 
   # Only record for critic-* agents
   case "$agent_name" in
     critic-*) ;;
     *) exit 0 ;;
   esac
+
+  # Extract output text using two strategies:
+  # 1. transcript_path (real Claude Code SubagentStop payload: {session_id, transcript_path, stop_hook_active})
+  # 2. last_assistant_message / tool_response (legacy / test-fixture payloads)
+  local output=""
+  local transcript
+  transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null || true)
+  if [ -n "$transcript" ] && [ -f "$transcript" ]; then
+    output=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text // empty' \
+             "$transcript" 2>/dev/null | tail -200 || true)
+  fi
+  if [ -z "$output" ]; then
+    output=$(printf '%s' "$input" | jq -r '.last_assistant_message // .tool_response // ""' 2>/dev/null || echo "")
+  fi
 
   # Find active plan file
   local plan_file
@@ -190,8 +204,20 @@ cmd_record_verdict() {
   current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
 
   if [ -z "$verdict" ]; then
-    echo "[record-verdict] missing verdict marker from ${agent_name}" >&2
+    local input_keys
+    input_keys=$(printf '%s' "$input" | jq -r 'keys | join(", ")' 2>/dev/null || echo "unknown")
+    echo "[record-verdict] missing verdict marker from ${agent_name} (payload keys: ${input_keys})" >&2
     cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
+    # Mark plan as blocked so phase-gate can surface this to the next session
+    local blocked_marker="[BLOCKED] critic verdict missing — investigate ${agent_name}"
+    if grep -q "^## Open Questions$" "$plan_file"; then
+      awk -v marker="$blocked_marker" '
+        /^## Open Questions$/ { print; in_section=1; next }
+        in_section && /^## / { print marker; print ""; print; in_section=0; next }
+        { print }
+        END { if (in_section) print marker }
+      ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
+    fi
     exit 2  # Signal hook failure so Claude Code can flag the missing marker
   else
     cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: ${verdict}"

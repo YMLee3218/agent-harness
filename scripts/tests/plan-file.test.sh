@@ -338,6 +338,68 @@ T19=$(mktemp -d -p "$TMPDIR_BASE")
   fi
 })
 
+# ── Tests: record-verdict via transcript_path (real SubagentStop schema) ─────
+# Claude Code SubagentStop payload: {session_id, transcript_path, stop_hook_active}
+# transcript file is JSON Lines with {type:"assistant", message:{content:[{type:"text",text:"..."}]}}
+
+T20=$(mktemp -d -p "$TMPDIR_BASE")
+f20=$(make_plan "$T20" "transcript-pass" "spec")
+(cd "$T20" && {
+  transcript_file="$TMPDIR_BASE/transcript_pass_$$.jsonl"
+  printf '%s\n' \
+    '{"type":"system","message":"session start"}' \
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"## critic-spec Review\n\n### Verdict\nPASS\n<!-- verdict: PASS -->"}]}}' \
+    > "$transcript_file"
+  input="{\"session_id\":\"test-123\",\"transcript_path\":\"${transcript_file}\",\"stop_hook_active\":false,\"agent_type\":\"critic-spec\"}"
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "critic-spec: PASS" "$f20"; then
+    echo "PASS: record-verdict: transcript_path strategy extracts PASS verdict"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: transcript_path strategy failed (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+T21=$(mktemp -d -p "$TMPDIR_BASE")
+f21=$(make_plan "$T21" "transcript-fail" "spec")
+(cd "$T21" && {
+  transcript_file="$TMPDIR_BASE/transcript_fail_$$.jsonl"
+  printf '%s\n' \
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->"}]}}' \
+    > "$transcript_file"
+  input="{\"session_id\":\"test-456\",\"transcript_path\":\"${transcript_file}\",\"stop_hook_active\":false,\"agent_type\":\"critic-spec\"}"
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "critic-spec: FAIL" "$f21"; then
+    echo "PASS: record-verdict: transcript_path strategy extracts FAIL verdict"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: transcript_path FAIL strategy failed (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+T22=$(mktemp -d -p "$TMPDIR_BASE")
+f22=$(make_plan "$T22" "transcript-no-marker" "spec")
+(cd "$T22" && {
+  transcript_file="$TMPDIR_BASE/transcript_nomarker_$$.jsonl"
+  printf '%s\n' \
+    '{"type":"assistant","message":{"content":[{"type":"text","text":"### Verdict\nPASS (no marker)"}]}}' \
+    > "$transcript_file"
+  input="{\"session_id\":\"test-789\",\"transcript_path\":\"${transcript_file}\",\"stop_hook_active\":false,\"agent_type\":\"critic-spec\"}"
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 2 ] && grep -q "PARSE_ERROR" "$f22" && grep -q "BLOCKED" "$f22"; then
+    echo "PASS: record-verdict: transcript_path missing marker → exit 2, PARSE_ERROR + BLOCKED in plan"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: transcript_path missing marker case failed (exit=$got, PARSE_ERROR=$(grep -c PARSE_ERROR "$f22" 2>/dev/null), BLOCKED=$(grep -c BLOCKED "$f22" 2>/dev/null))"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 echo ""

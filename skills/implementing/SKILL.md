@@ -65,6 +65,8 @@ Agent(
   prompt: "Task: [goal]
            Target layer: [LAYER]
            Files: [paths]
+           Phase: green  ← do NOT modify any test file
+           Read-only paths (test files): [test file path(s)]
            Failing test: [test code]
            Test command: [command from project CLAUDE.md]
            Spec: [spec path]"

@@ -38,7 +38,12 @@ is_source_path() {
     src/domain/*|src/features/*|src/infrastructure/*|\
     */src/domain/*|*/src/features/*|*/src/infrastructure/*|\
     src/main/kotlin/*|src/main/java/*|\
-    packages/*/src/*)
+    packages/*/src/*|\
+    internal/*|cmd/*|\
+    app/*|app/models/*|app/controllers/*|app/services/*|\
+    lib/*|\
+    crates/*/src/*|\
+    apps/*/src/*)
       return 0 ;;
     *) return 1 ;;
   esac
