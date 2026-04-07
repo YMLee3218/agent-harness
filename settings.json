@@ -12,13 +12,15 @@
       "Bash(mise *)",
       "Bash(uv *)",
       "Bash(python --version)",
-      "Bash(node --version)"
+      "Bash(node --version)",
+      "Bash(git commit -m:*)"
     ],
     "deny": [
       "Read(~/.ssh/**)"
     ],
     "ask": [
-      "Bash(git commit *)",
+      "Bash(git commit --no-verify:*)",
+      "Bash(git commit --amend:*)",
       "Bash(git push *)",
       "Bash(curl *)",
       "Bash(rm *)",
@@ -33,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(rm -rf cycles|drop table|truncate)' && echo 'BLOCKED: destructive command' && exit 1 || exit 0"
+            "command": "bash /Users/svc/agent/meta/scripts/pretooluse-bash.sh"
           }
         ]
       }
@@ -57,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"/Users/svc/.local/share/mise/installs/node/22.22.1/lib/node_modules/claude-remote-approver/bin/cli.mjs\" hook"
+            "command": "bash /Users/svc/agent/meta/scripts/claude-remote-approver.sh"
           }
         ]
       }

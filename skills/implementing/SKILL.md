@@ -29,14 +29,14 @@ Mark tasks that can run in parallel (no shared file state).
 
 Call `ExitPlanMode` to request approval.
 
-## Step 2 — Track with TodoWrite
+## Step 2 — Track with TaskCreate
 
 After approval:
 
 ```
-TodoWrite([
-  { content: "Implement {task 1}", status: "pending", activeForm: "Implementing {task 1}" },
-  { content: "Implement {task 2}", status: "pending", activeForm: "Implementing {task 2}" },
+TaskCreate([
+  { content: "Implement {task 1}", status: "pending" },
+  { content: "Implement {task 2}", status: "pending" },
   ...
 ])
 ```
@@ -52,9 +52,10 @@ Task(
            Failing test: [test code].
            Test command: [command from project CLAUDE.md].
            Green phase: write minimum code to pass the test. Nothing more.
-           Then Refactor: remove duplication, improve naming.
+           Then Refactor: remove duplication, improve naming. Tests must stay green.
            Run tests after every refactor change — must stay passing.
-           Commit after Green. Commit after Refactor if changes are meaningful.
+           Commit once after Refactor is complete. Do not commit after Green separately.
+           If the refactor is substantial and independently reviewable, a second commit is acceptable.
            Commit format: {type}({scope}): {description}"
 )
 ```
@@ -129,7 +130,7 @@ If any critic re-run returns FAIL or tests fail at any point, fix the issue and 
 
 ## Session Recovery
 
-Use `TodoRead` to find the first `pending` or `in_progress` task and resume there.
+Use `TaskList` to find the first `pending` or `in_progress` task and resume there.
 
 ## Hard Stop
 

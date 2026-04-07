@@ -32,7 +32,7 @@ Small feature = calls one or a few domains; single responsibility
 Large feature = composes small features into a higher-level flow
 ```
 
-Name format: `{verb}-{noun}` kebab-case
+Name format: Features: `{verb}-{noun}` kebab-case. Domain concepts: `{noun}` singular kebab-case.
 
 List each candidate with its layer assignment.
 
@@ -61,7 +61,12 @@ After approval, create `docs/requirements/{name}.md`:
 - {explicitly excluded items}
 ```
 
-Then create a feature branch:
+Before creating the feature branch, check for these conditions and use `AskUserQuestion` if any apply:
+- **Not a git repo**: `git rev-parse --git-dir` fails → ask the user whether to initialise one first.
+- **Dirty working tree**: `git status --porcelain` returns changes → ask whether to stash or commit before branching.
+- **Branch already exists**: `git show-ref --verify refs/heads/feature/{name}` succeeds → ask whether to reuse or choose a different name.
+
+Then create the feature branch:
 
 ```bash
 git checkout -b feature/{name}
@@ -111,7 +116,9 @@ If Step 1 identified `docs/*.md` conflicts, update the affected `docs/*.md` file
 
 ### Step 3 — Write Output and Run critic-feature
 
-Create `docs/requirements/{name}.md` with the impact list and create a feature branch:
+Create `docs/requirements/{name}.md` with the impact list.
+
+Apply the same git pre-check (not a git repo / dirty tree / branch exists) from New Feature Flow Step 3 before running:
 
 ```bash
 git checkout -b feature/{name}

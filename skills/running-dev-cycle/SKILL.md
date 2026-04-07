@@ -7,6 +7,8 @@ disable-model-invocation: true
 
 # Development Cycle
 
+User-invocable only via `/running-dev-cycle`.
+
 Run each skill in order. Do not skip or reorder steps. Wait for each step to fully complete — including critic PASS and user approval — before invoking the next.
 
 ## Step 1 — Brainstorming
@@ -39,6 +41,6 @@ Do not proceed to Step 4 until:
 Invoke the `implementing` skill.
 
 Cycle is complete when:
-- All tasks are checked off in TodoWrite
+- All tasks are checked off in TaskList
 - `critic-code` returns PASS
 - `pr-review-toolkit` returns no unresolved issues

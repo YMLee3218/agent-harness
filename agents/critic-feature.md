@@ -4,7 +4,6 @@ description: >
   Reviews feature decomposition for classification errors, layer misassignment, and missing features. Run after brainstorming produces a candidate list, before writing-spec begins.
 tools: Read, Glob
 model: opus
-memory: none
 ---
 
 Review the provided feature decomposition and produce a verdict.

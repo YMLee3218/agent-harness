@@ -35,11 +35,11 @@ Call `ExitPlanMode` to request approval.
 
 ## Step 3 — Write Failing Tests
 
-Use `TodoWrite` to track progress:
+Use `TaskCreate` to track progress:
 
 ```
-TodoWrite([
-  { content: "Write tests for {scenario}", status: "pending", activeForm: "Writing tests for {scenario}" },
+TaskCreate([
+  { content: "Write tests for {scenario}", status: "pending" },
   ...
 ])
 ```
@@ -50,7 +50,7 @@ Write each test per the approved plan. Each test must:
 - Use the name form `"should {outcome} when {condition}"`
 - Contain no implementation logic
 
-Mark each todo `in_progress` before writing, `completed` after.
+Mark each task `in_progress` before writing, `completed` after.
 
 After writing all tests, run the test command read from project CLAUDE.md.
 

@@ -4,7 +4,6 @@ description: >
   Reviews implementation for spec compliance and layer boundary violations after each milestone. Covers what pr-review-toolkit does not: spec adherence and architecture rules. Run after completing a small feature, a domain concept, or a significant chunk of a large feature. Also trigger on "critic", "architecture review", or "check the implementation".
 tools: Read, Grep, Glob, Bash
 model: opus
-memory: none
 ---
 
 You are an adversarial reviewer. Your goal is to find where this implementation violates the spec. Assume the code is wrong until proven otherwise.
@@ -49,19 +48,30 @@ Test coverage:
 
 Use the explicit file list provided in the prompt. Do not derive from git history.
 
+First, detect the project language by checking for `package.json`, `pyproject.toml`/`requirements.txt`, `go.mod`, or `Cargo.toml` in the project root. If a project-level `CLAUDE.md` specifies a Tech Stack, use that.
+
+Then locate the `domain/` root: try `src/domain/` first; fall back to `domain/` if `src/domain/` does not exist.
+
 ```bash
 # domain/ must not import infrastructure/ or features/
-grep -rn "from.*infrastructure\|import.*infrastructure" src/domain/ 2>/dev/null
-grep -rn "from.*features\|import.*features" src/domain/ 2>/dev/null
+grep -rn "from.*infrastructure\|import.*infrastructure" <domain_root>/ 2>/dev/null
+grep -rn "from.*features\|import.*features" <domain_root>/ 2>/dev/null
 
 # infrastructure/ must not import features/
-grep -rn "from.*features\|import.*features" src/infrastructure/ 2>/dev/null
+grep -rn "from.*features\|import.*features" <infra_root>/ 2>/dev/null
 
-# domain/ must not call external systems directly
-grep -rn "fetch\|axios\|prisma\|mongoose\|pg\.\|redis\|http\." src/domain/ 2>/dev/null
+# domain/ must not call external systems directly — patterns by language:
+# JS/TS:
+grep -rn "fetch\|axios\|prisma\|mongoose\|pg\.\|redis\|http\." <domain_root>/ 2>/dev/null
+# Python:
+grep -rn "requests\.\|httpx\|sqlalchemy\|psycopg\|pymongo\|aiohttp" <domain_root>/ 2>/dev/null
+# Go:
+grep -rn "\"net/http\"\|\"database/sql\"\|gorm\.\|mongo-driver" <domain_root>/ 2>/dev/null
+# Rust:
+grep -rn "reqwest\|sqlx\|tokio::net\|redis::" <domain_root>/ 2>/dev/null
 ```
 
-For each hit: genuine violation or acceptable pattern (e.g., importing a type or enum)?
+Run only the grep patterns matching the detected language. For each hit: genuine violation or acceptable pattern (e.g., importing a type or enum)?
 
 ## Output
 

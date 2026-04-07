@@ -55,7 +55,7 @@ Cover for every scenario:
 - Same request while processing? Prior step incomplete?
 - Events out of order? Duplicate events?
 
-Every `Scenario Outline` Examples table includes: zero, negative one, maximum, empty, null.
+Every `Scenario Outline` Examples table covers boundaries **applicable to the input type** (numeric: zero, negative one, maximum; collection: empty; nullable: null).
 
 Call `ExitPlanMode` to request approval of the scenario structure.
 

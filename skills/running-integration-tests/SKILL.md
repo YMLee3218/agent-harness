@@ -7,6 +7,8 @@ disable-model-invocation: true
 
 # Integration Testing
 
+User-invocable only via `/running-integration-tests`.
+
 ## When to Run
 
 - Major features completed (milestone boundary)
