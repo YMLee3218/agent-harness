@@ -42,7 +42,12 @@ If tests pass: update plan file Phase to `done`. Done.
 
 If tests fail:
 
-1. Record each failure in `docs/requirements/{affected-feature}.md`
+1. Record each failure in `plans/{slug}.md` under a `## Integration Failures` section (append; do not overwrite). Do **not** write failure logs into `docs/requirements/` — that directory is for business requirements, not incident records.
+   ```
+   ### {date} — {test name}
+   Category: {docs conflict | spec gap | implementation bug}
+   Description: {one sentence}
+   ```
 2. Determine the failure category:
 
 **docs conflict** — implementation contradicts documented domain rules:
@@ -62,3 +67,8 @@ If tests fail:
    I will invoke {skill name} automatically after you confirm."
 
 4. After confirmation, invoke the appropriate skill via `Skill(...)`.
+
+5. Append to `## Phase Transitions` in the plan file:
+   ```
+   - integration → {rollback-phase} (reason: {one sentence})
+   ```

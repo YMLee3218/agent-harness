@@ -16,26 +16,44 @@ PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 
 get_active_phase() {
   local plan_file
-  plan_file=$("$PLAN_FILE_SH" find-active 2>/dev/null) || return 1
-  "$PLAN_FILE_SH" get-phase "$plan_file" 2>/dev/null || return 1
+  plan_file=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) || return 1
+  bash "$PLAN_FILE_SH" get-phase "$plan_file" 2>/dev/null || return 1
 }
 
-# Domain/feature/infrastructure source paths (blocked during red phase)
+# Domain/feature/infrastructure source paths (blocked during red phase).
+# Override with PHASE_GATE_SRC_GLOB (colon-separated glob patterns).
 is_source_path() {
   local p="$1"
+  if [ -n "${PHASE_GATE_SRC_GLOB:-}" ]; then
+    local pattern
+    while IFS= read -r pattern; do
+      case "$p" in $pattern) return 0 ;; esac
+    done < <(printf '%s\n' "$PHASE_GATE_SRC_GLOB" | tr ':' '\n')
+    return 1
+  fi
   case "$p" in
     src/domain/*|src/features/*|src/infrastructure/*|\
-    */src/domain/*|*/src/features/*|*/src/infrastructure/*)
+    */src/domain/*|*/src/features/*|*/src/infrastructure/*|\
+    src/main/kotlin/*|src/main/java/*|\
+    packages/*/src/*)
       return 0 ;;
     *) return 1 ;;
   esac
 }
 
-# Test paths (blocked during green phase to prevent cheating)
+# Test paths (blocked during green phase to prevent cheating).
+# Override with PHASE_GATE_TEST_GLOB (colon-separated glob patterns).
 is_test_path() {
   local p="$1"
+  if [ -n "${PHASE_GATE_TEST_GLOB:-}" ]; then
+    local pattern
+    while IFS= read -r pattern; do
+      case "$p" in $pattern) return 0 ;; esac
+    done < <(printf '%s\n' "$PHASE_GATE_TEST_GLOB" | tr ':' '\n')
+    return 1
+  fi
   case "$p" in
-    tests/*|*_test.*|*.test.*|*.spec.*) return 0 ;;
+    tests/*|*_test.*|test_*.*|*.test.*|*.spec.*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -88,7 +106,7 @@ mode_prompt() {
   if printf '%s' "$prompt_text" | grep -iqE "$impl_pattern"; then
     case "$phase" in
       brainstorm|spec)
-        printf '{"additionalContext": "현재 plan file의 Phase가 '\''%s'\''입니다. 구현을 시작하려면 먼저 /writing-spec, /writing-tests 를 완료하여 Phase를 '\''red'\''로 올리세요."}\n' "$phase"
+        printf 'Current plan phase is "%s". Complete /writing-spec and /writing-tests first to advance the phase to "red" before implementing.\n' "$phase"
         exit 0
         ;;
     esac

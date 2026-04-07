@@ -4,11 +4,6 @@ description: >
   Writes failing tests (Red phase) for every scenario in an approved spec.md. Trigger after spec is
   approved and the user says "write the tests", "write failing tests", "Red phase", or "start TDD".
   Do not write any implementation code — tests must fail.
-paths:
-  - "tests/**"
-  - "**/*_test.*"
-  - "**/*.test.*"
-  - "**/*.spec.*"
 ---
 
 # Writing Failing Tests
@@ -60,23 +55,28 @@ Each test must:
 
 After writing all tests, run the test command from project CLAUDE.md.
 
-Every test must fail. Flag any that pass — rewrite them until they fail.
+**Expected state:** every newly written test should fail (Red phase).
 
-Update plan file Phase to `red`. Update `## Test Manifest` with file:test_name → RED for each test.
+**Exception — existing implementation already satisfies a scenario:** if a test passes immediately and the scenario is already fully handled by existing code, do NOT force it to fail. Instead:
+1. Mark it `GREEN (pre-existing)` in `## Test Manifest`
+2. Note it in `## Open Questions` so the user can confirm the existing behaviour is intentional
+3. Skip the Green phase for that test — it does not need implementing
+
+Tests that pass due to incomplete test logic (e.g. empty assertions, wrong subject) must still be rewritten to fail properly.
+
+Update plan file Phase to `red`. Update `## Test Manifest` with file:test_name → RED or GREEN (pre-existing) for each test.
+
+After all tests are written, commit the red tests:
+```
+git add {test files}
+git commit -m "test(red): {scenario summary}"
+```
+This preserves the Red state across session interruptions.
 
 ## Step 4 — Run critic-test (max 2 iterations)
+
+Iteration protocol: @reference/critic-loop.md
 
 ```
 Skill("critic-test", "Review tests at [paths] against spec at [path]. Test command: [command].")
 ```
-
-**Iteration counter starts at 1.**
-
-If Critic returns FAIL:
-1. Output the full verdict
-2. Write fix plan (tests to rewrite, missing scenarios, mocking issues)
-3. Use `AskUserQuestion` to confirm fix plan
-4. Apply fixes with `Edit`
-5. If iteration < 2: increment counter, re-run Skill("critic-test"). Else: use `AskUserQuestion` — "critic-test has failed twice. Paste the latest verdict for manual review, or describe how to proceed."
-
-Append verdict to plan file `## Critic Verdicts`.

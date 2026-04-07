@@ -21,9 +21,17 @@ Determine first: **new feature** or **modification**?
 
 Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 
-Use `EnterPlanMode`, then `Glob` `src/features/` to find reusable existing features.
+Use `EnterPlanMode`, then:
+- `Glob` `src/features/` to find reusable existing features
+- `Glob` `docs/` and `Read` any `docs/*.md` that exist — these are the SOT for domain knowledge
+- `Read` `src/features/*/spec.md` for any features that may be reused (signatures and behaviour, not implementation)
 
-Use `AskUserQuestion` to resolve ambiguity — at most three questions:
+If `docs/` is empty or absent, use `AskUserQuestion` before proceeding:
+- "No docs/*.md found. What are the core domain rules and concepts for this feature? I'll create docs/{concept}.md before writing specs."
+
+After collecting the answer, write or update `docs/{concept}.md` (same template as initializing-project Step 3). This must happen before writing-spec runs — critics use docs/*.md as the contradiction SOT.
+
+Use `AskUserQuestion` to resolve requirement ambiguity — at most three questions:
 - "What does success look like?"
 - "What external systems or events are involved?"
 - "What are the failure cases?"
@@ -92,6 +100,7 @@ Append verdict to plan file `## Critic Verdicts`.
 Use `EnterPlanMode`, then:
 - `Read` relevant `docs/requirements/*.md` and `docs/*.md`
 - `Glob` `src/features/` and `src/domain/`
+- `Read` `src/features/*/spec.md` for any features affected by the modification
 
 Do not read `src/` implementation. If the modification conflicts with `docs/*.md`, list required doc updates. Write impact list to plan file. Call `ExitPlanMode`.
 

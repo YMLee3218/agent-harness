@@ -3,14 +3,8 @@ name: critic-feature
 description: >
   Reviews feature decomposition for classification errors, layer misassignment, and missing features. Run after brainstorming produces a candidate list, before writing-spec begins.
 tools: Read, Glob
-model: opus
-deprecated: true
+model: sonnet
 ---
-
-> **Deprecated** — moved to `skills/critic-feature/SKILL.md` (context: fork, model: sonnet).
-> This file is kept for downstream repos that have not yet updated. New invocations use `Skill("critic-feature")`.
-
-
 
 Read the requirements document at the path provided in the prompt before reviewing.
 

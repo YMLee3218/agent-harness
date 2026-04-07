@@ -14,8 +14,8 @@ VSA + DDD 레이어 정의 및 의존성 규칙 전문: @reference/layers.md
 
 # Commands
 
-- Test: `# Filled by initializing-project skill`
-- Integration test: `# Filled by initializing-project skill`
+- Test: _(run `/initializing-project` to fill this in)_
+- Integration test: _(run `/initializing-project` to fill this in)_
 
 # Prerequisites (글로벌 설정)
 

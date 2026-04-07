@@ -134,8 +134,8 @@ T6=$(mktemp -d -p "$TMPDIR_BASE")
 T7=$(mktemp -d -p "$TMPDIR_BASE")
 f7=$(make_plan "$T7" "rec-feature" "spec")
 (cd "$T7" && {
-  input='{"agent_name":"critic-spec","output":"## critic-spec Review\n\n### Verdict\nPASS"}'
-  printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"## critic-spec Review\n\n### Verdict\nPASS"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict
   got=$?
   if [ "$got" -eq 0 ] && grep -q "critic-spec" "$f7"; then
     echo "PASS: record-verdict: PASS recorded in plan file"
@@ -150,7 +150,7 @@ T8=$(mktemp -d -p "$TMPDIR_BASE")
 (cd "$T8" && {
   # Non-critic agent should be ignored (exit 0, no write)
   make_plan "$T8" "feat" "spec" >/dev/null
-  input='{"agent_name":"general-purpose","output":"Some output"}'
+  input='{"hook_event_name":"SubagentStop","agent_type":"general-purpose","last_assistant_message":"Some output"}'
   printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
   echo "PASS: record-verdict: non-critic agent ignored (exit 0)"
   PASS=$((PASS + 1))

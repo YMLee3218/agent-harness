@@ -14,6 +14,14 @@ User-invocable only via `/running-dev-cycle`.
 
 Run each skill in order. Do not skip or reorder steps. Wait for each step to fully complete — including critic PASS and user approval — before invoking the next.
 
+## Mode selection
+
+**Default: feature-slice mode** — processes each feature fully (spec → tests → implement) before starting the next. Reduces WIP and limits blast radius when a spec turns out wrong.
+
+**Batch mode** — writes all specs first, then all tests, then implements everything. Use only when the user explicitly requests it (`/running-dev-cycle --batch`).
+
+---
+
 ## Step 1 — Brainstorming
 
 Invoke the `brainstorming` skill.
@@ -24,18 +32,43 @@ Do not proceed to Step 2 until:
 - critic-feature returns PASS (or user has approved manual override)
 - Plan file `plans/{slug}.md` exists with Phase `brainstorm`
 
-## Step 2 — Spec (for each feature)
+---
+
+## Feature-slice mode (default)
 
 Read `docs/requirements/{name}.md` to get the full feature list (Small Features + Large Features sections).
 
-**For each feature in the list:**
+**For each feature in the list, in dependency order:**
+
+### Step 2a — Spec
+
+Invoke the `writing-spec` skill for the feature. Wait for critic-spec PASS.
+
+### Step 2b — Tests
+
+Invoke the `writing-tests` skill for the feature. Wait for critic-test PASS and Plan file Phase `red`.
+
+### Step 2c — Implementation
+
+Invoke the `implementing` skill for the feature. Wait until the feature's tasks are `completed`.
+
+Then move to the next feature. Repeat until all features are done.
+
+---
+
+## Batch mode (opt-in)
+
+### Step 2 — Spec (all features)
+
+Read `docs/requirements/{name}.md` to get the full feature list.
+
+For each feature:
 1. Invoke the `writing-spec` skill for that feature
 2. Wait for critic-spec PASS before moving to the next feature
-3. Confirm `{layer}/{feature-name}/spec.md` is written
 
 Do not proceed to Step 3 until all features have a PASS-verified spec.md.
 
-## Step 3 — Tests
+### Step 3 — Tests (all features)
 
 Invoke the `writing-tests` skill.
 
@@ -44,11 +77,13 @@ Do not proceed to Step 4 until:
 - critic-test returns PASS
 - Plan file Phase is `red`
 
-## Step 4 — Implementation
+### Step 4 — Implementation
 
 Invoke the `implementing` skill.
 
-The `implementing` skill handles critic-code and pr-review-toolkit internally. Do not run them separately here.
+---
+
+## Completion criteria
 
 Cycle is complete when:
 - All tasks are `completed`

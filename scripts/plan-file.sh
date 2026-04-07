@@ -90,7 +90,7 @@ cmd_append_verdict() {
 }
 
 cmd_find_active() {
-  local plans_dir="plans"
+  local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
   [ -d "$plans_dir" ] || { exit 2; }
   # Find newest plan file where Phase != done
   local found=""
@@ -115,8 +115,8 @@ cmd_record_verdict() {
   input=$(cat)
   # Extract agent/subagent name and output
   local agent_name output
-  agent_name=$(printf '%s' "$input" | jq -r '.agent_name // .subagent_type // "unknown"' 2>/dev/null || echo "unknown")
-  output=$(printf '%s' "$input" | jq -r '.output // .result // ""' 2>/dev/null || echo "")
+  agent_name=$(printf '%s' "$input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
+  output=$(printf '%s' "$input" | jq -r '.last_assistant_message // ""' 2>/dev/null || echo "")
 
   # Only record for critic-* agents
   case "$agent_name" in

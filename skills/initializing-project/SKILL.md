@@ -64,6 +64,24 @@ Feature: {concept name}
   # Scenarios to be written by writing-spec skill
 ```
 
+**Write `docs/{concept}.md` for each domain concept** (this is the SOT that critics use for contradiction checks):
+
+```markdown
+# {Concept Name}
+
+## Definition
+{One-paragraph description of what this concept is and is not}
+
+## Rules
+- {Invariant or business rule}
+
+## Vocabulary
+- **{term}**: {definition}
+```
+
+If docs/ already contains relevant files, read and preserve them. If docs/ is absent and the user provided no domain documentation, use `AskUserQuestion`:
+- "What are the core rules and constraints for {concept}? I'll use this to create docs/{concept}.md."
+
 Write `CLAUDE.md` at project root:
 
 ```markdown
@@ -108,6 +126,9 @@ phase: brainstorm
 
 ## Phase
 brainstorm
+
+## Phase Transitions
+- brainstorm → (initial)
 
 ## Critic Verdicts
 

@@ -5,10 +5,6 @@ description: >
   critic-test returns PASS and the user says "implement", "make the tests pass", "Green phase",
   "go", or "proceed". Run plan mode first to propose implementation order, then execute with
   isolated subagents per task.
-paths:
-  - "src/features/**"
-  - "src/domain/**"
-  - "src/infrastructure/**"
 ---
 
 # Implementation Workflow
@@ -55,12 +51,28 @@ Update plan file Phase to `green`.
 
 Use `TaskList` to find the first `pending` task. Mark it `in_progress`, then:
 
+Before spawning the subagent, determine the current file's layer by checking its path:
+- `src/domain/` → **Domain** (no external dependencies; no import of infrastructure or features)
+- `src/infrastructure/` → **Infrastructure** (may import domain interfaces only; never imports features)
+- `src/features/` small → **Small Feature** (may import domain and infrastructure; no other features)
+- `src/features/` large → **Large Feature** (composes small features only; never imports domain directly)
+
 ```
 Agent(
   subagent_type: "general-purpose",
   prompt: "Implement [goal]. Files: [paths].
            Failing test: [test code].
            Test command: [command from project CLAUDE.md].
+
+           Layer rules for this task:
+           This file belongs to the [LAYER] layer.
+           Forbidden imports for this layer:
+             Domain: must never import src/infrastructure/ or src/features/
+             Infrastructure: must never import src/features/
+             Small feature: must never import other features/
+             Large feature: must never import src/domain/ directly — compose small features only
+           Violating these rules will cause critic-code to FAIL.
+
            Green phase: write minimum code to pass the test. Nothing more.
            Then Refactor: remove duplication, improve naming. Tests must stay green.
            Run tests after every refactor change.
@@ -77,28 +89,20 @@ After all tasks complete, update plan file Phase to `refactor`.
 
 ## Step 4 — Run critic-code at milestones (max 2 iterations per milestone)
 
+Iteration protocol: @reference/critic-loop.md
+
 Track changed files during this milestone. Run after: a complete small feature, a domain concept's full rule set, or a significant chunk of a large feature.
 
 ```
 Skill("critic-code", "Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths].")
 ```
 
-**Iteration counter starts at 1.**
+On `[DOCS CONTRADICTION]`: update `docs/*.md` first, then cascade: re-run Skill("critic-spec") if spec changed → re-run Skill("critic-test") if tests changed → run test command → re-run Skill("critic-code").
 
-If Critic returns FAIL:
-1. Output the full verdict
-2. If `[DOCS CONTRADICTION]`: use `AskUserQuestion` — "Should docs be updated, or code fixed to match docs?"
-   - Docs update: update `docs/*.md` first
-   - Write fix plan: spec → tests → code
-3. Otherwise: write fix plan: spec changes (if any) → test changes → code changes
-4. Use `AskUserQuestion` to confirm fix plan
-5. Apply fixes with `Edit`
-6. If spec was modified: re-run Skill("critic-spec") with updated spec + docs paths
-7. Re-run Skill("critic-test") with updated test paths, spec path, test command
-8. Run the test command — all tests must pass
-9. If iteration < 2: increment counter, re-run Skill("critic-code"). Else: use `AskUserQuestion` — "critic-code has failed twice. Paste the latest verdict for manual review."
-
-Append verdict to plan file `## Critic Verdicts`.
+When any cascade causes a phase rollback, append to `## Phase Transitions` in the plan file:
+```
+- {current-phase} → {rollback-phase} (reason: {one sentence})
+```
 
 ## Step 5 — Run pr-review-toolkit
 

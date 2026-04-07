@@ -3,14 +3,8 @@ name: critic-test
 description: >
   Reviews failing tests for scenario coverage and correct mocking levels before implementation begins. Run after writing-tests completes, before implementing starts.
 tools: Read, Glob, Bash
-model: opus
-deprecated: true
+model: sonnet
 ---
-
-> **Deprecated** — moved to `skills/critic-test/SKILL.md` (context: fork, model: sonnet).
-> This file is kept for downstream repos that have not yet updated. New invocations use `Skill("critic-test")`.
-
-
 
 Review the provided test files against the spec.md and produce a verdict.
 
@@ -46,9 +40,13 @@ Report as `[WARN]` when the issue would improve test quality but does not leave 
 - Names follow `"should {outcome} when {condition}"`
 - No implementation logic inside tests
 
-**Confirm all tests fail:**
+**Confirm all tests fail (with exception):**
 
-Run the test command provided in the prompt. Every test must fail. Flag any that pass.
+Run the test command provided in the prompt. Newly written tests must fail.
+
+Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed to pass — it means existing code already satisfies the scenario. Do not flag these as issues; confirm they are marked correctly.
+
+Flag any test that passes but is NOT marked `GREEN (pre-existing)` in the Test Manifest.
 
 ## Output
 
@@ -64,8 +62,9 @@ None: "All scenarios covered"
 None: "All mocking levels correct"
 
 ### Failing Confirmation
-All tests fail: YES / NO
-Passing tests (wrong): {list or "none"}
+All newly written tests fail: YES / NO
+Passing tests not marked GREEN (pre-existing): {list or "none"}
+GREEN (pre-existing) tests confirmed: {list or "none"}
 
 ### Verdict
 PASS

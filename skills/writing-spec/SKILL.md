@@ -58,23 +58,24 @@ Update plan file Phase to `spec`.
 
 ## Step 4 — Run critic-spec (max 2 iterations)
 
+Iteration protocol: @reference/critic-loop.md
+
 ```
 Skill("critic-spec", "Review spec at [path]. Relevant docs: [paths].")
 ```
 
-**Iteration counter starts at 1.**
+On `[DOCS CONTRADICTION]`: update `docs/*.md` first, then fix the spec to match.
 
-If Critic returns FAIL:
-1. Output the full verdict
-2. If `[DOCS CONTRADICTION]`: use `AskUserQuestion` — "Should docs be updated to match the spec, or spec fixed to match docs?"
-   - Docs update: update `docs/*.md` first, then fix spec
-   - Spec fix: write fix plan for spec changes
-3. Otherwise: write fix plan (which scenarios to add or structural issues to resolve)
-4. Use `AskUserQuestion` to confirm fix plan
-5. Apply fixes with `Edit`
-6. If iteration < 2: increment counter, re-run Skill("critic-spec"). Else: use `AskUserQuestion` — "critic-spec has failed twice. Paste the latest verdict for manual review, or describe how to proceed."
+## Phase rollback
 
-Append verdict to plan file `## Critic Verdicts`.
+If re-entering `writing-spec` from a later phase (e.g., a bug or review revealed the spec was wrong):
+1. Preserve all existing `## Critic Verdicts` — do not delete them
+2. Append a phase transition entry to `## Phase Transitions`:
+   ```
+   - {previous-phase} → spec (reason: {one sentence})
+   ```
+3. Update `## Phase` to `spec`
+4. Proceed normally from Step 2
 
 ## Rules
 

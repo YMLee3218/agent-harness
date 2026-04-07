@@ -6,10 +6,10 @@ description: >
   a small feature, a domain concept, or a significant chunk of a large feature. Also trigger on
   "critic", "architecture review", or "check the implementation".
 context: fork
+agent: critic-code
 allowed-tools: [Read, Grep, Glob, Bash]
 model: sonnet
 effort: high
-disable-model-invocation: true
 ---
 
 Severity rules: @reference/severity.md
@@ -38,7 +38,7 @@ Test coverage:
 
 ## Angle 2 — Layer boundary
 
-Detect project language: check for `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`, `*.csproj`, `Gemfile`. Use project CLAUDE.md Tech Stack if present.
+Detect project language: check for `package.json` (→ `ts`), `pyproject.toml`/`requirements.txt` (→ `python`), `go.mod` (→ `go`), `Cargo.toml` (→ `rust`), `pom.xml`/`build.gradle` + `*.kt` (→ `kotlin`), `pom.xml`/`build.gradle` (→ `java`), `*.csproj` (→ `cs`), `Gemfile` (→ `rb`). Use project CLAUDE.md Tech Stack if present.
 
 Run the language-specific boundary checker:
 
@@ -46,7 +46,7 @@ Run the language-specific boundary checker:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/{language}.sh" <domain_root> <infra_root> <features_root>
 ```
 
-Where `{language}` is one of: `python`, `go`, `ts`, `java`, `kotlin`, `rb`, `cs`.
+Where `{language}` is one of: `python`, `go`, `ts`, `java`, `kotlin`, `rb`, `cs`, `rust`.
 
 If no language dispatcher matches, run the generic fallback:
 ```bash

@@ -7,36 +7,54 @@ domain="${1:-src/domain}"
 infra="${2:-src/infrastructure}"
 features="${3:-src/features}"
 
+EXCLUDES="--exclude-dir=.venv --exclude-dir=venv --exclude-dir=__pycache__ --exclude-dir=.mypy_cache --exclude-dir=dist --exclude-dir=build"
+
 echo "=== Python layer boundary check ==="
 
 echo "--- domain/ must not import infrastructure/ or features/ ---"
-grep -rn \
-  -e "from.*infrastructure" \
-  -e "import.*infrastructure" \
-  -e "from.*features" \
-  -e "import.*features" \
+grep -rn $EXCLUDES \
+  -e "^from[[:space:]].*infrastructure" \
+  -e "^import[[:space:]].*infrastructure" \
+  -e "^from[[:space:]].*features" \
+  -e "^import[[:space:]].*features" \
   "$domain/" 2>/dev/null | grep -v "^Binary" || echo "(none)"
 
 echo "--- domain/ must not call external systems ---"
-grep -rn \
-  -e "requests\." \
-  -e "httpx" \
-  -e "sqlalchemy" \
-  -e "psycopg" \
-  -e "pymongo" \
-  -e "aiohttp" \
-  -e "boto3" \
-  -e "redis\." \
+grep -rn $EXCLUDES \
+  -e "^import[[:space:]]*requests" \
+  -e "^from[[:space:]]*requests" \
+  -e "^import[[:space:]]*httpx" \
+  -e "^from[[:space:]]*httpx" \
+  -e "^import[[:space:]]*sqlalchemy" \
+  -e "^from[[:space:]]*sqlalchemy" \
+  -e "^import[[:space:]]*psycopg" \
+  -e "^from[[:space:]]*psycopg" \
+  -e "^import[[:space:]]*pymongo" \
+  -e "^from[[:space:]]*pymongo" \
+  -e "^import[[:space:]]*aiohttp" \
+  -e "^from[[:space:]]*aiohttp" \
+  -e "^import[[:space:]]*boto3" \
+  -e "^from[[:space:]]*boto3" \
+  -e "^import[[:space:]]*aiobotocore" \
+  -e "^from[[:space:]]*aiobotocore" \
+  -e "^import[[:space:]]*asyncpg" \
+  -e "^from[[:space:]]*asyncpg" \
+  -e "^import[[:space:]]*motor" \
+  -e "^from[[:space:]]*motor" \
+  -e "^import[[:space:]]*databases" \
+  -e "^from[[:space:]]*databases" \
+  -e "^import[[:space:]]*redis" \
+  -e "^from[[:space:]]*redis" \
   "$domain/" 2>/dev/null | grep -v "^Binary" || echo "(none)"
 
 echo "--- infrastructure/ must not import features/ ---"
-grep -rn \
-  -e "from.*features" \
-  -e "import.*features" \
+grep -rn $EXCLUDES \
+  -e "^from[[:space:]].*features" \
+  -e "^import[[:space:]].*features" \
   "$infra/" 2>/dev/null | grep -v "^Binary" || echo "(none)"
 
-echo "--- features/ (large) must not call domain directly (check for direct domain imports in large feature files) ---"
-grep -rn \
-  -e "from.*domain" \
-  -e "import.*domain" \
+echo "--- features/ (large) must not call domain directly ---"
+grep -rn $EXCLUDES \
+  -e "^from[[:space:]].*domain" \
+  -e "^import[[:space:]].*domain" \
   "$features/" 2>/dev/null | grep -v "^Binary" || echo "(none — verify manually if large features exist)"
