@@ -6,6 +6,13 @@
   "publisher": "svc",
   "license": "MIT",
   "homepage": "https://github.com/svc/agent",
+  "agents": [
+    "agents/critic-feature.md",
+    "agents/critic-spec.md",
+    "agents/critic-test.md",
+    "agents/critic-code.md",
+    "agents/coder.md"
+  ],
   "skills": [
     "skills/brainstorming/SKILL.md",
     "skills/writing-spec/SKILL.md",

@@ -2,6 +2,22 @@
 
 Standard max-2-iteration protocol used by every phase-gate critic.
 
+## Mandatory verdict marker
+
+Every critic agent **must** emit exactly one of the following as the last line of its output:
+
+```
+<!-- verdict: PASS -->
+```
+
+or
+
+```
+<!-- verdict: FAIL -->
+```
+
+This marker is machine-parsed by `plan-file.sh record-verdict`. Output that does not end with this marker will be recorded as `PARSE_ERROR` in the plan file.
+
 ## Running the critic
 
 Invoke the critic skill with the relevant paths. Iteration counter starts at 1.

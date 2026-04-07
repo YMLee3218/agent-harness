@@ -165,14 +165,23 @@ cmd_record_verdict() {
   local plan_file
   plan_file=$(cmd_find_active 2>/dev/null) || exit 2
 
-  # Extract verdict line — match PASS/FAIL anywhere in a line (handles bold, indented, prefixed)
-  local verdict
-  verdict=$(printf '%s' "$output" | grep -oE '\b(PASS|FAIL)\b[^\n]*' | tail -1 || true)
-  [ -z "$verdict" ] && verdict="(no verdict line found)"
+  # Extract verdict from mandatory HTML marker: <!-- verdict: PASS --> or <!-- verdict: FAIL -->
+  local verdict=""
+  if printf '%s' "$output" | grep -q '<!-- verdict: PASS -->'; then
+    verdict="PASS"
+  elif printf '%s' "$output" | grep -q '<!-- verdict: FAIL -->'; then
+    verdict="FAIL"
+  fi
 
   local current_phase
   current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
-  cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: ${verdict}"
+
+  if [ -z "$verdict" ]; then
+    echo "[record-verdict] missing verdict marker from ${agent_name}" >&2
+    cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
+  else
+    cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: ${verdict}"
+  fi
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────

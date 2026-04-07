@@ -209,18 +209,67 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-# ── Tests: record-verdict with bold FAIL line ─────────────────────────────────
+# ── Tests: record-verdict with bold FAIL line (no marker) → PARSE_ERROR ───────
+# Legacy format (bold **FAIL** without marker) is intentionally not supported.
+# Without the <!-- verdict: FAIL --> marker the result must be PARSE_ERROR.
 
 T12=$(mktemp -d -p "$TMPDIR_BASE")
 f12=$(make_plan "$T12" "bold-feat" "spec")
 (cd "$T12" && {
   input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\n**FAIL** — missing scenario"}'
   printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
-  if grep -q "FAIL" "$f12"; then
-    echo "PASS: record-verdict: bold FAIL line recorded"
+  if grep -q "PARSE_ERROR" "$f12"; then
+    echo "PASS: record-verdict: bold FAIL without marker → PARSE_ERROR"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: record-verdict: bold FAIL line not found in plan file"
+    echo "FAIL: record-verdict: expected PARSE_ERROR for bold FAIL without marker"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: record-verdict strict marker parsing ──────────────────────────────
+
+# Case 1: PASS marker present → recorded as PASS
+T13=$(mktemp -d -p "$TMPDIR_BASE")
+f13=$(make_plan "$T13" "marker-pass" "spec")
+(cd "$T13" && {
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nPASS\n<!-- verdict: PASS -->"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  if grep -q "spec/critic-spec: PASS" "$f13"; then
+    echo "PASS: record-verdict strict: PASS marker recorded correctly"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict strict: PASS marker not found in plan file"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# Case 2: FAIL marker present → recorded as FAIL
+T14=$(mktemp -d -p "$TMPDIR_BASE")
+f14=$(make_plan "$T14" "marker-fail" "spec")
+(cd "$T14" && {
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  if grep -q "spec/critic-spec: FAIL" "$f14"; then
+    echo "PASS: record-verdict strict: FAIL marker recorded correctly"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict strict: FAIL marker not found in plan file"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# Case 3: No marker → recorded as PARSE_ERROR with stderr warning
+T15=$(mktemp -d -p "$TMPDIR_BASE")
+f15=$(make_plan "$T15" "marker-missing" "spec")
+(cd "$T15" && {
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nPASS"}'
+  stderr_out=$(printf '%s' "$input" | bash "$SCRIPT" record-verdict 2>&1 >/dev/null)
+  if grep -q "PARSE_ERROR" "$f15" && printf '%s' "$stderr_out" | grep -q "missing verdict marker"; then
+    echo "PASS: record-verdict strict: missing marker → PARSE_ERROR in file + stderr warning"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict strict: missing marker case failed (file has PARSE_ERROR=$(grep -c PARSE_ERROR "$f15" 2>/dev/null), stderr='$stderr_out')"
     FAIL=$((FAIL + 1))
   fi
 })

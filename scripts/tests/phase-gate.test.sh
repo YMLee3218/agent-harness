@@ -162,6 +162,24 @@ EOF
 write_input "src/domain/foo.py" | CLAUDE_PROJECT_DIR="$T13" bash "$SCRIPT" write >/dev/null 2>&1
 check "write/red (uppercase phase): source file blocked" 2 $?
 
+# ── Test 14: write/no-plan — fail-open emits stderr warning ──────────────────
+
+T14=$(mktemp -d -p "$TMPDIR_BASE")
+stderr_out=$(write_input "src/domain/foo.py" | CLAUDE_PROJECT_DIR="$T14" bash "$SCRIPT" write 2>&1 >/dev/null)
+if printf '%s' "$stderr_out" | grep -q "no active plan file"; then
+  echo "PASS: write/no-plan: fail-open emits stderr warning"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: write/no-plan: expected stderr warning, got='$stderr_out'"
+  FAIL=$((FAIL + 1))
+fi
+
+# ── Test 15: write/no-plan with PHASE_GATE_STRICT=1 — blocked ────────────────
+
+T15=$(mktemp -d -p "$TMPDIR_BASE")
+write_input "src/domain/foo.py" | CLAUDE_PROJECT_DIR="$T15" PHASE_GATE_STRICT=1 bash "$SCRIPT" write >/dev/null 2>&1
+check "write/no-plan + PHASE_GATE_STRICT=1: blocked" 2 $?
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 echo ""

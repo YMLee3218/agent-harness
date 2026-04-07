@@ -55,32 +55,20 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.
 Use `TaskList` to find the first `pending` task. Mark it `in_progress`, then:
 
 Before spawning the subagent, determine the current file's layer by checking its path:
-- `src/domain/` → **Domain** (no external dependencies; no import of infrastructure or features)
-- `src/infrastructure/` → **Infrastructure** (may import domain interfaces only; never imports features)
-- `src/features/` small → **Small Feature** (may import domain and infrastructure; no other features)
-- `src/features/` large → **Large Feature** (composes small features only; never imports domain directly)
+- `src/domain/` → **Domain**
+- `src/infrastructure/` → **Infrastructure**
+- `src/features/` small → **Small Feature**
+- `src/features/` large → **Large Feature**
 
 ```
 Agent(
-  subagent_type: "general-purpose",
-  prompt: "Implement [goal]. Files: [paths].
-           Failing test: [test code].
-           Test command: [command from project CLAUDE.md].
-
-           Layer rules for this task:
-           This file belongs to the [LAYER] layer.
-           Forbidden imports for this layer:
-             Domain: must never import src/infrastructure/ or src/features/
-             Infrastructure: must never import src/features/
-             Small feature: must never import other features/
-             Large feature: must never import src/domain/ directly — compose small features only
-           Violating these rules will cause critic-code to FAIL.
-
-           Green phase: write minimum code to pass the test. Nothing more.
-           Then Refactor: remove duplication, improve naming. Tests must stay green.
-           Run tests after every refactor change.
-           Commit once after Refactor is complete.
-           Commit format: {type}({scope}): {description}"
+  subagent_type: "coder",
+  prompt: "Task: [goal]
+           Target layer: [LAYER]
+           Files: [paths]
+           Failing test: [test code]
+           Test command: [command from project CLAUDE.md]
+           Spec: [spec path]"
 )
 ```
 

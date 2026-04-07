@@ -28,6 +28,8 @@ export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:*.test.*:*.spec.ts:*.spec.js"
 
 Defaults cover Maven (`src/main/kotlin/`, `src/main/java/`), standard JS/Python (`src/{domain,features,infrastructure}/`), and monorepos (`packages/*/src/`). Set these in `initializing-project` step for the project.
 
+`PHASE_GATE_STRICT=1` — when set, the phase gate blocks all writes if no active plan file exists (fail-closed mode). Default is fail-open: writes are allowed with a stderr warning. Use in CI or mature projects where writes outside a plan should never be silent.
+
 # Prerequisites (global settings)
 
 The following belong in **each developer's `~/.claude/settings.json`**, not in the bundle (`workspace/`).

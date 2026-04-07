@@ -70,7 +70,14 @@ mode_write() {
   input=$(cat)
 
   local phase
-  phase=$(get_active_phase) || exit 0   # no active plan → allow
+  if ! phase=$(get_active_phase); then
+    if [ "${PHASE_GATE_STRICT:-0}" = "1" ]; then
+      echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1 and no active plan file. Run /initializing-project to set up gating." >&2
+      exit 2
+    fi
+    echo "[phase-gate] no active plan file; write allowed. Run /initializing-project to enable gating." >&2
+    exit 0
+  fi
 
   local file_path
   file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
