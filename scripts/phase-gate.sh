@@ -16,7 +16,10 @@ PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 
 get_active_phase() {
   local plan_file
-  plan_file=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) || return 1
+  # Prefer active (non-done) plan; fall back to most recent plan to detect 'done' phase
+  plan_file=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) \
+    || plan_file=$(bash "$PLAN_FILE_SH" find-latest 2>/dev/null) \
+    || return 1
   bash "$PLAN_FILE_SH" get-phase "$plan_file" 2>/dev/null || return 1
 }
 
@@ -52,7 +55,9 @@ is_test_path() {
     done < <(printf '%s\n' "$PHASE_GATE_TEST_GLOB" | tr ':' '\n')
     return 1
   fi
+  # Exclude *.spec.md — these are BDD spec files, not test runners
   case "$p" in
+    *.spec.md) return 1 ;;
     tests/*|*_test.*|test_*.*|*.test.*|*.spec.*) return 0 ;;
     *) return 1 ;;
   esac
@@ -72,6 +77,12 @@ mode_write() {
   [ -z "$file_path" ] && exit 0
 
   case "$phase" in
+    brainstorm|spec)
+      if is_source_path "$file_path"; then
+        echo "BLOCKED [phase-gate]: Phase is '$phase'. Writing source files is not allowed before Red phase. Complete /writing-spec and /writing-tests first." >&2
+        exit 2
+      fi
+      ;;
     red)
       if is_source_path "$file_path"; then
         echo "BLOCKED [phase-gate]: Phase is 'red' (Red phase). Writing source files in src/domain/, src/features/, src/infrastructure/ is not allowed during Red phase. Write tests only." >&2
@@ -83,6 +94,10 @@ mode_write() {
         echo "BLOCKED [phase-gate]: Phase is 'green' (Green phase). Modifying test files is not allowed — tests must remain as written during Red phase. Fix the implementation, not the tests." >&2
         exit 2
       fi
+      ;;
+    done)
+      echo "BLOCKED [phase-gate]: Phase is 'done'. This feature is complete. Create a new plan file to start a new feature." >&2
+      exit 2
       ;;
   esac
 

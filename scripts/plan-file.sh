@@ -45,7 +45,9 @@ cmd_get_phase() {
   local plan_file="$1"
   require_file "$plan_file"
   local phase
-  phase=$(awk '/^## Phase$/{found=1; next} found && /^[a-z]/{print; exit} found && /^##/{exit}' "$plan_file")
+  # Accept both lowercase and uppercase phase values; trim leading/trailing whitespace
+  phase=$(awk '/^## Phase$/{found=1; next} found && /^[A-Za-z]/{print; exit} found && /^##/{exit}' "$plan_file" \
+          | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
   if [ -z "$phase" ]; then
     echo "ERROR: '## Phase' section not found or empty in $plan_file" >&2
     exit 2
@@ -62,13 +64,20 @@ cmd_set_phase() {
     [ "$p" = "$phase" ] && valid=1 && break
   done
   [ "$valid" -eq 1 ] || die "invalid phase: $phase (must be one of: $VALID_PHASES)"
-  # Replace the line after ## Phase
+  # Replace the line after ## Phase (handles both lowercase and uppercase existing values)
   awk -v phase="$phase" '
     /^## Phase$/ { print; found=1; next }
-    found && /^[a-z]/ { print phase; found=0; next }
-    found && /^[^a-z]/ { print phase; print; found=0; next }
+    found && /^[A-Za-z]/ { print phase; found=0; next }
+    found && !/^[A-Za-z]/ { print phase; print; found=0; next }
     { print }
   ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
+  # Also sync frontmatter phase: field if present
+  if grep -q "^phase:" "$plan_file"; then
+    awk -v phase="$phase" '
+      /^phase:/ { print "phase: " phase; next }
+      { print }
+    ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
+  fi
 }
 
 cmd_append_verdict() {
@@ -92,11 +101,30 @@ cmd_append_verdict() {
 cmd_find_active() {
   local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
   [ -d "$plans_dir" ] || { exit 2; }
-  # Find newest plan file where Phase != done
+
+  _read_phase() {
+    awk '/^## Phase$/{found=1; next} found && /^[A-Za-z]/{print; exit}' "$1" 2>/dev/null \
+      | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true
+  }
+
+  # Try branch-based lookup first: plans/{branch-slug}.md
+  local branch
+  branch=$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" symbolic-ref --short HEAD 2>/dev/null \
+           | sed 's|.*/||; s|[^A-Za-z0-9_-]|-|g' || true)
+  if [ -n "$branch" ] && [ -f "$plans_dir/${branch}.md" ]; then
+    local bphase
+    bphase=$(_read_phase "$plans_dir/${branch}.md")
+    if [ -n "$bphase" ] && [ "$bphase" != "done" ]; then
+      echo "$plans_dir/${branch}.md"
+      return 0
+    fi
+  fi
+
+  # Fallback: newest plan file where Phase != done
   local found=""
   while IFS= read -r f; do
     local phase
-    phase=$(awk '/^## Phase$/{found=1; next} found && /^[a-z]/{print; exit}' "$f" 2>/dev/null || true)
+    phase=$(_read_phase "$f")
     if [ -n "$phase" ] && [ "$phase" != "done" ]; then
       found="$f"
       break
@@ -109,14 +137,23 @@ cmd_find_active() {
   fi
 }
 
+cmd_find_latest() {
+  local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
+  [ -d "$plans_dir" ] || { exit 2; }
+  local f
+  f=$(ls -t "$plans_dir"/*.md 2>/dev/null | head -1)
+  [ -n "$f" ] && echo "$f" || exit 2
+}
+
 cmd_record_verdict() {
   require_jq
   local input
   input=$(cat)
   # Extract agent/subagent name and output
+  # Field names per Claude Code SubagentStop payload; include fallback aliases
   local agent_name output
-  agent_name=$(printf '%s' "$input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
-  output=$(printf '%s' "$input" | jq -r '.last_assistant_message // ""' 2>/dev/null || echo "")
+  agent_name=$(printf '%s' "$input" | jq -r '.agent_type // .subagent_type // "unknown"' 2>/dev/null || echo "unknown")
+  output=$(printf '%s' "$input" | jq -r '.last_assistant_message // .tool_response // ""' 2>/dev/null || echo "")
 
   # Only record for critic-* agents
   case "$agent_name" in
@@ -128,9 +165,9 @@ cmd_record_verdict() {
   local plan_file
   plan_file=$(cmd_find_active 2>/dev/null) || exit 2
 
-  # Extract verdict line (last PASS or FAIL line)
+  # Extract verdict line — match PASS/FAIL anywhere in a line (handles bold, indented, prefixed)
   local verdict
-  verdict=$(printf '%s' "$output" | grep -E '^(PASS|FAIL)' | tail -1 || true)
+  verdict=$(printf '%s' "$output" | grep -oE '\b(PASS|FAIL)\b[^\n]*' | tail -1 || true)
   [ -z "$verdict" ] && verdict="(no verdict line found)"
 
   local current_phase
@@ -147,6 +184,7 @@ case "$1" in
   set-phase)      [ $# -eq 3 ] || die "Usage: plan-file.sh set-phase <plan-file> <phase>"; cmd_set_phase "$2" "$3" ;;
   append-verdict) [ $# -eq 3 ] || die "Usage: plan-file.sh append-verdict <plan-file> <label>"; cmd_append_verdict "$2" "$3" ;;
   find-active)    cmd_find_active ;;
+  find-latest)    cmd_find_latest ;;
   record-verdict) cmd_record_verdict ;;
   *) die "Unknown command: $1" ;;
 esac

@@ -72,7 +72,10 @@ Pre-branch checks — use `AskUserQuestion` if any apply:
 
 Then: `git checkout -b feature/{name}`
 
-Update plan file Phase to `brainstorm`.
+Set plan file phase:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" brainstorm
+```
 
 ### Step 4 — Run critic-feature (max 2 iterations)
 

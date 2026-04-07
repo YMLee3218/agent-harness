@@ -51,6 +51,14 @@ run "git commit -m x --amend"          "$(j 'git commit -m x --amend')"         
 run "git commit --fixup HEAD"          "$(j 'git commit --fixup HEAD')"             0
 run "truncate table_backup.sql"        "$(j 'truncate table_backup.sql')"           0
 
+# --- Bypass patterns (exit 2) ---
+run "pipe-to-bash: echo payload | bash"    "$(j 'echo rm -rf / | bash')"               2
+run "pipe-to-sh: payload | sh"             "$(j 'cat script.sh | sh')"                 2
+run "git -c hooksPath bypass"              "$(j 'git -c core.hooksPath=/dev/null commit')" 2
+
+# --- Bypass patterns that should still be allowed ---
+run "pipe grep (safe)"                     "$(j 'ls | grep foo')"                      0
+
 # --- jq absent → fail-closed (exit 2) ---
 if [ "$(PATH=/usr/bin command -v jq 2>/dev/null)" = "" ]; then
   PATH=/usr/bin bash "$SCRIPT" <<< '{"tool_input":{"command":"ls"}}' >/dev/null 2>&1

@@ -11,9 +11,13 @@ EXCLUDES="--exclude-dir=vendor --exclude-dir=testdata"
 echo "=== Go layer boundary check ==="
 
 echo "--- domain/ must not import infrastructure/ or features/ ---"
+# Match import path strings only: tab-indented quoted paths (Go import block style)
+# Avoids false positives from log messages or string literals containing these words
 grep -rn $EXCLUDES \
-  -e '".*infrastructure' \
-  -e '".*features' \
+  -e $'^\t"[^"]*infrastructure' \
+  -e $'^\t"[^"]*features' \
+  -e '^import[[:space:]]*"[^"]*infrastructure' \
+  -e '^import[[:space:]]*"[^"]*features' \
   "$domain/" 2>/dev/null | grep -v "^Binary" || echo "(none)"
 
 echo "--- domain/ must not call external systems ---"
@@ -32,10 +36,12 @@ grep -rn $EXCLUDES \
 
 echo "--- infrastructure/ must not import features/ ---"
 grep -rn $EXCLUDES \
-  -e '".*features' \
+  -e $'^\t"[^"]*features' \
+  -e '^import[[:space:]]*"[^"]*features' \
   "$infra/" 2>/dev/null | grep -v "^Binary" || echo "(none)"
 
 echo "--- features/ large feature domain direct calls ---"
 grep -rn $EXCLUDES \
-  -e '".*domain' \
+  -e $'^\t"[^"]*domain' \
+  -e '^import[[:space:]]*"[^"]*domain' \
   "$features/" 2>/dev/null | grep -v "^Binary" || echo "(none — verify manually if large features exist)"

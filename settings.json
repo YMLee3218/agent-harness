@@ -9,10 +9,15 @@
       "Bash(git status)",
       "Bash(git diff *)",
       "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git checkout -b feature/*)",
+      "Bash(git commit -m \"test(red)*\")",
+      "Bash(git commit -m \"test(green)*\")",
       "Bash(mise *)",
       "Bash(uv *)",
       "Bash(python --version)",
-      "Bash(node --version)"
+      "Bash(node --version)",
+      "Bash(bash $CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh *)"
     ],
     "ask": [
       "Bash(git commit *)",

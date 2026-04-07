@@ -114,6 +114,54 @@ make_plan "$T7" "feat" "red" >/dev/null
 out=$(prompt_input "implement the feature" | CLAUDE_PROJECT_DIR="$T7" bash "$SCRIPT" prompt 2>/dev/null)
 check_stdout "prompt/red: impl keyword at red phase — no injection" "no" "$out"
 
+# ── Test 8: write/brainstorm — source file blocked ───────────────────────────
+
+T8=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T8" "feat" "brainstorm" >/dev/null
+write_input "src/domain/foo.py" | CLAUDE_PROJECT_DIR="$T8" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/brainstorm: source file blocked" 2 $?
+
+# ── Test 9: write/spec — source file blocked ──────────────────────────────────
+
+T9=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T9" "feat" "spec" >/dev/null
+write_input "src/features/add-todo/handler.ts" | CLAUDE_PROJECT_DIR="$T9" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/spec: source file blocked" 2 $?
+
+# ── Test 10: write/done — any file blocked ────────────────────────────────────
+
+T10=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T10" "feat" "done" >/dev/null
+write_input "src/domain/foo.py" | CLAUDE_PROJECT_DIR="$T10" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/done: source file blocked" 2 $?
+
+# ── Test 11: write/green — spec.md NOT blocked (BDD spec, not test) ───────────
+
+T11=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T11" "feat" "green" >/dev/null
+write_input "features/add-todo/spec.md" | CLAUDE_PROJECT_DIR="$T11" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/green: spec.md not blocked (BDD spec is not a test file)" 0 $?
+
+# ── Test 12: write/green — *.spec.ts IS blocked ───────────────────────────────
+
+T12=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T12" "feat" "green" >/dev/null
+write_input "src/features/add-todo/handler.spec.ts" | CLAUDE_PROJECT_DIR="$T12" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/green: .spec.ts blocked" 2 $?
+
+# ── Test 13: write/red — uppercase phase handled correctly ────────────────────
+
+T13=$(mktemp -d -p "$TMPDIR_BASE")
+mkdir -p "$T13/plans"
+cat > "$T13/plans/feat.md" <<'EOF'
+## Phase
+Red
+
+## Critic Verdicts
+EOF
+write_input "src/domain/foo.py" | CLAUDE_PROJECT_DIR="$T13" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/red (uppercase phase): source file blocked" 2 $?
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 echo ""

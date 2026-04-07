@@ -54,7 +54,10 @@ domain/{concept}/spec.md         ← domain spec
 
 Domain specs: no DB, HTTP, queue, or file system references.
 
-Update plan file Phase to `spec`.
+Set plan file phase:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" spec
+```
 
 ## Step 4 — Run critic-spec (max 2 iterations)
 
@@ -74,7 +77,7 @@ If re-entering `writing-spec` from a later phase (e.g., a bug or review revealed
    ```
    - {previous-phase} → spec (reason: {one sentence})
    ```
-3. Update `## Phase` to `spec`
+3. Set plan phase: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" spec`
 4. Proceed normally from Step 2
 
 ## Rules

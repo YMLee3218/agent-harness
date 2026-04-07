@@ -1,32 +1,43 @@
-한국어로 응답한다.
+# Layer rules
 
-# 레이어 규칙
+Full VSA + DDD layer definitions and dependency rules: @reference/layers.md
 
-VSA + DDD 레이어 정의 및 의존성 규칙 전문: @reference/layers.md
+Summary:
+- `src/features/` — business flow orchestration (may call domain + infrastructure)
+- `src/domain/` — pure business rules (no external dependencies)
+- `src/infrastructure/` — technical execution layer (DB, HTTP, file I/O)
 
-요약:
-- `src/features/` — 비즈니스 흐름 오케스트레이션 (domain + infrastructure 호출 가능)
-- `src/domain/` — 순수 비즈니스 규칙 (외부 의존성 금지)
-- `src/infrastructure/` — 기술 실행 계층 (DB, HTTP, 파일 I/O)
-
-의존성 방향: `features → domain`, `features → infrastructure`, `infrastructure → domain(인터페이스만)`.
-`domain`과 `infrastructure`는 `features`를 절대 import하지 않는다. `domain`은 `infrastructure`를 절대 import하지 않는다.
+Dependency direction: `features → domain`, `features → infrastructure`, `infrastructure → domain (interfaces only)`.
+`domain` and `infrastructure` never import from `features`. `domain` never imports from `infrastructure`.
 
 # Commands
 
+<!-- Fill in after running /initializing-project -->
 - Test: _(run `/initializing-project` to fill this in)_
 - Integration test: _(run `/initializing-project` to fill this in)_
 
-# Prerequisites (글로벌 설정)
+# Phase gate overrides
 
-아래 항목은 **각 개발자의 `~/.claude/settings.json`** 에 설정한다. 번들(`workspace/`)에는 포함되지 않는다.
+The phase gate checks src/ and test/ paths based on built-in heuristics. Override per project if your layout differs:
+
+```bash
+# In your project's .env or shell profile — colon-separated glob patterns
+export PHASE_GATE_SRC_GLOB="src/domain/*:src/features/*:src/infrastructure/*:app/*:internal/*"
+export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:*.test.*:*.spec.ts:*.spec.js"
+```
+
+Defaults cover Maven (`src/main/kotlin/`, `src/main/java/`), standard JS/Python (`src/{domain,features,infrastructure}/`), and monorepos (`packages/*/src/`). Set these in `initializing-project` step for the project.
+
+# Prerequisites (global settings)
+
+The following belong in **each developer's `~/.claude/settings.json`**, not in the bundle (`workspace/`).
 
 - **Stop hook** — `afplay /System/Library/Sounds/Glass.aiff` + `~/.claude/hooks/notify-stop.sh`
 - **PermissionRequest hook** — `~/.claude/hooks/claude-remote-approver.sh hook`
-- **model** — 개인 선호 모델 (예: `opusplan`)
-- **skipDangerousModePermissionPrompt** — 머신별 설정
+- **model** — personal model preference (e.g. `opusplan`)
+- **skipDangerousModePermissionPrompt** — per-machine setting
 
-설치 예시:
+Example:
 ```json
 {
   "hooks": {
@@ -40,9 +51,9 @@ VSA + DDD 레이어 정의 및 의존성 규칙 전문: @reference/layers.md
 
 # Plan files
 
-피처 작업 상태는 `plans/{feature-slug}.md` 에 보존된다. `/compact` 후에도 phase 복구 가능.
+Feature work state is preserved in `plans/{feature-slug}.md`. Phase can be recovered after `/compact`.
 
-구조:
+Structure:
 ```
 ## Vision
 ## Scenarios
@@ -52,6 +63,21 @@ VSA + DDD 레이어 정의 및 의존성 규칙 전문: @reference/layers.md
 ## Open Questions
 ```
 
-# 라이브러리 문서
+Phase transitions are made via:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" {phase}
+```
 
-라이브러리·프레임워크 API는 context7로 확인한다: `/context7-plugin:docs {library-name}`
+# Library documentation
+
+Look up library/framework APIs with context7: `/context7-plugin:docs {library-name}`
+
+# Harness tests
+
+```bash
+bash workspace/scripts/tests/phase-gate.test.sh
+bash workspace/scripts/tests/plan-file.test.sh
+bash workspace/scripts/tests/pretooluse-bash.test.sh
+# or:
+make -C workspace test
+```

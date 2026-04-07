@@ -156,6 +156,75 @@ T8=$(mktemp -d -p "$TMPDIR_BASE")
   PASS=$((PASS + 1))
 })
 
+# ── Tests: set-phase awk bug regression (uppercase existing value) ────────────
+
+T9=$(mktemp -d -p "$TMPDIR_BASE")
+mkdir -p "$T9/plans"
+cat > "$T9/plans/bug.md" <<'EOF'
+## Phase
+Brainstorm
+
+## Critic Verdicts
+EOF
+bash "$SCRIPT" set-phase "$T9/plans/bug.md" "spec" >/dev/null 2>&1
+got=$(bash "$SCRIPT" get-phase "$T9/plans/bug.md" 2>/dev/null)
+if [ "$got" = "spec" ]; then
+  echo "PASS: set-phase awk bug: uppercase existing value replaced correctly"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: set-phase awk bug: expected 'spec', got '$got'"
+  FAIL=$((FAIL + 1))
+fi
+
+# Ensure old value is gone and new value appears exactly once
+old_count=$(grep -cE "^[Bb]rainstorm$" "$T9/plans/bug.md" 2>/dev/null; true)
+new_count=$(grep -cE "^spec$" "$T9/plans/bug.md" 2>/dev/null; true)
+if [ "${old_count:-1}" -eq 0 ] && [ "${new_count:-0}" -eq 1 ]; then
+  echo "PASS: set-phase awk bug: no duplicate phase lines"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: set-phase awk bug: expected old=0 new=1, got old=${old_count} new=${new_count}"
+  FAIL=$((FAIL + 1))
+fi
+
+# ── Tests: get-phase with uppercase value ────────────────────────────────────
+
+T10=$(mktemp -d -p "$TMPDIR_BASE")
+mkdir -p "$T10/plans"
+printf '## Phase\nRed\n\n## Critic Verdicts\n' > "$T10/plans/upper.md"
+run_output "get-phase: uppercase value normalised to lowercase" 0 "red" \
+  bash "$SCRIPT" get-phase "$T10/plans/upper.md"
+
+# ── Tests: frontmatter sync after set-phase ───────────────────────────────────
+
+T11=$(mktemp -d -p "$TMPDIR_BASE")
+f11=$(make_plan "$T11" "sync-feat" "brainstorm")
+bash "$SCRIPT" set-phase "$f11" "red" >/dev/null 2>&1
+fm_phase=$(grep "^phase:" "$f11" | awk '{print $2}')
+if [ "$fm_phase" = "red" ]; then
+  echo "PASS: set-phase: frontmatter phase: field synced"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: set-phase: frontmatter phase: not synced (got '$fm_phase')"
+  FAIL=$((FAIL + 1))
+fi
+
+# ── Tests: record-verdict with bold FAIL line ─────────────────────────────────
+
+T12=$(mktemp -d -p "$TMPDIR_BASE")
+f12=$(make_plan "$T12" "bold-feat" "spec")
+(cd "$T12" && {
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\n**FAIL** — missing scenario"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  if grep -q "FAIL" "$f12"; then
+    echo "PASS: record-verdict: bold FAIL line recorded"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: bold FAIL line not found in plan file"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 echo ""

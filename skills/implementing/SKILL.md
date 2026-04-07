@@ -45,7 +45,10 @@ TaskCreate: "Implement {task 2 — feature: ...}"
 ...
 ```
 
-Update plan file Phase to `green`.
+Set plan file phase:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" green
+```
 
 ## Step 3 — Execute per task (isolated subagents)
 
@@ -85,7 +88,10 @@ Do not pass the full plan or other tasks' state to subagents.
 
 Mark task `completed` after subagent returns. Use `TaskList` to move to next task.
 
-After all tasks complete, update plan file Phase to `refactor`.
+After all tasks complete, set plan file phase:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" refactor
+```
 
 ## Step 4 — Run critic-code at milestones (max 2 iterations per milestone)
 
@@ -131,7 +137,10 @@ If issues reported, categorise each with `AskUserQuestion`:
 **Docs conflict** (implementation contradicts domain rules):
 → Update `docs/*.md` (SOT) → fix spec → re-run Skill("critic-spec") → fix tests → re-run Skill("critic-test") → fix code → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr")
 
-Update plan file Phase to `done` when all issues are resolved.
+Set plan file phase when all issues are resolved:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" done
+```
 
 ## Session Recovery
 

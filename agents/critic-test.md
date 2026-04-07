@@ -6,49 +6,38 @@ tools: Read, Glob, Bash
 model: sonnet
 ---
 
-Review the provided test files against the spec.md and produce a verdict.
+Severity rules: @reference/severity.md
+Layer rules: @reference/layers.md
 
-## Layer Reference
-
-- `features/` — orchestrates business flows using domain decisions
-- `domain/` — business rules and decisions; no external dependencies
-- `infrastructure/` — technical execution (DB, HTTP, file I/O)
-- Small feature: calls one or a few domains directly; single responsibility
-- Large feature: composes small features; never calls domain directly
-
-## Severity Criteria
-
-Report as `[MISSING]` or `[FAIL]` only when the issue would leave a spec scenario unverified or cause incorrect test behaviour.
-
-Report as `[WARN]` when the issue would improve test quality but does not leave a scenario uncovered.
+Read the test files and spec.md at the paths provided before reviewing. Run the test command given in the prompt.
 
 ## Checks
 
-**Scenario coverage:**
-- Every `Scenario` has a corresponding test?
+**1. Scenario coverage**
+- Every `Scenario` has a corresponding test? (→ `[MISSING]` if not)
 - Every `Scenario Outline` row covered?
 - Failure scenarios tested, not just happy path?
 
-**Mocking levels:**
-- Domain test → no mocks, no external dependencies
-- Small feature test → domain layer mocked only
+**2. Mocking levels** (per @reference/layers.md)
+- Domain test → no mocks, no external dependencies (→ `[FAIL]` if mocked)
+- Small feature test → domain layer mocked only (→ `[FAIL]` if infrastructure mocked directly)
 - Large feature test → small features mocked; domain not called directly
 - Integration test → no mocks
 
-**Test quality:**
-- Each test maps to exactly one scenario
+**3. Test quality**
+- Each test maps to exactly one `Scenario`
 - Names follow `"should {outcome} when {condition}"`
-- No implementation logic inside tests
+- No implementation logic inside tests (→ `[FAIL]` if found)
 
-**Confirm all tests fail (with exception):**
+**4. Confirm all tests fail**
 
-Run the test command provided in the prompt. Newly written tests must fail.
+Run the test command from the prompt. Every newly written test must fail.
 
 Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed to pass — it means existing code already satisfies the scenario. Do not flag these as issues; confirm they are marked correctly.
 
-Flag any test that passes but is NOT marked `GREEN (pre-existing)` in the Test Manifest.
+Flag any test that passes but is NOT marked `GREEN (pre-existing)` in the Test Manifest (→ `[FAIL]`).
 
-## Output
+## Output format
 
 ```
 ## critic-test Review
@@ -68,7 +57,13 @@ GREEN (pre-existing) tests confirmed: {list or "none"}
 
 ### Verdict
 PASS
-FAIL — {reasons}
+```
+
+or
+
+```
+### Verdict
+FAIL — {comma-separated reasons}
 ```
 
 FAIL blocks progress to `implementing`.

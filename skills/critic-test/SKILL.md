@@ -34,7 +34,12 @@ Read the test files and spec.md at the paths provided before reviewing. Run the 
 - No implementation logic inside tests (→ `[FAIL]` if found)
 
 **4. Confirm all tests fail**
-Run the test command from the prompt. Every test must fail. Flag any that pass (→ `[FAIL]`).
+
+Run the test command from the prompt. Every newly written test must fail.
+
+Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed to pass — it means existing code already satisfies the scenario. Do not flag these as issues; confirm they are marked correctly.
+
+Flag any test that passes but is NOT marked `GREEN (pre-existing)` in the Test Manifest (→ `[FAIL]`).
 
 ## Output format
 
@@ -50,8 +55,9 @@ None: "All scenarios covered"
 None: "All mocking levels correct"
 
 ### Failing Confirmation
-All tests fail: YES / NO
-Passing tests (wrong): {list or "none"}
+All newly written tests fail: YES / NO
+Passing tests not marked GREEN (pre-existing): {list or "none"}
+GREEN (pre-existing) tests confirmed: {list or "none"}
 
 ### Verdict
 PASS

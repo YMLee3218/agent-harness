@@ -6,42 +6,34 @@ tools: Read, Glob
 model: sonnet
 ---
 
+Severity rules: @reference/severity.md
+Layer rules: @reference/layers.md
+
 Read the requirements document at the path provided in the prompt before reviewing.
 
 Review the provided feature decomposition and produce a verdict.
 
-## Layer Reference
-
-- `features/` — orchestrates business flows using domain decisions
-- `domain/` — business rules and decisions; no external dependencies
-- `infrastructure/` — technical execution (DB, HTTP, file I/O)
-- Small feature: calls one or a few domains directly; single responsibility
-- Large feature: composes small features; never calls domain directly
-
-## Severity Criteria
-
-Report as `[FAIL]` or `[MISSING]` only when the issue would cause incorrect behaviour, broken architecture, or a blocked workflow if left unfixed.
-
-Report as `[WARN]` when the issue would improve quality but its absence does not cause a defect.
-
 ## Checks
 
-**Small vs large classification:**
-- Small feature — calls only domain? Single responsibility?
-- Large feature — composes only small features? Calls domain directly? (violation)
+**1. Small vs large classification**
+- Small feature: calls only domain? Single responsibility?
+- Large feature: composes only small features? Calls domain directly? (→ `[FAIL]`)
 
-**Layer assignment:**
+**2. Layer assignment**
 - Each candidate correctly assigned to `features/`, `domain/`, or `infrastructure/`?
+- Domain concept placed in `features/`? (→ `[FAIL]`)
+- Infrastructure concern placed in `domain/`? (→ `[FAIL]`)
 
-**Completeness:**
+**3. Naming**
+- Every feature: `{verb}-{noun}` kebab-case? (→ `[FAIL]` if not)
+- Every domain concept: `{noun}` singular kebab-case?
+
+**4. Completeness**
 - Failure paths that need their own feature?
-- Domain concepts implied but not listed?
+- Domain concepts implied but not listed? (→ `[MISSING]`)
 - Existing `features/` that could be reused?
 
-**Naming:**
-- Every name is `{verb}-{noun}` kebab-case?
-
-## Output
+## Output format
 
 ```
 ## critic-feature Review
@@ -57,7 +49,13 @@ None: "No missing features"
 
 ### Verdict
 PASS
-FAIL — {reasons}
+```
+
+or
+
+```
+### Verdict
+FAIL — {comma-separated reasons}
 ```
 
 FAIL blocks progress to `writing-spec`.

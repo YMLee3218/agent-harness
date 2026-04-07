@@ -2,6 +2,7 @@
 # PreToolUse hook for Bash tool.
 # Reads JSON from stdin, extracts .tool_input.command, blocks destructive patterns.
 # Exit 2 = blocked; exit 0 = allowed.
+set -uo pipefail
 
 input=$(cat)
 
@@ -50,11 +51,9 @@ if printf '%s' "$cmd" | grep -iqE \
   exit 2
 fi
 
-# SQL DDL: DROP/TRUNCATE TABLE|DATABASE|SCHEMA (word boundaries prevent false positives
-# such as 'truncate table_backup.sql' or column names like drop_column)
-if printf '%s' "$cmd" | grep -iqP \
-  '\b(DROP|TRUNCATE)\s+(TABLE|DATABASE|SCHEMA)\b' 2>/dev/null \
-  || printf '%s' "$cmd" | grep -iqE \
+# SQL DDL: DROP/TRUNCATE TABLE|DATABASE|SCHEMA
+# Uses ERE (no PCRE) to be portable on macOS/BSD grep
+if printf '%s' "$cmd" | grep -iqE \
   '(^|[[:space:]])(DROP|TRUNCATE)[[:space:]]+(TABLE|DATABASE|SCHEMA)([[:space:]]|$)'; then
   echo "BLOCKED: destructive SQL DDL detected" >&2
   exit 2
@@ -72,6 +71,20 @@ if printf '%s' "$cmd" | grep -iqE \
   'git[[:space:]]+commit[[:space:]]+.*--amend'; then
   echo "WARNING: git commit --amend detected — ensure commit is not yet pushed" >&2
   # exit 0: allowed with warning
+fi
+
+# git -c core.hooksPath bypass
+if printf '%s' "$cmd" | grep -iqE \
+  'git[[:space:]]+-c[[:space:]]+[^=]*[Hh]ooks[Pp]ath'; then
+  echo "BLOCKED: git -c hooksPath override detected (hook bypass attempt)" >&2
+  exit 2
+fi
+
+# Pipe-to-shell: echo payload | bash/sh (command injection vector)
+if printf '%s' "$cmd" | grep -iqE \
+  '\|[[:space:]]*(ba)?sh([[:space:]]+-[[:alpha:]]+)*([[:space:]]|$)'; then
+  echo "BLOCKED: pipe-to-shell detected" >&2
+  exit 2
 fi
 
 exit 0
