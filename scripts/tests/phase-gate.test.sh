@@ -100,12 +100,12 @@ make_plan "$T5" "feat" "brainstorm" >/dev/null
 out=$(prompt_input "implement the feature" | CLAUDE_PROJECT_DIR="$T5" bash "$SCRIPT" prompt 2>/dev/null)
 check_stdout "prompt/brainstorm: impl keyword produces context" "yes" "$out"
 
-# ── Test 6: prompt/no-keyword — no injection ─────────────────────────────────
+# ── Test 6: prompt/brainstorm — any prompt injects phase-reminder (keyword-free) ──
 
 T6=$(mktemp -d -p "$TMPDIR_BASE")
 make_plan "$T6" "feat" "brainstorm" >/dev/null
 out=$(prompt_input "write the spec" | CLAUDE_PROJECT_DIR="$T6" bash "$SCRIPT" prompt 2>/dev/null)
-check_stdout "prompt/no-keyword: no stdout output" "no" "$out"
+check_stdout "prompt/brainstorm: any prompt injects phase-reminder (no keyword needed)" "yes" "$out"
 
 # ── Test 7: prompt/red — impl keyword not injected ───────────────────────────
 

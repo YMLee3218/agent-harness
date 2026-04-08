@@ -83,3 +83,40 @@ Common categories for this critic: `LAYER_VIOLATION`, `DOCS_CONTRADICTION`, `SPE
 The last two lines of your output on FAIL must be `<!-- verdict: FAIL -->` then `<!-- category: X -->`.
 
 Any `[CRITICAL]` or `[DOCS CONTRADICTION]` → FAIL. FAIL blocks the next task.
+
+## Calibration examples
+
+### PASS — spec-compliant, clean layers
+Every Scenario Given/When/Then is implemented. Layer checker (`ts.sh`) reports zero forbidden imports. Failure paths return errors matching spec. No `[DOCS CONTRADICTION]`.
+
+Expected output:
+```
+### Angle 1 — Spec Compliance
+None
+
+### Angle 2 — Layer Boundary
+None
+
+### Verdict
+PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
+```
+
+### FAIL — domain imports infrastructure
+`ts.sh` finds `import { db } from '../infrastructure/database'` in `src/domain/todo.ts:3`.
+
+Expected output:
+```
+### Angle 1 — Spec Compliance
+None
+
+### Angle 2 — Layer Boundary
+[CRITICAL] src/domain/todo.ts:3 — domain imports infrastructure (db)
+  Fix: extract DB call to infrastructure layer; domain depends on a repository interface only
+
+### Verdict
+FAIL — domain imports infrastructure
+<!-- verdict: FAIL -->
+<!-- category: LAYER_VIOLATION -->
+```

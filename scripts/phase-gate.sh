@@ -78,7 +78,7 @@ mode_write() {
   local phase
   if ! phase=$(get_active_phase); then
     if [ "${PHASE_GATE_STRICT:-0}" = "1" ]; then
-      echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1 and no active plan file. Run /initializing-project to set up gating." >&2
+      echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1 and no active plan file. Run /initializing-project to set up a plan, or set PHASE_GATE_STRICT=0 for bootstrap." >&2
       exit 2
     fi
     echo "[phase-gate] no active plan file; write allowed. Run /initializing-project to enable gating." >&2
@@ -130,21 +130,14 @@ mode_prompt() {
   local phase
   phase=$(get_active_phase) || exit 0   # no active plan → allow with no injection
 
-  local prompt_text
-  prompt_text=$(printf '%s' "$input" | jq -r '.prompt // ""' 2>/dev/null)
-
-  # Check if the prompt contains implementation keywords but plan phase is too early.
-  # Korean terms (구현, 코딩, 작성해) are intentional: user-facing prompts are in Korean;
-  # only LLM-internal text (skills, agents, references) is restricted to English.
-  local impl_pattern='implement|구현|make.*pass|go ahead|proceed|start coding|코딩|작성해'
-  if printf '%s' "$prompt_text" | grep -iqE "$impl_pattern"; then
-    case "$phase" in
-      brainstorm|spec)
-        printf 'Current plan phase is "%s". Complete /writing-spec and /writing-tests first to advance the phase to "red" before implementing.\n' "$phase"
-        exit 0
-        ;;
-    esac
-  fi
+  # In early phases, inject a non-blocking phase reminder as additionalContext.
+  # No keyword matching — implementation intent detection is delegated to the model.
+  case "$phase" in
+    brainstorm|spec)
+      printf 'Phase reminder (non-blocking): current plan phase is "%s". Complete /writing-spec then /writing-tests to advance to "red" before implementing.\n' "$phase"
+      exit 0
+      ;;
+  esac
 
   exit 0
 }

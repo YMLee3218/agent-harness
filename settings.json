@@ -17,10 +17,13 @@
       "Bash(git add docs/**)",
       "Bash(git add plans/**)",
       "Bash(git checkout -b feature/*)",
-      "Bash(git commit -m \"test(red)*\")",
-      "Bash(git commit -m \"test(green)*\")",
-      "Bash(git commit -m \"fix(test)*\")",
-      "Bash(git commit -m \"chore(test)*\")",
+      "Bash(git commit -m \"test(red): *\")",
+      "Bash(git commit -m \"test(green): *\")",
+      "Bash(git commit -m \"fix(test): *\")",
+      "Bash(git commit -m \"chore(test): *\")",
+      "Bash(git commit -m \"feat(*): *\")",
+      "Bash(git commit -m \"refactor(*): *\")",
+      "Bash(git commit -m \"fix(*): *\")",
       "Bash(mise *)",
       "Bash(uv *)",
       "Bash(python --version)",
@@ -87,6 +90,17 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/post-edit-lint.sh\""
+          }
+        ]
+      }
+    ],
     "SubagentStop": [
       {
         "matcher": "critic-.*",
@@ -94,6 +108,26 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-verdict"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" flush-before-compact"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-stopfail"
           }
         ]
       }

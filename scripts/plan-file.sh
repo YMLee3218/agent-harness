@@ -14,15 +14,29 @@
 #       Appends <label> (e.g. "spec/critic-spec: PASS") to ## Critic Verdicts
 #       Exit 0 = success; exit 1 = error
 #
+#   plan-file.sh append-note <plan-file> <note>
+#       Appends <note> to ## Open Questions in the plan file.
+#       Exit 0 = success; exit 1 = error
+#
 #   plan-file.sh find-active
 #       Prints the path of the newest plan file whose Phase is not "done"
-#       Exit 0 = found; exit 2 = none found
+#       Exit 0 = found; exit 2 = none found or ambiguous (2+ candidates without disambiguation)
 #
 #   plan-file.sh record-verdict
 #       Reads SubagentStop JSON from stdin; extracts agent name + last PASS/FAIL line;
 #       appends verdict to the active plan file. Detects consecutive same-category FAILs
 #       and writes [BLOCKED-CATEGORY] to ## Open Questions when detected.
 #       Exit 0 = success; exit 1 = error; exit 2 = no active plan
+#
+#   plan-file.sh flush-before-compact
+#       Called by PreCompact hook; reads JSON from stdin (compact_trigger field);
+#       appends a [PRE-COMPACT] marker to ## Open Questions in the active plan file.
+#       Exit 0 always (no active plan → silent skip).
+#
+#   plan-file.sh record-stopfail
+#       Called by StopFailure hook; reads JSON from stdin (error_type field);
+#       appends a [STOPFAIL] marker to ## Open Questions in the active plan file.
+#       Exit 0 always (no active plan → silent skip).
 #
 #   plan-file.sh add-task <plan-file> <task-id> <layer>
 #       Adds a row to ## Task Ledger with status=pending.
@@ -46,6 +60,22 @@ require_jq() {
 
 require_file() {
   [ -f "$1" ] || { echo "ERROR: plan file not found: $1" >&2; exit 2; }
+}
+
+# Appends <note> to the ## Open Questions section of <plan_file>.
+# Creates the section if absent.
+_append_to_open_questions() {
+  local plan_file="$1" note="$2"
+  if grep -q "^## Open Questions$" "$plan_file"; then
+    awk -v note="$note" '
+      /^## Open Questions$/ { print; in_section=1; next }
+      in_section && /^## / { print note; print ""; print; in_section=0; next }
+      { print }
+      END { if (in_section) print note }
+    ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
+  else
+    { echo ""; echo "## Open Questions"; echo "$note"; } >> "$plan_file"
+  fi
 }
 
 # ── Commands ─────────────────────────────────────────────────────────────────
@@ -143,20 +173,24 @@ cmd_find_active() {
   fi
 
   # 3. Fallback: newest plan file where Phase != done
-  local found=""
+  # Fail-closed when 2+ candidates exist — ambiguous without CLAUDE_PLAN_FILE or branch-slug.
+  local found="" count=0
   while IFS= read -r f; do
     local phase
     phase=$(_read_phase "$f")
     if [ -n "$phase" ] && [ "$phase" != "done" ]; then
-      found="$f"
-      break
+      count=$((count + 1))
+      [ -z "$found" ] && found="$f"
     fi
   done < <(ls -t "$plans_dir"/*.md 2>/dev/null)
-  if [ -n "$found" ]; then
+  if [ "$count" -eq 0 ]; then
+    exit 2
+  elif [ "$count" -ge 2 ]; then
+    echo "ERROR: ${count} active plan files found with no CLAUDE_PLAN_FILE or branch-slug match. Set CLAUDE_PLAN_FILE=plans/{slug}.md or align branch name with plan file name." >&2
+    exit 2
+  else
     echo "[plan-file] WARNING: falling back to newest plan ($found). Set CLAUDE_PLAN_FILE or use worktrees to disambiguate when running multiple features in parallel." >&2
     echo "$found"
-  else
-    exit 2
   fi
 }
 
@@ -168,14 +202,55 @@ cmd_find_latest() {
   [ -n "$f" ] && echo "$f" || exit 2
 }
 
+cmd_append_note() {
+  local plan_file="$1" note="$2"
+  require_file "$plan_file"
+  _append_to_open_questions "$plan_file" "$note"
+}
+
+cmd_flush_before_compact() {
+  # PreCompact hook: records a marker in the active plan so the next session knows a compact occurred.
+  require_jq
+  local input
+  input=$(cat)
+  local compact_trigger
+  compact_trigger=$(printf '%s' "$input" | jq -r '.compact_trigger // "unknown"' 2>/dev/null || echo "unknown")
+
+  local plan_file
+  plan_file=$(cmd_find_active 2>/dev/null) || exit 0  # no active plan → nothing to do
+
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
+  local note="[PRE-COMPACT @${ts}] trigger=${compact_trigger} — SessionStart will re-inject plan summary; review open items after restart"
+  _append_to_open_questions "$plan_file" "$note"
+  echo "[flush-before-compact] recorded pre-compact marker (trigger=${compact_trigger}) in ${plan_file}" >&2
+}
+
+cmd_record_stopfail() {
+  # StopFailure hook: records a resumable marker when the session is interrupted.
+  require_jq
+  local input
+  input=$(cat)
+  local error_type
+  error_type=$(printf '%s' "$input" | jq -r '.error_type // "unknown"' 2>/dev/null || echo "unknown")
+
+  local plan_file
+  plan_file=$(cmd_find_active 2>/dev/null) || exit 0  # no active plan → nothing to do
+
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
+  local note="[STOPFAIL] error_type=${error_type} @${ts} — session interrupted; resume with /implementing or check plan phase"
+  _append_to_open_questions "$plan_file" "$note"
+  echo "[record-stopfail] recorded stop-failure marker (error_type=${error_type}) in ${plan_file}" >&2
+}
+
 cmd_record_verdict() {
   require_jq
   local input
   input=$(cat)
-  # Extract agent/subagent name
-  # Field names per Claude Code SubagentStop payload; include fallback aliases
+  # Extract agent name from canonical SubagentStop payload field
   local agent_name
-  agent_name=$(printf '%s' "$input" | jq -r '.agent_type // .subagent_type // "unknown"' 2>/dev/null || echo "unknown")
+  agent_name=$(printf '%s' "$input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
 
   # Only record for critic-* agents
   case "$agent_name" in
@@ -183,18 +258,26 @@ cmd_record_verdict() {
     *) exit 0 ;;
   esac
 
-  # Extract output text using two strategies:
-  # 1. transcript_path (real Claude Code SubagentStop payload: {session_id, transcript_path, stop_hook_active})
-  # 2. last_assistant_message / tool_response (legacy / test-fixture payloads)
+  # Extract output text — three strategies in priority order:
+  # 1. agent_transcript_path: subagent-only transcript (canonical SubagentStop field); no
+  #    cross-critic contamination risk, so read the full file.
+  # 2. transcript_path: full session transcript (fallback); limit to tail -200 to reduce
+  #    risk of picking up a different critic's verdict from an earlier subagent in the same session.
+  # 3. last_assistant_message: in-payload field (canonical SubagentStop field); used when
+  #    no transcript file is present (e.g. test fixtures, CI environments without file I/O).
   local output=""
-  local transcript
+  local agent_transcript transcript
+  agent_transcript=$(printf '%s' "$input" | jq -r '.agent_transcript_path // empty' 2>/dev/null || true)
   transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty' 2>/dev/null || true)
-  if [ -n "$transcript" ] && [ -f "$transcript" ]; then
+  if [ -n "$agent_transcript" ] && [ -f "$agent_transcript" ]; then
+    output=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text // empty' \
+             "$agent_transcript" 2>/dev/null || true)
+  elif [ -n "$transcript" ] && [ -f "$transcript" ]; then
     output=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text // empty' \
              "$transcript" 2>/dev/null | tail -200 || true)
   fi
   if [ -z "$output" ]; then
-    output=$(printf '%s' "$input" | jq -r '.last_assistant_message // .tool_response // ""' 2>/dev/null || echo "")
+    output=$(printf '%s' "$input" | jq -r '.last_assistant_message // ""' 2>/dev/null || echo "")
   fi
 
   # Find active plan file
@@ -322,8 +405,10 @@ cmd_update_task() {
 }
 
 cmd_context() {
-  # Outputs JSON additionalContext for SessionStart hook injection.
+  # Outputs canonical SessionStart hook JSON for plan context injection.
+  # Format: {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"..."}}
   # If no active plan exists, exits 0 with no output (no context to inject).
+  require_jq
   local plan_file
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
 
@@ -335,19 +420,36 @@ cmd_context() {
   verdicts=$(awk '/^## Critic Verdicts$/{found=1; next} found && /^## /{found=0} found && /^- /{print}' \
     "$plan_file" 2>/dev/null | tail -3 | sed 's/^- //' | tr '\n' '|' | sed 's/|$//' || echo "none")
 
-  # Extract open questions (non-blank lines in ## Open Questions section)
-  local questions
-  questions=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/{print}' \
-    "$plan_file" 2>/dev/null | head -5 | tr '\n' '|' | sed 's/|$//' || echo "none")
+  # Extract open questions: [BLOCKED*] items first (up to 3), then others (up to 2)
+  local blocked_items other_items questions
+  blocked_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /\[BLOCKED/{print}' \
+    "$plan_file" 2>/dev/null | head -3 | tr '\n' '|' | sed 's/|$//' || true)
+  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/{print}' \
+    "$plan_file" 2>/dev/null | head -2 | tr '\n' '|' | sed 's/|$//' || true)
 
-  # Emit JSON for hook additionalContext injection
-  # Newlines inside JSON strings must be escaped; use printf with \n literal
-  local body
-  body="$(printf 'Active plan: %s | Phase: %s | Recent verdicts: %s | Open questions: %s' \
-    "$plan_file" "$phase" "${verdicts:-none}" "${questions:-none}")"
+  if [ -n "$blocked_items" ] && [ -n "$other_items" ]; then
+    questions="${blocked_items}|${other_items}"
+  elif [ -n "$blocked_items" ]; then
+    questions="$blocked_items"
+  elif [ -n "$other_items" ]; then
+    questions="$other_items"
+  else
+    questions="none"
+  fi
 
-  printf '{"additionalContext":"%s"}\n' \
-    "$(printf '%s' "$body" | sed 's/"/\\"/g')"
+  # Build body and cap at 800 chars to prevent context bloat
+  local body_raw body
+  body_raw="$(printf 'Active plan: %s | Phase: %s | Recent verdicts: %s | Open questions: %s' \
+    "$plan_file" "$phase" "${verdicts:-none}" "$questions")"
+  if [ "${#body_raw}" -gt 800 ]; then
+    body="${body_raw:0:797}..."
+  else
+    body="$body_raw"
+  fi
+
+  # jq --arg handles all escaping; $ctx is inserted as a properly escaped JSON string
+  jq -nc --arg ctx "$body" \
+    '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":$ctx}}'
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
@@ -355,14 +457,17 @@ cmd_context() {
 [ $# -ge 1 ] || die "Usage: plan-file.sh <command> [args...]"
 
 case "$1" in
-  get-phase)      [ $# -eq 2 ] || die "Usage: plan-file.sh get-phase <plan-file>"; cmd_get_phase "$2" ;;
-  set-phase)      [ $# -eq 3 ] || die "Usage: plan-file.sh set-phase <plan-file> <phase>"; cmd_set_phase "$2" "$3" ;;
-  append-verdict) [ $# -eq 3 ] || die "Usage: plan-file.sh append-verdict <plan-file> <label>"; cmd_append_verdict "$2" "$3" ;;
-  find-active)    cmd_find_active ;;
-  find-latest)    cmd_find_latest ;;
-  record-verdict) cmd_record_verdict ;;
-  context)        cmd_context ;;
-  add-task)       [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
-  update-task)    [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
+  get-phase)            [ $# -eq 2 ] || die "Usage: plan-file.sh get-phase <plan-file>"; cmd_get_phase "$2" ;;
+  set-phase)            [ $# -eq 3 ] || die "Usage: plan-file.sh set-phase <plan-file> <phase>"; cmd_set_phase "$2" "$3" ;;
+  append-verdict)       [ $# -eq 3 ] || die "Usage: plan-file.sh append-verdict <plan-file> <label>"; cmd_append_verdict "$2" "$3" ;;
+  append-note)          [ $# -eq 3 ] || die "Usage: plan-file.sh append-note <plan-file> <note>"; cmd_append_note "$2" "$3" ;;
+  find-active)          cmd_find_active ;;
+  find-latest)          cmd_find_latest ;;
+  record-verdict)       cmd_record_verdict ;;
+  flush-before-compact) cmd_flush_before_compact ;;
+  record-stopfail)      cmd_record_stopfail ;;
+  context)              cmd_context ;;
+  add-task)             [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
+  update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
   *) die "Unknown command: $1" ;;
 esac

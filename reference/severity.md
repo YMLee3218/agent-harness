@@ -1,35 +1,49 @@
-# Severity Criteria for Critics
+# Severity Criteria (reference)
 
-All critic agents use these definitions. Do not redefine them locally.
+Canonical verdict protocol and iteration rules: @reference/critic-loop.md
 
-## Levels
+If this file and `critic-loop.md` ever conflict, **`critic-loop.md` is canonical**.
 
-| Level | Label | Use when |
-|-------|-------|----------|
-| **Critical** | `[CRITICAL]` | Would cause a bug, data loss, spec violation, or undefined behaviour in production if left unfixed |
-| **Missing** | `[MISSING]` | A required scenario, test, or feature is absent; its absence leaves a gap that blocks correctness |
-| **Fail** | `[FAIL]` | A structural rule is violated (layer boundary, BDD format, naming); blocks pipeline progress |
-| **Docs contradiction** | `[DOCS CONTRADICTION]` | Implementation or spec conflicts with documented domain knowledge in `docs/*.md`; report only, do not judge which side is wrong |
-| **Warning** | `[WARN]` | Would improve quality but absence does not cause a defect; does **not** block progress |
+## Finding labels → FAIL threshold
 
-## Verdict rules
+| Level | Label | Triggers FAIL? |
+|-------|-------|----------------|
+| Critical | `[CRITICAL]` | Yes |
+| Missing | `[MISSING]` | Yes |
+| Structural fail | `[FAIL]` | Yes |
+| Docs contradiction | `[DOCS CONTRADICTION]` | Yes |
+| Warning | `[WARN]` | No — does not block progress |
 
-- Any `[CRITICAL]`, `[MISSING]`, `[FAIL]`, or `[DOCS CONTRADICTION]` → **FAIL**
-- Only `[WARN]` findings → **PASS**
-- No findings → **PASS**
+## Label → category mapping
+
+| Finding label | FAIL category |
+|---|---|
+| `[CRITICAL]` | `SPEC_COMPLIANCE` (default) or `LAYER_VIOLATION` if import-related |
+| `[MISSING]` | `MISSING_SCENARIO` |
+| `[FAIL]` (structural) | `STRUCTURAL` or `LAYER_VIOLATION` depending on nature |
+| `[FAIL]` (test integrity) | `TEST_INTEGRITY` or `TEST_QUALITY` |
+| `[DOCS CONTRADICTION]` | `DOCS_CONTRADICTION` |
+
+Category priority (highest first): `LAYER_VIOLATION` > `DOCS_CONTRADICTION` > `SPEC_COMPLIANCE` > `MISSING_SCENARIO` > `TEST_INTEGRITY` > `TEST_QUALITY` > `STRUCTURAL`
+
+Choose the single highest-priority category when multiple labels appear in one verdict.
 
 ## Output format
 
+Every critic **must** emit the `### Verdict` heading followed immediately by the HTML markers as the last lines of output. Both are machine-parsed by `plan-file.sh record-verdict`.
+
+PASS:
 ```
 ### Verdict
 PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
 ```
 
-or
-
+FAIL:
 ```
 ### Verdict
 FAIL — {comma-separated list of blocking finding labels}
+<!-- verdict: FAIL -->
+<!-- category: {highest-priority category} -->
 ```
-
-Always output the Verdict section last.

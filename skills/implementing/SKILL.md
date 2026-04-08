@@ -9,6 +9,7 @@ description: >
 # Implementation Workflow
 
 Layer rules: @reference/layers.md
+Context hygiene: @reference/context-hygiene.md
 
 ## Step 1 — Read plan file + plan implementation order
 

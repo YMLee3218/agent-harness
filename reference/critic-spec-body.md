@@ -63,3 +63,42 @@ The last two lines of your output on FAIL must be `<!-- verdict: FAIL -->` then 
 Any `[MISSING]`, `[DOCS CONTRADICTION]`, or structural `[FAIL]` → FAIL.
 
 FAIL blocks progress to `writing-tests`.
+
+## Calibration examples
+
+### PASS — complete BDD spec
+Spec has: "Successfully add a todo" (happy path), "Reject empty title" (failure path), "Reject title exceeding max length" (boundary), `Scenario Outline: Title boundary validation` with Examples covering lengths 0/1/255/256. All scenarios have `Given`/`When`/`Then`. Feature placed at `features/add-todo/spec.md`. No DB/HTTP mention.
+
+Expected output:
+```
+### Angle 1 — Missing Scenarios
+None
+
+### Angle 2 — Structural Issues
+None
+
+### Verdict
+PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
+```
+
+### FAIL — missing failure scenarios
+Spec has only: "Successfully add a todo". No empty-title rejection, no max-length boundary, no concurrent-add scenario, no `Scenario Outline`.
+
+Expected output:
+```
+### Angle 1 — Missing Scenarios
+[MISSING] empty title: no scenario covers title="" rejection
+  Suggestion: Given a user / When title="" / Then error "title cannot be empty"
+[MISSING] max-length boundary: no Scenario Outline for title length boundaries (0/1/255/256)
+[MISSING] concurrent add: same user adding two todos simultaneously not covered
+
+### Angle 2 — Structural Issues
+None
+
+### Verdict
+FAIL — missing failure scenarios, missing boundary outline
+<!-- verdict: FAIL -->
+<!-- category: MISSING_SCENARIO -->
+```

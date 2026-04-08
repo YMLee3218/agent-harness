@@ -56,3 +56,42 @@ Common categories for this critic: `LAYER_VIOLATION`, `MISSING_FEATURE`, `NAMING
 The last two lines of your output on FAIL must be `<!-- verdict: FAIL -->` then `<!-- category: X -->`.
 
 FAIL blocks progress to `writing-spec`.
+
+## Calibration examples
+
+### PASS — well-formed decomposition
+Input: `add-todo` (small, single responsibility, calls `domain/todo`), `manage-todo-workflow` (large, composes `add-todo` + `complete-todo`, no direct domain call), domain concept `todo` (noun, pure).
+
+Expected output:
+```
+### Classification Issues
+None
+
+### Missing Features
+None
+
+### Verdict
+PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
+```
+
+### FAIL — layer misassignment + naming violations
+Input: `todo` listed as a small feature (it's a domain concept), `AddTodo` (PascalCase), `manage-todo-workflow` calls `domain.todo` directly (large feature violation), `send-notification` in domain concepts (infrastructure concern, verb-noun).
+
+Expected output:
+```
+### Classification Issues
+[FAIL] `todo`: domain concept placed as feature — move to `domain/todo`
+[FAIL] `AddTodo`: PascalCase violates naming — rename to `add-todo`
+[FAIL] `manage-todo-workflow`: large feature calls domain directly — compose small features only
+[FAIL] `send-notification`: infrastructure concern in domain; rename to noun (e.g. `notification`)
+
+### Missing Features
+None
+
+### Verdict
+FAIL — layer misassignment, naming violations, large-feature domain call
+<!-- verdict: FAIL -->
+<!-- category: LAYER_VIOLATION -->
+```

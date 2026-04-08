@@ -90,3 +90,37 @@ Common categories for this critic: `MISSING_SCENARIO`, `LAYER_VIOLATION`, `TEST_
 The last two lines of your output on FAIL must be `<!-- verdict: FAIL -->` then `<!-- category: X -->`.
 
 FAIL blocks progress to `implementing`.
+
+## Calibration examples
+
+### PASS — complete test suite
+All 4 spec scenarios have 1:1 tests. Names follow `"should {outcome} when {condition}"`. Domain test uses no mocks. Run confirms all tests fail.
+
+Expected output:
+```
+### Coverage Gaps
+None
+
+### Mocking Issues
+None
+
+### Failing Confirmation
+All newly written tests fail: YES
+Passing tests not marked GREEN (pre-existing): none
+GREEN (pre-existing) tests confirmed: none
+
+### Verdict
+PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
+```
+
+### FAIL — test file modified after Red phase
+`git log HEAD -- tests/add-todo.test.ts` shows a commit after the `test(red): add-todo` commit touching the file.
+
+Expected output:
+```
+[CRITICAL] test file modified during green phase: tests/add-todo.test.ts — FAIL
+<!-- verdict: FAIL -->
+<!-- category: TEST_INTEGRITY -->
+```

@@ -315,12 +315,14 @@ T18=$(mktemp -d -p "$TMPDIR_BASE")
 make_plan "$T18" "ctx-feat" "green" >/dev/null
 (cd "$T18" && {
   out=$(bash "$SCRIPT" context 2>/dev/null)
-  if printf '%s' "$out" | grep -q '"additionalContext"' && \
+  if printf '%s' "$out" | grep -q '"hookSpecificOutput"' && \
+     printf '%s' "$out" | grep -q '"hookEventName"' && \
+     printf '%s' "$out" | grep -q '"additionalContext"' && \
      printf '%s' "$out" | grep -q 'green'; then
-    echo "PASS: context: outputs additionalContext JSON with current phase"
+    echo "PASS: context: outputs canonical hookSpecificOutput JSON with current phase"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: context: expected JSON with additionalContext and phase (got='$out')"
+    echo "FAIL: context: expected hookSpecificOutput JSON with additionalContext and phase (got='$out')"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -502,6 +504,143 @@ f27=$(make_plan "$T27" "diff-category-feat" "spec")
     PASS=$((PASS + 1))
   else
     echo "FAIL: record-verdict: different category should not block (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: append-note ───────────────────────────────────────────────────────
+
+T28=$(mktemp -d -p "$TMPDIR_BASE")
+f28=$(make_plan "$T28" "append-note-feat" "spec")
+
+run "append-note: appends to Open Questions" 0 bash "$SCRIPT" append-note "$f28" "[TEST-NOTE] hello"
+if grep -q "\[TEST-NOTE\] hello" "$f28"; then
+  echo "PASS: append-note: note appears in Open Questions"
+  PASS=$((PASS + 1))
+else
+  echo "FAIL: append-note: note not found in plan file"
+  FAIL=$((FAIL + 1))
+fi
+
+run "append-note: missing file → exit 2" 2 bash "$SCRIPT" append-note "$T28/plans/nonexistent.md" "note"
+
+# ── Tests: find-active fail-closed with 2+ candidates ────────────────────────
+
+T29=$(mktemp -d -p "$TMPDIR_BASE")
+(cd "$T29" && {
+  make_plan "$T29" "feat-alpha" "spec" >/dev/null
+  sleep 0.01
+  make_plan "$T29" "feat-beta" "red" >/dev/null
+  # Two active plans, no CLAUDE_PLAN_FILE, no branch match → exit 2
+  err_out=$(bash "$SCRIPT" find-active 2>&1 >/dev/null)
+  got=$?
+  if [ "$got" -eq 2 ] && printf '%s' "$err_out" | grep -qi "active plan files found"; then
+    echo "PASS: find-active: 2 active plans without disambiguation → exit 2 + error message"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: find-active: expected exit 2 for ambiguous plans (exit=$got, stderr='$err_out')"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# One active plan without CLAUDE_PLAN_FILE should still fall back with warning (not error)
+T30=$(mktemp -d -p "$TMPDIR_BASE")
+(cd "$T30" && {
+  make_plan "$T30" "sole-active" "red" >/dev/null
+  out=$(bash "$SCRIPT" find-active 2>/dev/null)
+  got=$?
+  if [ "$got" -eq 0 ] && printf '%s' "$out" | grep -q "sole-active"; then
+    echo "PASS: find-active: single active plan without disambiguation → allowed with warning"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: find-active: single-plan fallback failed (exit=$got, out='$out')"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: flush-before-compact ──────────────────────────────────────────────
+
+T31=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T31" "compact-feat" "spec" >/dev/null
+(cd "$T31" && {
+  input='{"compact_trigger":"manual"}'
+  printf '%s' "$input" | bash "$SCRIPT" flush-before-compact >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "\[PRE-COMPACT" "$T31/plans/compact-feat.md"; then
+    echo "PASS: flush-before-compact: PRE-COMPACT marker written to Open Questions"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: flush-before-compact: expected exit 0 + PRE-COMPACT marker (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# flush-before-compact with no active plan → exit 0, no error
+T32=$(mktemp -d -p "$TMPDIR_BASE")
+(cd "$T32" && {
+  input='{"compact_trigger":"auto"}'
+  printf '%s' "$input" | bash "$SCRIPT" flush-before-compact >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ]; then
+    echo "PASS: flush-before-compact: no active plan → exit 0 (silent)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: flush-before-compact: expected exit 0 with no active plan (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: record-stopfail ────────────────────────────────────────────────────
+
+T33=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T33" "stopfail-feat" "green" >/dev/null
+(cd "$T33" && {
+  input='{"error_type":"rate_limit","session_id":"sess-abc"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-stopfail >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "\[STOPFAIL\]" "$T33/plans/stopfail-feat.md"; then
+    echo "PASS: record-stopfail: STOPFAIL marker written to Open Questions"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-stopfail: expected exit 0 + STOPFAIL marker (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: context bounded output + BLOCKED priority ─────────────────────────
+
+T34=$(mktemp -d -p "$TMPDIR_BASE")
+(cd "$T34" && {
+  plan_file=$(make_plan "$T34" "bounded-ctx" "red")
+  # Add a BLOCKED item and several non-BLOCKED items
+  bash "$SCRIPT" append-note "$plan_file" "[BLOCKED-CATEGORY] critic-spec: category MISSING_SCENARIO failed twice" >/dev/null 2>&1
+  bash "$SCRIPT" append-note "$plan_file" "regular open question 1" >/dev/null 2>&1
+  bash "$SCRIPT" append-note "$plan_file" "regular open question 2" >/dev/null 2>&1
+  out=$(bash "$SCRIPT" context 2>/dev/null)
+  if printf '%s' "$out" | grep -q "BLOCKED-CATEGORY" && \
+     printf '%s' "$out" | grep -q '"additionalContext"'; then
+    echo "PASS: context: BLOCKED items appear in bounded output"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: context: expected BLOCKED-CATEGORY in additionalContext (out='$out')"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# context output capped at 800 chars
+T35=$(mktemp -d -p "$TMPDIR_BASE")
+(cd "$T35" && {
+  plan_file=$(make_plan "$T35" "long-questions" "spec")
+  # Add a very long open question to force truncation
+  long_note=$(python3 -c "print('[BLOCKED] ' + 'x' * 900)")
+  bash "$SCRIPT" append-note "$plan_file" "$long_note" >/dev/null 2>&1
+  out=$(bash "$SCRIPT" context 2>/dev/null)
+  ctx=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null || echo "")
+  if [ "${#ctx}" -le 800 ]; then
+    echo "PASS: context: additionalContext capped at 800 chars (got ${#ctx})"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: context: additionalContext exceeds 800 chars (got ${#ctx})"
     FAIL=$((FAIL + 1))
   fi
 })

@@ -54,6 +54,10 @@
     "scripts/critic-code/cs.sh",
     "scripts/critic-code/rust.sh"
   ],
+  "commands": [
+    "commands/running-dev-cycle.md",
+    "commands/running-integration-tests.md"
+  ],
   "engines": {
     "claude-code": ">=1.0.0"
   }

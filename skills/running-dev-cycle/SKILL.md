@@ -2,7 +2,7 @@
 name: running-dev-cycle
 description: >
   Run full dev cycle: brainstorming → writing-spec → writing-tests → implementing in order.
-  Trigger: "run the full cycle", "start the dev cycle", "whole process", /running-dev-cycle.
+  Invoke only via `/running-dev-cycle` slash command.
   Feature-slice mode by default; use --batch flag to write all specs before any tests.
 disable-model-invocation: true
 ---

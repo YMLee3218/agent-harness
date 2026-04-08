@@ -2,14 +2,16 @@
 name: running-integration-tests
 description: >
   Run end-to-end integration tests (no mocks, real connections).
-  Trigger: "integration test", "e2e test", "end-to-end", before deployment, at major feature milestones.
+  Invoke only via `/running-integration-tests` slash command.
   Handles failures by auto-invoking writing-spec, writing-tests, or implementing as appropriate.
 disable-model-invocation: true
-paths:
-  - "tests/integration/**"
 ---
 
 # Integration Testing
+
+## Scope
+
+Default test path: `tests/integration/**`. Override per project via `PHASE_GATE_TEST_GLOB` if your layout differs.
 
 User-invocable only via `/running-integration-tests`.
 

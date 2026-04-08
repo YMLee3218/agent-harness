@@ -12,6 +12,7 @@ Dependency direction: `features → domain`, `features → infrastructure`, `inf
 
 # Commands
 
+<!-- TEMPLATE: initializing-project overwrites this section -->
 <!-- Fill in after running /initializing-project -->
 - Test: _(run `/initializing-project` to fill this in)_
 - Integration test: _(run `/initializing-project` to fill this in)_
@@ -99,6 +100,19 @@ When a `writing-spec` or `implementing` step introduces an external library depe
 # Design rationale
 
 Anthropic source-mapping for every major harness decision: `reference/rationale.md`
+
+Pipeline phase map (phase → skill → critic → next phase): `reference/pipeline-map.md`
+
+# Automated and sandboxed runs
+
+For long-running or unattended pipeline steps (e.g. `/running-dev-cycle`), pass `--permission-mode auto` to skip interactive permission prompts:
+```
+claude --permission-mode auto -p "/running-dev-cycle"
+```
+
+For OS-level process isolation (untrusted code, security-sensitive repos), use `/sandbox` or launch with the sandbox flag. See Claude Code docs for platform availability.
+
+**Important**: `scripts/pretooluse-bash.sh` is a mistake-prevention gate, **not** a security sandbox. It blocks common destructive patterns (e.g. `rm -rf`, force-push) but cannot protect against malicious or crafted inputs. For genuine sandboxing use `/sandbox` + OS-level isolation.
 
 # Harness tests
 
