@@ -7,6 +7,7 @@ context: fork
 agent: critic-test
 allowed-tools: [Read, Glob, Bash]
 effort: high
+paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 ---
 
 @reference/critic-test-body.md

@@ -38,9 +38,9 @@ is_source_path() {
   case "$p" in
     src/domain/*|src/features/*|src/infrastructure/*|\
     */src/domain/*|*/src/features/*|*/src/infrastructure/*|\
-    src/main/kotlin/*|src/main/java/*|\
+    src/main/kotlin/*|src/main/java/*|src/main/scala/*|\
     packages/*/src/*|\
-    internal/*|cmd/*|\
+    internal/*|cmd/*|pkg/*|\
     app/*|app/models/*|app/controllers/*|app/services/*|\
     lib/*|\
     crates/*/src/*|\

@@ -28,14 +28,34 @@
 #       and writes [BLOCKED-CATEGORY] to ## Open Questions when detected.
 #       Exit 0 = success; exit 1 = error; exit 2 = no active plan
 #
+#   plan-file.sh record-critic-start
+#       Called by SubagentStart hook for critic-.* agents; reads JSON from stdin;
+#       appends a [START] entry to ## Critic Runs (created if absent) with phase + timestamp.
+#       Exit 0 always (non-critic agents ignored; no active plan → silent skip).
+#
 #   plan-file.sh flush-before-compact
 #       Called by PreCompact hook; reads JSON from stdin (compact_trigger field);
 #       appends a [PRE-COMPACT] marker to ## Open Questions in the active plan file.
 #       Exit 0 always (no active plan → silent skip).
 #
+#   plan-file.sh log-post-compact
+#       Called by PostCompact hook; appends a [POST-COMPACT] sanity log entry with
+#       current phase and open-question count to ## Open Questions in the active plan file.
+#       Exit 0 always (no active plan → silent skip).
+#
+#   plan-file.sh flush-on-end
+#       Called by SessionEnd hook; reads JSON from stdin (reason field);
+#       appends a [SESSION-END] marker to ## Open Questions in the active plan file.
+#       Exit 0 always (no active plan → silent skip).
+#
 #   plan-file.sh record-stopfail
 #       Called by StopFailure hook; reads JSON from stdin (error_type field);
 #       appends a [STOPFAIL] marker to ## Open Questions in the active plan file.
+#       Exit 0 always (no active plan → silent skip).
+#
+#   plan-file.sh record-tool-failure
+#       Called by PostToolUseFailure hook for Write|Edit tools; reads JSON from stdin;
+#       appends a [TOOL-FAIL] marker to ## Open Questions in the active plan file.
 #       Exit 0 always (no active plan → silent skip).
 #
 #   plan-file.sh add-task <plan-file> <task-id> <layer>
@@ -75,6 +95,22 @@ _append_to_open_questions() {
     ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
   else
     { echo ""; echo "## Open Questions"; echo "$note"; } >> "$plan_file"
+  fi
+}
+
+# Appends <entry> to the ## Critic Runs section of <plan_file>.
+# Creates the section if absent. Used for SubagentStart audit entries.
+_append_to_critic_runs() {
+  local plan_file="$1" entry="$2"
+  if grep -q "^## Critic Runs$" "$plan_file"; then
+    awk -v entry="- $entry" '
+      /^## Critic Runs$/ { print; in_section=1; next }
+      in_section && /^## / { print entry; print ""; print; in_section=0; next }
+      { print }
+      END { if (in_section) print entry }
+    ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
+  else
+    { echo ""; echo "## Critic Runs"; echo "- $entry"; } >> "$plan_file"
   fi
 }
 
@@ -224,6 +260,27 @@ cmd_flush_before_compact() {
   local note="[PRE-COMPACT @${ts}] trigger=${compact_trigger} — SessionStart will re-inject plan summary; review open items after restart"
   _append_to_open_questions "$plan_file" "$note"
   echo "[flush-before-compact] recorded pre-compact marker (trigger=${compact_trigger}) in ${plan_file}" >&2
+}
+
+cmd_log_post_compact() {
+  # PostCompact hook: sanity-checks that context was preserved after compaction.
+  # Appends a [POST-COMPACT] marker with current phase and open-question count.
+  local plan_file
+  plan_file=$(cmd_find_active 2>/dev/null) || exit 0  # no active plan → nothing to do
+
+  local current_phase
+  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
+
+  local open_q_count=0
+  if grep -q "^## Open Questions$" "$plan_file"; then
+    open_q_count=$(awk '/^## Open Questions$/{in_s=1;next} in_s && /^## /{exit} in_s && /\S/{count++} END{print count+0}' "$plan_file")
+  fi
+
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
+  local note="[POST-COMPACT @${ts}] phase=${current_phase} open_questions=${open_q_count}"
+  _append_to_open_questions "$plan_file" "$note"
+  echo "[log-post-compact] phase=${current_phase} open_questions=${open_q_count} in ${plan_file}" >&2
 }
 
 cmd_record_stopfail() {
@@ -404,6 +461,74 @@ cmd_update_task() {
   ' "$plan_file" > "${plan_file}.tmp" && mv "${plan_file}.tmp" "$plan_file"
 }
 
+cmd_record_critic_start() {
+  # SubagentStart hook: records critic start time + phase in ## Critic Runs for audit trail.
+  require_jq
+  local input
+  input=$(cat)
+  local agent_name
+  agent_name=$(printf '%s' "$input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
+
+  # Only record for critic-* agents; ignore all others.
+  case "$agent_name" in
+    critic-*) ;;
+    *) exit 0 ;;
+  esac
+
+  local plan_file
+  plan_file=$(cmd_find_active 2>/dev/null) || exit 0  # no active plan → nothing to do
+
+  local current_phase
+  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
+
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
+  _append_to_critic_runs "$plan_file" "[START @${ts}] phase=${current_phase} agent=${agent_name}"
+  echo "[record-critic-start] recorded critic start (${agent_name}, phase=${current_phase}) in ${plan_file}" >&2
+}
+
+cmd_flush_on_end() {
+  # SessionEnd hook: records a marker so the next session knows a clean exit occurred.
+  require_jq
+  local input
+  input=$(cat)
+  local reason
+  reason=$(printf '%s' "$input" | jq -r '.reason // "normal"' 2>/dev/null || echo "normal")
+
+  local plan_file
+  plan_file=$(cmd_find_active 2>/dev/null) || exit 0  # no active plan → nothing to do
+
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
+  local note="[SESSION-END @${ts}] reason=${reason} — plan state preserved; resume with context injection"
+  _append_to_open_questions "$plan_file" "$note"
+  echo "[flush-on-end] recorded session-end marker (reason=${reason}) in ${plan_file}" >&2
+}
+
+cmd_record_tool_failure() {
+  # PostToolUseFailure hook: records Write|Edit failures so they are visible in the next session.
+  require_jq
+  local input
+  input=$(cat)
+  local tool_name error_msg
+  tool_name=$(printf '%s' "$input" | jq -r '.tool_name // .tool_use_name // "unknown"' 2>/dev/null || echo "unknown")
+  error_msg=$(printf '%s' "$input" | jq -r '.error // .error_message // "unknown"' 2>/dev/null || echo "unknown")
+
+  # Truncate long error messages to keep plan file readable.
+  if [ "${#error_msg}" -gt 120 ]; then
+    error_msg="${error_msg:0:117}..."
+  fi
+
+  local plan_file
+  plan_file=$(cmd_find_active 2>/dev/null) || exit 0  # no active plan → nothing to do
+
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
+  local note="[TOOL-FAIL @${ts}] tool=${tool_name} error=${error_msg}"
+  _append_to_open_questions "$plan_file" "$note"
+  echo "[record-tool-failure] recorded tool failure (${tool_name}) in ${plan_file}" >&2
+}
+
 cmd_context() {
   # Outputs canonical SessionStart hook JSON for plan context injection.
   # Format: {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"..."}}
@@ -464,8 +589,12 @@ case "$1" in
   find-active)          cmd_find_active ;;
   find-latest)          cmd_find_latest ;;
   record-verdict)       cmd_record_verdict ;;
+  record-critic-start)  cmd_record_critic_start ;;
   flush-before-compact) cmd_flush_before_compact ;;
+  log-post-compact)     cmd_log_post_compact ;;
+  flush-on-end)         cmd_flush_on_end ;;
   record-stopfail)      cmd_record_stopfail ;;
+  record-tool-failure)  cmd_record_tool_failure ;;
   context)              cmd_context ;;
   add-task)             [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
   update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;

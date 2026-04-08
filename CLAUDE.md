@@ -43,7 +43,7 @@ The following belong in **each developer's `~/.claude/settings.json`**, not in t
 - **PermissionRequest hook** — `~/.claude/hooks/claude-remote-approver.sh hook`
   - Install: copy `workspace/scripts/claude-remote-approver.sh` to `~/.claude/hooks/claude-remote-approver.sh` and `chmod +x` it.
   - The copy in `workspace/scripts/` is a placeholder; the active version must live in the user dir.
-- **model** — personal model preference (e.g. `opusplan`)
+- **model** — personal model preference; `opusplan` routes planning interactions to Opus 4.6 for deeper reasoning. Use `/plan <description>` to enter plan mode immediately with a task description, or `/model` in-session to switch.
 - **skipDangerousModePermissionPrompt** — per-machine setting
 
 Example:

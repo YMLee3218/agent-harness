@@ -8,6 +8,7 @@ context: fork
 agent: critic-code
 allowed-tools: [Read, Grep, Glob, Bash]
 effort: high
+paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 ---
 
 @reference/critic-code-body.md

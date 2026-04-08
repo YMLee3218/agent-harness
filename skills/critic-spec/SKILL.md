@@ -7,6 +7,7 @@ context: fork
 agent: critic-spec
 allowed-tools: [Read, Glob]
 effort: high
+paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 ---
 
 @reference/critic-spec-body.md

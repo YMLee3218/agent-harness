@@ -1,6 +1,6 @@
-.PHONY: test test-phase-gate test-plan-file test-pretooluse lint lint-lang eval
+.PHONY: test test-phase-gate test-plan-file test-pretooluse test-post-edit-failure lint lint-lang eval
 
-test: test-phase-gate test-plan-file test-pretooluse
+test: test-phase-gate test-plan-file test-pretooluse test-post-edit-failure
 
 test-phase-gate:
 	@echo "=== phase-gate tests ==="
@@ -13,6 +13,10 @@ test-plan-file:
 test-pretooluse:
 	@echo "=== pretooluse-bash tests ==="
 	@bash scripts/tests/pretooluse-bash.test.sh
+
+test-post-edit-failure:
+	@echo "=== post-edit-failure tests ==="
+	@bash scripts/tests/post-edit-failure.test.sh
 
 lint: lint-lang
 

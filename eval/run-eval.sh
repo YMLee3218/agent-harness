@@ -74,12 +74,25 @@ if [ -z "$filter" ] || [[ "feature-bad-layer-misassignment" == *"$filter"* ]]; t
   run_eval "feature-bad-layer-misassignment.md" "critic-feature" "Review the following requirements decomposition."
 fi
 
+# Workflow output evals — feature critic applied to brainstorming outputs
+if [ -z "$filter" ] || [[ "brainstorm-good" == *"$filter"* ]]; then
+  run_eval "brainstorm-good.md" "critic-feature" "Review the following requirements decomposition produced by a brainstorming step."
+fi
+if [ -z "$filter" ] || [[ "brainstorm-bad-missing-layer" == *"$filter"* ]]; then
+  run_eval "brainstorm-bad-missing-layer.md" "critic-feature" "Review the following requirements decomposition produced by a brainstorming step."
+fi
+
 # Spec critic evals
 if [ -z "$filter" ] || [[ "spec-good-1" == *"$filter"* ]]; then
   run_eval "spec-good-1.md" "critic-spec" "Review the following BDD spec."
 fi
 if [ -z "$filter" ] || [[ "spec-bad-missing-error-scenario" == *"$filter"* ]]; then
   run_eval "spec-bad-missing-error-scenario.md" "critic-spec" "Review the following BDD spec."
+fi
+
+# Workflow output evals — spec critic applied to writing-spec outputs
+if [ -z "$filter" ] || [[ "spec-bad-no-boundary" == *"$filter"* ]]; then
+  run_eval "spec-bad-no-boundary.md" "critic-spec" "Review the following BDD spec produced by a writing-spec step."
 fi
 
 # Test critic evals
@@ -90,12 +103,37 @@ if [ -z "$filter" ] || [[ "test-bad-modified-after-red" == *"$filter"* ]]; then
   run_eval "test-bad-modified-after-red.md" "critic-test" "Review the following test file. The embedded Test Manifest and Test Command Result show whether tests pass or fail."
 fi
 
+# Workflow output evals — test critic applied to writing-tests outputs
+if [ -z "$filter" ] || [[ "tests-bad-passing-red" == *"$filter"* ]]; then
+  run_eval "tests-bad-passing-red.md" "critic-test" "Review the following test file. The embedded Test Manifest and Test Command Result show whether tests pass or fail."
+fi
+
 # Code critic evals
 if [ -z "$filter" ] || [[ "code-good-1" == *"$filter"* ]]; then
   run_eval "code-good-1.md" "critic-code" "Review the following implementation for spec compliance and layer boundary violations. The spec, docs, implementation, and layer analysis are all embedded in the file."
 fi
 if [ -z "$filter" ] || [[ "code-bad-layer-violation" == *"$filter"* ]]; then
   run_eval "code-bad-layer-violation.md" "critic-code" "Review the following implementation for spec compliance and layer boundary violations. The spec, docs, implementation, and layer analysis are all embedded in the file."
+fi
+
+# Skill routing isolation checks (deterministic — no LLM invocation)
+# Verifies that slash-only skills declare disable-model-invocation: true so they
+# cannot be auto-triggered by brainstorm-style prompts.
+check_routing_isolation() {
+  local skill_path="$1" skill_name="$2"
+  if [ -f "$skill_path" ] && grep -q "^disable-model-invocation: true" "$skill_path"; then
+    echo "routing: $skill_name has disable-model-invocation: true ... PASS"
+    PASS=$((PASS + 1))
+  else
+    echo "routing: $skill_name missing disable-model-invocation: true ... FAIL (auto-trigger risk)"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
+WORKSPACE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -z "$filter" ] || [[ "routing" == *"$filter"* ]]; then
+  check_routing_isolation "$WORKSPACE_DIR/skills/running-dev-cycle/SKILL.md" "running-dev-cycle"
+  check_routing_isolation "$WORKSPACE_DIR/skills/running-integration-tests/SKILL.md" "running-integration-tests"
 fi
 
 echo ""

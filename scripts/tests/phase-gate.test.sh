@@ -201,6 +201,41 @@ make_plan "$T18" "feat" "done" >/dev/null
 write_input "tests/test_foo.py" | CLAUDE_PROJECT_DIR="$T18" bash "$SCRIPT" write >/dev/null 2>&1
 check "write/done: test file still blocked after done" 2 $?
 
+# ── Test 19: write/red — Scala source file blocked ───────────────────────────
+
+T19=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T19" "feat" "red" >/dev/null
+write_input "src/main/scala/com/example/Foo.scala" | CLAUDE_PROJECT_DIR="$T19" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/red: Scala source file (src/main/scala/) blocked" 2 $?
+
+# ── Test 20: write/red — Go pkg/ source file blocked ────────────────────────
+
+T20=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T20" "feat" "red" >/dev/null
+write_input "pkg/store/user_store.go" | CLAUDE_PROJECT_DIR="$T20" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/red: Go pkg/ source file blocked" 2 $?
+
+# ── Test 21: write/brainstorm — Scala source file blocked ────────────────────
+
+T21=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T21" "feat" "brainstorm" >/dev/null
+write_input "src/main/scala/com/example/Service.scala" | CLAUDE_PROJECT_DIR="$T21" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/brainstorm: Scala source file blocked" 2 $?
+
+# ── Test 22: write/green — Scala source file allowed (not a test path) ───────
+
+T22=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T22" "feat" "green" >/dev/null
+write_input "src/main/scala/com/example/Foo.scala" | CLAUDE_PROJECT_DIR="$T22" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/green: Scala source file allowed (green phase only blocks test writes)" 0 $?
+
+# ── Test 23: write/green — pkg/ source file allowed (not a test path) ────────
+
+T23=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T23" "feat" "green" >/dev/null
+write_input "pkg/store/user_store.go" | CLAUDE_PROJECT_DIR="$T23" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/green: pkg/ source file allowed (green phase only blocks test writes)" 0 $?
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 echo ""

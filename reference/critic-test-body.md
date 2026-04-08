@@ -1,6 +1,8 @@
 Severity rules: @reference/severity.md
 Layer rules: @reference/layers.md
 
+ultrathink
+
 Read the test files and spec.md at the paths provided before reviewing. Run the test command given in the prompt.
 
 ## Pre-check: test file integrity (if called during or after green phase)

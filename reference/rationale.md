@@ -33,10 +33,27 @@ Links are listed first so a downstream reader can verify the primary source.
 
 ### Model routing tiers
 
+Current model IDs (2026-04): Opus 4.6 (`claude-opus-4-6`), Sonnet 4.6 (`claude-sonnet-4-6`), Haiku 4.5 (`claude-haiku-4-5-20251001`). Skill frontmatter uses alias keys (`haiku`, `sonnet`, `opusplan`) rather than full IDs; the alias table is resolved by Claude Code at runtime.
+
 | Tier | Model | Critics / roles | Rationale |
 |------|-------|-----------------|-----------|
-| **Tier 1 — pattern classification** | Haiku | `critic-feature`, `critic-spec` | Feature decomposition and BDD structure checks are pattern-matching tasks; Haiku is sufficient and ~4× cheaper than Sonnet |
-| **Tier 2 — semantic judgment** | Sonnet | `critic-test`, `critic-code`, `coder` | Test integrity, spec compliance, and implementation generation require deeper reasoning; savings from Haiku here are outweighed by error rate |
+| **Tier 1 — pattern classification** | Haiku 4.5 | `critic-feature`, `critic-spec` | Feature decomposition and BDD structure checks are pattern-matching tasks; Haiku is sufficient and ~4× cheaper than Sonnet |
+| **Tier 2 — semantic judgment** | Sonnet 4.6 | `critic-test`, `critic-code`, `coder` | Test integrity, spec compliance, and implementation generation require deeper reasoning; savings from Haiku here are outweighed by error rate |
+
+### Why the `implementing` skill does not delegate to the bundled `/batch` skill
+
+Claude Code ships a bundled `/batch` skill that distributes tasks across git worktrees in parallel — the same parallelisation mechanism `implementing` uses internally. The harness does **not** delegate to `/batch` because:
+
+1. **Phase FSM integrity**: `/batch` has no knowledge of the brainstorm → spec → red → green → refactor → integration → done FSM. It would write source files regardless of which phase the plan file is in, bypassing the PreToolUse phase-gate.
+2. **Red-anchor commit contract**: `writing-tests` commits all tests under `test(red): {slug}` before any implementation begins. `critic-test` uses this commit SHA to detect post-Red test modifications. `/batch` does not emit `test(red):` commits, breaking the integrity check.
+3. **Critic-test gate**: `implementing` waits for `critic-test PASS` before spawning coder subagents. `/batch` has no awareness of the critic loop and would proceed unconditionally.
+
+**Bundled skill name collisions**: The bundled skills `/batch`, `/simplify`, `/debug`, and `/loop` do not conflict with any harness skill names (`brainstorming`, `writing-spec`, `writing-tests`, `implementing`, `critic-*`, `running-*`, `initializing-project`). Downstream projects may use bundled skills freely alongside harness skills.
+
+### Recommended user-side settings (personal `~/.claude/settings.json`)
+
+- **`"model": "opusplan"`** — routes planning interactions to Opus 4.6 for deeper architectural reasoning. Use `/plan <description>` to enter plan mode immediately with a task description pre-loaded, or `/model` in-session to switch models.
+- **Stop hook + PermissionRequest hook** — see harness CLAUDE.md § Prerequisites.
 
 ## Canonical hook schemas (verified against code.claude.com/docs/en/hooks)
 
@@ -55,6 +72,15 @@ Links are listed first so a downstream reader can verify the primary source.
 | `agent_id` | Subagent identifier |
 
 Fields **not** in the SubagentStop payload: `subagent_type`, `tool_response`. Fallback branches for these were removed; verified absent in `scripts/plan-file.sh`.
+
+### PostToolUseFailure (Write|Edit) → post-edit-failure.sh
+Successful Write/Edit failures (permissions, bad paths) left no trace in the plan file. `PostToolUseFailure` fills the gap: the script is advisory (exit 0 always) and appends a `[TOOL-FAIL]` entry to `## Open Questions` so the next session can surface unresolved write errors. Does not use exit 2 — a failed write record must never block recovery.
+
+### SessionEnd → flush-on-end
+`PreCompact` and `StopFailure` already preserve plan state, but normal session exit (`/exit`, terminal close) had no flush point. `SessionEnd` covers the gap by appending a `[SESSION-END]` marker, ensuring every exit path leaves an audit trail. Exit 0 always; no active plan → silent skip.
+
+### SubagentStart (critic-.*) → record-critic-start
+`SubagentStop` records the verdict but not when the critic started or what phase it was evaluating. `SubagentStart` fills the gap by writing a timestamped `[START]` entry to `## Critic Runs` (separate from `## Critic Verdicts`). This enables latency analysis and ensures a dangling start without a matching verdict is detectable. Exit 0 always; non-critic agents and missing plans → silent skip.
 
 ### SessionStart hook output format
 Scripts must emit the `hookSpecificOutput` wrapper to inject additional context:

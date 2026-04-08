@@ -645,6 +645,126 @@ T35=$(mktemp -d -p "$TMPDIR_BASE")
   fi
 })
 
+# ── Tests: record-critic-start ───────────────────────────────────────────────
+
+T36=$(mktemp -d -p "$TMPDIR_BASE")
+f36=$(make_plan "$T36" "critic-start-feat" "spec")
+(cd "$T36" && {
+  input='{"hook_event_name":"SubagentStart","agent_type":"critic-spec","agent_id":"agent-abc"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-critic-start >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "## Critic Runs" "$f36" && grep -q "\[START" "$f36" && grep -q "critic-spec" "$f36"; then
+    echo "PASS: record-critic-start: START entry written to Critic Runs section"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-critic-start: expected exit 0 + Critic Runs section with START entry (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# Non-critic agent must be ignored (exit 0, no write)
+T37=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T37" "non-critic-start" "spec" >/dev/null
+(cd "$T37" && {
+  input='{"hook_event_name":"SubagentStart","agent_type":"general-purpose","agent_id":"agent-xyz"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-critic-start >/dev/null 2>&1
+  got=$?
+  plan_file="$T37/plans/non-critic-start.md"
+  if [ "$got" -eq 0 ] && ! grep -q "## Critic Runs" "$plan_file"; then
+    echo "PASS: record-critic-start: non-critic agent ignored (no Critic Runs written)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-critic-start: expected non-critic agent to be ignored (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# Critic Verdicts section must remain unchanged after record-critic-start
+T38=$(mktemp -d -p "$TMPDIR_BASE")
+f38=$(make_plan "$T38" "verdicts-intact" "spec")
+bash "$SCRIPT" append-verdict "$f38" "spec/critic-spec: PASS" >/dev/null 2>&1
+(cd "$T38" && {
+  input='{"hook_event_name":"SubagentStart","agent_type":"critic-code","agent_id":"agent-1"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-critic-start >/dev/null 2>&1
+  if grep -q "spec/critic-spec: PASS" "$f38" && grep -q "## Critic Runs" "$f38"; then
+    echo "PASS: record-critic-start: Critic Verdicts section unaffected; Critic Runs added separately"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-critic-start: Critic Verdicts was corrupted or Critic Runs missing"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: flush-on-end ───────────────────────────────────────────────────────
+
+T39=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T39" "session-end-feat" "green" >/dev/null
+(cd "$T39" && {
+  input='{"reason":"normal"}'
+  printf '%s' "$input" | bash "$SCRIPT" flush-on-end >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "\[SESSION-END" "$T39/plans/session-end-feat.md"; then
+    echo "PASS: flush-on-end: SESSION-END marker written to Open Questions"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: flush-on-end: expected exit 0 + SESSION-END marker (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# flush-on-end with no active plan → exit 0, no error
+T40=$(mktemp -d -p "$TMPDIR_BASE")
+(cd "$T40" && {
+  input='{"reason":"normal"}'
+  printf '%s' "$input" | bash "$SCRIPT" flush-on-end >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ]; then
+    echo "PASS: flush-on-end: no active plan → exit 0 (silent)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: flush-on-end: expected exit 0 with no active plan (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# log-post-compact: POST-COMPACT marker written with phase and open-question count
+T41=$(mktemp -d -p "$TMPDIR_BASE")
+make_plan "$T41" "post-compact-feat" "green" >/dev/null
+# Add two open questions so count > 0
+bash "$SCRIPT" append-note "$T41/plans/post-compact-feat.md" "Question one" >/dev/null 2>&1
+bash "$SCRIPT" append-note "$T41/plans/post-compact-feat.md" "Question two" >/dev/null 2>&1
+(cd "$T41" && {
+  bash "$SCRIPT" log-post-compact </dev/null >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "\[POST-COMPACT" "$T41/plans/post-compact-feat.md"; then
+    marker=$(grep "\[POST-COMPACT" "$T41/plans/post-compact-feat.md" | head -1)
+    if echo "$marker" | grep -q "phase=green" && echo "$marker" | grep -q "open_questions="; then
+      echo "PASS: log-post-compact: POST-COMPACT marker with phase and open_questions written"
+      PASS=$((PASS + 1))
+    else
+      echo "FAIL: log-post-compact: marker missing phase or open_questions fields: $marker"
+      FAIL=$((FAIL + 1))
+    fi
+  else
+    echo "FAIL: log-post-compact: expected exit 0 + POST-COMPACT marker (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# log-post-compact with no active plan → exit 0, no error
+T42=$(mktemp -d -p "$TMPDIR_BASE")
+(cd "$T42" && {
+  bash "$SCRIPT" log-post-compact </dev/null >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ]; then
+    echo "PASS: log-post-compact: no active plan → exit 0 (silent)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: log-post-compact: expected exit 0 with no active plan (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 echo ""
