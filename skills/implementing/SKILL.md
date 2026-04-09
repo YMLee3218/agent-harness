@@ -1,9 +1,14 @@
 ---
 name: implementing
 description: >
-  Implement Green phase (make failing tests pass) then Refactor.
+  Implement Green phase (make failing tests pass, then refactor in-place within Green).
   Trigger: "implement", "make the tests pass", "Green phase", "go", "proceed", after critic-test returns PASS.
+  Do NOT trigger when no spec or tests exist — route to brainstorming instead.
   Plans implementation order (domain first), then executes with isolated subagents per task.
+effort: high
+paths:
+  - src/**
+  - tests/**
 ---
 
 # Implementation Workflow
@@ -94,11 +99,6 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug
 ```
 
 Then mark the corresponding `TaskCreate` task `completed`. Move to the next tier.
-
-After all tasks complete, set plan file phase:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" refactor
-```
 
 ## Step 4 — Run critic-code at milestones (max 2 iterations per milestone)
 

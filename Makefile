@@ -1,4 +1,4 @@
-.PHONY: test test-phase-gate test-plan-file test-pretooluse test-post-edit-failure lint lint-lang eval
+.PHONY: test test-phase-gate test-plan-file test-pretooluse test-post-edit-failure test-integration lint lint-lang eval eval-integration
 
 test: test-phase-gate test-plan-file test-pretooluse test-post-edit-failure
 
@@ -24,6 +24,12 @@ lint-lang:
 	@echo "=== lang-lint: Hangul detection in LLM-facing files ==="
 	@bash scripts/lint-lang.sh
 
+test-integration:
+	@echo "=== integration eval: end-to-end harness tests ==="
+	@bash eval/integration/run-integration-eval.sh
+
 eval:
 	@echo "=== critic eval: regression fixtures ==="
 	@bash eval/run-eval.sh
+
+eval-integration: test-integration

@@ -5,6 +5,7 @@ description: >
   Invoke only via `/running-dev-cycle` slash command.
   Feature-slice mode by default; use --batch flag to write all specs before any tests.
 disable-model-invocation: true
+argument-hint: "[--profile trivial|patch|feature|greenfield] [--batch]"
 ---
 
 # Development Cycle

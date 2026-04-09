@@ -17,6 +17,7 @@
           "settings.json",
           "CLAUDE.md",
           "reference/",
+          "rules/",
           "scripts/",
           "skills/",
           "agents/",

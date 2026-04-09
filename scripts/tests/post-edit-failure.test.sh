@@ -69,7 +69,7 @@ EOF
 
 # ── Test 1: record-tool-failure — writes TOOL-FAIL marker to Open Questions ──
 
-T1=$(mktemp -d -p "$TMPDIR_BASE")
+T1=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f1=$(make_plan "$T1" "fail-feat" "green")
 input='{"hook_event_name":"PostToolUseFailure","tool_name":"Write","error":"permission denied: /protected/path"}'
 printf '%s' "$input" | CLAUDE_PROJECT_DIR="$T1" bash "$PLAN_FILE_SH" record-tool-failure >/dev/null 2>&1
@@ -79,14 +79,14 @@ check_file_contains "record-tool-failure: tool name recorded" "$f1" "Write"
 
 # ── Test 2: record-tool-failure — no active plan → exit 0, silent ────────────
 
-T2=$(mktemp -d -p "$TMPDIR_BASE")
+T2=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 input='{"hook_event_name":"PostToolUseFailure","tool_name":"Write","error":"some error"}'
 printf '%s' "$input" | CLAUDE_PROJECT_DIR="$T2" bash "$PLAN_FILE_SH" record-tool-failure >/dev/null 2>&1
 check "record-tool-failure: no active plan → exit 0" 0 $?
 
 # ── Test 3: record-tool-failure — long error message is truncated ─────────────
 
-T3=$(mktemp -d -p "$TMPDIR_BASE")
+T3=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f3=$(make_plan "$T3" "long-error-feat" "red")
 long_error=$(python3 -c "print('x' * 200)")
 # Use jq to build the JSON safely to avoid shell quoting issues
@@ -104,7 +104,7 @@ fi
 
 # ── Test 4: post-edit-failure.sh wrapper — exit 0 always ─────────────────────
 
-T4=$(mktemp -d -p "$TMPDIR_BASE")
+T4=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T4" "wrapper-feat" "green" >/dev/null
 input='{"hook_event_name":"PostToolUseFailure","tool_name":"Write","error":"test error"}'
 printf '%s' "$input" | CLAUDE_PROJECT_DIR="$T4" bash "$SCRIPT" >/dev/null 2>&1
@@ -112,7 +112,7 @@ check "post-edit-failure.sh: wrapper exits 0" 0 $?
 
 # ── Test 5: post-edit-failure.sh wrapper — records failure via plan-file.sh ──
 
-T5=$(mktemp -d -p "$TMPDIR_BASE")
+T5=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f5=$(make_plan "$T5" "wrapper-record-feat" "green")
 input='{"hook_event_name":"PostToolUseFailure","tool_name":"Edit","error":"readonly filesystem"}'
 printf '%s' "$input" | CLAUDE_PROJECT_DIR="$T5" bash "$SCRIPT" >/dev/null 2>&1
@@ -121,7 +121,7 @@ check_file_contains "post-edit-failure.sh: Edit tool name in plan file" "$f5" "E
 
 # ── Test 6: post-edit-failure.sh — exit 0 even with malformed input ──────────
 
-T6=$(mktemp -d -p "$TMPDIR_BASE")
+T6=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 printf 'not-json' | CLAUDE_PROJECT_DIR="$T6" bash "$SCRIPT" >/dev/null 2>&1
 check "post-edit-failure.sh: exit 0 with malformed input" 0 $?
 

@@ -3,24 +3,24 @@ name: local-skill
 description: >
   One-sentence description — used by Claude to decide when to invoke this skill.
   Be specific: mention the trigger condition and what the skill does.
-trigger: MANUAL
+disable-model-invocation: true
 ---
 
 <!--
 INSTRUCTIONS FOR USE:
 1. Copy this directory to .claude/skills/local-<your-name>/
 2. Rename: mv local-skill local-<your-name>
-3. Edit the frontmatter (name, description, trigger)
+3. Edit the frontmatter (name, description)
 4. Replace the body below with your skill prompt
 
-TRIGGER values:
-  MANUAL   — user must invoke via /skill-name (default; safest)
-  AUTO     — Claude decides when to invoke based on description match
+INVOCATION:
+  disable-model-invocation: true  — user must invoke via /skill-name (default; safest)
+  omit or set to false            — Claude decides when to invoke based on description match
 
 FRONTMATTER FIELDS:
-  name        — must match the directory name (used in /skill-name invocation)
-  description — shown in skill list and used for AUTO trigger matching
-  trigger     — MANUAL or AUTO
+  name                       — must match the directory name (used in /skill-name invocation)
+  description                — shown in skill list and used for auto trigger matching
+  disable-model-invocation   — true = manual only (recommended default)
 -->
 
 # Skill: local-skill

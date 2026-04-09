@@ -20,6 +20,11 @@ if [ $? -ne 0 ]; then
   echo "BLOCKED: failed to parse hook input JSON" >&2
   exit 2
 fi
+# If input was provided but command field is missing/empty, block rather than silently allow
+if [ -z "$cmd" ] && [ -n "$input" ]; then
+  echo "BLOCKED: could not extract command field from hook input" >&2
+  exit 2
+fi
 
 # rm -rf / rm -fr (and sudo variants, and combined flags like -rdf)
 if printf '%s' "$cmd" | grep -iqE \
@@ -93,6 +98,25 @@ fi
 if printf '%s' "$cmd" | grep -iqE \
   '\|[[:space:]]*(ba)?sh([[:space:]]+-[[:alpha:]]+)*([[:space:]]|$)'; then
   echo "BLOCKED: pipe-to-shell detected" >&2
+  exit 2
+fi
+
+# chmod world-writable: octal modes granting others write (e.g. 777, 775, 757),
+# or symbolic modes o+w / a+w
+if printf '%s' "$cmd" | grep -iqE \
+  'chmod[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?[0-7]*[2367][0-7][0-7]([[:space:]]|$)' \
+  || printf '%s' "$cmd" | grep -iqE \
+  'chmod[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?(o|a)\+[rwx]*w'; then
+  echo "BLOCKED: world-writable chmod detected" >&2
+  exit 2
+fi
+
+# eval / source with command substitution — dynamic code execution via injected input
+if printf '%s' "$cmd" | grep -iqE \
+  '(^|[;|&[:space:]])[[:space:]]*eval[[:space:]]+[^[:space:]]*\$\(' \
+  || printf '%s' "$cmd" | grep -iqE \
+  '(^|[;|&[:space:]])[[:space:]]*source[[:space:]]+<\('; then
+  echo "BLOCKED: eval/source with command substitution detected" >&2
   exit 2
 fi
 

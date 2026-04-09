@@ -115,6 +115,7 @@ Create initial plan file `plans/{project-slug}.md`:
 ---
 feature: {project-slug}
 phase: brainstorm
+schema: 1
 ---
 
 ## Vision

@@ -71,7 +71,7 @@ EOF
 
 # ── Tests: get-phase ──────────────────────────────────────────────────────────
 
-T1=$(mktemp -d -p "$TMPDIR_BASE")
+T1=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f1=$(make_plan "$T1" "my-feature" "spec")
 run_output "get-phase: spec"      0 "spec"      bash "$SCRIPT" get-phase "$f1"
 run_output "get-phase: brainstorm" 0 "brainstorm" bash "$SCRIPT" get-phase "$(make_plan "$T1" "feat2" "brainstorm")"
@@ -79,7 +79,7 @@ run        "get-phase: missing file" 2              bash "$SCRIPT" get-phase "$T
 
 # ── Tests: set-phase ─────────────────────────────────────────────────────────
 
-T2=$(mktemp -d -p "$TMPDIR_BASE")
+T2=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f2=$(make_plan "$T2" "feature-a" "brainstorm")
 
 run        "set-phase: brainstorm→spec valid"   0 bash "$SCRIPT" set-phase "$f2" "spec"
@@ -87,12 +87,13 @@ run_output "set-phase: reads back as spec"      0 "spec" bash "$SCRIPT" get-phas
 run        "set-phase: spec→red valid"          0 bash "$SCRIPT" set-phase "$f2" "red"
 run_output "set-phase: reads back as red"       0 "red" bash "$SCRIPT" get-phase "$f2"
 run        "set-phase: invalid phase"           1 bash "$SCRIPT" set-phase "$f2" "invalid"
+run        "set-phase: refactor rejected (removed from FSM)" 1 bash "$SCRIPT" set-phase "$f2" "refactor"
 run        "set-phase: set to done"             0 bash "$SCRIPT" set-phase "$f2" "done"
 run_output "set-phase: reads back as done"      0 "done" bash "$SCRIPT" get-phase "$f2"
 
 # ── Tests: append-verdict ────────────────────────────────────────────────────
 
-T3=$(mktemp -d -p "$TMPDIR_BASE")
+T3=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f3=$(make_plan "$T3" "feature-b" "spec")
 
 run "append-verdict: first entry" 0 bash "$SCRIPT" append-verdict "$f3" "spec/critic-spec: PASS"
@@ -110,7 +111,7 @@ run "append-verdict: second entry" 0 bash "$SCRIPT" append-verdict "$f3" "red/cr
 
 # ── Tests: find-active ───────────────────────────────────────────────────────
 
-T4=$(mktemp -d -p "$TMPDIR_BASE")
+T4=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T4" && {
   make_plan "$T4" "done-feature" "done" >/dev/null
   sleep 0.01
@@ -118,20 +119,20 @@ T4=$(mktemp -d -p "$TMPDIR_BASE")
   run "find-active: finds non-done plan" 0 bash "$SCRIPT" find-active
 })
 
-T5=$(mktemp -d -p "$TMPDIR_BASE")
+T5=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T5" && {
   make_plan "$T5" "all-done" "done" >/dev/null
   run "find-active: no active plan → exit 2" 2 bash "$SCRIPT" find-active
 })
 
-T6=$(mktemp -d -p "$TMPDIR_BASE")
+T6=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T6" && {
   run "find-active: no plans dir → exit 2" 2 bash "$SCRIPT" find-active
 })
 
 # ── Tests: record-verdict ────────────────────────────────────────────────────
 
-T7=$(mktemp -d -p "$TMPDIR_BASE")
+T7=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f7=$(make_plan "$T7" "rec-feature" "spec")
 (cd "$T7" && {
   # Message includes mandatory <!-- verdict: PASS --> marker (jq interprets \n as newline)
@@ -147,7 +148,7 @@ f7=$(make_plan "$T7" "rec-feature" "spec")
   fi
 })
 
-T8=$(mktemp -d -p "$TMPDIR_BASE")
+T8=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T8" && {
   # Non-critic agent should be ignored (exit 0, no write)
   make_plan "$T8" "feat" "spec" >/dev/null
@@ -159,7 +160,7 @@ T8=$(mktemp -d -p "$TMPDIR_BASE")
 
 # ── Tests: set-phase awk bug regression (uppercase existing value) ────────────
 
-T9=$(mktemp -d -p "$TMPDIR_BASE")
+T9=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 mkdir -p "$T9/plans"
 cat > "$T9/plans/bug.md" <<'EOF'
 ## Phase
@@ -190,7 +191,7 @@ fi
 
 # ── Tests: get-phase with uppercase value ────────────────────────────────────
 
-T10=$(mktemp -d -p "$TMPDIR_BASE")
+T10=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 mkdir -p "$T10/plans"
 printf '## Phase\nRed\n\n## Critic Verdicts\n' > "$T10/plans/upper.md"
 run_output "get-phase: uppercase value normalised to lowercase" 0 "red" \
@@ -198,7 +199,7 @@ run_output "get-phase: uppercase value normalised to lowercase" 0 "red" \
 
 # ── Tests: frontmatter sync after set-phase ───────────────────────────────────
 
-T11=$(mktemp -d -p "$TMPDIR_BASE")
+T11=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f11=$(make_plan "$T11" "sync-feat" "brainstorm")
 bash "$SCRIPT" set-phase "$f11" "red" >/dev/null 2>&1
 fm_phase=$(grep "^phase:" "$f11" | awk '{print $2}')
@@ -214,7 +215,7 @@ fi
 # Legacy format (bold **FAIL** without marker) is intentionally not supported.
 # Without the <!-- verdict: FAIL --> marker the result must be PARSE_ERROR.
 
-T12=$(mktemp -d -p "$TMPDIR_BASE")
+T12=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f12=$(make_plan "$T12" "bold-feat" "spec")
 (cd "$T12" && {
   input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\n**FAIL** — missing scenario"}'
@@ -231,7 +232,7 @@ f12=$(make_plan "$T12" "bold-feat" "spec")
 # ── Tests: record-verdict strict marker parsing ──────────────────────────────
 
 # Case 1: PASS marker present → recorded as PASS
-T13=$(mktemp -d -p "$TMPDIR_BASE")
+T13=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f13=$(make_plan "$T13" "marker-pass" "spec")
 (cd "$T13" && {
   input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nPASS\n<!-- verdict: PASS -->"}'
@@ -246,7 +247,7 @@ f13=$(make_plan "$T13" "marker-pass" "spec")
 })
 
 # Case 2: FAIL marker present → recorded as FAIL
-T14=$(mktemp -d -p "$TMPDIR_BASE")
+T14=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f14=$(make_plan "$T14" "marker-fail" "spec")
 (cd "$T14" && {
   input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->"}'
@@ -261,7 +262,7 @@ f14=$(make_plan "$T14" "marker-fail" "spec")
 })
 
 # Case 3: No marker → recorded as PARSE_ERROR with stderr warning
-T15=$(mktemp -d -p "$TMPDIR_BASE")
+T15=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f15=$(make_plan "$T15" "marker-missing" "spec")
 (cd "$T15" && {
   input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nPASS"}'
@@ -278,7 +279,7 @@ f15=$(make_plan "$T15" "marker-missing" "spec")
 # ── Tests: record-verdict PARSE_ERROR exits with code 2 ─────────────────────
 # Missing verdict marker must cause exit 2 so the SubagentStop hook signals failure.
 
-T16=$(mktemp -d -p "$TMPDIR_BASE")
+T16=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f16=$(make_plan "$T16" "exit2-feat" "spec")
 (cd "$T16" && {
   input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"No marker here"}'
@@ -295,7 +296,7 @@ f16=$(make_plan "$T16" "exit2-feat" "spec")
 
 # ── Tests: find-active honours CLAUDE_PLAN_FILE env override ─────────────────
 
-T17=$(mktemp -d -p "$TMPDIR_BASE")
+T17=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f17a=$(make_plan "$T17" "env-feat" "green")
 make_plan "$T17" "other-feat" "brainstorm" >/dev/null
 (cd "$T17" && {
@@ -311,7 +312,7 @@ make_plan "$T17" "other-feat" "brainstorm" >/dev/null
 
 # ── Tests: context subcommand emits additionalContext JSON ───────────────────
 
-T18=$(mktemp -d -p "$TMPDIR_BASE")
+T18=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T18" "ctx-feat" "green" >/dev/null
 (cd "$T18" && {
   out=$(bash "$SCRIPT" context 2>/dev/null)
@@ -327,7 +328,7 @@ make_plan "$T18" "ctx-feat" "green" >/dev/null
   fi
 })
 
-T19=$(mktemp -d -p "$TMPDIR_BASE")
+T19=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T19" && {
   # No plan → exit 0, no output
   out=$(bash "$SCRIPT" context 2>/dev/null)
@@ -344,7 +345,7 @@ T19=$(mktemp -d -p "$TMPDIR_BASE")
 # Claude Code SubagentStop payload: {session_id, transcript_path, stop_hook_active}
 # transcript file is JSON Lines with {type:"assistant", message:{content:[{type:"text",text:"..."}]}}
 
-T20=$(mktemp -d -p "$TMPDIR_BASE")
+T20=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f20=$(make_plan "$T20" "transcript-pass" "spec")
 (cd "$T20" && {
   transcript_file="$TMPDIR_BASE/transcript_pass_$$.jsonl"
@@ -364,7 +365,7 @@ f20=$(make_plan "$T20" "transcript-pass" "spec")
   fi
 })
 
-T21=$(mktemp -d -p "$TMPDIR_BASE")
+T21=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f21=$(make_plan "$T21" "transcript-fail" "spec")
 (cd "$T21" && {
   transcript_file="$TMPDIR_BASE/transcript_fail_$$.jsonl"
@@ -383,7 +384,7 @@ f21=$(make_plan "$T21" "transcript-fail" "spec")
   fi
 })
 
-T22=$(mktemp -d -p "$TMPDIR_BASE")
+T22=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f22=$(make_plan "$T22" "transcript-no-marker" "spec")
 (cd "$T22" && {
   transcript_file="$TMPDIR_BASE/transcript_nomarker_$$.jsonl"
@@ -404,7 +405,7 @@ f22=$(make_plan "$T22" "transcript-no-marker" "spec")
 
 # ── Tests: add-task ──────────────────────────────────────────────────────────
 
-T23=$(mktemp -d -p "$TMPDIR_BASE")
+T23=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f23=$(make_plan "$T23" "task-ledger-feat" "green")
 
 run "add-task: creates Task Ledger section" 0 bash "$SCRIPT" add-task "$f23" "task-1" "domain"
@@ -427,7 +428,7 @@ fi
 
 # ── Tests: update-task ────────────────────────────────────────────────────────
 
-T24=$(mktemp -d -p "$TMPDIR_BASE")
+T24=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f24=$(make_plan "$T24" "update-task-feat" "green")
 bash "$SCRIPT" add-task "$f24" "task-1" "domain" >/dev/null
 bash "$SCRIPT" add-task "$f24" "task-2" "infrastructure" >/dev/null
@@ -454,7 +455,7 @@ run "update-task: invalid status rejected" 1 bash "$SCRIPT" update-task "$f24" "
 
 # ── Tests: record-verdict with category ──────────────────────────────────────
 
-T25=$(mktemp -d -p "$TMPDIR_BASE")
+T25=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f25=$(make_plan "$T25" "category-feat" "spec")
 (cd "$T25" && {
   input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->\n<!-- category: MISSING_SCENARIO -->"}'
@@ -470,7 +471,7 @@ f25=$(make_plan "$T25" "category-feat" "spec")
 
 # ── Tests: record-verdict consecutive same-category FAIL → BLOCKED-CATEGORY ──
 
-T26=$(mktemp -d -p "$TMPDIR_BASE")
+T26=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f26=$(make_plan "$T26" "consec-fail-feat" "spec")
 (cd "$T26" && {
   # First FAIL with MISSING_SCENARIO
@@ -491,7 +492,7 @@ f26=$(make_plan "$T26" "consec-fail-feat" "spec")
 })
 
 # Different category on second FAIL must NOT block
-T27=$(mktemp -d -p "$TMPDIR_BASE")
+T27=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f27=$(make_plan "$T27" "diff-category-feat" "spec")
 (cd "$T27" && {
   input1='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->\n<!-- category: MISSING_SCENARIO -->"}'
@@ -510,7 +511,7 @@ f27=$(make_plan "$T27" "diff-category-feat" "spec")
 
 # ── Tests: append-note ───────────────────────────────────────────────────────
 
-T28=$(mktemp -d -p "$TMPDIR_BASE")
+T28=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f28=$(make_plan "$T28" "append-note-feat" "spec")
 
 run "append-note: appends to Open Questions" 0 bash "$SCRIPT" append-note "$f28" "[TEST-NOTE] hello"
@@ -526,7 +527,7 @@ run "append-note: missing file → exit 2" 2 bash "$SCRIPT" append-note "$T28/pl
 
 # ── Tests: find-active fail-closed with 2+ candidates ────────────────────────
 
-T29=$(mktemp -d -p "$TMPDIR_BASE")
+T29=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T29" && {
   make_plan "$T29" "feat-alpha" "spec" >/dev/null
   sleep 0.01
@@ -544,7 +545,7 @@ T29=$(mktemp -d -p "$TMPDIR_BASE")
 })
 
 # One active plan without CLAUDE_PLAN_FILE should still fall back with warning (not error)
-T30=$(mktemp -d -p "$TMPDIR_BASE")
+T30=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T30" && {
   make_plan "$T30" "sole-active" "red" >/dev/null
   out=$(bash "$SCRIPT" find-active 2>/dev/null)
@@ -560,7 +561,7 @@ T30=$(mktemp -d -p "$TMPDIR_BASE")
 
 # ── Tests: flush-before-compact ──────────────────────────────────────────────
 
-T31=$(mktemp -d -p "$TMPDIR_BASE")
+T31=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T31" "compact-feat" "spec" >/dev/null
 (cd "$T31" && {
   input='{"compact_trigger":"manual"}'
@@ -576,7 +577,7 @@ make_plan "$T31" "compact-feat" "spec" >/dev/null
 })
 
 # flush-before-compact with no active plan → exit 0, no error
-T32=$(mktemp -d -p "$TMPDIR_BASE")
+T32=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T32" && {
   input='{"compact_trigger":"auto"}'
   printf '%s' "$input" | bash "$SCRIPT" flush-before-compact >/dev/null 2>&1
@@ -592,13 +593,13 @@ T32=$(mktemp -d -p "$TMPDIR_BASE")
 
 # ── Tests: record-stopfail ────────────────────────────────────────────────────
 
-T33=$(mktemp -d -p "$TMPDIR_BASE")
+T33=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T33" "stopfail-feat" "green" >/dev/null
 (cd "$T33" && {
   input='{"error_type":"rate_limit","session_id":"sess-abc"}'
   printf '%s' "$input" | bash "$SCRIPT" record-stopfail >/dev/null 2>&1
   got=$?
-  if [ "$got" -eq 0 ] && grep -q "\[STOPFAIL\]" "$T33/plans/stopfail-feat.md"; then
+  if [ "$got" -eq 0 ] && grep -q "\[STOPFAIL" "$T33/plans/stopfail-feat.md"; then
     echo "PASS: record-stopfail: STOPFAIL marker written to Open Questions"
     PASS=$((PASS + 1))
   else
@@ -609,7 +610,7 @@ make_plan "$T33" "stopfail-feat" "green" >/dev/null
 
 # ── Tests: context bounded output + BLOCKED priority ─────────────────────────
 
-T34=$(mktemp -d -p "$TMPDIR_BASE")
+T34=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T34" && {
   plan_file=$(make_plan "$T34" "bounded-ctx" "red")
   # Add a BLOCKED item and several non-BLOCKED items
@@ -628,7 +629,7 @@ T34=$(mktemp -d -p "$TMPDIR_BASE")
 })
 
 # context output capped at 800 chars
-T35=$(mktemp -d -p "$TMPDIR_BASE")
+T35=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T35" && {
   plan_file=$(make_plan "$T35" "long-questions" "spec")
   # Add a very long open question to force truncation
@@ -647,7 +648,7 @@ T35=$(mktemp -d -p "$TMPDIR_BASE")
 
 # ── Tests: record-critic-start ───────────────────────────────────────────────
 
-T36=$(mktemp -d -p "$TMPDIR_BASE")
+T36=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f36=$(make_plan "$T36" "critic-start-feat" "spec")
 (cd "$T36" && {
   input='{"hook_event_name":"SubagentStart","agent_type":"critic-spec","agent_id":"agent-abc"}'
@@ -663,7 +664,7 @@ f36=$(make_plan "$T36" "critic-start-feat" "spec")
 })
 
 # Non-critic agent must be ignored (exit 0, no write)
-T37=$(mktemp -d -p "$TMPDIR_BASE")
+T37=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T37" "non-critic-start" "spec" >/dev/null
 (cd "$T37" && {
   input='{"hook_event_name":"SubagentStart","agent_type":"general-purpose","agent_id":"agent-xyz"}'
@@ -680,7 +681,7 @@ make_plan "$T37" "non-critic-start" "spec" >/dev/null
 })
 
 # Critic Verdicts section must remain unchanged after record-critic-start
-T38=$(mktemp -d -p "$TMPDIR_BASE")
+T38=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f38=$(make_plan "$T38" "verdicts-intact" "spec")
 bash "$SCRIPT" append-verdict "$f38" "spec/critic-spec: PASS" >/dev/null 2>&1
 (cd "$T38" && {
@@ -697,7 +698,7 @@ bash "$SCRIPT" append-verdict "$f38" "spec/critic-spec: PASS" >/dev/null 2>&1
 
 # ── Tests: flush-on-end ───────────────────────────────────────────────────────
 
-T39=$(mktemp -d -p "$TMPDIR_BASE")
+T39=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T39" "session-end-feat" "green" >/dev/null
 (cd "$T39" && {
   input='{"reason":"normal"}'
@@ -713,7 +714,7 @@ make_plan "$T39" "session-end-feat" "green" >/dev/null
 })
 
 # flush-on-end with no active plan → exit 0, no error
-T40=$(mktemp -d -p "$TMPDIR_BASE")
+T40=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T40" && {
   input='{"reason":"normal"}'
   printf '%s' "$input" | bash "$SCRIPT" flush-on-end >/dev/null 2>&1
@@ -728,7 +729,7 @@ T40=$(mktemp -d -p "$TMPDIR_BASE")
 })
 
 # log-post-compact: POST-COMPACT marker written with phase and open-question count
-T41=$(mktemp -d -p "$TMPDIR_BASE")
+T41=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T41" "post-compact-feat" "green" >/dev/null
 # Add two open questions so count > 0
 bash "$SCRIPT" append-note "$T41/plans/post-compact-feat.md" "Question one" >/dev/null 2>&1
@@ -752,7 +753,7 @@ bash "$SCRIPT" append-note "$T41/plans/post-compact-feat.md" "Question two" >/de
 })
 
 # log-post-compact with no active plan → exit 0, no error
-T42=$(mktemp -d -p "$TMPDIR_BASE")
+T42=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T42" && {
   bash "$SCRIPT" log-post-compact </dev/null >/dev/null 2>&1
   got=$?
@@ -761,6 +762,159 @@ T42=$(mktemp -d -p "$TMPDIR_BASE")
     PASS=$((PASS + 1))
   else
     echo "FAIL: log-post-compact: expected exit 0 with no active plan (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: record-task-created / record-task-completed (P3 TaskCreated hook) ──
+
+T43=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+f43=$(make_plan "$T43" "native-task-feat" "green")
+(cd "$T43" && {
+  input='{"task_id":"task-abc","task_subject":"Implement domain rule","task_description":"","teammate_name":"","team_name":""}'
+  printf '%s' "$input" | bash "$SCRIPT" record-task-created >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "## Task Ledger" "$f43" && grep -q "task-abc" "$f43"; then
+    echo "PASS: record-task-created: native task registered in Task Ledger"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-task-created: expected exit 0 + task-abc in Task Ledger (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+T44=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+f44=$(make_plan "$T44" "native-task-done" "green")
+bash "$SCRIPT" add-task "$f44" "task-xyz" "domain" >/dev/null 2>&1
+(cd "$T44" && {
+  input='{"task_id":"task-xyz","task_subject":"Implement domain rule","task_description":"","teammate_name":"","team_name":""}'
+  printf '%s' "$input" | bash "$SCRIPT" record-task-completed >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "completed" "$f44"; then
+    echo "PASS: record-task-completed: native task marked completed in Task Ledger"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-task-completed: expected exit 0 + completed status (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# record-task-created: no active plan → exit 0 silently
+T45=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+(cd "$T45" && {
+  input='{"task_id":"task-x","task_subject":"no plan"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-task-created >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ]; then
+    echo "PASS: record-task-created: no active plan → exit 0 (silent)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-task-created: expected exit 0 with no active plan (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: record-permission-denied (P3 PermissionDenied hook) ───────────────
+
+T46=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+f46=$(make_plan "$T46" "perm-denied-feat" "green")
+(cd "$T46" && {
+  input='{"tool_name":"Write","tool_input":{},"tool_use_id":"use-1","reason":"path is outside allowed directories"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-permission-denied >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "\[PERMISSION-DENIED" "$f46" && grep -q "Write" "$f46"; then
+    echo "PASS: record-permission-denied: PERMISSION-DENIED marker written to Open Questions"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-permission-denied: expected exit 0 + PERMISSION-DENIED marker (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: schema versioning (P5) ─────────────────────────────────────────────
+
+# schema: 1 → OK
+T47=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+(cd "$T47" && {
+  mkdir -p plans
+  cat > plans/schema1-feat.md <<'PLANEOF'
+---
+feature: schema1-feat
+phase: brainstorm
+schema: 1
+---
+
+## Phase
+brainstorm
+
+## Critic Verdicts
+
+## Open Questions
+PLANEOF
+  out=$(bash "$SCRIPT" set-phase plans/schema1-feat.md spec 2>/dev/null)
+  got=$?
+  if [ "$got" -eq 0 ]; then
+    echo "PASS: schema: schema 1 plan accepted by set-phase"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: schema: schema 1 plan rejected unexpectedly (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# schema: 0 / missing → warning, no hard-fail
+T48=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+(cd "$T48" && {
+  mkdir -p plans
+  cat > plans/schema0-feat.md <<'PLANEOF'
+---
+feature: schema0-feat
+phase: brainstorm
+---
+
+## Phase
+brainstorm
+
+## Critic Verdicts
+
+## Open Questions
+PLANEOF
+  out=$(bash "$SCRIPT" set-phase plans/schema0-feat.md spec 2>&1)
+  got=$?
+  if [ "$got" -eq 0 ] && printf '%s' "$out" | grep -qi "warning"; then
+    echo "PASS: schema: missing schema field → warning printed, no hard-fail"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: schema: expected exit 0 + warning for missing schema (exit=$got, out='$out')"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# schema: 99 → hard-fail
+T49=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+(cd "$T49" && {
+  mkdir -p plans
+  cat > plans/schema99-feat.md <<'PLANEOF'
+---
+feature: schema99-feat
+phase: brainstorm
+schema: 99
+---
+
+## Phase
+brainstorm
+
+## Critic Verdicts
+
+## Open Questions
+PLANEOF
+  bash "$SCRIPT" set-phase plans/schema99-feat.md spec >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 1 ]; then
+    echo "PASS: schema: unknown schema version → hard-fail (exit 1)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: schema: expected exit 1 for unsupported schema version (exit=$got)"
     FAIL=$((FAIL + 1))
   fi
 })

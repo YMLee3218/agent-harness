@@ -88,3 +88,19 @@ Scripts must emit the `hookSpecificOutput` wrapper to inject additional context:
 {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "..."}}
 ```
 A flat top-level `{"additionalContext": "..."}` is silently ignored by the runtime. Plain stdout text is also accepted as a simpler alternative.
+
+### SubagentStart/Stop matcher: explicit allow-list (P1)
+Changed from `critic-.*` wildcard to `critic-feature|critic-spec|critic-test|critic-code`. Reason: a wildcard would trigger `record-critic-start` and `record-verdict` for any future `critic-helper` or other non-verdict subagent, causing incorrect plan file entries. Explicit list is safer; add new critics to both matchers deliberately.
+
+### `refactor` phase removal (P2)
+`refactor` was removed from `VALID_PHASES` and collapsed into `green`. Rationale (Simplicity principle): refactoring is in-place cleanup performed by `coder` subagents within the same Green cycle; elevating it to a separate FSM state added surface area without a gating critic or entry skill. `implementing/SKILL.md` now describes it as in-place refactoring within Green, and `set-phase ... refactor` is no longer called.
+
+### Agent Teams: considered, not adopted
+Agent Teams (multi-session parallel collaboration, `TeammateIdle` hook) were evaluated as a replacement for session-scoped `implementing` orchestration. The current single-session orchestrator-workers pattern is sufficient for the harness use case; Agent Teams add cross-session state management complexity without a commensurate gain. Revisit when features require persistent parallel sub-sessions.
+
+### TaskCreated/TaskCompleted/PermissionDenied hooks (P3)
+Three hooks added to auto-sync plan state:
+- `TaskCreated` → `record-task-created`: registers native TaskCreate calls in the Task Ledger (layer="-"; implementing skill provides the correct layer).
+- `TaskCompleted` → `record-task-completed`: marks the matching Task Ledger row `completed`.
+- `PermissionDenied` → `record-permission-denied`: appends a `[PERMISSION-DENIED]` note to Open Questions for next-session review.
+Payload fields verified against `code.claude.com/docs/en/hooks` (2026-04): `task_id`, `task_subject` for task hooks; `tool_name`, `reason` for PermissionDenied.

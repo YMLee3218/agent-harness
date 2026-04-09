@@ -25,26 +25,26 @@ _lint_output() { sed 's/^/[post-edit-lint] /' >&2 || true; }
 case "$ext" in
   ts|tsx|mts|cts|js|jsx|mjs|cjs)
     if command -v mise >/dev/null 2>&1 && mise task list 2>/dev/null | grep -q "^lint"; then
-      mise run lint -- "$file_path" 2>&1 | _lint_output
+      mise run lint -- "$file_path" 2>&1 | _lint_output || true
     elif command -v eslint >/dev/null 2>&1; then
-      eslint "$file_path" 2>&1 | _lint_output
+      eslint "$file_path" 2>&1 | _lint_output || true
     fi
     ;;
   py)
     if command -v mise >/dev/null 2>&1 && mise task list 2>/dev/null | grep -q "^lint"; then
-      mise run lint -- "$file_path" 2>&1 | _lint_output
+      mise run lint -- "$file_path" 2>&1 | _lint_output || true
     elif command -v ruff >/dev/null 2>&1; then
-      ruff check "$file_path" 2>&1 | _lint_output
+      ruff check "$file_path" 2>&1 | _lint_output || true
     elif command -v flake8 >/dev/null 2>&1; then
-      flake8 "$file_path" 2>&1 | _lint_output
+      flake8 "$file_path" 2>&1 | _lint_output || true
     fi
     ;;
   go)
     if command -v gofmt >/dev/null 2>&1; then
-      diff <(gofmt "$file_path") "$file_path" 2>/dev/null | _lint_output
+      diff <(gofmt "$file_path") "$file_path" 2>/dev/null | _lint_output || true
     fi
     if command -v go >/dev/null 2>&1; then
-      go vet "./$(dirname "$file_path")/..." 2>&1 | _lint_output || true
+      go vet "$(dirname "$file_path")/..." 2>&1 | _lint_output || true
     fi
     ;;
   rs)
@@ -64,12 +64,12 @@ case "$ext" in
     ;;
   java)
     if command -v mise >/dev/null 2>&1 && mise task list 2>/dev/null | grep -q "^lint"; then
-      mise run lint -- "$file_path" 2>&1 | _lint_output
+      mise run lint -- "$file_path" 2>&1 | _lint_output || true
     fi
     ;;
   cs)
     if command -v mise >/dev/null 2>&1 && mise task list 2>/dev/null | grep -q "^lint"; then
-      mise run lint -- "$file_path" 2>&1 | _lint_output
+      mise run lint -- "$file_path" 2>&1 | _lint_output || true
     fi
     ;;
   sh|bash)

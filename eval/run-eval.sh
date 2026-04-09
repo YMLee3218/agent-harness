@@ -38,7 +38,6 @@ run_eval() {
   # the flag here is a fallback for headless invocation without agent resolution.
   local output
   output=$(claude -p "$prompt_prefix $fixture_file" \
-             --model claude-haiku-4-5-20251001 \
              --agent "$agent_type" \
              --output-format text 2>/dev/null || echo "")
 
@@ -107,6 +106,9 @@ fi
 if [ -z "$filter" ] || [[ "tests-bad-passing-red" == *"$filter"* ]]; then
   run_eval "tests-bad-passing-red.md" "critic-test" "Review the following test file. The embedded Test Manifest and Test Command Result show whether tests pass or fail."
 fi
+if [ -z "$filter" ] || [[ "test-bad-missing-scenario" == *"$filter"* ]]; then
+  run_eval "test-bad-missing-scenario.md" "critic-test" "Review the following test file. The embedded Test Manifest and Test Command Result show whether tests pass or fail."
+fi
 
 # Code critic evals
 if [ -z "$filter" ] || [[ "code-good-1" == *"$filter"* ]]; then
@@ -114,6 +116,12 @@ if [ -z "$filter" ] || [[ "code-good-1" == *"$filter"* ]]; then
 fi
 if [ -z "$filter" ] || [[ "code-bad-layer-violation" == *"$filter"* ]]; then
   run_eval "code-bad-layer-violation.md" "critic-code" "Review the following implementation for spec compliance and layer boundary violations. The spec, docs, implementation, and layer analysis are all embedded in the file."
+fi
+if [ -z "$filter" ] || [[ "code-bad-docs-contradiction" == *"$filter"* ]]; then
+  run_eval "code-bad-docs-contradiction.md" "critic-code" "Review the following implementation for spec compliance and layer boundary violations. The spec, docs, implementation, and layer analysis are all embedded in the file."
+fi
+if [ -z "$filter" ] || [[ "code-bad-spec-noncompliance" == *"$filter"* ]]; then
+  run_eval "code-bad-spec-noncompliance.md" "critic-code" "Review the following implementation for spec compliance and layer boundary violations. The spec, docs, implementation, and layer analysis are all embedded in the file."
 fi
 
 # Skill routing isolation checks (deterministic — no LLM invocation)

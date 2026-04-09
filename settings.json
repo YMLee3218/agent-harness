@@ -1,5 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "plansDirectory": "plans",
+  "effortLevel": "high",
+  "sandbox": {
+    "enable": true
+  },
   "env": {
     "PHASE_GATE_STRICT": "1"
   },
@@ -34,6 +39,7 @@
       "Bash(git commit *)",
       "Bash(git push *)",
       "Bash(curl *)",
+      "Bash(wget *)",
       "Bash(rm *)",
       "Bash(mv *)"
     ],
@@ -46,7 +52,13 @@
       "Read(**/.env)",
       "Read(**/.env.*)",
       "Bash(git commit * --no-verify*)",
-      "Bash(git commit --no-verify*)"
+      "Bash(git commit --no-verify*)",
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git clean -f*)",
+      "Bash(git reset --hard *)"
     ]
   },
   "hooks": {
@@ -96,7 +108,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/post-edit-lint.sh\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/post-edit-lint.sh\"",
+            "async": true
           }
         ]
       }
@@ -114,22 +127,54 @@
     ],
     "SubagentStart": [
       {
-        "matcher": "critic-.*",
+        "matcher": "critic-feature|critic-spec|critic-test|critic-code",
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-critic-start"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-critic-start",
+            "async": true
           }
         ]
       }
     ],
     "SubagentStop": [
       {
-        "matcher": "critic-.*",
+        "matcher": "critic-feature|critic-spec|critic-test|critic-code",
         "hooks": [
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-verdict"
+          }
+        ]
+      }
+    ],
+    "TaskCreated": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-task-created"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-task-completed"
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-permission-denied",
+            "async": true
           }
         ]
       }
@@ -139,7 +184,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" flush-on-end"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" flush-on-end",
+            "async": true
           }
         ]
       }
@@ -160,6 +206,11 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" log-post-compact"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" gc-events",
+            "async": true
           }
         ]
       }
@@ -175,6 +226,7 @@
       }
     ]
   },
+  "statusLine": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/statusline.sh\"",
   "enabledPlugins": {
     "context7-plugin@context7-marketplace": true,
     "pr-review-toolkit@claude-plugins-official": true,

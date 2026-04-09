@@ -2,22 +2,45 @@
 
 Standard max-2-iteration protocol used by every phase-gate critic.
 
+## Finding labels
+
+| Level | Label | Triggers FAIL? |
+|-------|-------|----------------|
+| Critical | `[CRITICAL]` | Yes |
+| Missing | `[MISSING]` | Yes |
+| Structural fail | `[FAIL]` | Yes |
+| Docs contradiction | `[DOCS CONTRADICTION]` | Yes |
+| Warning | `[WARN]` | No — does not block progress |
+
+## Label → category mapping
+
+| Finding label | FAIL category |
+|---|---|
+| `[CRITICAL]` | `SPEC_COMPLIANCE` (default) or `LAYER_VIOLATION` if import-related |
+| `[MISSING]` | `MISSING_SCENARIO` |
+| `[FAIL]` (structural) | `STRUCTURAL` or `LAYER_VIOLATION` depending on nature |
+| `[FAIL]` (test integrity) | `TEST_INTEGRITY` or `TEST_QUALITY` |
+| `[DOCS CONTRADICTION]` | `DOCS_CONTRADICTION` |
+
 ## Mandatory verdict marker
 
-Every critic agent **must** emit exactly one of the following as the last line of its output:
+Every critic agent **must** emit a `### Verdict` heading followed immediately by the HTML markers as the last lines of output. Both are machine-parsed by `plan-file.sh record-verdict`. Output that does not end with these markers will be recorded as `PARSE_ERROR` in the plan file.
 
+PASS:
 ```
+### Verdict
+PASS
 <!-- verdict: PASS -->
+<!-- category: NONE -->
 ```
 
-or
-
+FAIL:
 ```
+### Verdict
+FAIL — {comma-separated list of blocking finding labels}
 <!-- verdict: FAIL -->
-<!-- category: {CATEGORY} -->
+<!-- category: {highest-priority category} -->
 ```
-
-Both markers are machine-parsed by `plan-file.sh record-verdict`. Output that does not end with these markers will be recorded as `PARSE_ERROR` in the plan file.
 
 ## FAIL categories
 

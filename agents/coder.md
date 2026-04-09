@@ -5,6 +5,9 @@ description: >
   Invoked only by the implementing skill. Do not auto-trigger.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
+maxTurns: 15
+effort: high
+color: green
 ---
 
 Layer rules: @reference/layers.md

@@ -77,7 +77,7 @@ mode_write() {
 
   local phase
   if ! phase=$(get_active_phase); then
-    if [ "${PHASE_GATE_STRICT:-0}" = "1" ]; then
+    if [ "${PHASE_GATE_STRICT:-1}" = "1" ]; then
       echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1 and no active plan file. Run /initializing-project to set up a plan, or set PHASE_GATE_STRICT=0 for bootstrap." >&2
       exit 2
     fi
@@ -105,6 +105,13 @@ mode_write() {
     green)
       if is_test_path "$file_path"; then
         echo "BLOCKED [phase-gate]: Phase is 'green' (Green phase). Modifying test files is not allowed — tests must remain as written during Red phase. Fix the implementation, not the tests." >&2
+        exit 2
+      fi
+      ;;
+    integration)
+      # Integration phase: tests are frozen; only source and integration-specific files may change.
+      if is_test_path "$file_path"; then
+        echo "BLOCKED [phase-gate]: Phase is 'integration'. Test files are frozen — fix integration failures in source code only." >&2
         exit 2
       fi
       ;;

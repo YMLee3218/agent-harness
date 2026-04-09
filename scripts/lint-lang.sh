@@ -16,9 +16,6 @@ set -uo pipefail
 WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
 VIOLATIONS=0
 
-# Hangul Unicode range: \uAC00-\uD7A3 (syllables) + \u1100-\u11FF (Jamo) + \u3130-\u318F (compatibility Jamo)
-HANGUL_PATTERN='[\xAC\xAD\xAE\xAF\xB0\xB1\xB2\xB3\xB4\xB5\xB6\xB7\xB8\xB9\xBA\xBB\xBC\xBD\xBE\xBF\xC0\xC1\xC2\xC3\xC4\xC5\xC6\xC7\xC8\xC9\xCA\xCB\xCC\xCD\xCE\xCF\xD0\xD1\xD2\xD3\xD4\xD5\xD6\xD7]'
-
 check_file() {
   local file="$1"
   local label="${file#$WORKSPACE/}"
