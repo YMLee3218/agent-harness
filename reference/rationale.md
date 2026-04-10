@@ -73,11 +73,14 @@ Claude Code ships a bundled `/batch` skill that distributes tasks across git wor
 
 Fields **not** in the SubagentStop payload: `subagent_type`, `tool_response`. Fallback branches for these were removed; verified absent in `scripts/plan-file.sh`.
 
-### StopFailure payload field: `.error`
-The `StopFailure` hook payload uses `.error` (not `.error_type`) for the failure reason. Valid values include `rate_limit`, `server_error`. `plan-file.sh record-stopfail` reads `.error` and writes `error_type=<value>` to the `[STOPFAIL]` marker.
+### StopFailure payload field: `.error` / `.error_type`
+The `StopFailure` hook payload uses `.error` for the failure reason in currently observed payloads. Valid values include `rate_limit`, `server_error`. `plan-file.sh record-stopfail` reads `.error_type // .error` (defensive fallback) and writes `error_type=<value>` to the `[STOPFAIL]` marker. Both field names are accepted; `.error_type` takes precedence if present.
 
-### PreCompact payload field: `.trigger`
-The `PreCompact` hook payload uses `.trigger` (not `.compact_trigger`) for the compact reason. Valid values: `manual` | `auto`. `plan-file.sh flush-before-compact` reads `.trigger` and writes `trigger=<value>` to the `[PRE-COMPACT]` marker.
+### PreCompact payload field: `.trigger` / `.compaction_trigger`
+The `PreCompact` hook payload uses `.trigger` for the compact reason in currently observed payloads. Valid values: `manual` | `auto`. `plan-file.sh flush-before-compact` reads `.compaction_trigger // .trigger` (defensive fallback) and writes `trigger=<value>` to the `[PRE-COMPACT]` marker. Both field names are accepted; `.compaction_trigger` takes precedence if present.
+
+### SessionEnd payload field: `.reason` / `.session_end_reason`
+The `SessionEnd` hook payload uses `.reason` for the exit reason in currently observed payloads. `plan-file.sh flush-on-end` reads `.session_end_reason // .reason` (defensive fallback) and writes `reason=<value>` to the `[SESSION-END]` marker. Both field names are accepted; `.session_end_reason` takes precedence if present.
 
 ### NotebookEdit tool_input field: `.notebook_path`
 `NotebookEdit` sends the target notebook path as `.tool_input.notebook_path`, not `.tool_input.file_path` (which is the field used by Write/Edit). `phase-gate.sh` uses `.tool_input.file_path // .tool_input.notebook_path // empty` to handle both tools with a single extractor.

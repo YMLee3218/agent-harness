@@ -134,13 +134,13 @@ if [ -f "$_plan_file_sh" ]; then
     _current_phase=$(bash "$_plan_file_sh" get-phase "$_active_plan" 2>/dev/null || echo "")
     if [ -n "$_current_phase" ]; then
       _writes_src=0; _writes_test=0
-      # Detect redirects to source paths: > src/, >> src/, tee src/
+      # Detect redirects to source paths: > src/, >> src/, tee src/, cp ... src/
       printf '%s' "$cmd" | grep -iqE \
-        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?src/|tee[[:space:]]+([^[:space:]]*/)?src/' \
+        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?src/|tee[[:space:]]+([^[:space:]]*/)?src/|cp[[:space:]]+[^[:space:]]+[[:space:]]+([^[:space:]]*/)?src/' \
         && _writes_src=1 || true
-      # Detect redirects to test paths: > tests/, >> tests/, tee tests/, or *_test.* / *.test.*
+      # Detect redirects to test paths: > tests/, >> tests/, tee tests/, cp ... tests/, or *_test.* / *.test.*
       printf '%s' "$cmd" | grep -iqE \
-        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?tests/|tee[[:space:]]+([^[:space:]]*/)?tests/|(>{1,2}[[:space:]]*)([^[:space:]]*)(_test\.|\.test\.)' \
+        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?tests/|tee[[:space:]]+([^[:space:]]*/)?tests/|(>{1,2}[[:space:]]*)([^[:space:]]*)(_test\.|\.test\.)|cp[[:space:]]+[^[:space:]]+[[:space:]]+([^[:space:]]*/)?tests/|cp[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]*(_test\.|\.test\.)' \
         && _writes_test=1 || true
       case "$_current_phase" in
         brainstorm|spec)

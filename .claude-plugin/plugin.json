@@ -27,7 +27,7 @@
     "skills/critic-code/SKILL.md"
   ],
   "settings": "settings.json",
-  "hooks": [
+  "hook_scripts": [
     "scripts/pretooluse-bash.sh",
     "scripts/plan-file.sh",
     "scripts/phase-gate.sh"

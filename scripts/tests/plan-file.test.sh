@@ -555,14 +555,14 @@ T29=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
   make_plan "$T29" "feat-alpha" "spec" >/dev/null
   sleep 0.01
   make_plan "$T29" "feat-beta" "red" >/dev/null
-  # Two active plans, no CLAUDE_PLAN_FILE, no branch match → exit 2
+  # Two active plans, no CLAUDE_PLAN_FILE, no branch match → exit 3
   err_out=$(bash "$SCRIPT" find-active 2>&1 >/dev/null)
   got=$?
-  if [ "$got" -eq 2 ] && printf '%s' "$err_out" | grep -qi "active plan files found"; then
-    echo "PASS: find-active: 2 active plans without disambiguation → exit 2 + error message"
+  if [ "$got" -eq 3 ] && printf '%s' "$err_out" | grep -qi "active plan files found"; then
+    echo "PASS: find-active: 2 active plans without disambiguation → exit 3 + error message"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: find-active: expected exit 2 for ambiguous plans (exit=$got, stderr='$err_out')"
+    echo "FAIL: find-active: expected exit 3 for ambiguous plans (exit=$got, stderr='$err_out')"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -590,11 +590,27 @@ make_plan "$T31" "compact-feat" "spec" >/dev/null
   input='{"trigger":"manual"}'
   printf '%s' "$input" | bash "$SCRIPT" flush-before-compact >/dev/null 2>&1
   got=$?
-  if [ "$got" -eq 0 ] && grep -q "\[PRE-COMPACT" "$T31/plans/compact-feat.md"; then
-    echo "PASS: flush-before-compact: PRE-COMPACT marker written to Open Questions"
+  if [ "$got" -eq 0 ] && grep -q "trigger=manual" "$T31/plans/compact-feat.md"; then
+    echo "PASS: flush-before-compact: PRE-COMPACT marker with trigger=manual written"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: flush-before-compact: expected exit 0 + PRE-COMPACT marker (exit=$got)"
+    echo "FAIL: flush-before-compact: expected exit 0 + trigger=manual in marker (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# flush-before-compact: alternative field name compaction_trigger also accepted
+T31b=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+make_plan "$T31b" "compact-alt" "spec" >/dev/null
+(cd "$T31b" && {
+  input='{"compaction_trigger":"auto"}'
+  printf '%s' "$input" | bash "$SCRIPT" flush-before-compact >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "trigger=auto" "$T31b/plans/compact-alt.md"; then
+    echo "PASS: flush-before-compact: compaction_trigger field name accepted (trigger=auto)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: flush-before-compact: compaction_trigger fallback failed (exit=$got)"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -622,11 +638,27 @@ make_plan "$T33" "stopfail-feat" "green" >/dev/null
   input='{"error":"rate_limit","session_id":"sess-abc"}'
   printf '%s' "$input" | bash "$SCRIPT" record-stopfail >/dev/null 2>&1
   got=$?
-  if [ "$got" -eq 0 ] && grep -q "\[STOPFAIL" "$T33/plans/stopfail-feat.md"; then
-    echo "PASS: record-stopfail: STOPFAIL marker written to Open Questions"
+  if [ "$got" -eq 0 ] && grep -q "error_type=rate_limit" "$T33/plans/stopfail-feat.md"; then
+    echo "PASS: record-stopfail: STOPFAIL marker with error_type=rate_limit written"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: record-stopfail: expected exit 0 + STOPFAIL marker (exit=$got)"
+    echo "FAIL: record-stopfail: expected exit 0 + error_type=rate_limit in marker (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# record-stopfail: alternative field name error_type also accepted
+T33b=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+make_plan "$T33b" "stopfail-alt" "green" >/dev/null
+(cd "$T33b" && {
+  input='{"error_type":"server_error","session_id":"sess-xyz"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-stopfail >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "error_type=server_error" "$T33b/plans/stopfail-alt.md"; then
+    echo "PASS: record-stopfail: error_type field name accepted (error_type=server_error)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-stopfail: error_type fallback failed (exit=$got)"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -727,11 +759,27 @@ make_plan "$T39" "session-end-feat" "green" >/dev/null
   input='{"reason":"normal"}'
   printf '%s' "$input" | bash "$SCRIPT" flush-on-end >/dev/null 2>&1
   got=$?
-  if [ "$got" -eq 0 ] && grep -q "\[SESSION-END" "$T39/plans/session-end-feat.md"; then
-    echo "PASS: flush-on-end: SESSION-END marker written to Open Questions"
+  if [ "$got" -eq 0 ] && grep -q "reason=normal" "$T39/plans/session-end-feat.md"; then
+    echo "PASS: flush-on-end: SESSION-END marker with reason=normal written"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: flush-on-end: expected exit 0 + SESSION-END marker (exit=$got)"
+    echo "FAIL: flush-on-end: expected exit 0 + reason=normal in marker (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# flush-on-end: alternative field name session_end_reason also accepted
+T39b=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+make_plan "$T39b" "session-end-alt" "green" >/dev/null
+(cd "$T39b" && {
+  input='{"session_end_reason":"user_exit"}'
+  printf '%s' "$input" | bash "$SCRIPT" flush-on-end >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "reason=user_exit" "$T39b/plans/session-end-alt.md"; then
+    echo "PASS: flush-on-end: session_end_reason field name accepted (reason=user_exit)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: flush-on-end: session_end_reason fallback failed (exit=$got)"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -938,6 +986,42 @@ PLANEOF
     PASS=$((PASS + 1))
   else
     echo "FAIL: schema: expected exit 1 for unsupported schema version (exit=$got)"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# ── Tests: record-verdict ambiguous (both markers present) → fail-closed ─────
+# When output contains both <!-- verdict: PASS --> and <!-- verdict: FAIL -->,
+# the last occurrence must win. If FAIL is last, result must be FAIL (not PASS).
+
+Tamb=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+famb=$(make_plan "$Tamb" "ambiguous-verdict" "spec")
+(cd "$Tamb" && {
+  # PASS mentioned first (e.g. in an example), then FAIL is the actual verdict
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"Example: <!-- verdict: PASS -->\n\n### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "critic-spec: FAIL" "$famb" && ! grep -q "critic-spec: PASS" "$famb"; then
+    echo "PASS: record-verdict: ambiguous (PASS then FAIL) → last occurrence FAIL wins (fail-closed)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: ambiguous verdict should be FAIL but got wrong result (exit=$got, FAIL=$(grep -c 'critic-spec: FAIL' "$famb" 2>/dev/null), PASS=$(grep -c 'critic-spec: PASS' "$famb" 2>/dev/null))"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+Tamb2=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+famb2=$(make_plan "$Tamb2" "ambiguous-verdict2" "spec")
+(cd "$Tamb2" && {
+  # FAIL mentioned first (in example), then PASS is the actual verdict → PASS
+  input='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"Example: <!-- verdict: FAIL -->\n\n### Verdict\nPASS\n<!-- verdict: PASS -->"}'
+  printf '%s' "$input" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && grep -q "critic-spec: PASS" "$famb2" && ! grep -q "critic-spec: FAIL" "$famb2"; then
+    echo "PASS: record-verdict: ambiguous (FAIL then PASS) → last occurrence PASS wins"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: ambiguous verdict (FAIL then PASS) should be PASS (exit=$got)"
     FAIL=$((FAIL + 1))
   fi
 })

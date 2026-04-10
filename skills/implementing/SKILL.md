@@ -107,6 +107,12 @@ git merge --no-ff {worktree-branch} -m "merge(task-N): {description}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "completed" "$(git rev-parse HEAD)"
 ```
 
+If `git merge` fails with conflicts:
+1. Mark the task blocked: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-N" "blocked"`
+2. Abort the merge: `git merge --abort`
+3. Resolve conflicts manually (or re-run the coder with explicit conflict context), then re-attempt the merge.
+4. On success, update the task to `completed` with the merge SHA.
+
 Then mark the corresponding `TaskCreate` task `completed`. Move to the next tier.
 
 ## Step 4 — Run critic-code at milestones (max 2 iterations per milestone)

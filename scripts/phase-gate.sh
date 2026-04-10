@@ -16,12 +16,18 @@ PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 get_active_phase() {
-  local plan_file
+  local plan_file rc
   # Pass through find-active stderr so ambiguity errors ("2 active plan files found") are visible.
-  # Fall back to most recent plan only for the "no active plans" case (e.g. all done).
-  plan_file=$(bash "$PLAN_FILE_SH" find-active) \
-    || plan_file=$(bash "$PLAN_FILE_SH" find-latest 2>/dev/null) \
-    || return 1
+  # Fall back to most recent plan only for the "no active plans" case (exit 2).
+  # Exit 3 means ambiguous (2+ active plans) — fail-closed, no fallback.
+  plan_file=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null)
+  rc=$?
+  if [ $rc -eq 3 ]; then
+    bash "$PLAN_FILE_SH" find-active >/dev/null  # re-run to emit stderr
+    return 1
+  elif [ $rc -ne 0 ]; then
+    plan_file=$(bash "$PLAN_FILE_SH" find-latest 2>/dev/null) || return 1
+  fi
   bash "$PLAN_FILE_SH" get-phase "$plan_file" 2>/dev/null || return 1
 }
 

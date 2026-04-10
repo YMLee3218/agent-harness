@@ -35,7 +35,7 @@
 #       Exit 0 always (non-critic agents ignored; no active plan → silent skip).
 #
 #   plan-file.sh flush-before-compact
-#       Called by PreCompact hook; reads JSON from stdin (compact_trigger field);
+#       Called by PreCompact hook; reads JSON from stdin (trigger field);
 #       appends a [PRE-COMPACT] marker to ## Open Questions in the active plan file.
 #       Exit 0 always (no active plan → silent skip).
 #
@@ -50,7 +50,7 @@
 #       Exit 0 always (no active plan → silent skip).
 #
 #   plan-file.sh record-stopfail
-#       Called by StopFailure hook; reads JSON from stdin (error_type field);
+#       Called by StopFailure hook; reads JSON from stdin (error field);
 #       appends a [STOPFAIL] marker to ## Open Questions in the active plan file.
 #       Exit 0 always (no active plan → silent skip).
 #
@@ -195,19 +195,19 @@ require_file() {
 # ── Section-append helpers ────────────────────────────────────────────────────
 
 # Appends <note> to the ## Open Questions section of <plan_file>.
-# Creates the section if absent.
+# Creates the section if absent. Entire check+create+append is one atomic _awk_inplace
+# call to prevent duplicate section creation when parallel hooks fire concurrently.
 _append_to_open_questions() {
   local plan_file="$1" note="$2"
-  if grep -q "^## Open Questions$" "$plan_file"; then
-    _awk_inplace "$plan_file" -v note="$note" '
-      /^## Open Questions$/ { print; in_section=1; next }
-      in_section && /^## / { print note; print ""; print; in_section=0; next }
-      { print }
-      END { if (in_section) print note }
-    '
-  else
-    { echo ""; echo "## Open Questions"; echo "$note"; } >> "$plan_file"
-  fi
+  _awk_inplace "$plan_file" -v note="$note" '
+    /^## Open Questions$/ { print; in_section=1; found=1; next }
+    in_section && /^## / { print note; print ""; print; in_section=0; next }
+    { print }
+    END {
+      if (in_section) { print note }
+      else if (!found) { print ""; print "## Open Questions"; print note }
+    }
+  '
 }
 
 # Appends <entry> to the ## Critic Runs section of <plan_file>.
@@ -365,7 +365,7 @@ cmd_find_active() {
     exit 2
   elif [ "$count" -ge 2 ]; then
     echo "ERROR: ${count} active plan files found with no CLAUDE_PLAN_FILE or branch-slug match. Set CLAUDE_PLAN_FILE=plans/{slug}.md or align branch name with plan file name." >&2
-    exit 2
+    exit 3
   else
     echo "[plan-file] WARNING: falling back to newest plan ($found). Set CLAUDE_PLAN_FILE or use worktrees to disambiguate when running multiple features in parallel." >&2
     echo "$found"
@@ -391,7 +391,7 @@ cmd_flush_before_compact() {
   require_jq
   local input compact_trigger plan_file
   input=$(cat)
-  compact_trigger=$(printf '%s' "$input" | jq -r '.trigger // "unknown"' 2>/dev/null || echo "unknown")
+  compact_trigger=$(printf '%s' "$input" | jq -r '.compaction_trigger // .trigger // "unknown"' 2>/dev/null || echo "unknown")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "PRE-COMPACT" "trigger=${compact_trigger} — SessionStart will re-inject plan summary; review open items after restart"
   echo "[flush-before-compact] recorded pre-compact marker (trigger=${compact_trigger}) in ${plan_file}" >&2
@@ -419,7 +419,7 @@ cmd_record_stopfail() {
   require_jq
   local input error_type plan_file
   input=$(cat)
-  error_type=$(printf '%s' "$input" | jq -r '.error // "unknown"' 2>/dev/null || echo "unknown")
+  error_type=$(printf '%s' "$input" | jq -r '.error_type // .error // "unknown"' 2>/dev/null || echo "unknown")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "STOPFAIL" "error_type=${error_type} — session interrupted; resume with /implementing or check plan phase"
   echo "[record-stopfail] recorded stop-failure marker (error_type=${error_type}) in ${plan_file}" >&2
@@ -500,11 +500,16 @@ cmd_record_verdict() {
   plan_file=$(cmd_find_active 2>/dev/null) || exit 1
 
   # Extract verdict from mandatory HTML marker: <!-- verdict: PASS --> or <!-- verdict: FAIL -->
+  # Uses the LAST occurrence (fail-closed): if both markers appear (e.g. marker shown in example
+  # then actual verdict), the last one wins. FAIL is checked before PASS so ambiguous cases
+  # that contain both resolve to FAIL rather than silently advancing the phase.
   local verdict=""
-  if printf '%s' "$output" | grep -q '<!-- verdict: PASS -->'; then
-    verdict="PASS"
-  elif printf '%s' "$output" | grep -q '<!-- verdict: FAIL -->'; then
+  local last_verdict_marker
+  last_verdict_marker=$(printf '%s' "$output" | grep -o '<!-- verdict: [A-Z]* -->' | tail -1 || true)
+  if printf '%s' "$last_verdict_marker" | grep -q 'FAIL'; then
     verdict="FAIL"
+  elif printf '%s' "$last_verdict_marker" | grep -q 'PASS'; then
+    verdict="PASS"
   fi
 
   local current_phase
@@ -639,7 +644,7 @@ cmd_flush_on_end() {
   require_jq
   local input reason plan_file
   input=$(cat)
-  reason=$(printf '%s' "$input" | jq -r '.reason // "normal"' 2>/dev/null || echo "normal")
+  reason=$(printf '%s' "$input" | jq -r '.session_end_reason // .reason // "normal"' 2>/dev/null || echo "normal")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "SESSION-END" "reason=${reason} — plan state preserved; resume with context injection"
   echo "[flush-on-end] recorded session-end marker (reason=${reason}) in ${plan_file}" >&2

@@ -20,7 +20,7 @@
           "rules/",
           "scripts/",
           "skills/",
-          "agents/",
+          "agents/"
         ]
       },
       "tags": ["tdd", "bdd", "ddd", "vsa", "spec-driven", "pipeline"]

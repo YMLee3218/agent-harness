@@ -49,6 +49,11 @@ TaskCreate: "Write tests for {scenario 2}"
 ...
 ```
 
+Set plan file phase to `red` before writing any test files:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" red
+```
+
 Mark each task `in_progress` before writing, `completed` after.
 
 Each test must:
@@ -68,10 +73,6 @@ After writing all tests, run the test command from project CLAUDE.md.
 
 Tests that pass due to incomplete test logic (e.g. empty assertions, wrong subject) must still be rewritten to fail properly.
 
-Set plan file phase:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" red
-```
 Update `## Test Manifest` with file:test_name → RED or GREEN (pre-existing) for each test.
 
 After all tests are written, commit the red tests:

@@ -51,7 +51,8 @@
       "Bash(curl *)",
       "Bash(wget *)",
       "Bash(rm *)",
-      "Bash(mv *)"
+      "Bash(mv *)",
+      "Bash(cp *)"
     ],
     "deny": [
       "Read(~/.ssh/**)",
@@ -73,6 +74,7 @@
       "Bash(git push * -f *)",
       "Bash(git push * +*)",
       "Bash(git push -f)",
+      "Bash(git push --force)",
       "Bash(git clean -f*)",
       "Bash(git reset --hard *)"
     ]

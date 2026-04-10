@@ -113,6 +113,70 @@ run "chmod +x (safe symbolic)"             "$(j 'chmod +x script.sh')"          
 run "chmod u+w (safe symbolic)"            "$(j 'chmod u+w file.txt')"                 0
 run "chmod 0755 (safe, leading zero)"      "$(j 'chmod 0755 file.sh')"                 0
 
+# --- cp bypass detection (phase-aware, requires active plan) ---
+# Without an active plan, cp is not blocked (phase gate does not fire).
+# With an active plan in a blocking phase, cp to src/ or tests/ must be blocked.
+TMPCP=$(mktemp -d)
+PLAN_FILE_SH="$(cd "$(dirname "$SCRIPT")" && pwd)/plan-file.sh"
+mkdir -p "$TMPCP/plans"
+cat > "$TMPCP/plans/cp-test.md" <<'PLANEOF'
+---
+feature: cp-test
+schema: 1
+---
+
+## Phase
+red
+
+## Critic Verdicts
+
+## Open Questions
+PLANEOF
+printf '{"schema":2,"phase":"red"}' > "$TMPCP/plans/cp-test.state.json"
+
+(cd "$TMPCP" && {
+  CLAUDE_PLAN_FILE="$TMPCP/plans/cp-test.md" printf '%s' "$(j 'cp existing_file.py src/domain/target.py')" \
+    | bash "$SCRIPT" >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 2 ]; then
+    echo "PASS: cp to src/ during red phase → blocked (exit 2)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: cp to src/ during red phase → expected exit 2, got $got"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+(cd "$TMPCP" && {
+  CLAUDE_PLAN_FILE="$TMPCP/plans/cp-test.md" printf '%s' "$(j 'cp safe_file.py docs/notes.md')" \
+    | bash "$SCRIPT" >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ]; then
+    echo "PASS: cp to non-src/tests path during red phase → allowed (exit 0)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: cp to non-src/tests path during red phase → expected exit 0, got $got"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+# cp to tests/ during green phase must be blocked (tests frozen)
+printf '{"schema":2,"phase":"green"}' > "$TMPCP/plans/cp-test.state.json"
+(cd "$TMPCP" && {
+  CLAUDE_PLAN_FILE="$TMPCP/plans/cp-test.md" printf '%s' "$(j 'cp fixture.py tests/integration/test_foo.py')" \
+    | bash "$SCRIPT" >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 2 ]; then
+    echo "PASS: cp to tests/ during green phase → blocked (exit 2)"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: cp to tests/ during green phase → expected exit 2, got $got"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
+rm -rf "$TMPCP"
+
 # --- Bypass patterns that should still be allowed ---
 run "pipe grep (safe)"                     "$(j 'ls | grep foo')"                      0
 
