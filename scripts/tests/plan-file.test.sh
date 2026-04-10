@@ -482,11 +482,11 @@ f26=$(make_plan "$T26" "consec-fail-feat" "spec")
   input2='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — still missing scenario\n<!-- verdict: FAIL -->\n<!-- category: MISSING_SCENARIO -->"}'
   printf '%s' "$input2" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
   got=$?
-  if [ "$got" -eq 2 ] && grep -q "BLOCKED-CATEGORY" "$f26"; then
-    echo "PASS: record-verdict: consecutive same-category FAIL → exit 2 + BLOCKED-CATEGORY in plan"
+  if [ "$got" -eq 1 ] && grep -q "BLOCKED-CATEGORY" "$f26"; then
+    echo "PASS: record-verdict: consecutive same-category FAIL → exit 1 + BLOCKED-CATEGORY in plan"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: record-verdict: expected exit 2 + BLOCKED-CATEGORY (exit=$got, BLOCKED=$(grep -c BLOCKED-CATEGORY "$f26" 2>/dev/null))"
+    echo "FAIL: record-verdict: expected exit 1 + BLOCKED-CATEGORY (exit=$got, BLOCKED=$(grep -c BLOCKED-CATEGORY "$f26" 2>/dev/null))"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -587,7 +587,7 @@ T30=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 T31=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T31" "compact-feat" "spec" >/dev/null
 (cd "$T31" && {
-  input='{"compact_trigger":"manual"}'
+  input='{"trigger":"manual"}'
   printf '%s' "$input" | bash "$SCRIPT" flush-before-compact >/dev/null 2>&1
   got=$?
   if [ "$got" -eq 0 ] && grep -q "\[PRE-COMPACT" "$T31/plans/compact-feat.md"; then
@@ -602,7 +602,7 @@ make_plan "$T31" "compact-feat" "spec" >/dev/null
 # flush-before-compact with no active plan → exit 0, no error
 T32=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 (cd "$T32" && {
-  input='{"compact_trigger":"auto"}'
+  input='{"trigger":"auto"}'
   printf '%s' "$input" | bash "$SCRIPT" flush-before-compact >/dev/null 2>&1
   got=$?
   if [ "$got" -eq 0 ]; then
@@ -619,7 +619,7 @@ T32=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 T33=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T33" "stopfail-feat" "green" >/dev/null
 (cd "$T33" && {
-  input='{"error_type":"rate_limit","session_id":"sess-abc"}'
+  input='{"error":"rate_limit","session_id":"sess-abc"}'
   printf '%s' "$input" | bash "$SCRIPT" record-stopfail >/dev/null 2>&1
   got=$?
   if [ "$got" -eq 0 ] && grep -q "\[STOPFAIL" "$T33/plans/stopfail-feat.md"; then

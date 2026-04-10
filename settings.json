@@ -249,7 +249,7 @@
     "symlinkDirectories": ["node_modules", ".venv", ".cache"]
   },
   "attribution": {
-    "coAuthored": true
+    "commit": "Co-Authored-By: Claude <noreply@anthropic.com>"
   },
   "enabledPlugins": {
     "context7-plugin@context7-marketplace": true,

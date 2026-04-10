@@ -101,10 +101,10 @@ if printf '%s' "$cmd" | grep -iqE \
   exit 2
 fi
 
-# chmod world-writable: octal modes granting others write (e.g. 777, 775, 757),
+# chmod world-writable: octal modes granting others write (e.g. 777, 757, 773, 772),
 # or symbolic modes o+w / a+w
 if printf '%s' "$cmd" | grep -iqE \
-  'chmod[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?[0-7]*[2367][0-7][0-7]([[:space:]]|$)' \
+  'chmod[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?[0-7]{2,3}[2367]([[:space:]]|$)' \
   || printf '%s' "$cmd" | grep -iqE \
   'chmod[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?(o|a)\+[rwx]*w'; then
   echo "BLOCKED: world-writable chmod detected" >&2

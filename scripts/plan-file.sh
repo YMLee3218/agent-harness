@@ -391,7 +391,7 @@ cmd_flush_before_compact() {
   require_jq
   local input compact_trigger plan_file
   input=$(cat)
-  compact_trigger=$(printf '%s' "$input" | jq -r '.compact_trigger // "unknown"' 2>/dev/null || echo "unknown")
+  compact_trigger=$(printf '%s' "$input" | jq -r '.trigger // "unknown"' 2>/dev/null || echo "unknown")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "PRE-COMPACT" "trigger=${compact_trigger} — SessionStart will re-inject plan summary; review open items after restart"
   echo "[flush-before-compact] recorded pre-compact marker (trigger=${compact_trigger}) in ${plan_file}" >&2
@@ -419,7 +419,7 @@ cmd_record_stopfail() {
   require_jq
   local input error_type plan_file
   input=$(cat)
-  error_type=$(printf '%s' "$input" | jq -r '.error_type // "unknown"' 2>/dev/null || echo "unknown")
+  error_type=$(printf '%s' "$input" | jq -r '.error // "unknown"' 2>/dev/null || echo "unknown")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "STOPFAIL" "error_type=${error_type} — session interrupted; resume with /implementing or check plan phase"
   echo "[record-stopfail] recorded stop-failure marker (error_type=${error_type}) in ${plan_file}" >&2
@@ -497,7 +497,7 @@ cmd_record_verdict() {
 
   # Find active plan file
   local plan_file
-  plan_file=$(cmd_find_active 2>/dev/null) || exit 2
+  plan_file=$(cmd_find_active 2>/dev/null) || exit 1
 
   # Extract verdict from mandatory HTML marker: <!-- verdict: PASS --> or <!-- verdict: FAIL -->
   local verdict=""
@@ -524,7 +524,7 @@ cmd_record_verdict() {
         END { if (in_section) print marker }
       '
     fi
-    exit 2
+    exit 1
   fi
 
   # Extract category from <!-- category: X --> marker (required on FAIL, optional on PASS)
@@ -559,7 +559,7 @@ cmd_record_verdict() {
         fi
         cmd_append_verdict "$plan_file" "$verdict_label"
         echo "[record-verdict] consecutive same-category FAIL (${category}) from ${agent_name} — blocked" >&2
-        exit 2
+        exit 1
       fi
     fi
   fi
@@ -650,8 +650,8 @@ cmd_record_tool_failure() {
   require_jq
   local input tool_name error_msg plan_file
   input=$(cat)
-  tool_name=$(printf '%s' "$input" | jq -r '.tool_name // .tool_use_name // "unknown"' 2>/dev/null || echo "unknown")
-  error_msg=$(printf '%s' "$input" | jq -r '.error // .error_message // "unknown"' 2>/dev/null || echo "unknown")
+  tool_name=$(printf '%s' "$input" | jq -r '.tool_name // "unknown"' 2>/dev/null || echo "unknown")
+  error_msg=$(printf '%s' "$input" | jq -r '.error // "unknown"' 2>/dev/null || echo "unknown")
   [ "${#error_msg}" -gt 120 ] && error_msg="${error_msg:0:117}..."
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "TOOL-FAIL" "tool=${tool_name} error=${error_msg}"

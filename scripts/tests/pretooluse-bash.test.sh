@@ -92,6 +92,27 @@ run "pipe-to-bash: echo payload | bash"    "$(j 'echo rm -rf / | bash')"        
 run "pipe-to-sh: payload | sh"             "$(j 'cat script.sh | sh')"                 2
 run "git -c hooksPath bypass"              "$(j 'git -c core.hooksPath=/dev/null commit')" 2
 
+# --- chmod: must be blocked (world-writable) ---
+run "chmod 777 (world-writable)"           "$(j 'chmod 777 /tmp/x')"                   2
+run "chmod 776 (others write)"             "$(j 'chmod 776 /tmp/x')"                   2
+run "chmod 773 (others write+exec)"        "$(j 'chmod 773 /tmp/x')"                   2
+run "chmod 772 (others write-only)"        "$(j 'chmod 772 /tmp/x')"                   2
+run "chmod 1777 (sticky world-writable)"   "$(j 'chmod 1777 /tmp/x')"                  2
+run "chmod -R 777 dir"                     "$(j 'chmod -R 777 mydir')"                 2
+run "chmod o+w (symbolic)"                 "$(j 'chmod o+w file.sh')"                  2
+run "chmod a+w (symbolic)"                 "$(j 'chmod a+w file.sh')"                  2
+run "chmod a+rw (symbolic)"               "$(j 'chmod a+rw file.sh')"                 2
+
+# --- chmod: must be allowed (safe modes) ---
+run "chmod 755 (safe)"                     "$(j 'chmod 755 file.sh')"                  0
+run "chmod 644 (safe)"                     "$(j 'chmod 644 file.txt')"                 0
+run "chmod 700 (safe)"                     "$(j 'chmod 700 script.sh')"                0
+run "chmod 600 (safe)"                     "$(j 'chmod 600 secret.key')"               0
+run "chmod 750 (safe)"                     "$(j 'chmod 750 dir')"                      0
+run "chmod +x (safe symbolic)"             "$(j 'chmod +x script.sh')"                 0
+run "chmod u+w (safe symbolic)"            "$(j 'chmod u+w file.txt')"                 0
+run "chmod 0755 (safe, leading zero)"      "$(j 'chmod 0755 file.sh')"                 0
+
 # --- Bypass patterns that should still be allowed ---
 run "pipe grep (safe)"                     "$(j 'ls | grep foo')"                      0
 

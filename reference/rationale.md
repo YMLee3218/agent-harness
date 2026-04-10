@@ -73,6 +73,15 @@ Claude Code ships a bundled `/batch` skill that distributes tasks across git wor
 
 Fields **not** in the SubagentStop payload: `subagent_type`, `tool_response`. Fallback branches for these were removed; verified absent in `scripts/plan-file.sh`.
 
+### StopFailure payload field: `.error`
+The `StopFailure` hook payload uses `.error` (not `.error_type`) for the failure reason. Valid values include `rate_limit`, `server_error`. `plan-file.sh record-stopfail` reads `.error` and writes `error_type=<value>` to the `[STOPFAIL]` marker.
+
+### PreCompact payload field: `.trigger`
+The `PreCompact` hook payload uses `.trigger` (not `.compact_trigger`) for the compact reason. Valid values: `manual` | `auto`. `plan-file.sh flush-before-compact` reads `.trigger` and writes `trigger=<value>` to the `[PRE-COMPACT]` marker.
+
+### NotebookEdit tool_input field: `.notebook_path`
+`NotebookEdit` sends the target notebook path as `.tool_input.notebook_path`, not `.tool_input.file_path` (which is the field used by Write/Edit). `phase-gate.sh` uses `.tool_input.file_path // .tool_input.notebook_path // empty` to handle both tools with a single extractor.
+
 ### PostToolUseFailure (Write|Edit) → post-edit-failure.sh
 Successful Write/Edit failures (permissions, bad paths) left no trace in the plan file. `PostToolUseFailure` fills the gap: the script is advisory (exit 0 always) and appends a `[TOOL-FAIL]` entry to `## Open Questions` so the next session can surface unresolved write errors. Does not use exit 2 — a failed write record must never block recovery.
 
@@ -145,8 +154,8 @@ The lint hook ran asynchronously, allowing Claude to proceed to reading a just-w
 **L1 — `user-invocable: false` on critic skills**
 Critic skills are internal pipeline stages invoked by the orchestrator. Without `user-invocable: false` a user could bypass the FSM by calling `/critic-code` directly mid-spec. Now suppressed from the user-facing skill list.
 
-**L2 — `attribution.coAuthored: true`**
-Commit co-authorship was previously injected ad-hoc by the `implementing` skill prompt. Setting it in `settings.json` guarantees consistent attribution regardless of which path produces a commit.
+**L2 — `attribution.commit`**
+Commit co-authorship was previously injected ad-hoc by the `implementing` skill prompt. Setting `attribution.commit` in `settings.json` appends a `Co-Authored-By` trailer to every commit, guaranteeing consistent attribution regardless of which path produces a commit.
 
 ### TaskCreated/TaskCompleted/PermissionDenied hooks (P3)
 Three hooks added to auto-sync plan state:

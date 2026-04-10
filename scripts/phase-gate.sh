@@ -3,10 +3,10 @@
 #
 # Usage:
 #   phase-gate.sh write    (PreToolUse Write|Edit — reads tool JSON from stdin)
-#   phase-gate.sh prompt   (UserPromptSubmit — reads prompt JSON from stdin, may inject additionalContext)
+#   phase-gate.sh prompt   (UserPromptSubmit — always exit 0; hook registered for future use)
 #
 # Exit 2 = block the tool call (Write/Edit mode only)
-# Exit 0 = allow; if stdout is valid JSON with "additionalContext", Claude receives it (prompt mode)
+# Exit 0 = allow
 #
 # Fail-closed when PHASE_GATE_STRICT=1 (default): if no active plan file exists, block all writes.
 # Fail-open when PHASE_GATE_STRICT=0: if no active plan file, allow unconditionally with a warning.
@@ -76,6 +76,15 @@ mode_write() {
   local input
   input=$(cat)
 
+  if ! command -v jq >/dev/null 2>&1; then
+    if [ "${PHASE_GATE_STRICT:-1}" = "1" ]; then
+      echo "BLOCKED [phase-gate]: jq is required but not found" >&2
+      exit 2
+    fi
+    echo "[phase-gate] warning: jq not found; write allowed (strict mode off)" >&2
+    exit 0
+  fi
+
   local phase
   if ! phase=$(get_active_phase); then
     if [ "${PHASE_GATE_STRICT:-1}" = "1" ]; then
@@ -87,7 +96,7 @@ mode_write() {
   fi
 
   local file_path
-  file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+  file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null)
   [ -z "$file_path" ] && exit 0
 
   case "$phase" in
@@ -136,21 +145,6 @@ mode_write() {
 # ── Prompt mode ───────────────────────────────────────────────────────────────
 
 mode_prompt() {
-  local input
-  input=$(cat)
-
-  local phase
-  phase=$(get_active_phase) || exit 0   # no active plan → allow with no injection
-
-  # In early phases, inject a non-blocking phase reminder as additionalContext.
-  # No keyword matching — implementation intent detection is delegated to the model.
-  case "$phase" in
-    brainstorm|spec)
-      printf 'Phase reminder (non-blocking): current plan phase is "%s". Complete /writing-spec then /writing-tests to advance to "red" before implementing.\n' "$phase"
-      exit 0
-      ;;
-  esac
-
   exit 0
 }
 

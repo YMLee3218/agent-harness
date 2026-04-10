@@ -64,6 +64,7 @@ EOF
 }
 
 write_input() { printf '{"tool_input":{"file_path":"%s"}}' "$1"; }
+notebook_write_input() { printf '{"tool_input":{"notebook_path":"%s"}}' "$1"; }
 prompt_input() { printf '{"prompt":"%s","hook_event_name":"UserPromptSubmit"}' "$1"; }
 
 # ── Test 1: write/red — source file blocked ───────────────────────────────────
@@ -264,12 +265,19 @@ make_plan "$T26" "feat" "red" >/dev/null
 write_input "tests/domain/foo_test.py" | CLAUDE_PROJECT_DIR="$T26" bash "$SCRIPT" write >/dev/null 2>&1
 check "write/red: test file allowed (Red phase is for writing tests)" 0 $?
 
-# ── Test 27: write/brainstorm — notebook in src/ blocked (NotebookEdit) ──────
+# ── Test 27: write/brainstorm — notebook in src/ blocked (Write tool, file_path) ──
 
 T27=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T27" "feat" "brainstorm" >/dev/null
 write_input "src/domain/analysis.ipynb" | CLAUDE_PROJECT_DIR="$T27" bash "$SCRIPT" write >/dev/null 2>&1
-check "write/brainstorm: notebook in src/ blocked (NotebookEdit path)" 2 $?
+check "write/brainstorm: notebook in src/ blocked (Write tool via file_path)" 2 $?
+
+# ── Test 28: write/brainstorm — notebook in src/ blocked (NotebookEdit, notebook_path) ──
+
+T28=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+make_plan "$T28" "feat" "brainstorm" >/dev/null
+notebook_write_input "src/domain/analysis.ipynb" | CLAUDE_PROJECT_DIR="$T28" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/brainstorm: notebook in src/ blocked (NotebookEdit via notebook_path)" 2 $?
 
 # ── Results ───────────────────────────────────────────────────────────────────
 
