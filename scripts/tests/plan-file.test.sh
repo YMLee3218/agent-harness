@@ -509,6 +509,29 @@ f27=$(make_plan "$T27" "diff-category-feat" "spec")
   fi
 })
 
+# PASS after FAIL resets streak: same-category FAIL after an intervening PASS must NOT block
+Tpr=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+fpr=$(make_plan "$Tpr" "pass-reset-feat" "spec")
+(cd "$Tpr" && {
+  # First FAIL with MISSING_SCENARIO
+  inp1='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — missing scenario\n<!-- verdict: FAIL -->\n<!-- category: MISSING_SCENARIO -->"}'
+  printf '%s' "$inp1" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  # PASS — should reset the streak for critic-spec
+  inp2='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nPASS\n<!-- verdict: PASS -->\n<!-- category: NONE -->"}'
+  printf '%s' "$inp2" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  # Second FAIL with same category — PASS intervened, so must NOT trigger BLOCKED-CATEGORY
+  inp3='{"hook_event_name":"SubagentStop","agent_type":"critic-spec","last_assistant_message":"### Verdict\nFAIL — missing scenario again\n<!-- verdict: FAIL -->\n<!-- category: MISSING_SCENARIO -->"}'
+  printf '%s' "$inp3" | bash "$SCRIPT" record-verdict >/dev/null 2>&1
+  got=$?
+  if [ "$got" -eq 0 ] && ! grep -q "BLOCKED-CATEGORY" "$fpr"; then
+    echo "PASS: record-verdict: PASS between same-category FAILs resets streak — no BLOCKED-CATEGORY"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: record-verdict: expected no BLOCKED-CATEGORY when PASS intervened (exit=$got, BLOCKED=$(grep -c BLOCKED-CATEGORY "$fpr" 2>/dev/null))"
+    FAIL=$((FAIL + 1))
+  fi
+})
+
 # ── Tests: append-note ───────────────────────────────────────────────────────
 
 T28=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")

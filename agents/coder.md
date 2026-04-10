@@ -7,6 +7,7 @@ tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
 maxTurns: 15
 effort: high
+isolation: worktree
 color: green
 ---
 

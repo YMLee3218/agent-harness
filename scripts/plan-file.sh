@@ -110,15 +110,29 @@ _awk_inplace() {
     local lock_dir="${plan_file}.lock"
     local retries=0
     while ! mkdir "$lock_dir" 2>/dev/null; do
+      # Stale lock recovery: if the holding process is dead, remove the lock
+      if [ -f "${lock_dir}/pid" ]; then
+        local holder_pid
+        holder_pid=$(cat "${lock_dir}/pid" 2>/dev/null || echo "")
+        if [ -n "$holder_pid" ] && ! kill -0 "$holder_pid" 2>/dev/null; then
+          rm -f "${lock_dir}/pid" 2>/dev/null || true
+          rmdir "$lock_dir" 2>/dev/null || true
+          continue
+        fi
+      fi
       retries=$((retries + 1))
       [ "$retries" -ge 50 ] && { rm -f "$tmp_file"; echo "ERROR: lock timeout for ${plan_file}" >&2; return 1; }
       sleep 0.1
     done
+    # Record PID so other waiters can detect if we die while holding the lock
+    echo $$ > "${lock_dir}/pid" 2>/dev/null || true
     if awk "$@" "$plan_file" > "$tmp_file"; then
       mv "$tmp_file" "$plan_file"
+      rm -f "${lock_dir}/pid" 2>/dev/null || true
       rmdir "$lock_dir" 2>/dev/null
     else
       rm -f "$tmp_file"
+      rm -f "${lock_dir}/pid" 2>/dev/null || true
       rmdir "$lock_dir" 2>/dev/null
       return 1
     fi
@@ -525,10 +539,11 @@ cmd_record_verdict() {
   fi
 
   # Consecutive same-category FAIL detection
+  # Uses last verdict from this agent (any phase) — a PASS between two FAILs resets the streak.
   if [ "$verdict" = "FAIL" ] && [ -n "$category" ]; then
     local last_verdict_line
-    last_verdict_line=$(grep "/${agent_name}: FAIL" "$plan_file" 2>/dev/null | tail -1 || true)
-    if [ -n "$last_verdict_line" ]; then
+    last_verdict_line=$(grep "/${agent_name}: " "$plan_file" 2>/dev/null | tail -1 || true)
+    if [ -n "$last_verdict_line" ] && printf '%s' "$last_verdict_line" | grep -q ": FAIL"; then
       local last_category
       last_category=$(printf '%s' "$last_verdict_line" | grep -o '\[category: [A-Z_]*\]' \
                       | sed 's/\[category: //; s/\]//' || true)
@@ -658,7 +673,8 @@ cmd_gc_events() {
   _awk_inplace "$plan_file" '
     /^## Open Questions$/ { in_section=1; print; next }
     in_section && /^## / {
-      # Flush kept items before next section
+      # Flush section contents before next section header
+      for (i=1; i<=user_count; i++) print user_memos[i]
       for (i=1; i<=kept_count; i++) print kept[i]
       if (last_session_end != "") print last_session_end
       if (last_post_compact != "") print last_post_compact
@@ -674,13 +690,20 @@ cmd_gc_events() {
         last_session_end = $0
       } else if (/\[POST-COMPACT/) {
         last_post_compact = $0
+      } else if (/\[(PRE-COMPACT|STOPFAIL|TOOL-FAIL|PERMISSION-DENIED)/) {
+        # Discard machine-generated audit markers
+      } else if (/^[[:space:]]*$/) {
+        # Discard blank lines; spacing re-added on flush
+      } else {
+        # Preserve user-written memos that do not match any machine marker
+        user_memos[++user_count] = $0
       }
-      # Discard: PRE-COMPACT, STOPFAIL, TOOL-FAIL, PERMISSION-DENIED, other audit markers
       next
     }
     { print }
     END {
       if (in_section) {
+        for (i=1; i<=user_count; i++) print user_memos[i]
         for (i=1; i<=kept_count; i++) print kept[i]
         if (last_session_end != "") print last_session_end
         if (last_post_compact != "") print last_post_compact
@@ -752,10 +775,19 @@ cmd_context() {
     size_warning=" | WARNING: plan file is ${line_count} lines (>500) — run gc-events or archive old sections"
   fi
 
-  # Build body and cap at 800 chars to prevent context bloat
+  # Build body with per-section character budgets so Open Questions are never crowded out
+  # by verbose verdict history. Path+phase is preserved in full (it is always short in
+  # production; only test tmp paths are long). Verdicts capped at 300 chars. Open questions
+  # get the remaining space up to the 800-char total cap.
+  local path_phase verdicts_str questions_str
+  path_phase="Active plan: ${plan_file} | Phase: ${phase}"
+  verdicts_str="Recent verdicts: ${verdicts:-none}"
+  if [ "${#verdicts_str}" -gt 300 ]; then verdicts_str="${verdicts_str:0:297}..."; fi
+  questions_str="Open questions: ${questions}"
+  if [ "${#questions_str}" -gt 400 ]; then questions_str="${questions_str:0:397}..."; fi
+
   local body_raw body
-  body_raw="$(printf 'Active plan: %s | Phase: %s | Recent verdicts: %s | Open questions: %s%s' \
-    "$plan_file" "$phase" "${verdicts:-none}" "$questions" "$size_warning")"
+  body_raw="${path_phase} | ${verdicts_str} | ${questions_str}${size_warning}"
   if [ "${#body_raw}" -gt 800 ]; then
     body="${body_raw:0:797}..."
   else

@@ -3,7 +3,17 @@
   "plansDirectory": "plans",
   "effortLevel": "high",
   "sandbox": {
-    "enable": true
+    "enabled": true,
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh/**",
+        "~/.aws/**",
+        "~/.config/gcloud/**",
+        "~/.kube/config",
+        "**/.env",
+        "**/.env.*"
+      ]
+    }
   },
   "env": {
     "PHASE_GATE_STRICT": "1"
@@ -57,6 +67,12 @@
       "Bash(rm -fr *)",
       "Bash(git push --force *)",
       "Bash(git push -f *)",
+      "Bash(git push * --force)",
+      "Bash(git push * --force *)",
+      "Bash(git push * -f)",
+      "Bash(git push * -f *)",
+      "Bash(git push * +*)",
+      "Bash(git push -f)",
       "Bash(git clean -f*)",
       "Bash(git reset --hard *)"
     ]
@@ -73,7 +89,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -108,8 +124,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/post-edit-lint.sh\"",
-            "async": true
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/post-edit-lint.sh\""
           }
         ]
       }
@@ -226,7 +241,16 @@
       }
     ]
   },
-  "statusLine": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/statusline.sh\"",
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/statusline.sh\""
+  },
+  "worktree": {
+    "symlinkDirectories": ["node_modules", ".venv", ".cache"]
+  },
+  "attribution": {
+    "coAuthored": true
+  },
   "enabledPlugins": {
     "context7-plugin@context7-marketplace": true,
     "pr-review-toolkit@claude-plugins-official": true,

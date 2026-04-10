@@ -21,7 +21,6 @@
           "scripts/",
           "skills/",
           "agents/",
-          "commands/"
         ]
       },
       "tags": ["tdd", "bdd", "ddd", "vsa", "spec-driven", "pipeline"]

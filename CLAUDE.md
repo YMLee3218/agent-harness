@@ -76,7 +76,7 @@ make -C workspace test
 
 Bundle ships clean. Use `local-` prefix for project-specific additions (never touched by subtree updates).
 
-Naming: `skills/local-<name>/SKILL.md`, `commands/local-<name>.md`, `agents/local-<name>.md`, `reference/local-<topic>.md`
+Naming: `skills/local-<name>/SKILL.md`, `agents/local-<name>.md`, `reference/local-<topic>.md`
 
 Project vocabulary + framework notes: create `.claude/local.md` (imported via `@local.md` above).
 

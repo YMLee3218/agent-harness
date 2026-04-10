@@ -242,6 +242,35 @@ make_plan "$T23" "feat" "green" >/dev/null
 write_input "pkg/store/user_store.go" | CLAUDE_PROJECT_DIR="$T23" bash "$SCRIPT" write >/dev/null 2>&1
 check "write/green: pkg/ source file allowed (green phase only blocks test writes)" 0 $?
 
+# ── Test 24: write/brainstorm — test file blocked (B-3) ─────────────────────
+# Brainstorm phase must block test files in addition to source files.
+
+T24=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+make_plan "$T24" "feat" "brainstorm" >/dev/null
+write_input "tests/domain/foo_test.py" | CLAUDE_PROJECT_DIR="$T24" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/brainstorm: test file blocked" 2 $?
+
+# ── Test 25: write/spec — test file blocked ───────────────────────────────────
+
+T25=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+make_plan "$T25" "feat" "spec" >/dev/null
+write_input "tests/features/add-todo.test.ts" | CLAUDE_PROJECT_DIR="$T25" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/spec: test file blocked" 2 $?
+
+# ── Test 26: write/red — test file allowed in red phase ──────────────────────
+
+T26=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+make_plan "$T26" "feat" "red" >/dev/null
+write_input "tests/domain/foo_test.py" | CLAUDE_PROJECT_DIR="$T26" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/red: test file allowed (Red phase is for writing tests)" 0 $?
+
+# ── Test 27: write/brainstorm — notebook in src/ blocked (NotebookEdit) ──────
+
+T27=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
+make_plan "$T27" "feat" "brainstorm" >/dev/null
+write_input "src/domain/analysis.ipynb" | CLAUDE_PROJECT_DIR="$T27" bash "$SCRIPT" write >/dev/null 2>&1
+check "write/brainstorm: notebook in src/ blocked (NotebookEdit path)" 2 $?
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 echo ""

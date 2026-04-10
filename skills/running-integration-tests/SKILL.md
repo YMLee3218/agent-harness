@@ -30,6 +30,12 @@ Use `EnterPlanMode`, then:
 
 Write scope summary to plan file. Call `ExitPlanMode` to request approval.
 
+## Step 1.5 — Verify unit tests pass
+
+Before running integration tests, run the unit test command from project CLAUDE.md to confirm there are no pre-existing regressions.
+
+If unit tests fail: stop and resolve failures via the `implementing` skill before proceeding to Step 2. Do not start integration tests with a broken unit test baseline.
+
 ## Step 2 — Run tests
 
 Execute the integration test command from project CLAUDE.md.

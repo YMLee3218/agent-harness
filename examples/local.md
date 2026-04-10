@@ -21,7 +21,7 @@ One-paragraph description of what this project does and who it serves.
 - Package manager:
 - Framework:
 
-# Commands
+# Shell commands
 
 - Test: `<command>`
 - Lint: `<command>`

@@ -2,6 +2,23 @@
 
 The following belong in **each developer's `~/.claude/settings.json`**, not in the bundle (`workspace/`).
 
+## System dependencies
+
+The harness scripts require `jq` (JSON processor) to be installed:
+
+```bash
+# macOS
+brew install jq
+
+# Debian/Ubuntu
+apt-get install -y jq
+
+# Alpine (CI)
+apk add --no-cache jq
+```
+
+`jq` is used by `plan-file.sh` (state.json read/write) and `pretooluse-bash.sh` (hook payload parsing). CI images that do not include it will fail silently on hook invocations.
+
 ## Stop hook
 
 Plays a sound when Claude finishes a task:

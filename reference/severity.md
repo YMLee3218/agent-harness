@@ -1,0 +1,52 @@
+# Severity Rules
+
+Imported by all four critic bodies (`@reference/severity.md`).
+Defines how to map finding labels to severity levels, when to emit PASS vs FAIL, and how to choose a category when multiple findings apply.
+
+## Severity levels
+
+| Level | Label | Blocks FAIL? | Description |
+|-------|-------|:---:|---|
+| **Critical** | `[CRITICAL]` | Yes | Correctness violation: wrong layer import, broken invariant, spec scenario not exercised |
+| **Missing** | `[MISSING]` | Yes | Required element absent: missing boundary scenario, missing test, missing docs entry |
+| **Fail** | `[FAIL]` | Yes | Structural violation: BDD format error, naming convention broken, test maps multiple scenarios |
+| **Docs contradiction** | `[DOCS CONTRADICTION]` | Yes | Code or spec contradicts `docs/*.md` (source of truth) |
+| **Warning** | `[WARN]` | No | Non-blocking improvement suggestion; must not cause a FAIL verdict by itself |
+
+## PASS/FAIL threshold
+
+| Verdict | Condition |
+|---------|-----------|
+| **PASS** | Zero `[CRITICAL]`, `[MISSING]`, `[FAIL]`, or `[DOCS CONTRADICTION]` findings |
+| **FAIL** | One or more blocking-level findings |
+| **PASS with warnings** | Only `[WARN]` findings present — still emits PASS |
+
+## Category priority (highest → lowest)
+
+When a single FAIL contains findings from multiple categories, use the **highest-priority** category for the `<!-- category: X -->` marker so the consecutive-FAIL escalation logic tracks the most severe issue:
+
+```
+LAYER_VIOLATION
+  > DOCS_CONTRADICTION
+  > SPEC_COMPLIANCE
+  > MISSING_SCENARIO
+  > TEST_INTEGRITY
+  > TEST_QUALITY
+  > STRUCTURAL
+```
+
+## Boundary-case guidance
+
+| Situation | Decision |
+|-----------|----------|
+| `[WARN]` only, no blocking findings | Emit PASS; list `[WARN]` items in the report for awareness |
+| Multiple `[MISSING]` in same category | Single FAIL with category `MISSING_SCENARIO`; list all missing items |
+| Both `LAYER_VIOLATION` and `SPEC_COMPLIANCE` findings | Use `LAYER_VIOLATION` (higher priority); mention both in the verdict |
+| `[DOCS CONTRADICTION]` with no other findings | Emit FAIL with category `DOCS_CONTRADICTION`; do not auto-resolve — escalate via the DOCS CONTRADICTION path in `critic-loop.md` |
+| Test passes before any implementation exists | `TEST_INTEGRITY` — always FAIL regardless of other findings |
+| Typo in a scenario name (cosmetic only) | `[WARN]`, not `[FAIL]` — does not block |
+
+## Integration with critic-loop.md
+
+These severity rules feed directly into the `## Label → category mapping` and `## FAIL categories` tables in `reference/critic-loop.md`.
+A critic body that imports this file does not need to duplicate those tables.

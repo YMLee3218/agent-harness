@@ -3,6 +3,7 @@ name: critic-feature
 description: >
   Review feature decomposition: classification errors, layer misassignment, naming, missing features.
   Trigger: after brainstorming produces a candidate list, before writing-spec begins.
+user-invocable: false
 context: fork
 agent: critic-feature
 allowed-tools: [Read, Glob]

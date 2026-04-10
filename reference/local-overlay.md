@@ -42,7 +42,6 @@ The bundle guarantees it will **never** create files or directories with the `lo
 | What to add | Location |
 |-------------|----------|
 | Project-specific skill | `.claude/skills/local-<name>/SKILL.md` |
-| Project-specific slash command | `.claude/commands/local-<name>.md` |
 | Project-specific subagent | `.claude/agents/local-<name>.md` |
 | Language/framework/planning guide | `.claude/reference/local-<topic>.md` |
 | Project vocabulary and context | `.claude/local.md` |
@@ -69,7 +68,7 @@ One-paragraph description.
 - **Order** — a confirmed purchase; immutable after creation
 - **Cart** — a mutable pre-order basket
 
-# Commands
+# Shell commands
 - Test: pnpm test
 - Lint: pnpm lint
 - Integration test: pnpm test:integration
@@ -91,10 +90,6 @@ Copy from `.claude/examples/` and place in the appropriate directory:
 # Skill
 cp -r .claude/examples/skills/local-skill .claude/skills/local-myfeature
 # Edit .claude/skills/local-myfeature/SKILL.md
-
-# Slash command
-cp .claude/examples/commands/local-command.md .claude/commands/local-mycommand.md
-# Edit the copy
 
 # Subagent
 cp .claude/examples/agents/local-agent.md .claude/agents/local-myagent.md

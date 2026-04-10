@@ -24,6 +24,7 @@ run_eval() {
   local fixture_name="$1" agent_type="$2" prompt_prefix="${3:-Review the following. Path:}"
   local fixture_file="$FIXTURES_DIR/${fixture_name}"
   local expected_file="$EXPECTED_DIR/${fixture_name%.md}.verdict"
+  local expected_category_file="$EXPECTED_DIR/${fixture_name%.md}.category"
 
   [ -f "$fixture_file" ] || { echo "SKIP: fixture not found: $fixture_file"; return; }
   [ -f "$expected_file" ] || { echo "SKIP: expected verdict not found: $expected_file"; return; }
@@ -51,10 +52,11 @@ run_eval() {
     actual_verdict="PARSE_ERROR"
   fi
 
-  if [ "$actual_verdict" = "$expected_verdict" ]; then
-    echo "PASS (got $actual_verdict)"
-    PASS=$((PASS + 1))
-  else
+  # Extract category from output (<!-- category: X -->)
+  local actual_category=""
+  actual_category=$(printf '%s' "$output" | grep '<!-- category:' | sed 's/.*<!-- category: //;s/ -->.*//' | head -1)
+
+  if [ "$actual_verdict" != "$expected_verdict" ]; then
     echo "FAIL (expected $expected_verdict, got $actual_verdict)"
     FAIL=$((FAIL + 1))
     if [ -n "$output" ]; then
@@ -62,6 +64,28 @@ run_eval() {
       printf '%s\n' "$output" | tail -20
       echo "--------------"
     fi
+    return
+  fi
+
+  # Verdict matches — also verify category if expected file exists
+  if [ -f "$expected_category_file" ]; then
+    local expected_category
+    expected_category=$(tr -d '[:space:]' < "$expected_category_file")
+    if [ "$actual_category" = "$expected_category" ]; then
+      echo "PASS (verdict $actual_verdict, category $actual_category)"
+      PASS=$((PASS + 1))
+    else
+      echo "FAIL (verdict OK but wrong category: expected $expected_category, got '$actual_category')"
+      FAIL=$((FAIL + 1))
+      if [ -n "$output" ]; then
+        echo "--- output ---"
+        printf '%s\n' "$output" | tail -20
+        echo "--------------"
+      fi
+    fi
+  else
+    echo "PASS (got $actual_verdict)"
+    PASS=$((PASS + 1))
   fi
 }
 
@@ -92,6 +116,11 @@ fi
 # Workflow output evals — spec critic applied to writing-spec outputs
 if [ -z "$filter" ] || [[ "spec-bad-no-boundary" == *"$filter"* ]]; then
   run_eval "spec-bad-no-boundary.md" "critic-spec" "Review the following BDD spec produced by a writing-spec step."
+fi
+
+# Boundary case: WARN-only output must produce PASS with category NONE
+if [ -z "$filter" ] || [[ "spec-warn-only" == *"$filter"* ]]; then
+  run_eval "spec-warn-only.md" "critic-spec" "Review the following BDD spec."
 fi
 
 # Test critic evals

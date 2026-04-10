@@ -71,6 +71,12 @@ Before spawning any subagent, mark each task `in_progress` in the Task Ledger:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "in_progress"
 ```
 
+Resolve the plan file to an absolute path before spawning coders — each coder runs in its own git worktree and needs a stable path to the shared plan file:
+```bash
+export CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md"
+```
+Pass `CLAUDE_PLAN_FILE` to each coder via the prompt so it can call `plan-file.sh` if needed.
+
 Determine each task's layer by checking its target path:
 - `src/domain/` → **Domain**
 - `src/infrastructure/` → **Infrastructure**
@@ -80,6 +86,7 @@ Determine each task's layer by checking its target path:
 ```
 Agent(
   subagent_type: "coder",
+  isolation: "worktree",
   prompt: "Task: [goal]
            Target layer: [LAYER]
            Files: [paths]
@@ -87,15 +94,17 @@ Agent(
            Read-only paths (test files): [test file path(s)]
            Failing test: [test code]
            Test command: [command from project CLAUDE.md]
-           Spec: [spec path]"
+           Spec: [spec path]
+           CLAUDE_PLAN_FILE: [absolute path to plans/{slug}.md]"
 )
 ```
 
 Do not pass the full plan or other tasks' state to subagents.
 
-After each subagent returns, mark it completed in the Task Ledger (include commit sha when available):
+Each coder runs in an isolated git worktree and commits its changes to a temporary branch. After each subagent returns, merge its branch back and update the Task Ledger:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "completed" "{commit-sha}"
+git merge --no-ff {worktree-branch} -m "merge(task-N): {description}"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "completed" "$(git rev-parse HEAD)"
 ```
 
 Then mark the corresponding `TaskCreate` task `completed`. Move to the next tier.

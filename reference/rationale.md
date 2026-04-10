@@ -98,6 +98,56 @@ Changed from `critic-.*` wildcard to `critic-feature|critic-spec|critic-test|cri
 ### Agent Teams: considered, not adopted
 Agent Teams (multi-session parallel collaboration, `TeammateIdle` hook) were evaluated as a replacement for session-scoped `implementing` orchestration. The current single-session orchestrator-workers pattern is sufficient for the harness use case; Agent Teams add cross-session state management complexity without a commensurate gain. Revisit when features require persistent parallel sub-sessions.
 
+### Worktree isolation for coder subagents
+
+`agents/coder.md` sets `isolation: worktree` so each parallel coder runs in its own git worktree. This prevents file-level conflicts when two coders write to different paths within the same feature tier simultaneously.
+
+**Cross-worktree plan file writes**: coder agents do not write to the plan file directly (only the `implementing` orchestrator does). The `_awk_inplace` mkdir lock is safe across worktrees because `mkdir` is atomic on the underlying POSIX filesystem regardless of which worktree path is used. When `CLAUDE_PLAN_FILE` is set to an absolute path before spawning coders, all subagents reference the same physical file even from different working directories.
+
+**Merging**: after each worktree-isolated coder returns, the `implementing` skill merges the coder's branch with `git merge --no-ff`. The merge commit SHA is recorded in the Task Ledger.
+
+**Source**: Building Effective Agents — orchestrator-workers with context isolation; Multi-Agent Research — parallel subagents with worktree isolation for file safety.
+
+### MCP tool write bypass (known limitation)
+
+MCP server tools (e.g. a hypothetical `mcp__write_file`) are not matched by the `Write|Edit` PreToolUse hook. They bypass the phase gate entirely.
+
+**Current risk**: the enabled plugins (`context7-plugin`, `pr-review-toolkit`, `code-simplifier`) expose only read-only tools. No currently-enabled MCP plugin can write source or test files, so the practical risk is negligible.
+
+**Mitigation if a write-capable MCP plugin is added**: extend the `PreToolUse` matcher in `settings.json` to include the MCP tool name (e.g. `Write|Edit|mcp__plugin_name__write_file`). Each new write-capable MCP tool must be explicitly added — there is no wildcard MCP matcher.
+
+### Settings schema fixes (C1, C2) and security hardening (H1, M1–M3, M5, L1, L2)
+
+**C1 — `sandbox.enabled` (was `sandbox.enable`)**
+`additionalProperties` is allowed in the settings JSON Schema, so the typo produced no validation error — the sandbox was silently disabled. Corrected to `"enabled": true`.
+
+**C2 — `statusLine` object format**
+The `statusLine` key requires `{"type":"command","command":"..."}` — a plain string is a schema mismatch and the status line did not render. Updated to the object form.
+
+**H1 — force push deny expansion**
+Original deny list only blocked `git push --force *` and `git push -f *`. Three uncovered patterns added:
+- flag after remote/branch: `git push * --force`, `git push * -f` (and with trailing args)
+- refspec force: `git push * +*`
+- bare `-f` with no trailing args: `git push -f` (`*` matches 1+ chars, so the bare form was unblocked)
+
+**M1 — sandbox filesystem denyRead**
+Added `sandbox.filesystem.denyRead` mirroring the existing permission-level deny list for secret paths (`~/.ssh/**`, `~/.aws/**`, etc.). Defense-in-depth: permission rules apply to Claude's tool calls; sandbox filesystem rules apply at OS level.
+
+**M2 — critic agent `disallowedTools`**
+All four critic agents (critic-feature, critic-spec, critic-test, critic-code) gained `disallowedTools: Write, Edit, NotebookEdit`. Critics must never mutate state; this makes the constraint enforcement explicit at the agent layer rather than relying solely on minimal `tools:` declarations.
+
+**M3 — `worktree.symlinkDirectories`**
+Added `worktree.symlinkDirectories: [node_modules, .venv, .cache]`. Without this, worktree creation for coder subagents copies large dependency trees on every invocation. Symlinking these directories is safe because they contain no source files.
+
+**M5 — `async: true` removed from PostToolUse lint hook**
+The lint hook ran asynchronously, allowing Claude to proceed to reading a just-written file before formatting completed. Removing `async` makes lint synchronous: the file is stable before Claude continues.
+
+**L1 — `user-invocable: false` on critic skills**
+Critic skills are internal pipeline stages invoked by the orchestrator. Without `user-invocable: false` a user could bypass the FSM by calling `/critic-code` directly mid-spec. Now suppressed from the user-facing skill list.
+
+**L2 — `attribution.coAuthored: true`**
+Commit co-authorship was previously injected ad-hoc by the `implementing` skill prompt. Setting it in `settings.json` guarantees consistent attribution regardless of which path produces a commit.
+
 ### TaskCreated/TaskCompleted/PermissionDenied hooks (P3)
 Three hooks added to auto-sync plan state:
 - `TaskCreated` → `record-task-created`: registers native TaskCreate calls in the Task Ledger (layer="-"; implementing skill provides the correct layer).

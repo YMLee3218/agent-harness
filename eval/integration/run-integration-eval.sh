@@ -293,6 +293,43 @@ check "migrate-to-json is idempotent" 0 \
 
 unset CLAUDE_PLAN_FILE CLAUDE_PROJECT_DIR
 
+# ── Scenario 6: Phase gate blocks writes in brainstorm and spec phases ─────────
+
+echo ""
+echo "=== Scenario 6: Phase gate enforcement — brainstorm and spec phases ==="
+
+dir6="$tmpdir/scenario6"
+mkdir -p "$dir6"
+make_plan "$dir6" "early-phase-test" "brainstorm"
+export CLAUDE_PROJECT_DIR="$dir6"
+export CLAUDE_PLAN_FILE="$dir6/plans/early-phase-test.md"
+export PHASE_GATE_STRICT="1"
+
+# In brainstorm phase: source writes are blocked
+check "brainstorm phase blocks src write" 2 \
+  bash -c 'printf "%s" '"'"'{"tool_name":"Write","tool_input":{"file_path":"src/domain/foo.go","content":"x"}}'"'"' | bash '"$PHASE_GATE_SH"' write'
+
+# In brainstorm phase: test writes are also blocked
+check "brainstorm phase blocks test write" 2 \
+  bash -c 'printf "%s" '"'"'{"tool_name":"Write","tool_input":{"file_path":"tests/foo_test.go","content":"x"}}'"'"' | bash '"$PHASE_GATE_SH"' write'
+
+# Advance to spec phase
+bash "$PLAN_FILE_SH" set-phase "$CLAUDE_PLAN_FILE" spec 2>/dev/null
+
+# In spec phase: source writes are blocked
+check "spec phase blocks src write" 2 \
+  bash -c 'printf "%s" '"'"'{"tool_name":"Write","tool_input":{"file_path":"src/domain/foo.go","content":"x"}}'"'"' | bash '"$PHASE_GATE_SH"' write'
+
+# In spec phase: test writes are also blocked
+check "spec phase blocks test write" 2 \
+  bash -c 'printf "%s" '"'"'{"tool_name":"Write","tool_input":{"file_path":"tests/foo_test.go","content":"x"}}'"'"' | bash '"$PHASE_GATE_SH"' write'
+
+# Spec phase: non-source, non-test writes are allowed (e.g. spec.md itself)
+check "spec phase allows spec.md write" 0 \
+  bash -c 'printf "%s" '"'"'{"tool_name":"Write","tool_input":{"file_path":"features/add-todo/spec.md","content":"x"}}'"'"' | bash '"$PHASE_GATE_SH"' write'
+
+unset CLAUDE_PLAN_FILE PHASE_GATE_STRICT
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 echo ""

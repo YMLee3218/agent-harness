@@ -120,4 +120,55 @@ if printf '%s' "$cmd" | grep -iqE \
   exit 2
 fi
 
+# Phase-aware bash write detection: catches > file, tee file, cat > file redirections that
+# bypass the Write|Edit PreToolUse phase gate. Guardrail only — not a security boundary.
+_plan_file_sh="$(dirname "$0")/plan-file.sh"
+if [ -f "$_plan_file_sh" ]; then
+  # Use CLAUDE_PLAN_FILE when set to avoid find-active overhead on every Bash call
+  if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
+    _active_plan="$CLAUDE_PLAN_FILE"
+  else
+    _active_plan=$(bash "$_plan_file_sh" find-active 2>/dev/null || echo "")
+  fi
+  if [ -n "$_active_plan" ]; then
+    _current_phase=$(bash "$_plan_file_sh" get-phase "$_active_plan" 2>/dev/null || echo "")
+    if [ -n "$_current_phase" ]; then
+      _writes_src=0; _writes_test=0
+      # Detect redirects to source paths: > src/, >> src/, tee src/
+      printf '%s' "$cmd" | grep -iqE \
+        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?src/|tee[[:space:]]+([^[:space:]]*/)?src/' \
+        && _writes_src=1 || true
+      # Detect redirects to test paths: > tests/, >> tests/, tee tests/, or *_test.* / *.test.*
+      printf '%s' "$cmd" | grep -iqE \
+        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?tests/|tee[[:space:]]+([^[:space:]]*/)?tests/|(>{1,2}[[:space:]]*)([^[:space:]]*)(_test\.|\.test\.)' \
+        && _writes_test=1 || true
+      case "$_current_phase" in
+        brainstorm|spec)
+          if [ "$_writes_src" -eq 1 ]; then
+            echo "BLOCKED [phase-gate/bash]: Phase is '$_current_phase'. Bash redirect to src/ detected — use Write/Edit tool (enforced by phase-gate)." >&2; exit 2
+          fi
+          if [ "$_writes_test" -eq 1 ]; then
+            echo "BLOCKED [phase-gate/bash]: Phase is '$_current_phase'. Bash redirect to test path detected — complete /writing-spec first." >&2; exit 2
+          fi
+          ;;
+        red)
+          if [ "$_writes_src" -eq 1 ]; then
+            echo "BLOCKED [phase-gate/bash]: Phase is 'red'. Bash redirect to src/ detected — write tests only during Red phase." >&2; exit 2
+          fi
+          ;;
+        green|integration)
+          if [ "$_writes_test" -eq 1 ]; then
+            echo "BLOCKED [phase-gate/bash]: Phase is '$_current_phase'. Bash redirect to test path detected — tests are frozen during this phase." >&2; exit 2
+          fi
+          ;;
+        done)
+          if [ "$_writes_src" -eq 1 ] || [ "$_writes_test" -eq 1 ]; then
+            echo "BLOCKED [phase-gate/bash]: Phase is 'done'. Bash redirect to src/ or test path — run /initializing-project to start a new feature." >&2; exit 2
+          fi
+          ;;
+      esac
+    fi
+  fi
+fi
+
 exit 0

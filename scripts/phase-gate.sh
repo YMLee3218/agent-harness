@@ -17,8 +17,9 @@ PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 
 get_active_phase() {
   local plan_file
-  # Prefer active (non-done) plan; fall back to most recent plan to detect 'done' phase
-  plan_file=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) \
+  # Pass through find-active stderr so ambiguity errors ("2 active plan files found") are visible.
+  # Fall back to most recent plan only for the "no active plans" case (e.g. all done).
+  plan_file=$(bash "$PLAN_FILE_SH" find-active) \
     || plan_file=$(bash "$PLAN_FILE_SH" find-latest 2>/dev/null) \
     || return 1
   bash "$PLAN_FILE_SH" get-phase "$plan_file" 2>/dev/null || return 1
@@ -93,6 +94,10 @@ mode_write() {
     brainstorm|spec)
       if is_source_path "$file_path"; then
         echo "BLOCKED [phase-gate]: Phase is '$phase'. Writing source files is not allowed before Red phase. Complete /writing-spec and /writing-tests first." >&2
+        exit 2
+      fi
+      if is_test_path "$file_path"; then
+        echo "BLOCKED [phase-gate]: Phase is '$phase'. Writing test files is not allowed before spec is approved. Complete /writing-spec first, then advance to Red phase with /writing-tests." >&2
         exit 2
       fi
       ;;
