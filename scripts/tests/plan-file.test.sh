@@ -599,18 +599,18 @@ make_plan "$T31" "compact-feat" "spec" >/dev/null
   fi
 })
 
-# flush-before-compact: alternative field name compaction_trigger also accepted
+# flush-before-compact: canonical trigger field
 T31b=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T31b" "compact-alt" "spec" >/dev/null
 (cd "$T31b" && {
-  input='{"compaction_trigger":"auto"}'
+  input='{"trigger":"auto"}'
   printf '%s' "$input" | bash "$SCRIPT" flush-before-compact >/dev/null 2>&1
   got=$?
   if [ "$got" -eq 0 ] && grep -q "trigger=auto" "$T31b/plans/compact-alt.md"; then
-    echo "PASS: flush-before-compact: compaction_trigger field name accepted (trigger=auto)"
+    echo "PASS: flush-before-compact: canonical trigger field accepted (trigger=auto)"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: flush-before-compact: compaction_trigger fallback failed (exit=$got)"
+    echo "FAIL: flush-before-compact: canonical trigger field failed (exit=$got)"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -647,18 +647,18 @@ make_plan "$T33" "stopfail-feat" "green" >/dev/null
   fi
 })
 
-# record-stopfail: alternative field name error_type also accepted
+# record-stopfail: canonical error field
 T33b=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T33b" "stopfail-alt" "green" >/dev/null
 (cd "$T33b" && {
-  input='{"error_type":"server_error","session_id":"sess-xyz"}'
+  input='{"error":"server_error","session_id":"sess-xyz"}'
   printf '%s' "$input" | bash "$SCRIPT" record-stopfail >/dev/null 2>&1
   got=$?
   if [ "$got" -eq 0 ] && grep -q "error_type=server_error" "$T33b/plans/stopfail-alt.md"; then
-    echo "PASS: record-stopfail: error_type field name accepted (error_type=server_error)"
+    echo "PASS: record-stopfail: canonical error field accepted (error_type=server_error)"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: record-stopfail: error_type fallback failed (exit=$got)"
+    echo "FAIL: record-stopfail: canonical error field failed (exit=$got)"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -768,18 +768,18 @@ make_plan "$T39" "session-end-feat" "green" >/dev/null
   fi
 })
 
-# flush-on-end: alternative field name session_end_reason also accepted
+# flush-on-end: canonical reason field
 T39b=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 make_plan "$T39b" "session-end-alt" "green" >/dev/null
 (cd "$T39b" && {
-  input='{"session_end_reason":"user_exit"}'
+  input='{"reason":"user_exit"}'
   printf '%s' "$input" | bash "$SCRIPT" flush-on-end >/dev/null 2>&1
   got=$?
   if [ "$got" -eq 0 ] && grep -q "reason=user_exit" "$T39b/plans/session-end-alt.md"; then
-    echo "PASS: flush-on-end: session_end_reason field name accepted (reason=user_exit)"
+    echo "PASS: flush-on-end: canonical reason field accepted (reason=user_exit)"
     PASS=$((PASS + 1))
   else
-    echo "FAIL: flush-on-end: session_end_reason fallback failed (exit=$got)"
+    echo "FAIL: flush-on-end: canonical reason field failed (exit=$got)"
     FAIL=$((FAIL + 1))
   fi
 })
@@ -843,10 +843,12 @@ T43=$(mktemp -d "$TMPDIR_BASE/tmp.XXXXXX")
 f43=$(make_plan "$T43" "native-task-feat" "green")
 (cd "$T43" && {
   input='{"task_id":"task-abc","task_subject":"Implement domain rule","task_description":"","teammate_name":"","team_name":""}'
-  printf '%s' "$input" | bash "$SCRIPT" record-task-created >/dev/null 2>&1
+  stderr_out=$(printf '%s' "$input" | bash "$SCRIPT" record-task-created 2>&1 >/dev/null)
   got=$?
-  if [ "$got" -eq 0 ] && grep -q "## Task Ledger" "$f43" && grep -q "task-abc" "$f43"; then
-    echo "PASS: record-task-created: native task registered in Task Ledger"
+  # record-task-created is observability-only; it does NOT add to Task Ledger (skill's add-task
+  # calls are the canonical source with correct layer). Check exit 0 + stderr log only.
+  if [ "$got" -eq 0 ] && printf '%s' "$stderr_out" | grep -q "task-abc"; then
+    echo "PASS: record-task-created: exit 0 + observability log emitted (no Task Ledger row)"
     PASS=$((PASS + 1))
   else
     echo "FAIL: record-task-created: expected exit 0 + task-abc in Task Ledger (exit=$got)"

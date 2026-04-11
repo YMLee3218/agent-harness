@@ -211,19 +211,19 @@ _append_to_open_questions() {
 }
 
 # Appends <entry> to the ## Critic Runs section of <plan_file>.
-# Creates the section if absent. Used for SubagentStart audit entries.
+# Creates the section if absent. Uses _awk_inplace for both branches so the
+# check-and-append is atomic (flock/mkdir) even when two critics start simultaneously.
 _append_to_critic_runs() {
   local plan_file="$1" entry="$2"
-  if grep -q "^## Critic Runs$" "$plan_file"; then
-    _awk_inplace "$plan_file" -v entry="- $entry" '
-      /^## Critic Runs$/ { print; in_section=1; next }
-      in_section && /^## / { print entry; print ""; print; in_section=0; next }
-      { print }
-      END { if (in_section) print entry }
-    '
-  else
-    { echo ""; echo "## Critic Runs"; echo "- $entry"; } >> "$plan_file"
-  fi
+  _awk_inplace "$plan_file" -v entry="- $entry" '
+    /^## Critic Runs$/ { print; in_section=1; found=1; next }
+    in_section && /^## / { print entry; print ""; print; in_section=0; next }
+    { print }
+    END {
+      if (in_section) print entry
+      else if (!found) { print ""; print "## Critic Runs"; print entry }
+    }
+  '
 }
 
 # Common event-recording helper: appends a timestamped marker to ## Open Questions.
@@ -391,7 +391,7 @@ cmd_flush_before_compact() {
   require_jq
   local input compact_trigger plan_file
   input=$(cat)
-  compact_trigger=$(printf '%s' "$input" | jq -r '.compaction_trigger // .trigger // "unknown"' 2>/dev/null || echo "unknown")
+  compact_trigger=$(printf '%s' "$input" | jq -r '.trigger // "unknown"' 2>/dev/null || echo "unknown")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "PRE-COMPACT" "trigger=${compact_trigger} — SessionStart will re-inject plan summary; review open items after restart"
   echo "[flush-before-compact] recorded pre-compact marker (trigger=${compact_trigger}) in ${plan_file}" >&2
@@ -419,14 +419,16 @@ cmd_record_stopfail() {
   require_jq
   local input error_type plan_file
   input=$(cat)
-  error_type=$(printf '%s' "$input" | jq -r '.error_type // .error // "unknown"' 2>/dev/null || echo "unknown")
+  error_type=$(printf '%s' "$input" | jq -r '.error // "unknown"' 2>/dev/null || echo "unknown")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "STOPFAIL" "error_type=${error_type} — session interrupted; resume with /implementing or check plan phase"
   echo "[record-stopfail] recorded stop-failure marker (error_type=${error_type}) in ${plan_file}" >&2
 }
 
 cmd_record_task_created() {
-  # TaskCreated hook: auto-registers a native TaskCreate call in the plan Task Ledger.
+  # TaskCreated hook: observability log only — does NOT add to Task Ledger.
+  # The implementing skill's explicit add-task calls are the canonical source for the Task Ledger
+  # (they carry the correct layer). Adding here with layer="-" causes duplicate ledger rows.
   # Payload fields: task_id, task_subject, task_description, teammate_name, team_name
   require_jq
   local input task_id task_subject plan_file
@@ -434,8 +436,7 @@ cmd_record_task_created() {
   task_id=$(printf '%s' "$input" | jq -r '.task_id // "unknown"' 2>/dev/null || echo "unknown")
   task_subject=$(printf '%s' "$input" | jq -r '.task_subject // ""' 2>/dev/null || echo "")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
-  cmd_add_task "$plan_file" "$task_id" "-"
-  echo "[record-task-created] registered task (${task_id}: ${task_subject}) in ${plan_file}" >&2
+  echo "[record-task-created] native task created (${task_id}: ${task_subject}) — Task Ledger managed by skill" >&2
 }
 
 cmd_record_task_completed() {
@@ -644,7 +645,7 @@ cmd_flush_on_end() {
   require_jq
   local input reason plan_file
   input=$(cat)
-  reason=$(printf '%s' "$input" | jq -r '.session_end_reason // .reason // "normal"' 2>/dev/null || echo "normal")
+  reason=$(printf '%s' "$input" | jq -r '.reason // "normal"' 2>/dev/null || echo "normal")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "SESSION-END" "reason=${reason} — plan state preserved; resume with context injection"
   echo "[flush-on-end] recorded session-end marker (reason=${reason}) in ${plan_file}" >&2

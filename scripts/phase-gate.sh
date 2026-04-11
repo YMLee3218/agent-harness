@@ -24,11 +24,12 @@ get_active_phase() {
   rc=$?
   if [ $rc -eq 3 ]; then
     bash "$PLAN_FILE_SH" find-active >/dev/null  # re-run to emit stderr
+    GATE_FAIL_REASON="ambiguous"
     return 1
   elif [ $rc -ne 0 ]; then
-    plan_file=$(bash "$PLAN_FILE_SH" find-latest 2>/dev/null) || return 1
+    plan_file=$(bash "$PLAN_FILE_SH" find-latest 2>/dev/null) || { GATE_FAIL_REASON="none"; return 1; }
   fi
-  bash "$PLAN_FILE_SH" get-phase "$plan_file" 2>/dev/null || return 1
+  bash "$PLAN_FILE_SH" get-phase "$plan_file" 2>/dev/null || { GATE_FAIL_REASON="none"; return 1; }
 }
 
 # Domain/feature/infrastructure source paths (blocked during red phase).
@@ -92,9 +93,14 @@ mode_write() {
   fi
 
   local phase
+  GATE_FAIL_REASON="none"
   if ! phase=$(get_active_phase); then
     if [ "${PHASE_GATE_STRICT:-1}" = "1" ]; then
-      echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1 and no active plan file. Run /initializing-project to set up a plan, or set PHASE_GATE_STRICT=0 for bootstrap." >&2
+      if [ "${GATE_FAIL_REASON}" = "ambiguous" ]; then
+        echo "BLOCKED [phase-gate]: multiple active plan files found. Set CLAUDE_PLAN_FILE=plans/{slug}.md to disambiguate, or set PHASE_GATE_STRICT=0." >&2
+      else
+        echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1 and no active plan file. Run /initializing-project to set up a plan, or set PHASE_GATE_STRICT=0 for bootstrap." >&2
+      fi
       exit 2
     fi
     echo "[phase-gate] no active plan file; write allowed. Run /initializing-project to enable gating." >&2
@@ -149,8 +155,27 @@ mode_write() {
 }
 
 # ── Prompt mode ───────────────────────────────────────────────────────────────
+# UserPromptSubmit hook: injects a phase reminder into Claude's context when the
+# pipeline is in an early phase (brainstorm or spec). Outputs the canonical
+# hookSpecificOutput JSON so Claude sees the current phase before responding.
+# No output for red/green/integration/done — gating is handled by Write hooks.
 
 mode_prompt() {
+  # Read the payload (not used directly, but must consume stdin)
+  cat >/dev/null
+
+  local phase
+  GATE_FAIL_REASON="none"
+  phase=$(get_active_phase 2>/dev/null) || exit 0
+
+  case "$phase" in
+    brainstorm)
+      printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"[phase-gate] Pipeline phase: brainstorm. Complete /brainstorming before writing spec or code. Do not write source files or tests yet."}}\n'
+      ;;
+    spec)
+      printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"[phase-gate] Pipeline phase: spec. Complete /writing-spec before writing tests or code. Do not write source files yet."}}\n'
+      ;;
+  esac
   exit 0
 }
 
