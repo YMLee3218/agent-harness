@@ -2,8 +2,7 @@
   "name": "tdd-vsa",
   "version": "1.0.0",
   "description": "TDD + VSA + DDD pipeline for Claude Code: BDD spec-driven development with critic-gated phases, plan-file state persistence, and layer boundary enforcement.",
-  "author": "svc/agent",
-  "publisher": "svc",
+  "author": {"name": "svc"},
   "license": "MIT",
   "homepage": "https://github.com/svc/agent",
   "agents": [
@@ -25,37 +24,5 @@
     "skills/critic-spec/SKILL.md",
     "skills/critic-test/SKILL.md",
     "skills/critic-code/SKILL.md"
-  ],
-  "settings": "settings.json",
-  "hook_scripts": [
-    "scripts/pretooluse-bash.sh",
-    "scripts/plan-file.sh",
-    "scripts/phase-gate.sh"
-  ],
-  "reference": [
-    "reference/layers.md",
-    "reference/severity.md",
-    "reference/bdd-template.md",
-    "reference/critic-loop.md",
-    "reference/critic-feature-body.md",
-    "reference/critic-spec-body.md",
-    "reference/critic-test-body.md",
-    "reference/critic-code-body.md",
-    "reference/docs-policy.md",
-    "reference/rationale.md"
-  ],
-  "scripts": [
-    "scripts/critic-code/python.sh",
-    "scripts/critic-code/go.sh",
-    "scripts/critic-code/ts.sh",
-    "scripts/critic-code/java.sh",
-    "scripts/critic-code/kotlin.sh",
-    "scripts/critic-code/rb.sh",
-    "scripts/critic-code/cs.sh",
-    "scripts/critic-code/rust.sh"
-  ],
-  "commands": [],
-  "engines": {
-    "claude-code": ">=1.0.0"
-  }
+  ]
 }

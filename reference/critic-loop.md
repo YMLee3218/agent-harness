@@ -21,6 +21,7 @@ Standard max-2-iteration protocol used by every phase-gate critic.
 | `[FAIL]` (structural) | `STRUCTURAL` or `LAYER_VIOLATION` depending on nature |
 | `[FAIL]` (test integrity) | `TEST_INTEGRITY` or `TEST_QUALITY` |
 | `[DOCS CONTRADICTION]` | `DOCS_CONTRADICTION` |
+| `[UNVERIFIED CLAIM]` | `UNVERIFIED_CLAIM` |
 
 ## Mandatory verdict marker
 
@@ -51,13 +52,14 @@ On FAIL, the critic **must** also emit a `<!-- category: X -->` marker on the li
 | `MISSING_SCENARIO` | A required scenario or boundary case is absent from spec or tests |
 | `LAYER_VIOLATION` | Incorrect layer assignment, forbidden import, or wrong mocking level |
 | `DOCS_CONTRADICTION` | Spec or implementation contradicts `docs/*.md` |
+| `UNVERIFIED_CLAIM` | Spec or code asserts a domain fact, API signature, or external fact not grounded in docs/*.md or verified via context7/WebSearch |
 | `STRUCTURAL` | BDD format error, naming convention violation, or wrong file placement |
 | `TEST_INTEGRITY` | Test file was modified after Red phase, or a test passes before implementation |
 | `TEST_QUALITY` | Test maps multiple scenarios, has implementation logic inside, or uses wrong naming |
 | `SPEC_COMPLIANCE` | Implementation does not satisfy a scenario from spec.md |
 
 If a single FAIL has multiple root causes from different categories, choose the **highest-severity** one:  
-`LAYER_VIOLATION` > `DOCS_CONTRADICTION` > `SPEC_COMPLIANCE` > `MISSING_SCENARIO` > `TEST_INTEGRITY` > `TEST_QUALITY` > `STRUCTURAL`
+`LAYER_VIOLATION` > `DOCS_CONTRADICTION` > `UNVERIFIED_CLAIM` > `SPEC_COMPLIANCE` > `MISSING_SCENARIO` > `TEST_INTEGRITY` > `TEST_QUALITY` > `STRUCTURAL`
 
 ## Consecutive same-category escalation
 

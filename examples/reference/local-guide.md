@@ -41,4 +41,4 @@ List known pitfalls, deprecated APIs to avoid, or performance constraints.
 
 - Docs:
 - Internal design doc:
-- Related reference files: `@reference/layers.md`, `@reference/rationale.md`
+- Related reference files: `@reference/layers.md`

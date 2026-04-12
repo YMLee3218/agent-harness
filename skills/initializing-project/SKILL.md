@@ -54,10 +54,10 @@ mkdir -p src/features src/domain src/infrastructure tests/integration docs/requi
 
 For each approved domain concept:
 ```bash
-mkdir -p src/domain/{concept}
+mkdir -p src/domain/{concept} domain/{concept}
 ```
 
-Write draft `src/domain/{concept}/spec.md` (empty Feature block):
+Write draft `domain/{concept}/spec.md` (empty Feature block):
 ```gherkin
 Feature: {concept name}
 

@@ -44,6 +44,8 @@ Use `AskUserQuestion` to resolve requirement ambiguity — at most three questio
 
 Classify each candidate per @reference/layers.md (Small / Large feature). Name format: `{verb}-{noun}` kebab-case. Domain concepts: `{noun}` singular kebab-case.
 
+If proposing domain rules or constraints not found in `docs/*.md`, do not assume them. Use `AskUserQuestion` to confirm with the user before including in the decomposition.
+
 List each candidate with layer assignment. Write decomposition to plan file. Call `ExitPlanMode` to request approval.
 
 ### Step 3 — Write output + create branch

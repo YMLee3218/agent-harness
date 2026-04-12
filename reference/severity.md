@@ -11,13 +11,14 @@ Defines how to map finding labels to severity levels, when to emit PASS vs FAIL,
 | **Missing** | `[MISSING]` | Yes | Required element absent: missing boundary scenario, missing test, missing docs entry |
 | **Fail** | `[FAIL]` | Yes | Structural violation: BDD format error, naming convention broken, test maps multiple scenarios |
 | **Docs contradiction** | `[DOCS CONTRADICTION]` | Yes | Code or spec contradicts `docs/*.md` (source of truth) |
+| **Unverified** | `[UNVERIFIED CLAIM]` | Yes | Factual claim not grounded in docs/*.md, context7, or verified source |
 | **Warning** | `[WARN]` | No | Non-blocking improvement suggestion; must not cause a FAIL verdict by itself |
 
 ## PASS/FAIL threshold
 
 | Verdict | Condition |
 |---------|-----------|
-| **PASS** | Zero `[CRITICAL]`, `[MISSING]`, `[FAIL]`, or `[DOCS CONTRADICTION]` findings |
+| **PASS** | Zero `[CRITICAL]`, `[MISSING]`, `[FAIL]`, `[DOCS CONTRADICTION]`, or `[UNVERIFIED CLAIM]` findings |
 | **FAIL** | One or more blocking-level findings |
 | **PASS with warnings** | Only `[WARN]` findings present — still emits PASS |
 
@@ -28,6 +29,7 @@ When a single FAIL contains findings from multiple categories, use the **highest
 ```
 LAYER_VIOLATION
   > DOCS_CONTRADICTION
+  > UNVERIFIED_CLAIM
   > SPEC_COMPLIANCE
   > MISSING_SCENARIO
   > TEST_INTEGRITY

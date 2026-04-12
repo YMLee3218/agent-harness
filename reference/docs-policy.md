@@ -1,5 +1,9 @@
 # Library Documentation Policy
 
+This file covers library/framework API verification (R2).
+
+Full verification policy (R1–R4): @reference/verification-policy.md
+
 ## Rule
 
 Before using an external library API in a spec, test, or implementation, verify the API via context7. Do not rely on training-data knowledge for library behaviour — APIs change between versions.

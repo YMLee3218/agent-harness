@@ -1,16 +1,5 @@
 # Context Hygiene
 
-Harness-specific application of the Anthropic Context Engineering guide (2025-2026).
-
-## The four pillars (harness mapping)
-
-| Pillar | How the harness applies it |
-|--------|---------------------------|
-| **Write** — put information in context deliberately | Skills inject only what is needed: plan file excerpt, relevant spec, target file list. No full-repo dumps. |
-| **Select** — choose the right information | `plan-file.sh context` (SessionStart hook) injects active plan phase + last 3 verdicts + open questions — not the full plan. |
-| **Compress** — summarise before context fills | Before `/compact`, flush critical decisions to `## Open Questions` or `## Phase Transitions` in the plan file (see below). |
-| **Isolate** — fork context for independent tasks | `critic-*` skills run as subagents (forked context). Coder subagents spawned by `implementing` each receive only their task prompt. |
-
 ## Pre-compact flush
 
 The plan file is external memory that survives `/compact` and session restarts. Before compacting:

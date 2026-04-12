@@ -95,7 +95,8 @@ Agent(
            Failing test: [test code]
            Test command: [command from project CLAUDE.md]
            Spec: [spec path]
-           CLAUDE_PLAN_FILE: [absolute path to plans/{slug}.md]"
+           CLAUDE_PLAN_FILE: [absolute path to plans/{slug}.md]
+           Verification policy: @reference/verification-policy.md — verify external APIs via context7 before first use."
 )
 ```
 

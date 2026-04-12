@@ -75,6 +75,11 @@
 #   plan-file.sh migrate-to-json [plan-file]
 #       Creates a .state.json sidecar from an existing Markdown plan file.
 #       Exit 0 = success; exit 1 = error
+#
+#   plan-file.sh migrate-refactor [plan-file]
+#       Rewrites a plan file stuck at the removed `refactor` phase to `green`.
+#       Safe to run when not in refactor phase (no-op with message to stderr).
+#       Exit 0 always.
 
 set -euo pipefail
 
@@ -419,7 +424,7 @@ cmd_record_stopfail() {
   require_jq
   local input error_type plan_file
   input=$(cat)
-  error_type=$(printf '%s' "$input" | jq -r '.error // "unknown"' 2>/dev/null || echo "unknown")
+  error_type=$(printf '%s' "$input" | jq -r '.error_type // "unknown"' 2>/dev/null || echo "unknown")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "STOPFAIL" "error_type=${error_type} — session interrupted; resume with /implementing or check plan phase"
   echo "[record-stopfail] recorded stop-failure marker (error_type=${error_type}) in ${plan_file}" >&2
@@ -645,7 +650,7 @@ cmd_flush_on_end() {
   require_jq
   local input reason plan_file
   input=$(cat)
-  reason=$(printf '%s' "$input" | jq -r '.reason // "normal"' 2>/dev/null || echo "normal")
+  reason=$(printf '%s' "$input" | jq -r '.reason // "unknown"' 2>/dev/null || echo "unknown")
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
   _append_event_to_plan "$plan_file" "SESSION-END" "reason=${reason} — plan state preserved; resume with context injection"
   echo "[flush-on-end] recorded session-end marker (reason=${reason}) in ${plan_file}" >&2
@@ -741,6 +746,33 @@ cmd_migrate_to_json() {
   echo "[migrate-to-json] created ${state_file} (phase=${phase})" >&2
 }
 
+cmd_migrate_refactor() {
+  # Rewrites a plan file stuck at the removed `refactor` phase to `green`.
+  local plan_file="${1:-}"
+  if [ -z "$plan_file" ]; then
+    plan_file=$(cmd_find_latest 2>/dev/null) || die "no plan file found"
+  fi
+  require_file "$plan_file"
+  local current_phase
+  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "")
+  if [ "$current_phase" != "refactor" ]; then
+    echo "[migrate-refactor] plan is not in refactor phase (current: ${current_phase:-unknown}); nothing to do" >&2
+    exit 0
+  fi
+  _state_set_phase "$plan_file" "green"
+  _awk_inplace "$plan_file" -v phase="green" '
+    BEGIN { in_fm=0; fm_done=0; in_phase_section=0 }
+    /^---$/ && !fm_done { in_fm = !in_fm; if (!in_fm) fm_done=1; print; next }
+    in_fm && /^phase:/ { print "phase: " phase; next }
+    /^## Phase$/ { print; in_phase_section=1; next }
+    in_phase_section && /^[[:space:]]*$/ { next }
+    in_phase_section && /^[A-Za-z]/ { print phase; in_phase_section=0; next }
+    in_phase_section && !/^[A-Za-z]/ { print phase; print; in_phase_section=0; next }
+    { print }
+  '
+  echo "[migrate-refactor] migrated ${plan_file}: refactor → green" >&2
+}
+
 cmd_context() {
   # Outputs canonical SessionStart hook JSON for plan context injection.
   # Format: {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"..."}}
@@ -828,6 +860,7 @@ case "$1" in
   context)              cmd_context ;;
   gc-events)            cmd_gc_events ;;
   migrate-to-json)      cmd_migrate_to_json "${2:-}" ;;
+  migrate-refactor)     cmd_migrate_refactor "${2:-}" ;;
   add-task)             [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
   update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
   *) die "Unknown command: $1" ;;

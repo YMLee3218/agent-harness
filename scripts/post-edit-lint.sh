@@ -13,7 +13,7 @@ set -euo pipefail
 
 input=$(cat)
 
-file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
+file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null || true)
 [ -z "$file_path" ] && exit 0
 [ -f "$file_path" ] || exit 0
 

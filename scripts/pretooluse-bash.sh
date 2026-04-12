@@ -128,7 +128,13 @@ if [ -f "$_plan_file_sh" ]; then
   if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
     _active_plan="$CLAUDE_PLAN_FILE"
   else
-    _active_plan=$(bash "$_plan_file_sh" find-active 2>/dev/null || echo "")
+    _active_plan=$(bash "$_plan_file_sh" find-active 2>/dev/null)
+    _find_rc=$?
+    if [ $_find_rc -eq 3 ]; then
+      echo "BLOCKED [phase-gate/bash]: multiple active plan files — set CLAUDE_PLAN_FILE to disambiguate" >&2
+      exit 2
+    fi
+    [ $_find_rc -ne 0 ] && _active_plan=""
   fi
   if [ -n "$_active_plan" ]; then
     _current_phase=$(bash "$_plan_file_sh" get-phase "$_active_plan" 2>/dev/null || echo "")
@@ -140,7 +146,7 @@ if [ -f "$_plan_file_sh" ]; then
         && _writes_src=1 || true
       # Detect redirects to test paths: > tests/, >> tests/, tee tests/, cp ... tests/, or *_test.* / *.test.*
       printf '%s' "$cmd" | grep -iqE \
-        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?tests/|tee[[:space:]]+([^[:space:]]*/)?tests/|(>{1,2}[[:space:]]*)([^[:space:]]*)(_test\.|\.test\.)|cp[[:space:]]+[^[:space:]]+[[:space:]]+([^[:space:]]*/)?tests/|cp[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]*(_test\.|\.test\.)' \
+        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?tests/|tee[[:space:]]+([^[:space:]]*/)?tests/|(>{1,2}[[:space:]]*)([^[:space:]]*)(_test\.|\.test\.|_spec\.)|cp[[:space:]]+[^[:space:]]+[[:space:]]+([^[:space:]]*/)?tests/|cp[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]*(_test\.|\.test\.|_spec\.)' \
         && _writes_test=1 || true
       case "$_current_phase" in
         brainstorm|spec)

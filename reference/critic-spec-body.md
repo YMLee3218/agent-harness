@@ -24,6 +24,11 @@ Also compare spec against `docs/*.md`. If the spec contradicts documented domain
 7. **Feature classification**: small feature scenario implies calling infrastructure? (→ `[FAIL]`) Large feature scenario implies calling domain directly? (→ `[FAIL]`)
 8. **BDD format**: every scenario has `Given`, `When`, `Then`? Every `Scenario Outline` has `Examples:`? `Feature:` declaration present?
 
+## Angle 3 — Unverified claims
+
+9. **Domain facts**: scenario asserts a domain rule, threshold, or constraint not found in `docs/*.md`? (→ `[UNVERIFIED CLAIM]`)
+10. **External references**: scenario references a specific API, service, model, or version? Verify it exists via context7 or note it as unverified. (→ `[UNVERIFIED CLAIM]`)
+
 ## Output format
 
 ```
@@ -42,6 +47,10 @@ None: "No missing scenarios"
 [WARN] {advisory}
 None: "No structural issues"
 
+### Angle 3 — Unverified Claims
+[UNVERIFIED CLAIM] {claim}: {what is unverified and how to verify}
+None: "No unverified claims"
+
 ### Verdict
 PASS
 <!-- verdict: PASS -->
@@ -57,10 +66,10 @@ FAIL — {comma-separated reasons}
 ```
 
 On FAIL, choose one category per @reference/critic-loop.md category table.
-Common categories for this critic: `MISSING_SCENARIO`, `DOCS_CONTRADICTION`, `LAYER_VIOLATION`, `STRUCTURAL`.
+Common categories for this critic: `MISSING_SCENARIO`, `DOCS_CONTRADICTION`, `UNVERIFIED_CLAIM`, `LAYER_VIOLATION`, `STRUCTURAL`.
 The last two lines of your output on FAIL must be `<!-- verdict: FAIL -->` then `<!-- category: X -->`.
 
-Any `[MISSING]`, `[DOCS CONTRADICTION]`, or structural `[FAIL]` → FAIL.
+Any `[MISSING]`, `[DOCS CONTRADICTION]`, `[UNVERIFIED CLAIM]`, or structural `[FAIL]` → FAIL.
 
 FAIL blocks progress to `writing-tests`.
 

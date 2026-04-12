@@ -76,7 +76,8 @@
       "Bash(git push -f)",
       "Bash(git push --force)",
       "Bash(git clean -f*)",
-      "Bash(git reset --hard *)"
+      "Bash(git reset --hard *)",
+      "Bash(git reset --hard)"
     ]
   },
   "hooks": {
@@ -122,7 +123,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -133,7 +134,7 @@
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
             "type": "command",

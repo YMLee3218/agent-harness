@@ -36,7 +36,7 @@ FAIL — {comma-separated list of blocking finding labels}
 
 ## Category priority (highest → lowest)
 
-`LAYER_VIOLATION` > `DOCS_CONTRADICTION` > `SPEC_COMPLIANCE` > `MISSING_SCENARIO` > `TEST_INTEGRITY` > `TEST_QUALITY` > `STRUCTURAL`
+`LAYER_VIOLATION` > `DOCS_CONTRADICTION` > `UNVERIFIED_CLAIM` > `SPEC_COMPLIANCE` > `MISSING_SCENARIO` > `TEST_INTEGRITY` > `TEST_QUALITY` > `STRUCTURAL`
 
 Choose the single highest-priority category when multiple labels appear in one verdict.
 

@@ -72,7 +72,7 @@ is_test_path() {
   # Exclude *.spec.md — these are BDD spec files, not test runners
   case "$p" in
     *.spec.md) return 1 ;;
-    tests/*|*_test.*|test_*.*|*.test.*|*.spec.*) return 0 ;;
+    tests/*|*_test.*|test_*.*|*.test.*|*.spec.*|*_spec.*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -98,10 +98,18 @@ mode_write() {
     if [ "${PHASE_GATE_STRICT:-1}" = "1" ]; then
       if [ "${GATE_FAIL_REASON}" = "ambiguous" ]; then
         echo "BLOCKED [phase-gate]: multiple active plan files found. Set CLAUDE_PLAN_FILE=plans/{slug}.md to disambiguate, or set PHASE_GATE_STRICT=0." >&2
-      else
-        echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1 and no active plan file. Run /initializing-project to set up a plan, or set PHASE_GATE_STRICT=0 for bootstrap." >&2
+        exit 2
       fi
-      exit 2
+      # No plan file yet — bootstrap mode: allow plans/, docs/, and root-level files
+      # but still protect src/ and tests/ to prevent accidental implementation writes.
+      local file_path_early
+      file_path_early=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null)
+      if [ -n "$file_path_early" ] && (is_source_path "$file_path_early" || is_test_path "$file_path_early"); then
+        echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1, no active plan file, and '$file_path_early' is a source/test path. Run /initializing-project first to create a plan, then advance to the appropriate phase." >&2
+        exit 2
+      fi
+      echo "[phase-gate] no active plan file; bootstrap write allowed for '$file_path_early'. Run /initializing-project to enable full phase gating." >&2
+      exit 0
     fi
     echo "[phase-gate] no active plan file; write allowed. Run /initializing-project to enable gating." >&2
     exit 0

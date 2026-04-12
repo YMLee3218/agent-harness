@@ -37,19 +37,13 @@ Transition: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "
 
 Parallel features: use separate git worktrees or pin `CLAUDE_PLAN_FILE`.
 
+# Verification policy
+
+Do not rely on training-data knowledge for factual claims. Verify external facts (APIs, models, CLI flags, versions) before asserting existence or non-existence. Full policy: `reference/verification-policy.md`
+
 # Library documentation
 
 Look up library/framework APIs: `/context7-plugin:docs {library-name}`. See `reference/docs-policy.md`.
-
-# Design rationale
-
-Anthropic source-mapping for harness decisions: `reference/rationale.md`
-
-Pipeline phase map: `reference/pipeline-map.md`
-
-Distribution models (subtree vs marketplace): `reference/distribution.md`
-
-Developer setup (Stop hook, model, remote approver): `reference/setup-guide.md`
 
 # Automated runs
 
@@ -58,19 +52,6 @@ claude --permission-mode auto -p "/running-dev-cycle"
 ```
 
 Phase-gate hooks fire before the auto-classifier — a FAIL (exit 2) aborts the tool call. Set `CLAUDE_PLAN_FILE` before launching to avoid spurious blocks.
-
-`pretooluse-bash.sh` is a mistake-prevention gate, **not** a security sandbox.
-
-# Harness tests
-
-```bash
-bash workspace/scripts/tests/phase-gate.test.sh
-bash workspace/scripts/tests/plan-file.test.sh
-bash workspace/scripts/tests/pretooluse-bash.test.sh
-bash workspace/eval/integration/run-integration-eval.sh
-# or:
-make -C workspace test
-```
 
 # Local overrides
 
@@ -82,4 +63,3 @@ Project vocabulary + framework notes: create `.claude/local.md` (imported via `@
 
 Settings overrides: `.claude/settings.local.json` (arrays merged, not overwritten).
 
-Full procedure: `reference/local-overlay.md`

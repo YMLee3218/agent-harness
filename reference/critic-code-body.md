@@ -23,6 +23,8 @@ Also compare against `docs/*.md`. If implementation or spec contradicts document
 Test coverage:
 7. Every `Scenario` has a test?
 8. Mocking level correct per layer?
+9. **Unverified API usage**: code imports or calls an external library method not already used in the project? Was it verified via context7 per `@reference/verification-policy.md`? (→ `[UNVERIFIED CLAIM]`)
+10. **Hardcoded external facts**: code contains hardcoded URLs, model names, version strings, or magic numbers that represent external facts? Are they sourced from `docs/*.md` or config? (→ `[WARN]`)
 
 ## Angle 2 — Layer boundary
 
@@ -81,10 +83,10 @@ FAIL — {comma-separated reasons}
 ```
 
 On FAIL, choose one category per @reference/critic-loop.md category table.
-Common categories for this critic: `LAYER_VIOLATION`, `DOCS_CONTRADICTION`, `SPEC_COMPLIANCE`.
+Common categories for this critic: `LAYER_VIOLATION`, `DOCS_CONTRADICTION`, `UNVERIFIED_CLAIM`, `SPEC_COMPLIANCE`.
 The last two lines of your output on FAIL must be `<!-- verdict: FAIL -->` then `<!-- category: X -->`.
 
-Any `[CRITICAL]` or `[DOCS CONTRADICTION]` → FAIL. FAIL blocks the next task.
+Any `[CRITICAL]`, `[DOCS CONTRADICTION]`, or `[UNVERIFIED CLAIM]` → FAIL. FAIL blocks the next task.
 
 ## Calibration examples
 
