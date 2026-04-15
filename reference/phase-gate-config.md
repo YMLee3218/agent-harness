@@ -16,7 +16,7 @@ export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:*.test.*:*.spec.ts:*.spec.js"
 PHASE_GATE_STRICT=1
 ```
 
-When set, the phase gate blocks all writes if no active plan file exists (fail-closed). **Default in this bundle is `1` (fail-closed).** Override to `0` in downstream projects that need fail-open behaviour.
+When set, the phase gate blocks all writes if no active plan file exists (fail-closed). **Default is `1` (fail-closed).** Override to `0` in downstream projects that need fail-open behaviour.
 
 ```bash
 CLAUDE_PLAN_FILE=/path/to/plans/feature-slug.md

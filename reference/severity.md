@@ -50,5 +50,6 @@ LAYER_VIOLATION
 
 ## Integration with critic-loop.md
 
-These severity rules feed directly into the `## Label → category mapping` and `## FAIL categories` tables in `reference/critic-loop.md`.
-A critic body that imports this file does not need to duplicate those tables.
+This file is the single source of truth for severity levels, PASS/FAIL thresholds, and category priority.
+`reference/critic-loop.md` references this file for those definitions and does not duplicate them.
+A critic body that imports this file does not need to duplicate any of those tables.

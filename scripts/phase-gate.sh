@@ -105,13 +105,13 @@ mode_write() {
       local file_path_early
       file_path_early=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null)
       if [ -n "$file_path_early" ] && (is_source_path "$file_path_early" || is_test_path "$file_path_early"); then
-        echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1, no active plan file, and '$file_path_early' is a source/test path. Run /initializing-project first to create a plan, then advance to the appropriate phase." >&2
+        echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1, no active plan file, and '$file_path_early' is a source/test path. Run /brainstorming first to create a plan, then advance to the appropriate phase." >&2
         exit 2
       fi
-      echo "[phase-gate] no active plan file; bootstrap write allowed for '$file_path_early'. Run /initializing-project to enable full phase gating." >&2
+      echo "[phase-gate] no active plan file; bootstrap write allowed for '$file_path_early'. Run /brainstorming to enable full phase gating." >&2
       exit 0
     fi
-    echo "[phase-gate] no active plan file; write allowed. Run /initializing-project to enable gating." >&2
+    echo "[phase-gate] no active plan file; write allowed. Run /brainstorming to enable gating." >&2
     exit 0
   fi
 
@@ -136,6 +136,14 @@ mode_write() {
         exit 2
       fi
       ;;
+    review)
+      # PR review fix phase: source files may be modified to address review issues.
+      # Test files remain frozen (as in green phase).
+      if is_test_path "$file_path"; then
+        echo "BLOCKED [phase-gate]: Phase is 'review'. Test files are frozen — apply pr-review fixes to source only." >&2
+        exit 2
+      fi
+      ;;
     green)
       if is_test_path "$file_path"; then
         echo "BLOCKED [phase-gate]: Phase is 'green' (Green phase). Modifying test files is not allowed — tests must remain as written during Red phase. Fix the implementation, not the tests." >&2
@@ -151,10 +159,10 @@ mode_write() {
       ;;
     done)
       if is_source_path "$file_path" || is_test_path "$file_path"; then
-        echo "BLOCKED [phase-gate]: Phase is 'done' and '$file_path' is a source/test path. Run /initializing-project to start a new feature, or set CLAUDE_PLAN_FILE=plans/{new-slug}.md to continue." >&2
+        echo "BLOCKED [phase-gate]: Phase is 'done' and '$file_path' is a source/test path. Run /brainstorming to start a new feature (creates a new plan file), or set CLAUDE_PLAN_FILE=plans/{new-slug}.md before writing." >&2
         exit 2
       fi
-      echo "[phase-gate] warning: most recent plan is 'done' but '$file_path' is not a source/test file — allowing. To start a new feature, run /initializing-project." >&2
+      echo "[phase-gate] warning: most recent plan is 'done' but '$file_path' is not a source/test file — allowing. To start a new feature, run /brainstorming." >&2
       exit 0
       ;;
   esac

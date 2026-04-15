@@ -27,7 +27,7 @@ This file is the single source of truth for layer rules. CLAUDE.md, skills, and 
 
 - Features: `{verb}-{noun}` kebab-case (e.g., `add-todo`, `send-notification`)
 - Domain concepts: `{noun}` singular kebab-case (e.g., `todo`, `user`, `notification`)
-- Spec files: `{layer}/{name}/spec.md`
+- Spec files: `features/{name}/spec.md` (feature specs) and `domain/{concept}/spec.md` (domain specs) — top-level directories, not under `src/`
 
 ## Test mocking levels
 

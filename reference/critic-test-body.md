@@ -21,11 +21,25 @@ If no `test(red):` commit exists for the file, fall back to:
 git log --oneline HEAD -- <test file path(s) from prompt>
 ```
 and treat the oldest commit touching the file as the Red commit.
+
+If **no commits at all** exist for the file (new file not yet committed, pre-commit flow):
+```
+[SKIP] test file integrity: no commit history found for {file} — cannot verify Red-phase baseline
+```
+Continue to the Checks section; do not fail on missing history alone.
+
+If **git is not available** in this environment:
+```
+[SKIP] test file integrity: git unavailable — cannot verify Red-phase commit
+```
+Continue to the Checks section.
+
 If any test file was modified after the Red phase commit, emit immediately:
 
 ```
 [CRITICAL] test file modified during green phase: {file} — FAIL
 <!-- verdict: FAIL -->
+<!-- category: TEST_INTEGRITY -->
 ```
 and stop. Do not proceed to other checks.
 
@@ -76,6 +90,7 @@ GREEN (pre-existing) tests confirmed: {list or "none"}
 ### Verdict
 PASS
 <!-- verdict: PASS -->
+<!-- category: NONE -->
 ```
 
 or

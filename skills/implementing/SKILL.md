@@ -5,6 +5,7 @@ description: >
   Trigger: "implement", "make the tests pass", "Green phase", "go", "proceed", after critic-test returns PASS.
   Do NOT trigger when no spec or tests exist — route to brainstorming instead.
   Plans implementation order (domain first), then executes with isolated subagents per task.
+  Also drives `review` phase during pr-review fix loop (red → review → green).
 effort: high
 paths:
   - src/**
@@ -26,6 +27,8 @@ Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `red`
 Use `AskUserQuestion` for architectural choices before committing:
 - "Should this use an existing infrastructure adapter or a new one?"
 
+In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): skip the question; reuse any existing adapter whose interface already matches the requirement. If none exists, create a minimal new adapter. Append `[AUTO-DECIDED] implementing/Step1: {decision — e.g. "reused existing HttpAdapter"}` to `## Open Questions` in the plan file.
+
 Write task list to plan file:
 
 ```
@@ -39,6 +42,11 @@ Task N: {verb} {object}
 Layer order: domain tasks first, then features, then infrastructure. Mark tasks that can run in parallel within the same layer tier (no cross-task dependency within the tier).
 
 Use `AskUserQuestion` to present the task list and request approval before proceeding.
+
+In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): skip approval; proceed directly to Step 2. Run:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" TASKLIST implementing "{N tasks, layers: domain/feature/infra summary}"
+```
 
 ## Step 2 — Track tasks
 
@@ -57,10 +65,9 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" add-task "plans/{slug}.m
 # ... one call per task
 ```
 
-Set plan file phase:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" green
-```
+<!-- Do NOT set-phase green here. Phase stays `red` during task execution so that an
+     interrupted session resumes via the `red` routing (which re-invokes implementing),
+     not the `green` routing (which skips directly to integration tests). -->
 
 ## Step 3 — Execute per task (isolated subagents)
 
@@ -102,7 +109,24 @@ Agent(
 
 Do not pass the full plan or other tasks' state to subagents.
 
-Each coder runs in an isolated git worktree and commits its changes to a temporary branch. After each subagent returns, merge its branch back and update the Task Ledger:
+Each coder runs in an isolated git worktree and commits its changes to a temporary branch. After each subagent returns, **check for abort before merging**:
+
+1. Check for abort: look for `<!-- coder-status: abort -->` in the last line of the coder's output. If absent, fall back to scanning for abort signals: "layer violation", "forbidden import", "hard stop", "STOP", "I stopped", "aborting".
+2. Check whether the coder actually committed: `git diff --name-only {base-sha}..{worktree-branch}` — if the output is empty, no commit was made.
+3. If either signal is present:
+   - Do NOT run `git merge`.
+   - Mark the task blocked:
+     ```bash
+     bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-N" "blocked"
+     ```
+   - Append to `## Open Questions`:
+     ```
+     [BLOCKED-CODER] task-N aborted without commit — {reason from coder output}
+     ```
+   - **Interactive**: use `AskUserQuestion` — "Coder task-N aborted: {reason}. How should we proceed?"
+   - **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): stop the current tier; do not attempt remaining tasks in this tier.
+
+If no abort signals are detected, merge and record as normal:
 ```bash
 git merge --no-ff {worktree-branch} -m "merge(task-N): {description}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "completed" "$(git rev-parse HEAD)"
@@ -116,9 +140,19 @@ If `git merge` fails with conflicts:
 
 Then mark the corresponding `TaskCreate` task `completed`. Move to the next tier.
 
-## Step 4 — Run critic-code at milestones (max 2 iterations per milestone)
+## Step 3.5 — Post-tier smoke test
 
-Iteration protocol: @reference/critic-loop.md
+After all tasks in a tier are merged, run the unit test command from project CLAUDE.md.
+
+If tests pass: continue to Step 4.
+
+If tests fail:
+- **Interactive**: use `AskUserQuestion` — "Post-tier merge caused test failures: [{list}]. Which task introduced the regression? I will re-spawn a fix-coder targeting the failing tests."
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED] post-tier merge test failure — {failing test list}` to `## Open Questions` in the plan file, then stop.
+
+## Step 4 — Run critic-code at milestones (convergence loop per milestone)
+
+Full protocol: @reference/critic-loop.md
 
 Track changed files during this milestone. Run after: a complete small feature, a domain concept's full rule set, or a significant chunk of a large feature.
 
@@ -126,11 +160,68 @@ Track changed files during this milestone. Run after: a complete small feature, 
 Skill("critic-code", "Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths].")
 ```
 
+After each run, `plan-file.sh record-verdict` fires automatically (SubagentStop hook). Read `## Open Questions` for `critic-code` markers in priority order:
+
+| Marker | Action |
+|--------|--------|
+| `[BLOCKED-CEILING] critic-code` | Stop — manual review required |
+| `[BLOCKED-CATEGORY] critic-code` | Stop — fix root cause first |
+| `[BLOCKED-AMBIGUOUS] critic-code: …` | Stop — human decision needed |
+| `[BLOCKED-PARSE] critic-code` | Stop — check critic output format before retrying |
+| `[CONVERGED] critic-code` | Proceed to next milestone or Step 4.5 |
+| `[FIRST-TURN] critic-code` | Ask user (interactive) or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-code` (non-interactive), then re-run |
+| PARSE_ERROR (no `[BLOCKED-PARSE]` yet) | Re-run automatically (second consecutive PARSE_ERROR triggers `[BLOCKED-PARSE]`) |
+| PASS, no `[CONVERGED]` yet | Re-run automatically |
+| FAIL | Apply fix, then re-run |
+
 On `[DOCS CONTRADICTION]`: update `docs/*.md` first, then cascade: re-run Skill("critic-spec") if spec changed → re-run Skill("critic-test") if tests changed → run test command → re-run Skill("critic-code").
 
 When any cascade causes a phase rollback, append to `## Phase Transitions` in the plan file:
 ```
 - {current-phase} → {rollback-phase} (reason: {one sentence})
+```
+
+## Step 4.5 — Fix pre-existing errors
+
+After all tasks complete and critic-code passes, check for errors reported by coders:
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" list-errors "plans/{slug}.md" --status pending
+```
+
+If no rows are printed, proceed to Step 5.
+
+For each pending error:
+
+**nearby scope** — group errors by file, then spawn a fix-coder subagent per file group:
+
+```
+Agent(
+  subagent_type: "coder",
+  isolation: "worktree",
+  prompt: "Fix pre-existing errors (do NOT change feature code or tests).
+           Errors to fix: [{err-id} {file}:{line} — {description}] ...
+           Test command: [command from project CLAUDE.md]
+           Commit format: fix(pre-existing): {description}
+           CLAUDE_PLAN_FILE: [absolute path to plans/{slug}.md]"
+)
+```
+
+On success: merge the worktree branch, then mark each fixed error:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-error "plans/{slug}.md" "{err-id}" "fixed"
+```
+
+If tests break after the fix: do NOT commit. Mark the error deferred instead:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-error "plans/{slug}.md" "{err-id}" "deferred"
+```
+
+**distant scope** — do not attempt to fix. Mark deferred and record in Open Questions:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-error "plans/{slug}.md" "{err-id}" "deferred"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" \
+  "[DEFERRED-ERROR] {err-id} {file}:{line} — {description} (distant scope, fix separately)"
 ```
 
 ## Step 5 — Run pr-review-toolkit
@@ -141,29 +232,70 @@ After all tasks complete, ensure a PR exists:
 gh pr view 2>/dev/null || gh pr create --draft --title "feat: {feature name}" --body "Closes #{issue}"
 ```
 
-Then invoke:
+Then run the review loop (convergence policy: @reference/critic-loop.md §Loop convergence):
 
 ```
 Skill("pr-review-toolkit:review-pr")
 ```
 
-If no issues: done.
+After each run, record the verdict (PASS or FAIL based on whether the review reported issues):
 
-If issues reported, categorise each with `AskUserQuestion`:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-review-verdict \
+  "plans/{slug}.md" "pr-review" PASS|FAIL
+```
+
+Read `## Open Questions` for `pr-review` markers, in priority order:
+
+<!-- Note: this marker table is intentionally shorter than the critic marker table —
+     [BLOCKED-CATEGORY] and [BLOCKED-PARSE] are absent by design (pr-review asymmetry).
+     See reference/critic-loop.md §pr-review asymmetry for the rationale. -->
+
+| Marker | Action |
+|--------|--------|
+| `[BLOCKED-CEILING] pr-review` | Stop — manual review required |
+| `[BLOCKED-AMBIGUOUS] pr-review: …` | Stop — human decision needed |
+| `[CONVERGED] pr-review` | Set phase green and finish |
+| `[FIRST-TURN] pr-review` | Ask user for confirmation (interactive) or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST pr-review` (non-interactive), then re-run |
+| PASS, no `[CONVERGED]` yet | Re-run automatically |
+| FAIL | Apply fix chain below, then re-run |
+
+**Fix chains on FAIL** — phase transition timing:
+
+- If a FAIL occurs **and the current phase is `red`**: immediately advance to `review` before applying any fix. This allows phase-gate to permit source modifications during the fix loop.
+- If a FAIL occurs **and the current phase is already `review`**: remain in `review`; do not re-transition.
+- All subsequent FAILs are handled within `review` phase.
+- `green` is set **only** when `[CONVERGED] pr-review` is confirmed (see below) — never on a single PASS.
+
+```bash
+# On first FAIL (from red phase only):
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" review
+```
+
+Categorise each issue (interactive: `AskUserQuestion`; non-interactive: infer from evidence):
+
+In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): if category is unambiguous, apply the fix chain automatically and log `[AUTO-CATEGORIZED] pr-review: {issue summary} → {category}`. If ambiguous, append `[BLOCKED-AMBIGUOUS] pr-review: {question}` and stop.
 
 **Code-only** (naming, duplication, complexity, style, silent failures):
-→ Fix code → run tests → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr")
+→ Fix code → run tests → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
 
 **Spec gap** (unhandled scenario revealed by review):
-→ Add scenario to `spec.md` → re-run Skill("critic-spec") → write failing test → re-run Skill("critic-test") → implement → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr")
+→ Add scenario to `spec.md` → re-run Skill("critic-spec") → write failing test → re-run Skill("critic-test") → implement → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
 
 **Docs conflict** (implementation contradicts domain rules):
-→ Update `docs/*.md` (SOT) → fix spec → re-run Skill("critic-spec") → fix tests → re-run Skill("critic-test") → fix code → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr")
+→ Update `docs/*.md` (SOT) → fix spec → re-run Skill("critic-spec") → fix tests → re-run Skill("critic-test") → fix code → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
 
-Set plan file phase when all issues are resolved:
+Set plan file phase only when `[CONVERGED] pr-review` is confirmed (this is the ONLY place `green` is set —
+keeping phase `red` through task execution ensures interrupted sessions resume correctly):
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" done
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" green
 ```
+
+> `implementing` completes the Green phase. The `done` phase is set later by
+> `running-integration-tests` (after integration tests pass) or by `running-dev-cycle`
+> when integration tests are skipped. Do **not** set `done` here — doing so would
+> cause `find-active` to drop the plan file from its search, blocking subsequent
+> features in a multi-feature slice from writing to `tests/`.
 
 ## Session Recovery
 

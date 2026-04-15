@@ -1,0 +1,4 @@
+# Workspace .gitignore — artifacts excluded from downstream projects
+*.state.json.XXXXXX
+*.md.XXXXXX
+*.lock

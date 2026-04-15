@@ -54,6 +54,7 @@ None: "No unverified claims"
 ### Verdict
 PASS
 <!-- verdict: PASS -->
+<!-- category: NONE -->
 ```
 
 or

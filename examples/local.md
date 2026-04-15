@@ -5,9 +5,8 @@ INSTRUCTIONS FOR USE:
 3. Commit .claude/local.md to your project repo (do NOT gitignore it)
 
 This file is imported at the top of .claude/CLAUDE.md via @local.md.
-It provides project-specific context that the bundle cannot know:
-language version, framework, domain vocabulary, team conventions, and
-pointers to external systems.
+It provides project-specific context: language version, framework,
+domain vocabulary, team conventions, and pointers to external systems.
 -->
 
 # Project overview
@@ -41,10 +40,26 @@ Reference pointers used by the harness (e.g. Linear, Grafana, Slack).
 Format: - System name: URL or identifier and its purpose
 -->
 
+# Required project settings
+
+<!--
+Prerequisite plugins — install before use (one-time, per machine):
+  claude plugin install context7-plugin
+  claude plugin install pr-review-toolkit
+  claude plugin install code-simplifier
+
+These plugins are already enabled in .claude/settings.json.
+No additional settings.local.json entry is needed for them.
+
+User-local delta: copy examples/settings.local.json to .claude/settings.local.json and remove
+the "INSTRUCTIONS" keys. Add only what is specific to your environment (extra MCP servers,
+personal permissions, project env vars). Do not duplicate entries already in settings.json.
+-->
+
 # Phase gate layout overrides
 
 <!--
-Uncomment and set if your project layout differs from bundle defaults.
+Uncomment and set if your project layout differs from the defaults in reference/phase-gate-config.md.
 export PHASE_GATE_SRC_GLOB="src/*:app/*"
 export PHASE_GATE_TEST_GLOB="tests/*:*.test.ts"
 -->

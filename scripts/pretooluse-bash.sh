@@ -120,6 +120,23 @@ if printf '%s' "$cmd" | grep -iqE \
   exit 2
 fi
 
+# awk redirect detection: awk's `print > "file"` and `printf ... > "file"` can write to
+# src/test paths while bypassing the redirect patterns below. Block these early.
+if printf '%s' "$cmd" | grep -iqE \
+  '^[[:space:]]*awk[[:space:]]'; then
+  if printf '%s' "$cmd" | grep -iqE \
+    'print[[:space:]]*>[[:space:]]*"?([^"[:space:]]*/)?src/' \
+    || printf '%s' "$cmd" | grep -iqE \
+    'print[[:space:]]*>[[:space:]]*"?([^"[:space:]]*/)?tests/' \
+    || printf '%s' "$cmd" | grep -iqE \
+    'printf[[:space:]]+[^>]*>[[:space:]]*"?([^"[:space:]]*/)?src/' \
+    || printf '%s' "$cmd" | grep -iqE \
+    'printf[[:space:]]+[^>]*>[[:space:]]*"?([^"[:space:]]*/)?tests/'; then
+    echo "BLOCKED: awk internal redirect to src/ or tests/ detected — use Write/Edit tool instead" >&2
+    exit 2
+  fi
+fi
+
 # Phase-aware bash write detection: catches > file, tee file, cat > file redirections that
 # bypass the Write|Edit PreToolUse phase gate. Guardrail only — not a security boundary.
 _plan_file_sh="$(dirname "$0")/plan-file.sh"
@@ -162,14 +179,14 @@ if [ -f "$_plan_file_sh" ]; then
             echo "BLOCKED [phase-gate/bash]: Phase is 'red'. Bash redirect to src/ detected — write tests only during Red phase." >&2; exit 2
           fi
           ;;
-        green|integration)
+        green|integration|review)
           if [ "$_writes_test" -eq 1 ]; then
             echo "BLOCKED [phase-gate/bash]: Phase is '$_current_phase'. Bash redirect to test path detected — tests are frozen during this phase." >&2; exit 2
           fi
           ;;
         done)
           if [ "$_writes_src" -eq 1 ] || [ "$_writes_test" -eq 1 ]; then
-            echo "BLOCKED [phase-gate/bash]: Phase is 'done'. Bash redirect to src/ or test path — run /initializing-project to start a new feature." >&2; exit 2
+            echo "BLOCKED [phase-gate/bash]: Phase is 'done'. Bash redirect to src/ or test path — run /brainstorming to start a new feature." >&2; exit 2
           fi
           ;;
       esac

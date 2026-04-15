@@ -1,27 +1,12 @@
 # Critic Loop
 
-Standard max-2-iteration protocol used by every phase-gate critic.
+Convergence-based protocol used by every phase-gate critic (critic-spec, critic-test, critic-code) and the pr-review step.
 
-## Finding labels
+> **Brainstorm exception** — `critic-feature` (used in the brainstorming phase) is intentionally excluded from this protocol. It uses a simpler max-2 iteration guard; see `@skills/brainstorming/SKILL.md §Step 4 — Brainstorm exception`. The convergence and ceiling markers below do not apply to `critic-feature` runs.
 
-| Level | Label | Triggers FAIL? |
-|-------|-------|----------------|
-| Critical | `[CRITICAL]` | Yes |
-| Missing | `[MISSING]` | Yes |
-| Structural fail | `[FAIL]` | Yes |
-| Docs contradiction | `[DOCS CONTRADICTION]` | Yes |
-| Warning | `[WARN]` | No — does not block progress |
+## Finding labels and categories
 
-## Label → category mapping
-
-| Finding label | FAIL category |
-|---|---|
-| `[CRITICAL]` | `SPEC_COMPLIANCE` (default) or `LAYER_VIOLATION` if import-related |
-| `[MISSING]` | `MISSING_SCENARIO` |
-| `[FAIL]` (structural) | `STRUCTURAL` or `LAYER_VIOLATION` depending on nature |
-| `[FAIL]` (test integrity) | `TEST_INTEGRITY` or `TEST_QUALITY` |
-| `[DOCS CONTRADICTION]` | `DOCS_CONTRADICTION` |
-| `[UNVERIFIED CLAIM]` | `UNVERIFIED_CLAIM` |
+Severity levels, PASS/FAIL threshold, and category priority are defined in `@reference/severity.md` (single source of truth). Critic bodies import that file directly; do not duplicate those tables here.
 
 ## Mandatory verdict marker
 
@@ -45,60 +30,149 @@ FAIL — {comma-separated list of blocking finding labels}
 
 ## FAIL categories
 
-On FAIL, the critic **must** also emit a `<!-- category: X -->` marker on the line immediately following the verdict. Use exactly one of:
+On FAIL, the critic **must** also emit a `<!-- category: X -->` marker on the line immediately following the verdict.
 
-| Category | When to use |
-|---|---|
-| `MISSING_SCENARIO` | A required scenario or boundary case is absent from spec or tests |
-| `LAYER_VIOLATION` | Incorrect layer assignment, forbidden import, or wrong mocking level |
-| `DOCS_CONTRADICTION` | Spec or implementation contradicts `docs/*.md` |
-| `UNVERIFIED_CLAIM` | Spec or code asserts a domain fact, API signature, or external fact not grounded in docs/*.md or verified via context7/WebSearch |
-| `STRUCTURAL` | BDD format error, naming convention violation, or wrong file placement |
-| `TEST_INTEGRITY` | Test file was modified after Red phase, or a test passes before implementation |
-| `TEST_QUALITY` | Test maps multiple scenarios, has implementation logic inside, or uses wrong naming |
-| `SPEC_COMPLIANCE` | Implementation does not satisfy a scenario from spec.md |
+Full category list, priority order, and severity thresholds: `@reference/severity.md §FAIL categories` (single source of truth — do not duplicate here).
 
-If a single FAIL has multiple root causes from different categories, choose the **highest-severity** one:  
-`LAYER_VIOLATION` > `DOCS_CONTRADICTION` > `UNVERIFIED_CLAIM` > `SPEC_COMPLIANCE` > `MISSING_SCENARIO` > `TEST_INTEGRITY` > `TEST_QUALITY` > `STRUCTURAL`
+If a single FAIL has multiple root causes from different categories, choose the **highest-severity** one (see `@reference/severity.md §Category priority`).
 
 ## Consecutive same-category escalation
 
-`plan-file.sh record-verdict` tracks the last FAIL category per critic. If the same critic emits **two consecutive FAILs with the same category**, the script writes:
+`plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, phase-independent). If the same critic emits **two consecutive FAILs with the same category**, the script writes:
 
 ```
 [BLOCKED-CATEGORY] {critic}: category {CATEGORY} failed twice — fix the root cause before retrying
 ```
 
-to `## Open Questions` in the plan file, and exits 2 (blocking further progress). The loop cannot converge when the same structural problem recurs; human review is required.
+to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLOCKED-CATEGORY]` marker and stops. The loop cannot converge when the same structural problem recurs; human review is required.
+
+> **Phase independence**: the category counter is not reset by `red → review` phase transitions. This prevents the same structural failure from escaping detection by crossing a phase boundary.
+
+## Loop convergence
+
+The loop terminates on **2 consecutive PASSes** (convergence), not on a single PASS. This filters lucky single-run PASSes caused by LLM non-determinism.
+
+`plan-file.sh record-verdict` (and `append-review-verdict` for pr-review) automatically writes markers to `## Open Questions`. The skill reads these markers after each run and branches accordingly.
+
+### Markers written by the script
+
+| Marker | Condition | Skill action |
+|--------|-----------|--------------|
+| `[FIRST-TURN] {agent}` | First run ever for this phase+agent | Ask user for confirmation, then re-run (or auto-approve in non-interactive mode) |
+| `[CONVERGED] {agent}` | PASS streak ≥ 2 for this phase+agent (emitted once; duplicate-safe) | Proceed to next step |
+| `[BLOCKED-CEILING] {agent}` | Total runs for this phase+agent > N (default 5) | Stop — manual review required |
+| `[BLOCKED-CATEGORY] {agent}` | Two consecutive FAILs with same category (agent-scoped, phase-independent) | Stop — fix root cause first |
+| `[BLOCKED-AMBIGUOUS] {agent}: {question}` | LLM cannot determine fix direction | Stop — human decision required |
+| `[BLOCKED-PARSE] {agent}` | Critic output missing verdict markers two consecutive times | Stop — investigate agent output format before retrying |
+| `[AUTO-APPROVED-FIRST] {agent}` | Non-interactive mode: `[FIRST-TURN]` auto-approved | Log only — re-run automatically |
+| `[AUTO-APPROVED-PLAN] {skill}: {note}` | Non-interactive mode: `ExitPlanMode` skipped, plan auto-approved | Log only — proceed to write step |
+| `[AUTO-APPROVED-TASKLIST] implementing: {note}` | Non-interactive mode: implementation task list auto-approved in `implementing` skill | Log only — proceed to task execution |
+| `[AUTO-CATEGORIZED] {agent}: {summary} → {category}` | Non-interactive mode: pr-review FAIL category inferred and fix applied automatically | Log only — re-run automatically |
+
+> **pr-review asymmetry**: the pr-review fix loop (in `skills/implementing/SKILL.md`) intentionally omits `[BLOCKED-CATEGORY]` and `[BLOCKED-PARSE]` from its marker table. pr-review failures are categorised by the skill itself (`[AUTO-CATEGORIZED]`), not by the category-tracking mechanism used for critics. `[BLOCKED-PARSE]` is not produced by `append-review-verdict`. This asymmetry is by design.
+
+> **Integration pipeline markers**: the `running-integration-tests` skill uses its own marker set, written to `## Integration Failures` (not `## Open Questions`). These markers do not interact with the critic convergence protocol above.
+>
+> | Marker | Written to | Meaning |
+> |--------|-----------|---------|
+> | `[AUTO-CATEGORIZED-INTEGRATION] {test name}: {category}` | `## Integration Failures` | Non-interactive: failure category inferred and fix skill invoked automatically |
+> | `[BLOCKED-INTEGRATION] {test name}: {reason}` | `## Integration Failures` | Non-interactive: category ambiguous — manual review required |
+
+Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOCKED-CEILING]`). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
+
+### Skill branching logic (after each run)
+
+```
+After critic/review run → script records verdict + emits markers
+Skill reads ## Open Questions, checks in priority order:
+
+  1. [BLOCKED-CEILING] {agent}  → stop (manual review)
+  2. [BLOCKED-CATEGORY] {agent} → stop (fix root cause)
+  3. [BLOCKED-AMBIGUOUS] {agent} → stop (human decision)
+  4. [CONVERGED] {agent}        → proceed to next step
+  5. [FIRST-TURN] {agent}       → confirm with user, then re-run
+                                  (non-interactive: auto-approve + re-run)
+  6. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
+                                → re-run automatically (one retry allowed;
+                                  second consecutive PARSE_ERROR triggers [BLOCKED-PARSE])
+  7. (no terminal marker, PASS) → re-run automatically
+  8. (no terminal marker, FAIL) → LLM determines fix direction:
+       - direction is clear → apply fix + re-run
+       - direction is ambiguous → append [BLOCKED-AMBIGUOUS] + stop
+```
+
+## Ambiguity signaling
+
+When a FAIL leaves the fix direction unclear, do **not** guess. Append a `[BLOCKED-AMBIGUOUS]` marker to `## Open Questions` and stop:
+
+```
+[BLOCKED-AMBIGUOUS] {agent}: {one-sentence question for the human}
+```
+
+**Conditions that require human input** (LLM must not resolve unilaterally):
+
+- **Multiple valid fix paths**: "Should docs be updated to match code, or code fixed to match docs?" (classic DOCS_CONTRADICTION split)
+- **Contradictory requirements**: spec and docs conflict, and which is ground truth is unclear
+- **Scope expansion needed**: the fix requires changes outside this feature's scope
+- **Repeated failure with unknown cause**: the same problem recurs across runs and the root cause cannot be identified
+
+If none of the above apply, fix and re-run without stopping.
 
 ## Running the critic
 
-Invoke the critic skill with the relevant paths. Iteration counter starts at 1.
+Invoke the critic skill with the relevant paths. After it returns, call the record-verdict command (for pr-review: call `append-review-verdict` directly). Then read `## Open Questions` for the markers listed above and branch accordingly.
+
+The `SubagentStart` hook automatically calls `plan-file.sh record-critic-start` when a critic agent launches, recording the start timestamp in `## Critic Runs` for auditing purposes.
 
 ## On PASS
 
-Append verdict to plan file `## Critic Verdicts` and proceed to the next step.
+After `record-verdict` (or `append-review-verdict`) returns:
+
+1. Read `## Open Questions` for this agent's markers (priority order above).
+2. If `[CONVERGED]` is present → proceed to the next step.
+3. If `[FIRST-TURN]` is present (and no `[CONVERGED]`) → ask user, then re-run.
+4. Otherwise (PASS but no convergence yet) → re-run automatically.
 
 ## On FAIL
 
 1. Output the full critic verdict.
-2. If `[DOCS CONTRADICTION]` is reported: use `AskUserQuestion` — "Should docs be updated to match the current work, or the current work fixed to match docs?" Apply the chosen fix before continuing.
-3. Write a fix plan listing which changes are needed (scenarios, tests, or code).
-4. Use `AskUserQuestion` to confirm the fix plan before applying changes.
-5. Apply fixes with `Edit`.
-6. If `iteration < 2`: increment counter and re-run the critic.  
-   If `iteration == 2`:
-   - **Interactive mode** (default): use `AskUserQuestion` — "This critic has failed twice. Paste the latest verdict for manual review, or describe how to proceed."
-   - **Non-interactive mode** (`CLAUDE_CRITIC_NONINTERACTIVE=1`): append `[BLOCKED] critic failed twice — manual review required` to `## Open Questions` in the plan file, then stop. Do not invoke `AskUserQuestion`. The next session will resume from this blocked state.
-
-Append the verdict (PASS or FAIL) to plan file `## Critic Verdicts` after every run.
+2. If `[DOCS CONTRADICTION]` is reported:
+   - **Interactive mode** (default): use `AskUserQuestion` — "Should docs be updated to match the current work, or the current work fixed to match docs?" Apply the chosen fix before continuing.
+   - **Non-interactive mode** (`CLAUDE_CRITIC_NONINTERACTIVE=1`): append `[BLOCKED-AMBIGUOUS] {agent}: DOCS CONTRADICTION — cannot determine whether docs or code is ground truth; human decision required` to `## Open Questions` and stop. Do not resolve unilaterally.
+3. Determine fix direction:
+   - If unambiguous → write a fix plan, confirm with `AskUserQuestion` (interactive) or auto-apply (non-interactive), apply fixes, re-run.
+   - If ambiguous → append `[BLOCKED-AMBIGUOUS] {agent}: {question}` to `## Open Questions` and stop.
+4. After fixing, re-run the critic. `record-verdict` will track the new run's streak and ceiling.
 
 ## Non-interactive mode
 
-When `CLAUDE_CRITIC_NONINTERACTIVE=1` is set (e.g. in CI pipelines):
+Two flags control non-interactive behaviour; they compose additively:
+
+| Flag | Scope |
+|------|-------|
+| `CLAUDE_CRITIC_NONINTERACTIVE=1` | Critic loop only (legacy; kept for backwards compatibility) |
+| `CLAUDE_NONINTERACTIVE=1` | All skills — implies `CLAUDE_CRITIC_NONINTERACTIVE=1` |
+
+When either flag is set:
 
 - Replace all `AskUserQuestion` calls in the critic loop with plan file writes.
-- On first FAIL: write `[BLOCKED-1] {critic}: {reason}` to `## Open Questions` instead of asking.
-- On second FAIL: write `[BLOCKED-FINAL] {critic}: requires manual review` to `## Open Questions` and stop.
+- `[FIRST-TURN]` handling: instead of asking, append `[AUTO-APPROVED-FIRST] {agent}` to `## Open Questions` and re-run automatically.
+- `ExitPlanMode` (in writing-spec, writing-tests): skip the gate — append `[AUTO-APPROVED-PLAN] {skill}: {note}` to `## Open Questions` and proceed to the write step.
+- On first FAIL (critic loop): apply the fix plan automatically and re-run without stopping (auto-apply replaces the `AskUserQuestion` confirmation). For pr-review FAILs: infer the issue category and log `[AUTO-CATEGORIZED] pr-review: {summary} → {category}` to `## Open Questions` before applying the fix chain.
+- `[BLOCKED-CEILING]` / `[BLOCKED-AMBIGUOUS]` / `[BLOCKED-CATEGORY]`: stop cleanly (do not apply further fixes).
 - The pipeline stops cleanly rather than hanging on interactive prompts.
-- The next session (with `CLAUDE_CRITIC_NONINTERACTIVE` unset) reads `## Open Questions` and resumes.
+- The next session (with neither flag set) reads `## Open Questions` and resumes.
+
+Use `CLAUDE_NONINTERACTIVE=1` for fully autonomous CI runs. Use `CLAUDE_CRITIC_NONINTERACTIVE=1` when you want interactive brainstorming/spec but automated critic loops.
+
+## Hook exit code reference (verified against Anthropic docs)
+
+Applies to the `Stop` and `SubagentStop` hooks used by `stop-check.sh`:
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Allow stop — session ends normally |
+| `2` | **Block stop** — session continues; stderr is fed back to Claude as context |
+| `1` (or any other) | Non-blocking error — stop proceeds anyway (does **not** block) |
+
+Use `exit 2` (never `exit 1`) when a hook must prevent Claude from stopping. This is the pattern used by `scripts/stop-check.sh`. Verified against Anthropic hooks reference (April 2026).

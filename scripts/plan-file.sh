@@ -3,7 +3,7 @@
 #
 # Usage:
 #   plan-file.sh get-phase <plan-file>
-#       Prints the current phase value (brainstorm|spec|red|green|integration|done)
+#       Prints the current phase value (brainstorm|spec|red|review|green|integration|done)
 #       Exit 0 = success; exit 2 = file not found or Phase section missing
 #
 #   plan-file.sh set-phase <plan-file> <phase>
@@ -21,13 +21,19 @@
 #
 #   plan-file.sh find-active
 #       Prints the path of the newest plan file whose Phase is not "done"
-#       Exit 0 = found; exit 2 = none found or ambiguous (2+ candidates without disambiguation)
+#       Exit 0 = found; exit 2 = none found; exit 3 = ambiguous (2+ active plans)
 #
 #   plan-file.sh record-verdict
 #       Reads SubagentStop JSON from stdin; extracts agent name + last PASS/FAIL line;
-#       appends verdict to the active plan file. Detects consecutive same-category FAILs
-#       and writes [BLOCKED-CATEGORY] to ## Open Questions when detected.
-#       Exit 0 = success; exit 1 = error; exit 2 = no active plan
+#       appends verdict to the active plan file. Tracks PASS streak and run count;
+#       emits [FIRST-TURN], [CONVERGED], and [BLOCKED-CEILING] markers to ## Open Questions.
+#       Detects consecutive same-category FAILs and writes [BLOCKED-CATEGORY] when detected.
+#       Exit 0 = success; exit 1 = error (includes no active plan, CEILING exceeded)
+#
+#   plan-file.sh append-review-verdict <plan-file> <agent> PASS|FAIL
+#       Records a pr-review-toolkit verdict (called directly by the skill, not via SubagentStop).
+#       Applies same streak/ceiling/FIRST-TURN/CONVERGED logic as record-verdict.
+#       Exit 0 = success; exit 1 = ceiling exceeded or error
 #
 #   plan-file.sh record-critic-start
 #       Called by SubagentStart hook for critic-.* agents; reads JSON from stdin;
@@ -50,7 +56,7 @@
 #       Exit 0 always (no active plan → silent skip).
 #
 #   plan-file.sh record-stopfail
-#       Called by StopFailure hook; reads JSON from stdin (error field);
+#       Called by StopFailure hook; reads JSON from stdin (error_type field);
 #       appends a [STOPFAIL] marker to ## Open Questions in the active plan file.
 #       Exit 0 always (no active plan → silent skip).
 #
@@ -80,10 +86,48 @@
 #       Rewrites a plan file stuck at the removed `refactor` phase to `green`.
 #       Safe to run when not in refactor phase (no-op with message to stderr).
 #       Exit 0 always.
+#
+#   plan-file.sh report-error <plan-file> <task-id> <file> <line> <description> <scope>
+#       Appends a row to ## Pre-existing Errors (creates section + table if absent).
+#       err-id is auto-assigned (err-N) inside the atomic lock to prevent duplicate IDs
+#       when parallel coder worktrees call this simultaneously.
+#       scope: nearby (same layer/module) or distant (different layer/feature).
+#       Exit 0 = success; exit 1 = error
+#
+#   plan-file.sh list-errors <plan-file> [--status pending] [--scope nearby]
+#       Parses ## Pre-existing Errors table; applies optional filters; prints
+#       pipe-delimited rows: err-id|task-id|file|line|description|scope|status
+#       Exit 0 always (no section or no matching rows → no output)
+#
+#   plan-file.sh update-error <plan-file> <err-id> <status>
+#       Updates the status column for the matching err-id row.
+#       Valid statuses: pending | fixed | deferred
+#       Exit 0 = success; exit 1 = error
+#
+#   plan-file.sh record-integration-attempt <plan-file>
+#       Increments the persistent integration re-run counter in .state.json.
+#       Prints the new count on stdout. Survives /compact and session restarts.
+#       Exit 0 = success; exit 1 = error
+#
+#   plan-file.sh get-integration-attempts <plan-file>
+#       Prints the current integration re-run counter (0 if not yet set).
+#       Exit 0 always
+#
+#   plan-file.sh record-stop-block <plan-file> <phase> <reason>
+#       Writes a timestamped [STOP-BLOCKED] entry to ## Open Questions.
+#       Called by stop-check.sh before each exit 2 so the block reason persists
+#       across session restarts for post-mortem inspection.
+#       Exit 0 = success; exit 1 = error
+#
+#   plan-file.sh record-auto-approved <plan-file> <kind> <agent-or-skill> [note]
+#       Appends [AUTO-APPROVED-{KIND}] {agent}[: {note}] to ## Open Questions.
+#       Canonical alternative to manual append — prevents typos and duplicate entries.
+#       kind: PLAN | TASKLIST | FIRST | CATEGORIZED | DECIDED (case-insensitive)
+#       Exit 0 = success; exit 1 = error
 
 set -euo pipefail
 
-VALID_PHASES="brainstorm spec red green integration done"
+VALID_PHASES="brainstorm spec red review green integration done"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -166,9 +210,16 @@ _state_set_phase() {
   local tmp_file
   tmp_file=$(mktemp "${state_file}.XXXXXX")
   if [ -f "$state_file" ]; then
-    jq --arg phase "$phase" '.phase = $phase' "$state_file" > "$tmp_file"
+    # Migrate legacy "schema" key to "state_schema" on first write after rename.
+    jq --arg phase "$phase" '
+      .phase = $phase |
+      if has("schema") and (has("state_schema") | not)
+        then .state_schema = .schema | del(.schema)
+        else .
+      end
+    ' "$state_file" > "$tmp_file"
   else
-    jq -nc --arg phase "$phase" '{"schema":2,"phase":$phase}' > "$tmp_file"
+    jq -nc --arg phase "$phase" '{"state_schema":2,"phase":$phase}' > "$tmp_file"
   fi
   mv "$tmp_file" "$state_file"
 }
@@ -229,6 +280,76 @@ _append_to_critic_runs() {
       else if (!found) { print ""; print "## Critic Runs"; print entry }
     }
   '
+}
+
+# Shared loop-state tracker for critic and pr-review convergence logic.
+# Emits [FIRST-TURN], [CONVERGED], and [BLOCKED-CEILING] markers to ## Open Questions.
+# Priority: CEILING > BLOCKED-CATEGORY (cmd_record_verdict) > BLOCKED-AMBIGUOUS (skill) > CONVERGED > FIRST-TURN.
+# Must be called BEFORE the verdict is appended to ## Critic Verdicts.
+#
+# Usage: _record_loop_state <plan_file> <current_phase> <agent> <verdict>
+# Returns: 0 = ok, 1 = ceiling exceeded (caller must still append verdict then exit 1)
+_record_loop_state() {
+  local plan_file="$1" current_phase="$2" agent="$3" verdict="$4"
+  local ceiling="${CLAUDE_CRITIC_LOOP_CEILING:-5}"
+  case "$ceiling" in
+    ''|*[!0-9]*) echo "[record-loop-state] invalid CLAUDE_CRITIC_LOOP_CEILING '${ceiling}'; falling back to 5" >&2; ceiling=5 ;;
+  esac
+
+  # Count existing verdicts for this phase+agent in ## Critic Verdicts section
+  local pat="${current_phase}/${agent}:"
+  local prior_run_count
+  prior_run_count=$(awk -v pat="$pat" \
+    '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat))c++} END{print c+0}' \
+    "$plan_file" 2>/dev/null || echo "0")
+  local run_ordinal=$((prior_run_count + 1))
+
+  # CEILING check (highest priority)
+  if [ "$run_ordinal" -gt "$ceiling" ]; then
+    _append_to_open_questions "$plan_file" \
+      "[BLOCKED-CEILING] ${agent}: exceeded ${ceiling} runs for phase ${current_phase} — manual review required"
+    echo "[record-loop-state] BLOCKED-CEILING: ${agent} run #${run_ordinal} exceeds ceiling ${ceiling}" >&2
+    return 1
+  fi
+
+  # FIRST-TURN: emit once, on the very first run for this phase+agent.
+  # Guard with grep to prevent duplicates if _record_loop_state is called multiple times
+  # for the same run (e.g. hook retry, manual record-verdict re-invocation).
+  if [ "$run_ordinal" -eq 1 ]; then
+    if ! grep -qF "[FIRST-TURN] ${agent}" "$plan_file" 2>/dev/null; then
+      _append_to_open_questions "$plan_file" "[FIRST-TURN] ${agent}"
+      echo "[record-loop-state] FIRST-TURN: ${agent} first run (phase=${current_phase})" >&2
+    fi
+  fi
+
+  # PASS streak: count consecutive PASSes at end of existing verdicts, then include this one
+  if [ "$verdict" = "PASS" ]; then
+    local agent_lines streak=0
+    agent_lines=$(awk -v pat="$pat" \
+      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat))print}' \
+      "$plan_file" 2>/dev/null || true)
+    # Walk backward through existing verdicts, counting trailing PASSes
+    while IFS= read -r line; do
+      if printf '%s' "$line" | grep -q ": PASS"; then
+        streak=$((streak + 1))
+      else
+        break
+      fi
+    done < <(printf '%s\n' "$agent_lines" \
+      | awk 'NR>0{lines[NR]=$0} END{for(i=NR;i>=1;i--) print lines[i]}')
+    # Include this (PASS) verdict in the streak
+    streak=$((streak + 1))
+    # Emit [CONVERGED] when streak reaches 2 or more, but only if not already present
+    # (guards against duplicate entries after manual Open Questions edits).
+    if [ "$streak" -ge 2 ]; then
+      if ! grep -qF "[CONVERGED] ${agent}" "$plan_file" 2>/dev/null; then
+        _append_to_open_questions "$plan_file" "[CONVERGED] ${agent}"
+        echo "[record-loop-state] CONVERGED: ${agent} with ${streak} consecutive PASSes" >&2
+      fi
+    fi
+  fi
+
+  return 0
 }
 
 # Common event-recording helper: appends a timestamped marker to ## Open Questions.
@@ -476,9 +597,12 @@ cmd_record_verdict() {
   local agent_name
   agent_name=$(printf '%s' "$input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
 
-  # Only record for critic-* agents
+  # Only record for phase-gate critics (critic-spec, critic-test, critic-code).
+  # critic-feature is intentionally excluded: it uses a simpler max-2 iteration guard,
+  # not the convergence protocol. See reference/critic-loop.md §Brainstorm exception.
   case "$agent_name" in
-    critic-*) ;;
+    critic-feature) exit 0 ;;
+    critic-spec|critic-test|critic-code) ;;
     *) exit 0 ;;
   esac
 
@@ -525,16 +649,22 @@ cmd_record_verdict() {
     local input_keys
     input_keys=$(printf '%s' "$input" | jq -r 'keys | join(", ")' 2>/dev/null || echo "unknown")
     echo "[record-verdict] missing verdict marker from ${agent_name} (payload keys: ${input_keys})" >&2
-    cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
-    local blocked_marker="[BLOCKED] critic verdict missing — investigate ${agent_name}"
-    if grep -q "^## Open Questions$" "$plan_file"; then
-      _awk_inplace "$plan_file" -v marker="$blocked_marker" '
-        /^## Open Questions$/ { print; in_section=1; next }
-        in_section && /^## / { print marker; print ""; print; in_section=0; next }
-        { print }
-        END { if (in_section) print marker }
-      '
+    # Track this run in the ceiling counter (prevents runaway loops on persistent PARSE_ERROR).
+    _record_loop_state "$plan_file" "$current_phase" "$agent_name" "PARSE_ERROR" || true
+    # Check for consecutive PARSE_ERROR: if the prior verdict for this agent was also PARSE_ERROR,
+    # emit [BLOCKED-PARSE] so the skill stops rather than retrying indefinitely.
+    local last_parse_line
+    last_parse_line=$(awk -v pat="${current_phase}/${agent_name}:" \
+      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat))last=$0} END{print last}' \
+      "$plan_file" 2>/dev/null || true)
+    if printf '%s' "$last_parse_line" | grep -q ": PARSE_ERROR"; then
+      _append_to_open_questions "$plan_file" \
+        "[BLOCKED-PARSE] ${agent_name}: verdict marker missing twice consecutively — check agent output format before retrying"
+      echo "[record-verdict] BLOCKED-PARSE: ${agent_name} two consecutive PARSE_ERRORs" >&2
+    else
+      echo "[record-verdict] first PARSE_ERROR for ${agent_name} — will retry automatically" >&2
     fi
+    cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
     exit 1
   fi
 
@@ -549,25 +679,31 @@ cmd_record_verdict() {
     verdict_label="${verdict_label} [category: ${category}]"
   fi
 
+  # Loop-state tracking: FIRST-TURN / CONVERGED / BLOCKED-CEILING
+  # Call before appending verdict so run-count reflects pre-append state.
+  if ! _record_loop_state "$plan_file" "$current_phase" "$agent_name" "$verdict"; then
+    # CEILING exceeded — append verdict for audit trail then exit
+    cmd_append_verdict "$plan_file" "$verdict_label"
+    echo "[record-verdict] BLOCKED-CEILING from _record_loop_state — verdict appended, exiting 1" >&2
+    exit 1
+  fi
+
   # Consecutive same-category FAIL detection
-  # Uses last verdict from this agent (any phase) — a PASS between two FAILs resets the streak.
+  # Scoped to agent only (phase-independent) — ensures red→review phase transitions do not
+  # reset the category counter, so the same structural problem cannot slip past the ceiling
+  # by crossing a phase boundary.
   if [ "$verdict" = "FAIL" ] && [ -n "$category" ]; then
     local last_verdict_line
-    last_verdict_line=$(grep "/${agent_name}: " "$plan_file" 2>/dev/null | tail -1 || true)
+    last_verdict_line=$(awk -v pat="${agent_name}:" \
+      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat))last=$0} END{print last}' \
+      "$plan_file" 2>/dev/null || true)
     if [ -n "$last_verdict_line" ] && printf '%s' "$last_verdict_line" | grep -q ": FAIL"; then
       local last_category
       last_category=$(printf '%s' "$last_verdict_line" | grep -o '\[category: [A-Z_]*\]' \
                       | sed 's/\[category: //; s/\]//' || true)
       if [ -n "$last_category" ] && [ "$last_category" = "$category" ]; then
-        local blocked_marker="[BLOCKED-CATEGORY] ${agent_name}: category ${category} failed twice — fix the root cause before retrying"
-        if grep -q "^## Open Questions$" "$plan_file"; then
-          _awk_inplace "$plan_file" -v marker="$blocked_marker" '
-            /^## Open Questions$/ { print; in_section=1; next }
-            in_section && /^## / { print marker; print ""; print; in_section=0; next }
-            { print }
-            END { if (in_section) print marker }
-          '
-        fi
+        _append_to_open_questions "$plan_file" \
+          "[BLOCKED-CATEGORY] ${agent_name}: category ${category} failed twice — fix the root cause before retrying"
         cmd_append_verdict "$plan_file" "$verdict_label"
         echo "[record-verdict] consecutive same-category FAIL (${category}) from ${agent_name} — blocked" >&2
         exit 1
@@ -695,7 +831,7 @@ cmd_gc_events() {
       next
     }
     in_section {
-      if (/\[BLOCKED/) {
+      if (/\[BLOCKED/ || /\[STOP-BLOCKED/ || /\[DEFERRED-ERROR/ || /\[CONVERGED/ || /\[FIRST-TURN/) {
         kept[++kept_count] = $0
       } else if (/\[SESSION-END/) {
         last_session_end = $0
@@ -742,7 +878,7 @@ cmd_migrate_to_json() {
   local phase
   phase=$(awk '/^## Phase$/{found=1; next} found && /^[A-Za-z]/{print; exit}' "$plan_file" \
           | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || echo "brainstorm")
-  jq -nc --arg phase "$phase" '{"schema":2,"phase":$phase}' > "$state_file"
+  jq -nc --arg phase "$phase" '{"state_schema":2,"phase":$phase}' > "$state_file"
   echo "[migrate-to-json] created ${state_file} (phase=${phase})" >&2
 }
 
@@ -836,6 +972,216 @@ cmd_context() {
     '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":$ctx}}'
 }
 
+cmd_report_error() {
+  # report-error <plan-file> <task-id> <file> <line> <description> <scope>
+  # Appends a row to ## Pre-existing Errors atomically (counting inside the lock
+  # prevents duplicate err-N IDs when parallel coder worktrees call simultaneously).
+  local plan_file="$1" task_id="$2" file="$3" line="$4" description="$5" scope="$6"
+  require_file "$plan_file"
+  case "$scope" in
+    nearby|distant) ;;
+    *) die "invalid scope: $scope (must be: nearby or distant)" ;;
+  esac
+
+  _awk_inplace "$plan_file" \
+    -v task_id="$task_id" -v file="$file" -v line="$line" \
+    -v description="$description" -v scope="$scope" '
+    /^## Pre-existing Errors$/ { in_section=1; found=1; print; next }
+    in_section && /^\| err-[0-9]/ { err_count++; print; next }
+    in_section && /^## / {
+      new_id = "err-" (err_count + 1)
+      print "| " new_id " | " task_id " | " file " | " line " | " description " | " scope " | pending |"
+      print ""
+      print
+      in_section = 0
+      next
+    }
+    { print }
+    END {
+      if (in_section) {
+        new_id = "err-" (err_count + 1)
+        print "| " new_id " | " task_id " | " file " | " line " | " description " | " scope " | pending |"
+      } else if (!found) {
+        new_id = "err-1"
+        print ""
+        print "## Pre-existing Errors"
+        print "| err-id | task-id | file | line | description | scope | status |"
+        print "|--------|---------|------|------|-------------|-------|--------|"
+        print "| " new_id " | " task_id " | " file " | " line " | " description " | " scope " | pending |"
+      }
+    }
+  '
+}
+
+cmd_list_errors() {
+  # list-errors <plan-file> [--status <status>] [--scope <scope>]
+  local plan_file="$1"; shift
+  require_file "$plan_file"
+  local filter_status="" filter_scope=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --status) filter_status="$2"; shift 2 ;;
+      --scope)  filter_scope="$2";  shift 2 ;;
+      *) die "Unknown option: $1" ;;
+    esac
+  done
+
+  awk -v filter_status="$filter_status" -v filter_scope="$filter_scope" '
+    /^## Pre-existing Errors$/ { in_section=1; next }
+    in_section && /^## / { exit }
+    in_section && /^\| err-[0-9]/ {
+      n = split($0, fields, "|")
+      if (n < 8) next
+      err_id     = fields[2]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", err_id)
+      task_id    = fields[3]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", task_id)
+      file       = fields[4]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", file)
+      line       = fields[5]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      description = fields[6]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", description)
+      scope      = fields[7]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", scope)
+      status     = fields[8]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", status)
+      if (filter_status != "" && status != filter_status) next
+      if (filter_scope  != "" && scope  != filter_scope)  next
+      print err_id "|" task_id "|" file "|" line "|" description "|" scope "|" status
+    }
+  ' "$plan_file"
+}
+
+cmd_update_error() {
+  # update-error <plan-file> <err-id> <status>
+  local plan_file="$1" err_id="$2" status="$3"
+  require_file "$plan_file"
+  case "$status" in
+    pending|fixed|deferred) ;;
+    *) die "invalid status: $status (must be: pending, fixed, or deferred)" ;;
+  esac
+
+  _awk_inplace "$plan_file" -v eid="$err_id" -v new_status="$status" '
+    /^\| err-[0-9]/ {
+      n = split($0, fields, "|")
+      if (n >= 8) {
+        id = fields[2]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", id)
+        if (id == eid) {
+          task_id     = fields[3]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", task_id)
+          file        = fields[4]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", file)
+          line        = fields[5]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+          description = fields[6]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", description)
+          scope       = fields[7]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", scope)
+          printf "| %s | %s | %s | %s | %s | %s | %s |\n", \
+            eid, task_id, file, line, description, scope, new_status
+          next
+        }
+      }
+    }
+    { print }
+  '
+}
+
+cmd_append_review_verdict() {
+  # append-review-verdict <plan-file> <agent> PASS|FAIL
+  # Records a pr-review-toolkit verdict directly (SubagentStop hook does not fire for Skill calls).
+  # Applies the same streak/ceiling/FIRST-TURN/CONVERGED logic as cmd_record_verdict.
+  # NOTE: pr-review does not emit a machine-parseable <!-- category: X --> marker, so consecutive
+  # same-category (BLOCKED-CATEGORY) escalation is intentionally NOT applied here. The skill must
+  # resolve repeated FAILs via the fix-chain documented in implementing/SKILL.md §Step 5.
+  local plan_file="$1" agent="$2" verdict="$3"
+  require_file "$plan_file"
+  case "$verdict" in
+    PASS|FAIL) ;;
+    *) die "append-review-verdict: verdict must be PASS or FAIL, got: ${verdict}" ;;
+  esac
+
+  local current_phase
+  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
+
+  local verdict_label="${current_phase}/${agent}: ${verdict}"
+
+  # Loop-state tracking (must run before appending verdict)
+  if ! _record_loop_state "$plan_file" "$current_phase" "$agent" "$verdict"; then
+    cmd_append_verdict "$plan_file" "$verdict_label"
+    echo "[append-review-verdict] BLOCKED-CEILING — verdict appended, exiting 1" >&2
+    exit 1
+  fi
+
+  cmd_append_verdict "$plan_file" "$verdict_label"
+  echo "[append-review-verdict] recorded ${verdict_label}" >&2
+}
+
+cmd_record_integration_attempt() {
+  # record-integration-attempt <plan-file>
+  # Increments the persistent integration re-run counter stored in .state.json.
+  # Prints the new count on stdout. Counter survives /compact and session restarts.
+  local plan_file="$1"
+  require_file "$plan_file"
+  require_jq
+  local state_file tmp_file current_count new_count
+  state_file=$(_state_file "$plan_file")
+  tmp_file=$(mktemp "${state_file}.XXXXXX")
+  if [ -f "$state_file" ]; then
+    current_count=$(jq -r '.integration_attempts // 0' "$state_file" 2>/dev/null || echo "0")
+    new_count=$((current_count + 1))
+    jq --argjson n "$new_count" '
+      .integration_attempts = $n |
+      if has("schema") and (has("state_schema") | not)
+        then .state_schema = .schema | del(.schema)
+        else .
+      end
+    ' "$state_file" > "$tmp_file"
+  else
+    new_count=1
+    jq -nc --argjson n "$new_count" '{"state_schema":2,"integration_attempts":$n}' > "$tmp_file"
+  fi
+  mv "$tmp_file" "$state_file"
+  echo "$new_count"
+  echo "[record-integration-attempt] counter now ${new_count} in ${state_file}" >&2
+}
+
+cmd_get_integration_attempts() {
+  # get-integration-attempts <plan-file>
+  # Prints the current integration re-run counter (0 if not yet set).
+  local plan_file="$1"
+  require_file "$plan_file"
+  require_jq
+  local state_file
+  state_file=$(_state_file "$plan_file")
+  if [ -f "$state_file" ]; then
+    jq -r '.integration_attempts // 0' "$state_file" 2>/dev/null || echo "0"
+  else
+    echo "0"
+  fi
+}
+
+cmd_record_stop_block() {
+  # record-stop-block <plan-file> <phase> <reason>
+  # Writes a timestamped [STOP-BLOCKED] entry to ## Open Questions so the next
+  # session can see exactly why the Stop hook blocked the previous stop attempt.
+  local plan_file="$1" phase="$2" reason="$3"
+  require_file "$plan_file"
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
+  _append_to_open_questions "$plan_file" \
+    "[STOP-BLOCKED @${ts}] phase=${phase} — ${reason}"
+  echo "[record-stop-block] recorded stop block (phase=${phase}): ${reason}" >&2
+}
+
+cmd_record_auto_approved() {
+  # record-auto-approved <plan-file> <kind> <agent-or-skill> [note]
+  # Appends [AUTO-APPROVED-{KIND}] {agent}[: {note}] to ## Open Questions.
+  # Kind examples: PLAN, TASKLIST, FIRST, CATEGORIZED, DECIDED (case-insensitive).
+  local plan_file="$1" kind="$2" agent="$3" note="${4:-}"
+  require_file "$plan_file"
+  kind=$(printf '%s' "$kind" | tr '[:lower:]' '[:upper:]')
+  case "$kind" in
+    PLAN|TASKLIST|FIRST|CATEGORIZED|DECIDED) ;;
+    *) die "record-auto-approved: invalid kind '${kind}'. Valid values: PLAN TASKLIST FIRST CATEGORIZED DECIDED" ;;
+  esac
+  local marker="[AUTO-APPROVED-${kind}] ${agent}"
+  if [ -n "$note" ]; then
+    marker="${marker}: ${note}"
+  fi
+  _append_to_open_questions "$plan_file" "$marker"
+  echo "[record-auto-approved] ${marker}" >&2
+}
+
 # ── Dispatch ─────────────────────────────────────────────────────────────────
 
 [ $# -ge 1 ] || die "Usage: plan-file.sh <command> [args...]"
@@ -863,5 +1209,13 @@ case "$1" in
   migrate-refactor)     cmd_migrate_refactor "${2:-}" ;;
   add-task)             [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
   update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
+  report-error)         [ $# -eq 7 ] || die "Usage: plan-file.sh report-error <plan-file> <task-id> <file> <line> <description> <scope>"; cmd_report_error "$2" "$3" "$4" "$5" "$6" "$7" ;;
+  list-errors)          [ $# -ge 2 ] || die "Usage: plan-file.sh list-errors <plan-file> [--status <status>] [--scope <scope>]"; cmd_list_errors "$2" "${@:3}" ;;
+  update-error)         [ $# -eq 4 ] || die "Usage: plan-file.sh update-error <plan-file> <err-id> <status>"; cmd_update_error "$2" "$3" "$4" ;;
+  append-review-verdict) [ $# -eq 4 ] || die "Usage: plan-file.sh append-review-verdict <plan-file> <agent> PASS|FAIL"; cmd_append_review_verdict "$2" "$3" "$4" ;;
+  record-integration-attempt) [ $# -eq 2 ] || die "Usage: plan-file.sh record-integration-attempt <plan-file>"; cmd_record_integration_attempt "$2" ;;
+  get-integration-attempts)   [ $# -eq 2 ] || die "Usage: plan-file.sh get-integration-attempts <plan-file>"; cmd_get_integration_attempts "$2" ;;
+  record-stop-block)          [ $# -eq 4 ] || die "Usage: plan-file.sh record-stop-block <plan-file> <phase> <reason>"; cmd_record_stop_block "$2" "$3" "$4" ;;
+  record-auto-approved)       [ $# -ge 4 ] || die "Usage: plan-file.sh record-auto-approved <plan-file> <kind> <agent> [note]"; cmd_record_auto_approved "$2" "$3" "$4" "${5:-}" ;;
   *) die "Unknown command: $1" ;;
 esac

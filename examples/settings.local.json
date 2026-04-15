@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  "INSTRUCTIONS": "Copy this file to .claude/settings.local.json and remove this key. Keep only the delta you actually need — entries already present in .claude/settings.json do not need to be repeated here. Arrays merge with settings.json per Claude Code rules.",
+
+  "mcpServers": {
+    "example-mcp": {
+      "command": "npx",
+      "args": ["-y", "example-mcp-server"],
+      "INSTRUCTIONS": "Replace or remove — add your project-specific MCP servers here"
+    }
+  },
+
+  "permissions": {
+    "allow": [
+      "INSTRUCTIONS: add project-specific allow rules here (e.g. your test runner, build tool)"
+    ]
+  },
+
+  "env": {
+    "INSTRUCTIONS": "Add project-specific env vars here (e.g. DATABASE_URL for integration tests)"
+  }
+}

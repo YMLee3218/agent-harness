@@ -71,6 +71,7 @@ None: "No layer boundary violations"
 ### Verdict
 PASS
 <!-- verdict: PASS -->
+<!-- category: NONE -->
 ```
 
 or

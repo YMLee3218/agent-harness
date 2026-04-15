@@ -1,6 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "plansDirectory": "plans",
   "effortLevel": "high",
   "sandbox": {
     "enabled": true,
@@ -31,6 +30,9 @@
       "Bash(git add tests/**)",
       "Bash(git add docs/**)",
       "Bash(git add plans/**)",
+      "Bash(git add features/**)",
+      "Bash(git add domain/**)",
+      "Bash(git add CLAUDE.md)",
       "Bash(git checkout -b feature/*)",
       "Bash(git commit -m \"test(red): *\")",
       "Bash(git commit -m \"test(green): *\")",
@@ -39,11 +41,23 @@
       "Bash(git commit -m \"feat(*): *\")",
       "Bash(git commit -m \"refactor(*): *\")",
       "Bash(git commit -m \"fix(*): *\")",
+      "Bash(git commit -m \"chore(init): *\")",
+      "Bash(awk *)",
       "Bash(mise *)",
       "Bash(uv *)",
       "Bash(python --version)",
       "Bash(node --version)",
-      "Bash(bash $CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh *)"
+      "Bash(bash $CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh *)",
+      "Bash(git merge --no-ff *)",
+      "Bash(git merge --abort)",
+      "Bash(git rev-parse *)",
+      "Bash(git show-ref *)",
+      "Bash(git checkout feature/*)",
+      "Bash(mkdir -p *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr create *)",
+      "Bash(git stash *)",
+      "Bash(git worktree *)"
     ],
     "ask": [
       "Bash(git commit *)",
@@ -80,23 +94,33 @@
       "Bash(git reset --hard)"
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/statusline.sh\""
+  },
+  "worktree": {
+    "symlinkDirectories": ["node_modules", ".venv", ".cache"]
+  },
+  "attribution": {
+    "commit": "Co-Authored-By: Claude <noreply@anthropic.com>"
+  },
   "hooks": {
     "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/pretooluse-bash.sh\""
-          }
-        ]
-      },
       {
         "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/phase-gate.sh\" write"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/pretooluse-bash.sh\""
           }
         ]
       }
@@ -107,16 +131,6 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/phase-gate.sh\" prompt"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" context"
           }
         ]
       }
@@ -145,7 +159,7 @@
     ],
     "SubagentStart": [
       {
-        "matcher": "critic-feature|critic-spec|critic-test|critic-code",
+        "matcher": "critic-spec|critic-test|critic-code",
         "hooks": [
           {
             "type": "command",
@@ -157,7 +171,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "critic-feature|critic-spec|critic-test|critic-code",
+        "matcher": "critic-spec|critic-test|critic-code",
         "hooks": [
           {
             "type": "command",
@@ -197,17 +211,6 @@
         ]
       }
     ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" flush-on-end",
-            "async": true
-          }
-        ]
-      }
-    ],
     "PreCompact": [
       {
         "hooks": [
@@ -224,11 +227,42 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" log-post-compact"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" context"
           },
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" gc-events",
             "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" flush-on-end",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/stop-check.sh\""
           }
         ]
       }
@@ -243,16 +277,6 @@
         ]
       }
     ]
-  },
-  "statusLine": {
-    "type": "command",
-    "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/statusline.sh\""
-  },
-  "worktree": {
-    "symlinkDirectories": ["node_modules", ".venv", ".cache"]
-  },
-  "attribution": {
-    "commit": "Co-Authored-By: Claude <noreply@anthropic.com>"
   },
   "enabledPlugins": {
     "context7-plugin@context7-marketplace": true,

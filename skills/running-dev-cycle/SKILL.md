@@ -16,6 +16,53 @@ Run each skill in order. Do not skip or reorder steps. Wait for each step to ful
 
 > **Multi-feature parallel work**: if multiple features will run concurrently on the same repository, start each in its own git worktree (`git worktree add .worktrees/feature-x feature/x`) or set `CLAUDE_PLAN_FILE` to the feature's plan path. Running two features on the same branch without disambiguation causes `find-active` to fall back to the newest plan, which may be wrong.
 
+## Autonomous preflight (`CLAUDE_NONINTERACTIVE=1` only)
+
+Skip this section in interactive mode.
+
+When `CLAUDE_NONINTERACTIVE=1`, set `CLAUDE_CRITIC_NONINTERACTIVE=1` immediately (before any skill is invoked):
+
+```bash
+export CLAUDE_CRITIC_NONINTERACTIVE=1
+```
+
+This ensures the DOCS CONTRADICTION branch in `reference/critic-loop.md §On FAIL` resolves to the non-interactive path regardless of which flag the caller set.
+
+Then verify the following before reading the plan file:
+
+1. **GitHub CLI auth** — run `gh auth status`. If the command fails or reports no active authentication, append `[BLOCKED-PREFLIGHT] gh CLI not authenticated — run gh auth login before re-running` to `## Open Questions` in the active plan file (or stop with the message if no plan file exists yet). The `implementing` skill runs `gh pr create` at the end of each feature; without auth the run fails late and leaves work in an unrecoverable mid-state.
+
+2. **Required plugins** — the `implementing` skill requires `pr-review-toolkit` and `code-simplifier`. If those skills are unavailable when invoked, append `[BLOCKED-PREFLIGHT] required plugins missing — install context7-plugin, pr-review-toolkit, code-simplifier before re-running` to `## Open Questions` and stop.
+
+---
+
+## Step 0 — Phase-aware resume
+
+On every invocation, locate the active plan file before running any skill:
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" find-active
+```
+
+If a plan file is found, read its current phase and route accordingly:
+
+| Phase in plan file | Action |
+|--------------------|--------|
+| _(no plan file)_ | Fall through to Step 1 (brainstorming) as normal |
+| `brainstorm` | Fall through to Step 1; brainstorming will resume from the existing plan |
+| `spec` | Skip to **Step 2a** (writing-spec for the next un-specced feature) |
+| `red` | **Slice mode** (trivial / patch / feature profiles): Skip to **Step 2c** (implementing; tests already written for the current feature). **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry, skip directly to **Step 4** (Implementation). |
+| `review` | PR review loop was interrupted mid-fix. Re-invoke the `implementing` skill (Step 2c) to resume the pr-review fix loop for the current feature. |
+| `green` | PR review converged; implementation done. Skip directly to **Integration Tests** (all profiles). |
+| `integration` | Skip to **Integration Tests** step (re-run after previous failure) |
+| `done` | Output: "Cycle is already complete for this plan." Stop. |
+
+Do not re-run a phase that the plan file records as already completed. This ensures
+autonomous restarts after interruption (crash, compaction, network error) resume at
+the correct point rather than repeating finished work.
+
+---
+
 ## Profile selection
 
 Choose the profile that matches the scope of the change. Profiles control which phases and critics run.
@@ -45,7 +92,40 @@ Do not proceed to Step 2 until:
 - critic-feature returns PASS (or user has approved manual override)
 - Plan file `plans/{slug}.md` exists with Phase `brainstorm`
 
-*Skip Step 1 for `trivial` and `patch` profiles. Create the plan file manually with Phase `brainstorm` and proceed.*
+After brainstorming returns, record the active profile in the plan file frontmatter so that resumed sessions can determine the profile without the original command-line argument. Use `Edit` to insert `mode: {profile}` into the YAML frontmatter block of `plans/{slug}.md` (between the `---` delimiters). Where `{profile}` is the resolved profile name (`trivial`, `patch`, `feature`, or `greenfield`).
+
+*Skip Step 1 for `trivial` and `patch` profiles. Create the plan file manually before proceeding:*
+
+```bash
+cat > "plans/{slug}.md" << 'EOF'
+---
+feature: {slug}
+phase: brainstorm
+schema: 1
+mode: trivial   # or patch
+---
+
+## Vision
+{one-sentence description of the change}
+
+## Scenarios
+
+## Test Manifest
+
+## Phase
+brainstorm
+
+## Phase Transitions
+- brainstorm → (initial)
+
+## Critic Verdicts
+
+## Task Ledger
+
+## Open Questions
+EOF
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" brainstorm
+```
 
 ---
 
@@ -53,7 +133,14 @@ Do not proceed to Step 2 until:
 
 Read `docs/requirements/{name}.md` to get the full feature list (Small Features + Large Features sections).
 
-**For each feature in the list, in dependency order:**
+**Before iterating, determine which features are already done.** A feature is considered complete when ALL of the following hold:
+- `features/{verb}-{noun}/spec.md` exists (spec was written), AND
+- `## Critic Verdicts` in the plan file contains a `PASS` line from `critic-spec` recorded after that spec was written, AND
+- All tasks for that feature in `## Task Ledger` are `completed`.
+
+Skip features that satisfy all three conditions. Start from the first feature that does NOT satisfy them.
+
+**For each remaining feature in the list, in dependency order:**
 
 ### Step 2a — Spec (`feature` and `patch` profiles)
 
@@ -65,7 +152,7 @@ Invoke the `writing-spec` skill for the feature. Wait for critic-spec PASS.
 
 Invoke the `writing-tests` skill for the feature. Wait for critic-test PASS and Plan file Phase `red`.
 
-*Skip for `trivial` and `patch` profiles. Set Phase to `green` directly and proceed to implementing.*
+*Skip for `trivial` and `patch` profiles. Set Phase to `red` directly and proceed to implementing.*
 
 ### Step 2c — Implementation (all profiles)
 
@@ -89,16 +176,37 @@ Do not proceed to Step 3 until all features have a PASS-verified spec.md.
 
 ### Step 3 — Tests (all features)
 
-Invoke the `writing-tests` skill.
+Read `docs/requirements/{name}.md` to get the full feature list.
 
-Do not proceed to Step 4 until:
-- All failing tests are written (one per Scenario across all specs)
-- critic-test returns PASS
-- Plan file Phase is `red`
+For each feature, in the same order as Step 2:
+1. Invoke the `writing-tests` skill for that feature
+2. Wait for the skill to complete (tests written and failing, critic-test PASS, Plan file Phase `red`)
+
+Do not proceed to Step 4 until every feature has completed Step 3.
 
 ### Step 4 — Implementation
 
 Invoke the `implementing` skill.
+
+---
+
+## Integration Tests (all profiles except trivial)
+
+After all features have completed `implementing` (i.e., all feature-slice iterations or the single batch implementation are done):
+
+1. Read project CLAUDE.md for the integration test command.
+2. If a command is defined: invoke `running-integration-tests` skill.
+   `running-integration-tests` sets the plan phase to `integration` then `done`.
+3. If no integration test command is defined in project CLAUDE.md:
+   log `[SKIP] integration tests — no command found in CLAUDE.md`, then set phase `done`:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" done
+   ```
+
+*Skip for `trivial` profile. After implementing completes for a trivial change, set phase `done` directly:*
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" done
+```
 
 ---
 
@@ -108,3 +216,4 @@ Cycle is complete when:
 - All tasks are `completed`
 - Plan file Phase is `done`
 - No unresolved critic or pr-review-toolkit issues
+- Integration tests passed (or skipped with logged reason)

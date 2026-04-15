@@ -40,6 +40,7 @@ None: "No missing features"
 ### Verdict
 PASS
 <!-- verdict: PASS -->
+<!-- category: NONE -->
 ```
 
 or
@@ -52,7 +53,8 @@ FAIL — {comma-separated reasons}
 ```
 
 On FAIL, choose one category per @reference/critic-loop.md category table.
-Common categories for this critic: `LAYER_VIOLATION`, `MISSING_FEATURE`, `NAMING`, `STRUCTURAL`.
+Common categories for this critic: `LAYER_VIOLATION`, `MISSING_SCENARIO`, `STRUCTURAL`.
+Naming convention violations (kebab-case, verb-noun, noun-singular) map to `STRUCTURAL`.
 The last two lines of your output on FAIL must be `<!-- verdict: FAIL -->` then `<!-- category: X -->`.
 
 FAIL blocks progress to `writing-spec`.

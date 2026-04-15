@@ -26,18 +26,10 @@ FAIL — {comma-separated list of blocking finding labels}
 
 ## Finding labels
 
-| Label | Triggers FAIL? |
-|-------|----------------|
-| `[CRITICAL]` | Yes |
-| `[MISSING]` | Yes |
-| `[FAIL]` | Yes |
-| `[DOCS CONTRADICTION]` | Yes |
-| `[WARN]` | No |
+Severity levels and FAIL/PASS threshold: `@reference/severity.md` (single source of truth).
 
-## Category priority (highest → lowest)
+## Category priority
 
-`LAYER_VIOLATION` > `DOCS_CONTRADICTION` > `UNVERIFIED_CLAIM` > `SPEC_COMPLIANCE` > `MISSING_SCENARIO` > `TEST_INTEGRITY` > `TEST_QUALITY` > `STRUCTURAL`
-
-Choose the single highest-priority category when multiple labels appear in one verdict.
+Severity levels, PASS/FAIL threshold, and category priority order are defined in `@reference/severity.md` (single source of truth). Do not duplicate those tables here.
 
 Full iteration protocol: @reference/critic-loop.md
