@@ -19,7 +19,7 @@ Context hygiene: @reference/context-hygiene.md
 
 ## Step 1 — Read plan file + plan implementation order
 
-Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `red`.
+Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `red` (or `review` — see §Session Recovery).
 
 - `Read` the failing tests and `spec.md`
 - `Glob` and `Read` existing domain/feature structure to determine dependencies
@@ -310,6 +310,8 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.
 ## Session Recovery
 
 Use `TaskList` to find the first `pending` or `in_progress` task and resume there. For `in_progress` tasks, check the Task Ledger in `plans/{slug}.md` — if a commit-sha is recorded the task was committed; mark it `completed` and continue. Read `plans/{slug}.md` to determine the current phase.
+
+If phase is `review` and all tasks are `completed`, skip directly to **Step 5** (pr-review fix loop) — a prior session was interrupted during the pr-review FAIL loop.
 
 ## Hard Stop
 
