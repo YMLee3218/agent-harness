@@ -64,6 +64,7 @@ The loop terminates on **2 consecutive PASSes** (convergence), not on a single P
 | `[BLOCKED-CATEGORY] {agent}` | Two consecutive FAILs with same category (agent-scoped, phase-independent) | Stop — fix root cause first |
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | LLM cannot determine fix direction | Stop — human decision required |
 | `[BLOCKED-PARSE] {agent}` | Critic output missing verdict markers two consecutive times | Stop — investigate agent output format before retrying |
+| `[CONFIRMED-FIRST] {agent}` | Interactive: user confirmed FIRST-TURN; session resumed before re-run | Re-run automatically (skip re-confirmation) |
 | `[AUTO-APPROVED-FIRST] {agent}` | Non-interactive mode: `[FIRST-TURN]` auto-approved | Log only — re-run automatically |
 | `[AUTO-APPROVED-PLAN] {skill}: {note}` | Non-interactive mode: `ExitPlanMode` skipped, plan auto-approved | Log only — proceed to write step |
 | `[AUTO-APPROVED-TASKLIST] implementing: {note}` | Non-interactive mode: implementation task list auto-approved in `implementing` skill | Log only — proceed to task execution |
@@ -89,14 +90,18 @@ Skill reads ## Open Questions, checks in priority order:
   1. [BLOCKED-CEILING] {agent}  → stop (manual review)
   2. [BLOCKED-CATEGORY] {agent} → stop (fix root cause)
   3. [BLOCKED-AMBIGUOUS] {agent} → stop (human decision)
-  4. [CONVERGED] {agent}        → proceed to next step
-  5. [FIRST-TURN] {agent}       → confirm with user, then re-run
-                                  (non-interactive: auto-approve + re-run)
-  6. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
-                                → re-run automatically (one retry allowed;
-                                  second consecutive PARSE_ERROR triggers [BLOCKED-PARSE])
-  7. (no terminal marker, PASS) → re-run automatically
-  8. (no terminal marker, FAIL) → LLM determines fix direction:
+  4. [BLOCKED-PARSE] {agent}    → stop (investigate critic output format)
+  5. [CONVERGED] {agent}           → proceed to next step
+  6. [CONFIRMED-FIRST] {agent}     → re-run automatically (user confirmed in prior session)
+  7. [AUTO-APPROVED-FIRST] {agent} → re-run automatically
+                                     (non-interactive: FIRST-TURN auto-approved in prior session)
+  8. [FIRST-TURN] {agent}          → confirm with user, then re-run
+                                     (non-interactive: auto-approve + re-run)
+  9. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
+                                   → re-run automatically (one retry allowed;
+                                     second consecutive PARSE_ERROR triggers [BLOCKED-PARSE])
+  10. (no terminal marker, PASS) → re-run automatically
+  11. (no terminal marker, FAIL) → LLM determines fix direction:
        - direction is clear → apply fix + re-run
        - direction is ambiguous → append [BLOCKED-AMBIGUOUS] + stop
 ```
@@ -130,15 +135,18 @@ After `record-verdict` (or `append-review-verdict`) returns:
 
 1. Read `## Open Questions` for this agent's markers (priority order above).
 2. If `[CONVERGED]` is present → proceed to the next step.
-3. If `[FIRST-TURN]` is present (and no `[CONVERGED]`) → ask user, then re-run.
-4. Otherwise (PASS but no convergence yet) → re-run automatically.
+3. If `[CONFIRMED-FIRST]` is present (and no `[CONVERGED]`) → re-run automatically (user confirmed in a previous session).
+4. If `[AUTO-APPROVED-FIRST]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`) → re-run automatically (non-interactive FIRST-TURN was already approved in a prior session).
+5. If `[FIRST-TURN]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`, no `[AUTO-APPROVED-FIRST]`) → ask user (interactive), then re-run. (Non-interactive: see §Non-interactive mode.)
+   (Interactive: after the user confirms, append `[CONFIRMED-FIRST] {agent}` to `## Open Questions` before re-running, so a resumed session can distinguish a pending FIRST-TURN from an already-handled one.)
+6. Otherwise (PASS but no convergence yet) → re-run automatically.
 
 ## On FAIL
 
 1. Output the full critic verdict.
 2. If `[DOCS CONTRADICTION]` is reported:
    - **Interactive mode** (default): use `AskUserQuestion` — "Should docs be updated to match the current work, or the current work fixed to match docs?" Apply the chosen fix before continuing.
-   - **Non-interactive mode** (`CLAUDE_CRITIC_NONINTERACTIVE=1`): append `[BLOCKED-AMBIGUOUS] {agent}: DOCS CONTRADICTION — cannot determine whether docs or code is ground truth; human decision required` to `## Open Questions` and stop. Do not resolve unilaterally.
+   - **Non-interactive mode** (`CLAUDE_CRITIC_NONINTERACTIVE=1` OR `CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED-AMBIGUOUS] {agent}: DOCS CONTRADICTION — cannot determine whether docs or code is ground truth; human decision required` to `## Open Questions` and stop. Do not resolve unilaterally.
 3. Determine fix direction:
    - If unambiguous → write a fix plan, confirm with `AskUserQuestion` (interactive) or auto-apply (non-interactive), apply fixes, re-run.
    - If ambiguous → append `[BLOCKED-AMBIGUOUS] {agent}: {question}` to `## Open Questions` and stop.
@@ -156,10 +164,10 @@ Two flags control non-interactive behaviour; they compose additively:
 When either flag is set:
 
 - Replace all `AskUserQuestion` calls in the critic loop with plan file writes.
-- `[FIRST-TURN]` handling: instead of asking, append `[AUTO-APPROVED-FIRST] {agent}` to `## Open Questions` and re-run automatically.
-- `ExitPlanMode` (in writing-spec, writing-tests): skip the gate — append `[AUTO-APPROVED-PLAN] {skill}: {note}` to `## Open Questions` and proceed to the write step.
+- `[FIRST-TURN]` handling: instead of asking, the skill should run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST {agent}` and re-run automatically.
+- `ExitPlanMode` (in writing-spec, writing-tests, initializing-project, brainstorming): skip the gate — the skill should run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN {skill} "{note}"` and proceed to the write step.
 - On first FAIL (critic loop): apply the fix plan automatically and re-run without stopping (auto-apply replaces the `AskUserQuestion` confirmation). For pr-review FAILs: infer the issue category and log `[AUTO-CATEGORIZED] pr-review: {summary} → {category}` to `## Open Questions` before applying the fix chain.
-- `[BLOCKED-CEILING]` / `[BLOCKED-AMBIGUOUS]` / `[BLOCKED-CATEGORY]`: stop cleanly (do not apply further fixes).
+- `[BLOCKED-CEILING]` / `[BLOCKED-AMBIGUOUS]` / `[BLOCKED-CATEGORY]` / `[BLOCKED-PARSE]`: stop cleanly (do not apply further fixes).
 - The pipeline stops cleanly rather than hanging on interactive prompts.
 - The next session (with neither flag set) reads `## Open Questions` and resumes.
 

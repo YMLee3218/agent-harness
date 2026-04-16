@@ -75,9 +75,15 @@ Classify each candidate per @reference/layers.md (Small / Large feature). Name f
 
 If proposing domain rules or constraints not found in `docs/*.md`, do not assume them.
 - **Interactive**: use `AskUserQuestion` to confirm with the user before including in the decomposition.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): mark the assumption `[UNVERIFIED]` in the plan file and include it provisionally; critic-spec will flag it if wrong.
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): mark the assumption `[UNVERIFIED CLAIM]` in the plan file and include it provisionally; critic-spec will independently flag unverified claims in the spec.
 
 List each candidate with layer assignment. Write decomposition to plan file. Call `ExitPlanMode` to request approval.
+
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run:
+  ```bash
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN brainstorming "decomposition plan auto-approved"
+  ```
+  and proceed to Step 3.
 
 ### Step 3 — Write output + create branch
 
@@ -155,7 +161,11 @@ Use `EnterPlanMode`, then:
 
 Do not read `src/` implementation. If the modification conflicts with `docs/*.md`, list required doc updates. Write impact list to plan file. Call `ExitPlanMode`.
 
-In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): `ExitPlanMode` is auto-approved; proceed without waiting for user confirmation.
+In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN brainstorming "impact list auto-approved"
+```
+and proceed to Step 2.
 
 ### Step 2 — Update docs (if needed)
 
@@ -172,5 +182,5 @@ Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Featur
 Do not move to `writing-spec` until:
 - Every feature has a `{verb}-{noun}` name
 - Every feature is classified as small or large with layer assignment
-- User has approved via `ExitPlanMode`
+- User has approved via `ExitPlanMode` (interactive) or `record-auto-approved` (non-interactive)
 - critic-feature returns PASS (or user has approved manual override after 2 iterations)

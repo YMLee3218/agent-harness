@@ -169,12 +169,17 @@ After each run, `plan-file.sh record-verdict` fires automatically (SubagentStop 
 | `[BLOCKED-AMBIGUOUS] critic-code: …` | Stop — human decision needed |
 | `[BLOCKED-PARSE] critic-code` | Stop — check critic output format before retrying |
 | `[CONVERGED] critic-code` | Proceed to next milestone or Step 4.5 |
-| `[FIRST-TURN] critic-code` | Ask user (interactive) or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-code` (non-interactive), then re-run |
+| `[CONFIRMED-FIRST] critic-code` | Re-run automatically (user already confirmed in a previous session) |
+| `[AUTO-APPROVED-FIRST] critic-code` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session) |
+| `[FIRST-TURN] critic-code` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" "[CONFIRMED-FIRST] critic-code"` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-code` (non-interactive), then re-run |
 | PARSE_ERROR (no `[BLOCKED-PARSE]` yet) | Re-run automatically (second consecutive PARSE_ERROR triggers `[BLOCKED-PARSE]`) |
 | PASS, no `[CONVERGED]` yet | Re-run automatically |
 | FAIL | Apply fix, then re-run |
 
-On `[DOCS CONTRADICTION]`: update `docs/*.md` first, then cascade: re-run Skill("critic-spec") if spec changed → re-run Skill("critic-test") if tests changed → run test command → re-run Skill("critic-code").
+Evaluation order: BLOCKED-CEILING → BLOCKED-CATEGORY → BLOCKED-AMBIGUOUS → BLOCKED-PARSE → CONVERGED → CONFIRMED-FIRST → AUTO-APPROVED-FIRST → FIRST-TURN → PARSE_ERROR → PASS → FAIL
+_(Steps 1–8 check `## Open Questions`; steps 9–11 check the last entry in `## Critic Verdicts`)_
+
+On `[DOCS CONTRADICTION]` (after applying fix): update `docs/*.md` first, then cascade: re-run Skill("critic-spec") if spec changed → re-run Skill("critic-test") if tests changed → run test command → re-run Skill("critic-code").
 
 When any cascade causes a phase rollback, append to `## Phase Transitions` in the plan file:
 ```
@@ -256,9 +261,13 @@ Read `## Open Questions` for `pr-review` markers, in priority order:
 | `[BLOCKED-CEILING] pr-review` | Stop — manual review required |
 | `[BLOCKED-AMBIGUOUS] pr-review: …` | Stop — human decision needed |
 | `[CONVERGED] pr-review` | Set phase green and finish |
-| `[FIRST-TURN] pr-review` | Ask user for confirmation (interactive) or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST pr-review` (non-interactive), then re-run |
+| `[CONFIRMED-FIRST] pr-review` | Re-run automatically (user already confirmed in a previous session) |
+| `[AUTO-APPROVED-FIRST] pr-review` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session) |
+| `[FIRST-TURN] pr-review` | Ask user for confirmation (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" "[CONFIRMED-FIRST] pr-review"` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST pr-review` (non-interactive), then re-run |
 | PASS, no `[CONVERGED]` yet | Re-run automatically |
 | FAIL | Apply fix chain below, then re-run |
+
+Evaluation order: BLOCKED-CEILING → BLOCKED-AMBIGUOUS → CONVERGED → CONFIRMED-FIRST → AUTO-APPROVED-FIRST → FIRST-TURN → PASS → FAIL
 
 **Fix chains on FAIL** — phase transition timing:
 

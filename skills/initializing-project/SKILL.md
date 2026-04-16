@@ -45,7 +45,11 @@ domain/                 ← BDD spec files per domain concept (domain/{concept}/
 List proposed `domain/{concept}/spec.md` drafts and initial domain concept names.
 
 - **Interactive**: call `ExitPlanMode` to request approval.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — append `[AUTO-APPROVED-PLAN] initializing-project: structure auto-approved` to `## Open Questions` and proceed to Step 3.
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run:
+  ```bash
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN initializing-project "structure auto-approved"
+  ```
+  and proceed to Step 3.
 
 ## Step 3 — Scaffold directories and generate CLAUDE.md
 

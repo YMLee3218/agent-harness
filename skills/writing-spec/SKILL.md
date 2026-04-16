@@ -49,7 +49,11 @@ Every `Scenario Outline` Examples table must include boundaries for the input ty
 - **Boolean**: `true`, `false`
 
 Call `ExitPlanMode` to request approval.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — append `[AUTO-APPROVED-PLAN] writing-spec: scenario plan auto-approved` to `## Open Questions` and proceed directly to Step 3.
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run:
+  ```bash
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN writing-spec "scenario plan auto-approved"
+  ```
+  and proceed directly to Step 3.
 
 ## Step 3 — Write spec.md
 
@@ -84,10 +88,15 @@ After each run, `plan-file.sh record-verdict` fires automatically (SubagentStop 
 | `[BLOCKED-AMBIGUOUS] critic-spec: …` | Stop — human decision needed |
 | `[BLOCKED-PARSE] critic-spec` | Stop — check critic output format before retrying |
 | `[CONVERGED] critic-spec` | Proceed to Step 5 |
-| `[FIRST-TURN] critic-spec` | Ask user (interactive) or append `[AUTO-APPROVED-FIRST] critic-spec` (non-interactive), then re-run |
+| `[CONFIRMED-FIRST] critic-spec` | Re-run automatically (user already confirmed in a previous session) |
+| `[AUTO-APPROVED-FIRST] critic-spec` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session) |
+| `[FIRST-TURN] critic-spec` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" "[CONFIRMED-FIRST] critic-spec"` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-spec` (non-interactive), then re-run |
 | PARSE_ERROR (no `[BLOCKED-PARSE]` yet) | Re-run automatically (second consecutive PARSE_ERROR triggers `[BLOCKED-PARSE]`) |
 | PASS, no `[CONVERGED]` yet | Re-run automatically |
 | FAIL | Apply fix, then re-run |
+
+Evaluation order: BLOCKED-CEILING → BLOCKED-CATEGORY → BLOCKED-AMBIGUOUS → BLOCKED-PARSE → CONVERGED → CONFIRMED-FIRST → AUTO-APPROVED-FIRST → FIRST-TURN → PARSE_ERROR → PASS → FAIL
+_(Steps 1–8 check `## Open Questions`; steps 9–11 check the last entry in `## Critic Verdicts`)_
 
 On `[DOCS CONTRADICTION]`: update `docs/*.md` first, then fix the spec to match.
 

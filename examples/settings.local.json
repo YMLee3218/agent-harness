@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
 
-  "INSTRUCTIONS": "Copy this file to .claude/settings.local.json and remove this key. Keep only the delta you actually need — entries already present in .claude/settings.json do not need to be repeated here. Arrays merge with settings.json per Claude Code rules.",
+  "INSTRUCTIONS": "Copy this file to .claude/settings.local.json and remove this key. Keep only the delta you actually need — entries already present in .claude/settings.json do not need to be repeated here. Arrays merge with settings.json per Claude Code rules. For allow rules, e.g.: \"Bash(npm test:*)\", \"Write(/absolute/path/**)\"",
 
   "mcpServers": {
     "example-mcp": {
@@ -12,9 +12,7 @@
   },
 
   "permissions": {
-    "allow": [
-      "INSTRUCTIONS: add project-specific allow rules here (e.g. your test runner, build tool)"
-    ]
+    "allow": []
   },
 
   "env": {

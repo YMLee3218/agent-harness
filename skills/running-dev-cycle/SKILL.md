@@ -26,6 +26,8 @@ When `CLAUDE_NONINTERACTIVE=1`, set `CLAUDE_CRITIC_NONINTERACTIVE=1` immediately
 export CLAUDE_CRITIC_NONINTERACTIVE=1
 ```
 
+**Note:** Bash `export` does not propagate to Agent subagents — only env vars declared in settings.json `env` reach subagents. `critic-loop.md` checks `CLAUDE_NONINTERACTIVE` directly (which propagates via settings.json). This export handles same-process bash tool calls only.
+
 This ensures the DOCS CONTRADICTION branch in `reference/critic-loop.md §On FAIL` resolves to the non-interactive path regardless of which flag the caller set.
 
 Then verify the following before reading the plan file:

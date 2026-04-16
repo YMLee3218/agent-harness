@@ -134,8 +134,13 @@ After each run, `plan-file.sh record-verdict` fires automatically (SubagentStop 
 | `[BLOCKED-CATEGORY] critic-test` | Stop — fix root cause first |
 | `[BLOCKED-AMBIGUOUS] critic-test: …` | Stop — human decision needed |
 | `[BLOCKED-PARSE] critic-test` | Stop — check critic output format before retrying |
-| `[CONVERGED] critic-test` | Proceed to Step 5 |
-| `[FIRST-TURN] critic-test` | Ask user (interactive) or append `[AUTO-APPROVED-FIRST] critic-test` (non-interactive), then re-run |
+| `[CONVERGED] critic-test` | Complete — writing-tests phase done; proceed to `implementing` (if invoked via `running-dev-cycle`, it advances automatically) |
+| `[CONFIRMED-FIRST] critic-test` | Re-run automatically (user already confirmed in a previous session) |
+| `[AUTO-APPROVED-FIRST] critic-test` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session) |
+| `[FIRST-TURN] critic-test` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" "[CONFIRMED-FIRST] critic-test"` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-test` (non-interactive), then re-run |
 | PARSE_ERROR (no `[BLOCKED-PARSE]` yet) | Re-run automatically (second consecutive PARSE_ERROR triggers `[BLOCKED-PARSE]`) |
 | PASS, no `[CONVERGED]` yet | Re-run automatically |
 | FAIL | Apply fix, then re-run |
+
+Evaluation order: BLOCKED-CEILING → BLOCKED-CATEGORY → BLOCKED-AMBIGUOUS → BLOCKED-PARSE → CONVERGED → CONFIRMED-FIRST → AUTO-APPROVED-FIRST → FIRST-TURN → PARSE_ERROR → PASS → FAIL
+_(Steps 1–8 check `## Open Questions`; steps 9–11 check the last entry in `## Critic Verdicts`)_
