@@ -19,7 +19,11 @@ Context hygiene: @reference/context-hygiene.md
 
 ## Step 1 — Read plan file + plan implementation order
 
+Use `EnterPlanMode`, then:
+
 Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `red` (or `review` — see §Session Recovery).
+
+If phase is `review` and all tasks are `completed` — skip task planning entirely; go directly to §Session Recovery.
 
 - `Read` the failing tests and `spec.md`
 - `Glob` and `Read` existing domain/feature structure to determine dependencies
@@ -41,9 +45,9 @@ Task N: {verb} {object}
 
 Layer order: domain tasks first, then features, then infrastructure. Mark tasks that can run in parallel within the same layer tier (no cross-task dependency within the tier).
 
-Use `AskUserQuestion` to present the task list and request approval before proceeding.
+Call `ExitPlanMode` to present the task list and request approval before proceeding.
 
-In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): skip approval; proceed directly to Step 2. Run:
+In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`; proceed directly to Step 2. Run:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" TASKLIST implementing "{N tasks, layers: domain/feature/infra summary}"
 ```
@@ -290,7 +294,22 @@ In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): if category is unambigu
 → Fix code → run tests → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
 
 **Spec gap** (unhandled scenario revealed by review):
-→ Add scenario to `spec.md` → re-run Skill("critic-spec") → write failing test → re-run Skill("critic-test") → implement → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
+→ Add scenario to `spec.md` → re-run Skill("critic-spec")
+→ Roll phase back to `red` to allow writing test files:
+  ```bash
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" red
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" \
+    "- review → red (reason: spec gap — writing failing test for unhandled scenario)"
+  ```
+→ Write failing test → re-run Skill("critic-test")
+→ Implement → re-run Skill("critic-code")
+→ Restore phase to `review` before re-running pr-review:
+  ```bash
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" review
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" \
+    "- red → review (reason: spec gap fixed — resuming pr-review)"
+  ```
+→ re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
 
 **Docs conflict** (implementation contradicts domain rules):
 → Update `docs/*.md` (SOT) → fix spec → re-run Skill("critic-spec") → fix tests → re-run Skill("critic-test") → fix code → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
@@ -311,7 +330,11 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.
 
 Use `TaskList` to find the first `pending` or `in_progress` task and resume there. For `in_progress` tasks, check the Task Ledger in `plans/{slug}.md` — if a commit-sha is recorded the task was committed; mark it `completed` and continue. Read `plans/{slug}.md` to determine the current phase.
 
-If phase is `review` and all tasks are `completed`, skip directly to **Step 5** (pr-review fix loop) — a prior session was interrupted during the pr-review FAIL loop.
+If a `blocked` task exists (e.g., from a `[BLOCKED-CODER]` merge conflict): after the conflict is resolved externally, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-N" "pending"` to unblock it, then re-run `implementing`.
+
+If phase is `review` and all tasks are `completed` (prior session interrupted during pr-review fix loop):
+- **Interactive**: call `ExitPlanMode` (no task list to approve — informing user: resuming pr-review fix loop), then skip to **Step 5**.
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`; proceed directly to **Step 5**.
 
 ## Hard Stop
 

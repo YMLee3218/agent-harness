@@ -6,7 +6,8 @@ description: >
   References only docs/*.md and brainstorming output — never reads src/.
 effort: medium
 paths:
-  - src/**
+  - features/**
+  - domain/**
   - docs/**
   - plans/**
 ---

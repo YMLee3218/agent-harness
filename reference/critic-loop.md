@@ -7,6 +7,7 @@ Convergence-based protocol used by every phase-gate critic (critic-spec, critic-
 > LLM convergence guarantees are unnecessary; two iterations are sufficient to catch
 > obvious classification errors without risking an infinite loop on subjective
 > decomposition choices. See `@skills/brainstorming/SKILL.md §Step 4`.
+> `critic-feature` uses `[BLOCKED-FINAL]` (not `[BLOCKED-CEILING]`) for its double-fail stop signal.
 
 ## Finding labels and categories
 
@@ -62,14 +63,14 @@ The loop terminates on **2 consecutive PASSes** (convergence), not on a single P
 
 | Marker | Condition | Skill action |
 |--------|-----------|--------------|
-| `[FIRST-TURN] {agent}` | First run ever for this phase+agent | Ask user for confirmation, then re-run (or auto-approve in non-interactive mode) |
-| `[CONVERGED] {agent}` | PASS streak ≥ 2 for this phase+agent (emitted once; duplicate-safe) | Proceed to next step |
 | `[BLOCKED-CEILING] {agent}` | Total runs for this phase+agent > N (default 5) | Stop — manual review required |
 | `[BLOCKED-CATEGORY] {agent}` | Two consecutive FAILs with same category (agent-scoped, phase-independent) | Stop — fix root cause first |
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | LLM cannot determine fix direction | Stop — human decision required |
 | `[BLOCKED-PARSE] {agent}` | Critic output missing verdict markers two consecutive times | Stop — investigate agent output format before retrying |
+| `[CONVERGED] {agent}` | PASS streak ≥ 2 for this phase+agent (emitted once; duplicate-safe) | Proceed to next step |
 | `[CONFIRMED-FIRST] {agent}` | Interactive: user confirmed FIRST-TURN; skill writes this marker (via append-note) after user confirms and before re-running, so a resumed session can skip re-confirmation | Re-run automatically (skip re-confirmation) |
 | `[AUTO-APPROVED-FIRST] {agent}` | Non-interactive mode: `[FIRST-TURN]` auto-approved | Re-run automatically (FIRST-TURN auto-approved in prior non-interactive session) |
+| `[FIRST-TURN] {agent}` | First run ever for this phase+agent | Ask user for confirmation, then re-run (or auto-approve in non-interactive mode) |
 | `[AUTO-APPROVED-PLAN] {skill}: {note}` | Non-interactive mode: `ExitPlanMode` skipped, plan auto-approved | Log only — proceed to write step |
 | `[AUTO-APPROVED-TASKLIST] implementing: {note}` | Non-interactive mode: implementation task list auto-approved in `implementing` skill | Log only — proceed to task execution |
 | `[AUTO-CATEGORIZED] {agent}: {summary} → {category}` | Non-interactive mode: pr-review FAIL category inferred and fix applied automatically | Log only — re-run automatically |
@@ -144,7 +145,9 @@ After `record-verdict` (or `append-review-verdict`) returns:
 4. If `[CONFIRMED-FIRST]` is present (and no `[CONVERGED]`) → re-run automatically (user confirmed in a previous session).
 5. If `[AUTO-APPROVED-FIRST]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`) → re-run automatically (non-interactive FIRST-TURN was already approved in a prior session).
 6. If `[FIRST-TURN]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`, no `[AUTO-APPROVED-FIRST]`) → ask user (interactive), then re-run. (Non-interactive: see §Non-interactive mode.)
-   (Interactive: after the user confirms, append `[CONFIRMED-FIRST] {agent}` to `## Open Questions` before re-running, so a resumed session can distinguish a pending FIRST-TURN from an already-handled one.)
+   **Interactive only:** after the user confirms, run:
+   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" "[CONFIRMED-FIRST] {agent}"`
+   before re-running, so a resumed session can skip re-confirmation.
 7. Otherwise (PASS but no convergence yet) → re-run automatically.
 
 ## On FAIL
@@ -171,7 +174,7 @@ When either flag is set:
 
 - Replace all `AskUserQuestion` calls in the critic loop with plan file writes.
 - `[FIRST-TURN]` handling: instead of asking, the skill should run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST {agent}` and re-run automatically.
-- `ExitPlanMode` (in writing-spec, writing-tests, initializing-project, brainstorming): skip the gate — the skill should run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN {skill} "{note}"` and proceed to the write step.
+- `ExitPlanMode` (in writing-spec, writing-tests, implementing, initializing-project, brainstorming): skip the gate — the skill should run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN {skill} "{note}"` and proceed to the write step.
 - On first FAIL (critic loop): apply the fix plan automatically and re-run without stopping (auto-apply replaces the `AskUserQuestion` confirmation). For pr-review FAILs: infer the issue category and log `[AUTO-CATEGORIZED] pr-review: {summary} → {category}` to `## Open Questions` before applying the fix chain.
 - `[BLOCKED-CEILING]` / `[BLOCKED-AMBIGUOUS]` / `[BLOCKED-CATEGORY]` / `[BLOCKED-PARSE]`: stop cleanly (do not apply further fixes).
 - The pipeline stops cleanly rather than hanging on interactive prompts.

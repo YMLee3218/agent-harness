@@ -8,6 +8,8 @@ effort: medium
 paths:
   - tests/**
   - plans/**
+  - features/**
+  - domain/**
 ---
 
 # Writing Failing Tests

@@ -43,18 +43,30 @@ Then verify the following before reading the plan file:
 On every invocation, locate the active plan file before running any skill:
 
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" find-active
+plan_file=$(bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" find-active)
+find_active_rc=$?
 ```
 
-If a plan file is found, read its current phase and route accordingly:
+If exit code is **3** (ambiguous — two or more active plan files):
+- Stop immediately. Output:
+  ```
+  [BLOCKED] Multiple active plan files found. Set CLAUDE_PLAN_FILE=plans/{slug}.md
+  to identify which plan to resume, then re-run /running-dev-cycle.
+  ```
+- Do NOT proceed to any skill.
+
+If exit code is **1** (plan-file.sh error — plans directory missing or script error):
+treat as exit 2 — fall through to Step 1 (brainstorming).
+
+Otherwise, if a plan file is found (`find_active_rc=0`), read its current phase and route accordingly:
 
 | Phase in plan file | Action |
 |--------------------|--------|
-| _(no plan file)_ | Fall through to Step 1 (brainstorming) as normal |
+| _(no plan file / exit 2)_ | Fall through to Step 1 (brainstorming) as normal |
 | `brainstorm` | Fall through to Step 1; brainstorming will resume from the existing plan |
 | `spec` | Skip to **Step 2a** (writing-spec for the next un-specced feature) |
 | `red` | **Slice mode** (trivial / patch / feature profiles): Skip to **Step 2c** (implementing; tests already written for the current feature). **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry, skip directly to **Step 4** (Implementation). |
-| `review` | PR review loop was interrupted mid-fix. Re-invoke the `implementing` skill (Step 2c) to resume the pr-review fix loop for the current feature. |
+| `review` | PR review loop was interrupted mid-fix. Re-invoke the `implementing` skill to resume the pr-review fix loop for the current feature. |
 | `green` | PR review converged; implementation done. Skip directly to **Integration Tests** (all profiles). |
 | `integration` | Skip to **Integration Tests** step (re-run after previous failure) |
 | `done` | Output: "Cycle is already complete for this plan." Stop. |

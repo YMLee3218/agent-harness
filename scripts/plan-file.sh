@@ -831,13 +831,13 @@ cmd_gc_events() {
       next
     }
     in_section {
-      if (/\[BLOCKED/ || /\[STOP-BLOCKED/ || /\[DEFERRED-ERROR/ || /\[CONVERGED/ || /\[FIRST-TURN/) {
+      if (/\[BLOCKED/ || /\[STOP-BLOCKED/ || /\[DEFERRED-ERROR/ || /\[CONVERGED/ || /\[FIRST-TURN/ || /\[CONFIRMED-FIRST/ || /\[AUTO-APPROVED-FIRST/) {
         kept[++kept_count] = $0
       } else if (/\[SESSION-END/) {
         last_session_end = $0
       } else if (/\[POST-COMPACT/) {
         last_post_compact = $0
-      } else if (/\[(PRE-COMPACT|STOPFAIL|TOOL-FAIL|PERMISSION-DENIED)/) {
+      } else if (/\[(PRE-COMPACT|STOPFAIL|TOOL-FAIL|PERMISSION-DENIED|AUTO-APPROVED-PLAN|AUTO-APPROVED-TASKLIST|AUTO-APPROVED-CATEGORIZED|AUTO-APPROVED-DECIDED)/) {
         # Discard machine-generated audit markers
       } else if (/^[[:space:]]*$/) {
         # Discard blank lines; spacing re-added on flush
