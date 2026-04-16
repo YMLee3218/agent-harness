@@ -54,7 +54,7 @@ The loop terminates on **2 consecutive PASSes** (convergence), not on a single P
 
 `plan-file.sh record-verdict` (and `append-review-verdict` for pr-review) automatically writes markers to `## Open Questions`. The skill reads these markers after each run and branches accordingly.
 
-### Markers written by the script
+### Convergence markers in ## Open Questions
 
 | Marker | Condition | Skill action |
 |--------|-----------|--------------|
@@ -64,7 +64,7 @@ The loop terminates on **2 consecutive PASSes** (convergence), not on a single P
 | `[BLOCKED-CATEGORY] {agent}` | Two consecutive FAILs with same category (agent-scoped, phase-independent) | Stop — fix root cause first |
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | LLM cannot determine fix direction | Stop — human decision required |
 | `[BLOCKED-PARSE] {agent}` | Critic output missing verdict markers two consecutive times | Stop — investigate agent output format before retrying |
-| `[CONFIRMED-FIRST] {agent}` | Interactive: user confirmed FIRST-TURN; session resumed before re-run | Re-run automatically (skip re-confirmation) |
+| `[CONFIRMED-FIRST] {agent}` | Interactive: user confirmed FIRST-TURN; written before first re-run so resumed sessions can skip re-confirmation (skill-written via append-note) | Re-run automatically (skip re-confirmation) |
 | `[AUTO-APPROVED-FIRST] {agent}` | Non-interactive mode: `[FIRST-TURN]` auto-approved | Log only — re-run automatically |
 | `[AUTO-APPROVED-PLAN] {skill}: {note}` | Non-interactive mode: `ExitPlanMode` skipped, plan auto-approved | Log only — proceed to write step |
 | `[AUTO-APPROVED-TASKLIST] implementing: {note}` | Non-interactive mode: implementation task list auto-approved in `implementing` skill | Log only — proceed to task execution |
@@ -134,6 +134,8 @@ The `SubagentStart` hook automatically calls `plan-file.sh record-critic-start` 
 After `record-verdict` (or `append-review-verdict`) returns:
 
 1. Read `## Open Questions` for this agent's markers (priority order above).
+   If any `[BLOCKED-*]` marker is present for this agent — stop immediately
+   (BLOCKED states take precedence over convergence even on a PASS run; do not continue to steps 2–6).
 2. If `[CONVERGED]` is present → proceed to the next step.
 3. If `[CONFIRMED-FIRST]` is present (and no `[CONVERGED]`) → re-run automatically (user confirmed in a previous session).
 4. If `[AUTO-APPROVED-FIRST]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`) → re-run automatically (non-interactive FIRST-TURN was already approved in a prior session).

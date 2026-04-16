@@ -39,7 +39,7 @@ Transition: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "
 
 Parallel features: use separate git worktrees or pin `CLAUDE_PLAN_FILE`.
 
-Critic/review loop convergence markers in `## Open Questions`: `[FIRST-TURN]`, `[CONFIRMED-FIRST]`, `[CONVERGED]`, `[BLOCKED-CEILING]`, `[BLOCKED-AMBIGUOUS]`, `[BLOCKED-CATEGORY]`, `[BLOCKED-PARSE]`. Full policy: `reference/critic-loop.md` §Loop convergence.
+Critic/review loop convergence markers in `## Open Questions`: `[FIRST-TURN]`, `[CONFIRMED-FIRST]`, `[AUTO-APPROVED-FIRST]`, `[CONVERGED]`, `[BLOCKED-CEILING]`, `[BLOCKED-AMBIGUOUS]`, `[BLOCKED-CATEGORY]`, `[BLOCKED-PARSE]`. Full policy: `reference/critic-loop.md` §Loop convergence.
 
 # Context continuity
 
