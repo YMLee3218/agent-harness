@@ -2,7 +2,11 @@
 
 Convergence-based protocol used by every phase-gate critic (critic-spec, critic-test, critic-code) and the pr-review step.
 
-> **Brainstorm exception** — `critic-feature` (used in the brainstorming phase) is intentionally excluded from this protocol. It uses a simpler max-2 iteration guard; see `@skills/brainstorming/SKILL.md §Step 4 — Brainstorm exception`. The convergence and ceiling markers below do not apply to `critic-feature` runs.
+> **Brainstorm exception** — `critic-feature` is intentionally excluded from this
+> protocol. Brainstorming output is human-reviewed before any code is written, so
+> LLM convergence guarantees are unnecessary; two iterations are sufficient to catch
+> obvious classification errors without risking an infinite loop on subjective
+> decomposition choices. See `@skills/brainstorming/SKILL.md §Step 4`.
 
 ## Finding labels and categories
 
@@ -64,8 +68,8 @@ The loop terminates on **2 consecutive PASSes** (convergence), not on a single P
 | `[BLOCKED-CATEGORY] {agent}` | Two consecutive FAILs with same category (agent-scoped, phase-independent) | Stop — fix root cause first |
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | LLM cannot determine fix direction | Stop — human decision required |
 | `[BLOCKED-PARSE] {agent}` | Critic output missing verdict markers two consecutive times | Stop — investigate agent output format before retrying |
-| `[CONFIRMED-FIRST] {agent}` | Interactive: user confirmed FIRST-TURN; written before first re-run so resumed sessions can skip re-confirmation (skill-written via append-note) | Re-run automatically (skip re-confirmation) |
-| `[AUTO-APPROVED-FIRST] {agent}` | Non-interactive mode: `[FIRST-TURN]` auto-approved | Log only — re-run automatically |
+| `[CONFIRMED-FIRST] {agent}` | Interactive: user confirmed FIRST-TURN; skill writes this marker (via append-note) after user confirms and before re-running, so a resumed session can skip re-confirmation | Re-run automatically (skip re-confirmation) |
+| `[AUTO-APPROVED-FIRST] {agent}` | Non-interactive mode: `[FIRST-TURN]` auto-approved | Re-run automatically (FIRST-TURN auto-approved in prior non-interactive session) |
 | `[AUTO-APPROVED-PLAN] {skill}: {note}` | Non-interactive mode: `ExitPlanMode` skipped, plan auto-approved | Log only — proceed to write step |
 | `[AUTO-APPROVED-TASKLIST] implementing: {note}` | Non-interactive mode: implementation task list auto-approved in `implementing` skill | Log only — proceed to task execution |
 | `[AUTO-CATEGORIZED] {agent}: {summary} → {category}` | Non-interactive mode: pr-review FAIL category inferred and fix applied automatically | Log only — re-run automatically |
@@ -134,14 +138,14 @@ The `SubagentStart` hook automatically calls `plan-file.sh record-critic-start` 
 After `record-verdict` (or `append-review-verdict`) returns:
 
 1. Read `## Open Questions` for this agent's markers (priority order above).
-   If any `[BLOCKED-*]` marker is present for this agent — stop immediately
-   (BLOCKED states take precedence over convergence even on a PASS run; do not continue to steps 2–6).
-2. If `[CONVERGED]` is present → proceed to the next step.
-3. If `[CONFIRMED-FIRST]` is present (and no `[CONVERGED]`) → re-run automatically (user confirmed in a previous session).
-4. If `[AUTO-APPROVED-FIRST]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`) → re-run automatically (non-interactive FIRST-TURN was already approved in a prior session).
-5. If `[FIRST-TURN]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`, no `[AUTO-APPROVED-FIRST]`) → ask user (interactive), then re-run. (Non-interactive: see §Non-interactive mode.)
+2. If any `[BLOCKED-*]` marker is present for this agent — stop immediately
+   (BLOCKED states take precedence over convergence even on a PASS run; do not continue to steps 3–7).
+3. If `[CONVERGED]` is present → proceed to the next step.
+4. If `[CONFIRMED-FIRST]` is present (and no `[CONVERGED]`) → re-run automatically (user confirmed in a previous session).
+5. If `[AUTO-APPROVED-FIRST]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`) → re-run automatically (non-interactive FIRST-TURN was already approved in a prior session).
+6. If `[FIRST-TURN]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`, no `[AUTO-APPROVED-FIRST]`) → ask user (interactive), then re-run. (Non-interactive: see §Non-interactive mode.)
    (Interactive: after the user confirms, append `[CONFIRMED-FIRST] {agent}` to `## Open Questions` before re-running, so a resumed session can distinguish a pending FIRST-TURN from an already-handled one.)
-6. Otherwise (PASS but no convergence yet) → re-run automatically.
+7. Otherwise (PASS but no convergence yet) → re-run automatically.
 
 ## On FAIL
 
