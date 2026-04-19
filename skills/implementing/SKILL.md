@@ -105,9 +105,7 @@ Pass `CLAUDE_PLAN_FILE` to each coder via the prompt so it can call `plan-file.s
 
 Determine each task's layer by checking its target path per `@reference/layers.md §Layers`.
 
-Spawn per task type — select the appropriate prompt below. Do not pass the full plan or other tasks' state to subagents.
-
-**Normal** (spec + failing tests exist):
+Do not pass the full plan or other tasks' state to subagents.
 
 ```
 Agent(
@@ -118,30 +116,12 @@ Agent(
            Target layer: [LAYER]
            Files: [paths]
            Phase: implement  ← do NOT modify any test file
-           Read-only paths (test files): [test file path(s)]
-           Failing test: [test code]
+           Read-only paths (test files): [test file path(s)]    ← omit for trivial profile
+           Failing test: [test code]                            ← omit for trivial profile
            Test command: [command from project CLAUDE.md]
-           Spec: [spec path]
+           Spec: [spec path]                                    ← omit for trivial profile
            CLAUDE_PLAN_FILE: [absolute path to plans/{slug}.md]
-           Verification policy: verify external APIs via context7 before first use."
-)
-```
-
-**Trivial** (no spec, no failing test — trivial profile only):
-
-```
-Agent(
-  subagent_type: "coder",
-  isolation: "worktree",
-  prompt: "Task: [goal]
-           Task ID: task-{N}
-           Target layer: [LAYER]
-           Files: [paths]
-           Phase: implement  ← do NOT modify any test file
-           Trivial change — no failing test; make the minimal edit described in Task above. Test command must still pass after your change.
-           Test command: [command from project CLAUDE.md]
-           CLAUDE_PLAN_FILE: [absolute path to plans/{slug}.md]
-           Verification policy: verify external APIs via context7 before first use."
+           [Trivial profile only: no failing test — make the minimal edit described in Task above; test command must still pass]"
 )
 ```
 
