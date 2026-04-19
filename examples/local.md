@@ -2,7 +2,7 @@
 INSTRUCTIONS FOR USE:
 1. Copy this file to .claude/local.md
 2. Fill in each section; delete sections that don't apply
-3. Commit .claude/local.md to your project repo (do NOT gitignore it)
+3. Add .claude/local.md to .gitignore (contains machine-local paths; builder repo only: see INSTALL.md for subtree rationale)
 
 This file is imported at the top of .claude/CLAUDE.md via @local.md.
 It provides project-specific context: language version, framework,

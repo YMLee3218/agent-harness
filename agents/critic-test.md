@@ -1,14 +1,12 @@
 ---
 name: critic-test
 description: >
-  Reviews failing tests for scenario coverage and correct mocking levels before implementation begins. Run after writing-tests completes, before implementing starts.
-  Invoked only by the critic-test skill. Do not auto-trigger.
-tools: Read, Glob, Bash
+  Reviews failing tests for scenario coverage and correct mocking levels.
+  Invoked by critic-test skill only.
 disallowedTools: Write, Edit, NotebookEdit
 model: sonnet
 maxTurns: 5
-effort: high
 color: yellow
 ---
 
-@reference/critic-test-body.md
+Preamble: @reference/critics.md

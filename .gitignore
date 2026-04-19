@@ -2,3 +2,12 @@
 *.state.json.XXXXXX
 *.md.XXXXXX
 *.lock
+
+# Tool caches — never committed
+.ruff_cache/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+
+# User-local Claude Code overrides (contain personal paths/tokens — never commit)
+.claude/settings.local.json

@@ -1,6 +1,8 @@
 # BDD Scenario Templates
 
-Reference for writing-spec and critic-spec. One `Feature:` per file. Use `Scenario Outline` for the same flow with different values.
+Used by `skills/writing-spec/SKILL.md §Step 3` and reviewed by `skills/critic-spec/SKILL.md`.
+
+One `Feature:` per file. Use `Scenario Outline` for the same flow with different values.
 
 ## Basic scenario
 
@@ -43,11 +45,3 @@ Every `Scenario Outline` Examples table must include boundaries applicable to th
 | String | empty string (`""`), max-length string |
 | Nullable / optional | `null` / `None` / absent |
 | Boolean | `true`, `false` |
-
-## Rules
-
-- One `Feature:` block per file
-- Every `Scenario Outline` must have `Examples:`
-- No technology names (no DB engines, HTTP libraries, framework names)
-- No implementation details in Given/When/Then steps
-- Domain specs: no DB, HTTP, queue, or file system references

@@ -12,4 +12,88 @@ effort: high
 paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 ---
 
-@reference/critic-code-body.md
+@reference/critics.md
+
+You are an adversarial reviewer. Your goal is to find where this implementation violates the spec. Assume the code is wrong until proven otherwise.
+
+Read the spec.md and docs/*.md at the paths provided.
+
+## Angle 1 — Spec compliance
+
+For every `Scenario` in spec.md:
+
+1. `Given` condition handled correctly?
+2. `When` action has a corresponding code path?
+3. `Then` outcome produced reliably?
+4. `Scenario Outline` — all `Examples` rows including boundaries handled?
+5. Failure scenarios — error paths implemented and tested?
+6. Large feature: implementation calls domain directly instead of composing small features? (→ `[CRITICAL]`)
+
+Also compare against `docs/*.md`. If implementation or spec contradicts documented domain knowledge, report `[DOCS CONTRADICTION]`.
+
+Test coverage/mocking: cited from `@skills/critic-test`; critic-code does not re-check.
+9. **Unverified API usage**: code imports or calls an external library method not already used in the project? Was it verified via context7 before first use? (→ `[UNVERIFIED CLAIM]`)
+10. **Hardcoded external facts**: code contains hardcoded URLs, model names, version strings, or magic numbers that represent external facts? Are they sourced from `docs/*.md` or config? (→ `[WARN]`)
+
+## Angle 2 — Layer boundary
+
+Detect project language: check for `package.json` (→ `ts`), `pyproject.toml`/`requirements.txt` (→ `python`), `go.mod` (→ `go`), `Cargo.toml` (→ `rust`), `pom.xml`/`build.gradle` + `*.kt` (→ `kotlin`), `pom.xml`/`build.gradle` (→ `java`), `*.csproj` (→ `cs`), `Gemfile` (→ `rb`). Use project CLAUDE.md Tech Stack if present.
+
+Run the language-specific boundary checker:
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/run.sh" {language} <domain_root> <infra_root> <features_root>
+```
+
+Where `{language}` is one of: `python`, `go`, `ts`, `java`, `kotlin`, `rb`, `cs`, `rust`.
+
+If no language dispatcher matches, run the generic fallback:
+```bash
+# domain/ must not import infrastructure/ or features/
+grep -rn "infrastructure\|features" <domain_root>/ 2>/dev/null | grep -v "^Binary"
+# infrastructure/ must not import features/
+grep -rn "features" <infra_root>/ 2>/dev/null | grep -v "^Binary"
+```
+
+For each hit, decide violation vs. acceptable pattern per `@reference/layers.md §Acceptable import exceptions`. When in doubt, emit `[WARN]` rather than `[CRITICAL]`.
+
+## Output format
+
+```
+## critic-code Review
+
+### Angle 1 — Spec Compliance
+[CRITICAL] Scenario "{name}": {spec vs actual}
+  File: {path}:{line}
+  Fix: {action}
+[DOCS CONTRADICTION] {what implementation/spec says} vs {what docs/*.md says}
+  Files: {path} ↔ {docs path}
+[WARN] {advisory}
+None: "All scenarios correctly implemented"
+
+### Angle 2 — Layer Boundary
+[CRITICAL] {file}:{line} — {violation}
+  Fix: {action}
+[WARN] {file}:{line} — {potential violation}
+None: "No layer boundary violations"
+```
+
+Verdict & blocking rules: @reference/critics.md §Verdict format. On FAIL blocks the next task.
+
+## Calibration examples
+
+### PASS — spec-compliant, clean layers
+Every Scenario Given/When/Then is implemented. Layer checker (`ts.sh`) reports zero forbidden imports. Failure paths return errors matching spec. No `[DOCS CONTRADICTION]`.
+
+### FAIL — domain imports infrastructure
+`ts.sh` finds `import { db } from '../infrastructure/database'` in `src/domain/todo.ts:3`.
+
+```
+### Angle 2 — Layer Boundary
+[CRITICAL] src/domain/todo.ts:3 — domain imports infrastructure (db)
+  Fix: extract DB call to infrastructure layer; domain depends on a repository interface only
+
+### Verdict
+FAIL — domain imports infrastructure
+```
+(Verdict envelope format: `@reference/critics.md §Verdict format`; category: `LAYER_VIOLATION`)

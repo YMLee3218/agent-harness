@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+# Generate a language-specific patterns conf file for critic-code/run.sh.
+# Usage: bash patterns.template <lang>
+# Output: shell variable assignments suitable for sourcing by run.sh.
+# Called by the initializing-project skill to create patterns/{lang}.conf.
+
+lang="${1:-}"
+case "$lang" in
+  python)
+    cat <<'EOF'
+PREFERRED_TOOL_CMD="ruff"
+PREFERRED_TOOL_LABEL="ruff --select TID (banned-api / restricted-import violations)"
+PREFERRED_TOOL_FN="run_ruff"
+
+DOMAIN_PATTERNS=(
+  -e "^from[[:space:]].*infrastructure"
+  -e "^import[[:space:]].*infrastructure"
+  -e "^from[[:space:]].*features"
+  -e "^import[[:space:]].*features"
+)
+STDLIB_PATTERNS=(
+  -e "^import[[:space:]]*requests"
+  -e "^from[[:space:]]*requests"
+  -e "^import[[:space:]]*httpx"
+  -e "^from[[:space:]]*httpx"
+  -e "^import[[:space:]]*sqlalchemy"
+  -e "^from[[:space:]]*sqlalchemy"
+  -e "^import[[:space:]]*psycopg"
+  -e "^from[[:space:]]*psycopg"
+  -e "^import[[:space:]]*pymongo"
+  -e "^from[[:space:]]*pymongo"
+  -e "^import[[:space:]]*aiohttp"
+  -e "^from[[:space:]]*aiohttp"
+  -e "^import[[:space:]]*boto3"
+  -e "^from[[:space:]]*boto3"
+  -e "^import[[:space:]]*aiobotocore"
+  -e "^from[[:space:]]*aiobotocore"
+  -e "^import[[:space:]]*asyncpg"
+  -e "^from[[:space:]]*asyncpg"
+  -e "^import[[:space:]]*motor"
+  -e "^from[[:space:]]*motor"
+  -e "^import[[:space:]]*databases"
+  -e "^from[[:space:]]*databases"
+  -e "^import[[:space:]]*redis"
+  -e "^from[[:space:]]*redis"
+)
+INFRA_PATTERNS=(
+  -e "^from[[:space:]].*features"
+  -e "^import[[:space:]].*features"
+)
+FEATURE_PATTERNS=(
+  -e "^from[[:space:]].*domain"
+  -e "^import[[:space:]].*domain"
+)
+EOF
+    ;;
+  ts)
+    cat <<'EOF'
+PREFERRED_TOOL_CMD="depcruise"
+PREFERRED_TOOL_LABEL="dependency-cruiser violations"
+PREFERRED_TOOL_FN="run_depcruise"
+
+DOMAIN_PATTERNS=(
+  -e "from[[:space:]]*['\"].*infrastructure"
+  -e "require[[:space:]]*(['\"].*infrastructure"
+  -e "from[[:space:]]*['\"].*features"
+  -e "require[[:space:]]*(['\"].*features"
+)
+STDLIB_PATTERNS=(
+  -e "fetch("
+  -e "axios"
+  -e "prisma"
+  -e "mongoose"
+  -e "pg\."
+  -e "redis"
+  -e "http\."
+  -e "https\."
+  -e "knex"
+  -e "drizzle"
+  -e "kysely"
+  -e "typeorm"
+  -e "sequelize"
+)
+INFRA_PATTERNS=(
+  -e "from[[:space:]]*['\"].*features"
+  -e "require[[:space:]]*(['\"].*features"
+)
+FEATURE_PATTERNS=(
+  -e "from[[:space:]]*['\"].*domain"
+  -e "require[[:space:]]*(['\"].*domain"
+)
+EOF
+    ;;
+  go)
+    cat <<'EOF'
+DOMAIN_PATTERNS=(
+  -e $'\t"[^"]*infrastructure'
+  -e $'\t"[^"]*features'
+  -e '^import[[:space:]]*"[^"]*infrastructure'
+  -e '^import[[:space:]]*"[^"]*features'
+)
+STDLIB_PATTERNS=(
+  -e '"net/http"'
+  -e '"database/sql"'
+  -e 'gorm\.'
+  -e 'mongo-driver'
+  -e '"github.com/go-redis'
+  -e '"github.com/redis/go-redis'
+  -e '"cloud.google.com'
+  -e '"github.com/aws'
+  -e '"github.com/jackc/pgx'
+  -e '"go.mongodb.org'
+)
+INFRA_PATTERNS=(
+  -e $'\t"[^"]*features'
+  -e '^import[[:space:]]*"[^"]*features'
+)
+FEATURE_PATTERNS=(
+  -e $'\t"[^"]*domain'
+  -e '^import[[:space:]]*"[^"]*domain'
+)
+EOF
+    ;;
+  rust)
+    cat <<'EOF'
+DOMAIN_PATTERNS=(
+  -e "[[:space:]]*use[[:space:]].*::infrastructure"
+  -e "[[:space:]]*use[[:space:]].*::features"
+  -e "^[[:space:]]*pub[[:space:]]*use[[:space:]].*::infrastructure"
+  -e "^[[:space:]]*pub[[:space:]]*use[[:space:]].*::features"
+  -e "^[[:space:]]*mod[[:space:]]*infrastructure"
+  -e "^[[:space:]]*mod[[:space:]]*features"
+  -e "crate::infrastructure"
+  -e "crate::features"
+)
+STDLIB_PATTERNS=(
+  -e "[[:space:]]*use[[:space:]]*reqwest"
+  -e "[[:space:]]*use[[:space:]]*sqlx"
+  -e "[[:space:]]*use[[:space:]]*tokio_postgres"
+  -e "[[:space:]]*use[[:space:]]*mongodb"
+  -e "[[:space:]]*use[[:space:]]*redis::"
+  -e "[[:space:]]*use[[:space:]]*aws_sdk"
+  -e "[[:space:]]*use[[:space:]]*sea_orm"
+  -e "[[:space:]]*use[[:space:]]*diesel"
+)
+INFRA_PATTERNS=(
+  -e "[[:space:]]*use[[:space:]].*::features"
+  -e "^[[:space:]]*pub[[:space:]]*use[[:space:]].*::features"
+  -e "^[[:space:]]*mod[[:space:]]*features"
+  -e "crate::features"
+)
+FEATURE_PATTERNS=(
+  -e "[[:space:]]*use[[:space:]].*::domain"
+  -e "^[[:space:]]*pub[[:space:]]*use[[:space:]].*::domain"
+  -e "^[[:space:]]*mod[[:space:]]*domain"
+  -e "crate::domain"
+)
+EOF
+    ;;
+  java)
+    cat <<'EOF'
+DOMAIN_PATTERNS=(
+  -e "^[[:space:]]*import[[:space:]].*\.infrastructure\."
+  -e "^[[:space:]]*import[[:space:]].*\.features\."
+)
+STDLIB_PATTERNS=(
+  -e "^[[:space:]]*import[[:space:]]*java\.net\."
+  -e "^[[:space:]]*import[[:space:]]*java\.sql\."
+  -e "^[[:space:]]*import[[:space:]]*javax\.sql\."
+  -e "^[[:space:]]*import[[:space:]]*jakarta\.persistence\."
+  -e "^[[:space:]]*import[[:space:]]*org\.springframework\.web\."
+  -e "^[[:space:]]*import[[:space:]]*org\.springframework\.data\."
+  -e "^[[:space:]]*import[[:space:]]*org\.springframework\.jdbc\."
+  -e "^[[:space:]]*import[[:space:]]*io\.r2dbc\."
+  -e "^[[:space:]]*import[[:space:]]*com\.mongodb\."
+  -e "^[[:space:]]*import[[:space:]]*redis\.clients\."
+)
+INFRA_PATTERNS=(-e "^[[:space:]]*import[[:space:]].*\.features\.")
+FEATURE_PATTERNS=(-e "^[[:space:]]*import[[:space:]].*\.domain\.")
+EOF
+    ;;
+  kotlin)
+    cat <<'EOF'
+DOMAIN_PATTERNS=(
+  -e "^[[:space:]]*import[[:space:]].*\.infrastructure\."
+  -e "^[[:space:]]*import[[:space:]].*\.features\."
+)
+STDLIB_PATTERNS=(
+  -e "^[[:space:]]*import[[:space:]]*java\.net\."
+  -e "^[[:space:]]*import[[:space:]]*java\.sql\."
+  -e "^[[:space:]]*import[[:space:]]*javax\.sql\."
+  -e "^[[:space:]]*import[[:space:]]*jakarta\.persistence\."
+  -e "^[[:space:]]*import[[:space:]]*org\.springframework\.web\."
+  -e "^[[:space:]]*import[[:space:]]*org\.springframework\.data\."
+  -e "^[[:space:]]*import[[:space:]]*org\.springframework\.jdbc\."
+  -e "^[[:space:]]*import[[:space:]]*io\.r2dbc\."
+  -e "^[[:space:]]*import[[:space:]]*com\.mongodb\."
+  -e "^[[:space:]]*import[[:space:]]*redis\.clients\."
+  -e "^[[:space:]]*import[[:space:]]*io\.ktor\."
+  -e "^[[:space:]]*import[[:space:]]*org\.jetbrains\.exposed\."
+  -e "^[[:space:]]*import[[:space:]]*okhttp3\."
+  -e "^[[:space:]]*import[[:space:]]*retrofit2\."
+)
+INFRA_PATTERNS=(-e "^[[:space:]]*import[[:space:]].*\.features\.")
+FEATURE_PATTERNS=(-e "^[[:space:]]*import[[:space:]].*\.domain\.")
+EOF
+    ;;
+  cs)
+    cat <<'EOF'
+DOMAIN_PATTERNS=(-e "^using.*\.Infrastructure" -e "^using.*\.Features")
+STDLIB_PATTERNS=(
+  -e "^using System\.Net\."
+  -e "^using Microsoft\.EntityFrameworkCore"
+  -e "^using Dapper"
+  -e "^using StackExchange\.Redis"
+  -e "^using RestSharp"
+  -e "^using Refit"
+  -e "^using MongoDB\."
+  -e "^using Azure\."
+  -e "^using Amazon\."
+)
+INFRA_PATTERNS=(-e "^using.*\.Features")
+FEATURE_PATTERNS=(-e "^using.*\.Domain")
+EOF
+    ;;
+  rb)
+    cat <<'EOF'
+DOMAIN_PATTERNS=(
+  -e "^require[[:space:]].*infrastructure"
+  -e "^require_relative[[:space:]].*infrastructure"
+  -e "^require[[:space:]].*features"
+  -e "^require_relative[[:space:]].*features"
+)
+STDLIB_PATTERNS=(
+  -e "Net::HTTP"
+  -e "Faraday"
+  -e "HTTParty"
+  -e "ActiveRecord"
+  -e "Sequel"
+  -e "Redis"
+  -e "Mongo"
+  -e "Aws::"
+)
+INFRA_PATTERNS=(
+  -e "^require[[:space:]].*features"
+  -e "^require_relative[[:space:]].*features"
+)
+FEATURE_PATTERNS=(
+  -e "^require[[:space:]].*domain"
+  -e "^require_relative[[:space:]].*domain"
+)
+EOF
+    ;;
+  *)
+    echo "[patterns.template] unknown language: '${lang}'. Valid: python ts go rust java kotlin cs rb" >&2
+    exit 1
+    ;;
+esac

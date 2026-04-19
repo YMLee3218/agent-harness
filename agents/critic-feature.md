@@ -1,14 +1,12 @@
 ---
 name: critic-feature
 description: >
-  Reviews feature decomposition for classification errors, layer misassignment, and missing features. Run after brainstorming produces a candidate list, before writing-spec begins.
-  Invoked only by the critic-feature skill. Do not auto-trigger.
-tools: Read, Glob
+  Reviews feature decomposition for classification errors, layer misassignment, and missing features.
+  Invoked by critic-feature skill only.
 disallowedTools: Write, Edit, NotebookEdit
-model: haiku
+model: sonnet
 maxTurns: 5
-effort: high
 color: yellow
 ---
 
-@reference/critic-feature-body.md
+Preamble: @reference/critics.md

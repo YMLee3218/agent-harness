@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 # Stop hook: verify unit tests pass before an autonomous run completes.
 #
-# Active when CLAUDE_NONINTERACTIVE=1 and the active plan phase is green, integration, or done.
+# Active when CLAUDE_NONINTERACTIVE=1 and the active plan phase is green or integration.
 # In interactive mode (CLAUDE_NONINTERACTIVE unset/0), exits 0 immediately to avoid
 # running tests after every response.
 #
-# Phase behaviour:
-#   green       — unit tests must pass (implementation just finished)
-#   integration — unit tests must pass (integration loop may modify source)
-#   done        — unit tests must pass (final integrity check)
+# Phase coverage: green and integration only — see phase_runs_stop_check in phase-rules.sh.
+# done is excluded: session already closed, no test run needed.
 #
-# Exit 2 = block Claude from stopping (tests failing — must be fixed first)
-# Exit 0 = allow stop
+# Exit codes: 0=allow stop, 2=block stop (stderr fed back to Claude as context),
+# 1/other=non-blocking error. Always use exit 2 (never exit 1) to prevent stop.
 
 [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] || exit 0
 
@@ -21,8 +19,13 @@
 # would loop forever if tests keep failing.
 _payload=$(cat)
 if ! command -v jq >/dev/null 2>&1; then
-  # jq is required for stop_hook_active detection. Without it, we cannot detect
-  # a second-stop event, so allow the stop to prevent an undetectable infinite loop.
+  # jq is required for stop_hook_active detection and test verification.
+  # In non-interactive mode, block the stop so the pipeline doesn't silently skip verification.
+  # In interactive mode, bypass to avoid blocking the user with an undetectable loop.
+  if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ]; then
+    echo "[STOP-BLOCKED] jq required for autonomous stop-check — install jq and re-run" >&2
+    exit 2
+  fi
   echo "[stop-check] jq not found — bypassing stop check to avoid undetectable loop (install jq to enable test verification)" >&2
   exit 0
 fi
@@ -35,40 +38,33 @@ fi
 
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 
-# Locate active plan file
-if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
-  active_plan="$CLAUDE_PLAN_FILE"
-else
-  active_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null)
-  rc=$?
-  if [ $rc -eq 3 ]; then
-    echo "BLOCKED [stop-check]: multiple active plan files — set CLAUDE_PLAN_FILE to disambiguate" >&2
-    exit 2
-  elif [ $rc -ne 0 ]; then
-    exit 0
-  fi
+# Locate active plan file; CLAUDE_PLAN_FILE explicitly set but missing → skip cleanly.
+if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ ! -f "$CLAUDE_PLAN_FILE" ]; then
+  echo "[stop-check] CLAUDE_PLAN_FILE is set but file not found: ${CLAUDE_PLAN_FILE} — skipping" >&2
+  exit 0
 fi
 
-[ -z "$active_plan" ] && exit 0
+BLOCKED_LABEL="stop-check"
+# shellcheck source=lib/active-plan.sh
+source "$(dirname "$0")/lib/active-plan.sh"
+resolve_active_plan_and_phase active_plan phase || exit 0
 
-# Enforce in green, integration, and done phases only (unit tests must pass in all three).
-# All other phases — brainstorm, spec, red, implement, review — are excluded.
-# review is excluded because it is the pr-review FAIL recovery phase: source modifications
-# are allowed mid-cycle and tests may temporarily be broken.
-# implement is excluded because coder subagents write source to satisfy failing tests.
-# The phase transitions to green (and triggers enforcement) only after [CONVERGED] {phase}/pr-review.
-phase=$(bash "$PLAN_FILE_SH" get-phase "$active_plan" 2>/dev/null) || exit 0
-case "$phase" in
-  green|integration|done) ;;
-  *) exit 0 ;;
-esac
+# Enforce in green and integration phases only (unit tests must pass in both).
+# All other phases — brainstorm, spec, red, implement, review, done — are excluded.
+# review is excluded: pr-review FAIL recovery phase; source modifications mid-cycle may break tests.
+# implement is excluded: coder subagents write source to satisfy failing tests.
+# done is excluded: see header comment — session already closed, no test run needed.
+# shellcheck source=phase-policy.sh
+source "$(dirname "$0")/phase-policy.sh"
+phase_runs_stop_check "$phase" || exit 0
 
 # F3 guard: if integration phase and a [BLOCKED] marker for integration tests is
 # already recorded in the plan file, allow the stop without re-running tests.
 # This avoids an infinite Stop-hook block loop when stop_hook_active is unavailable
 # in the Stop payload (plan-file-based self-halt, no dependency on stop_hook_active).
 if [ "$phase" = "integration" ]; then
-  if grep -qF "[BLOCKED-INTEGRATION]" "$active_plan" 2>/dev/null; then
+  if grep -qF "[BLOCKED] integration:" "$active_plan" 2>/dev/null \
+     || grep -qF "[BLOCKED] integration tests failed" "$active_plan" 2>/dev/null; then
     echo "[stop-check] integration [BLOCKED] already recorded — allowing stop (plan-based self-halt)" >&2
     exit 0
   fi
@@ -77,6 +73,12 @@ fi
 # Extract test command from project CLAUDE.md (## Commands → - Test: `cmd` line).
 # Requires CLAUDE_PROJECT_DIR to be set — no PWD fallback to avoid reading the wrong CLAUDE.md.
 if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
+  if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ]; then
+    bash "$PLAN_FILE_SH" record-stop-block "$active_plan" "$phase" \
+      "CLAUDE_PROJECT_DIR unset — cannot locate CLAUDE.md for test command" 2>/dev/null || true
+    echo "[STOP-BLOCKED] CLAUDE_PROJECT_DIR unset in autonomous mode — set CLAUDE_PROJECT_DIR and re-run" >&2
+    exit 2
+  fi
   echo "[stop-check] CLAUDE_PROJECT_DIR not set; skipping test verification" >&2
   exit 0
 fi
@@ -98,13 +100,21 @@ fi
 # or contains angle-bracket placeholders such as <command> (used in examples/local.md template).
 # Use pattern {word} (lowercase letters, digits, underscores, hyphens) to avoid false positives
 # from legitimate brace usage such as pytest --deselect 'tests/{foo}'.
-# NOTE: also check _raw_test_line here — if sed failed to extract test_cmd (e.g. the line had text
-# before the backtick, like the initializing-project placeholder), test_cmd is empty but the raw
-# line still contains placeholder text that should suppress a false BLOCK.
+# NOTE: both _raw_test_line and test_cmd are checked for "initializing-project":
+# if sed failed to extract the backtick command (e.g. the line had prose before the backtick),
+# test_cmd is empty — but _raw_test_line still contains the placeholder text that should
+# suppress a false BLOCK. The test_cmd check is a belt-and-suspenders guard for the case where
+# sed extraction succeeds but the extracted text still contains the placeholder (edge case).
 if printf '%s' "$_raw_test_line" | grep -q "initializing-project" \
    || printf '%s' "$test_cmd" | grep -q "initializing-project" \
    || printf '%s' "$test_cmd" | grep -qE '\{[a-z0-9_-]+\}' \
    || printf '%s' "$test_cmd" | grep -qE '<[a-z0-9_-]+>'; then
+  if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] && [ "$claude_md_exists" -eq 1 ]; then
+    bash "$PLAN_FILE_SH" record-stop-block "$active_plan" "$phase" \
+      "Test command is a placeholder (run /initializing-project to fill in)" 2>/dev/null || true
+    echo "BLOCKED [stop-check]: test command is a placeholder; autonomous run cannot verify tests. Run /initializing-project or set the Test line in CLAUDE.md (phase=${phase})." >&2
+    exit 2
+  fi
   echo "[stop-check] test command is a placeholder; skipping test verification" >&2
   exit 0
 fi
@@ -129,14 +139,31 @@ fi
 # boundary explicit; the command string itself is not sanitised further.
 # Timeout: default 600s max to prevent stalled suites from blocking the session indefinitely.
 # Override via CLAUDE_STOP_CHECK_TIMEOUT env var (e.g. CLAUDE_STOP_CHECK_TIMEOUT=1200 for large suites).
+# macOS ships without GNU coreutils by default; check for gtimeout (Homebrew coreutils) or timeout.
 _timeout="${CLAUDE_STOP_CHECK_TIMEOUT:-600}"
+_timeout_cmd=""
+if command -v timeout >/dev/null 2>&1; then
+  _timeout_cmd="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  _timeout_cmd="gtimeout"
+fi
+
 echo "[stop-check] Verifying tests pass before stop (phase=${phase}, CLAUDE_NONINTERACTIVE=1)..." >&2
-timeout "$_timeout" bash -c "$test_cmd" >/dev/null 2>&1
+if [ -n "$_timeout_cmd" ]; then
+  "$_timeout_cmd" "$_timeout" bash -c "$test_cmd" >/dev/null 2>&1
+elif [ "${_timeout}" -gt 0 ] 2>/dev/null; then
+  bash "$PLAN_FILE_SH" append-note "$active_plan" \
+    "[STOP-BLOCKED] stop-check.sh: no timeout binary — install coreutils/gnu-timeout (brew install coreutils) or set CLAUDE_STOP_CHECK_TIMEOUT=0 to disable the cap" 2>/dev/null || true
+  echo "[STOP-BLOCKED] stop-check.sh: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_STOP_CHECK_TIMEOUT=0 to disable the cap" >&2
+  exit 2
+else
+  bash -c "$test_cmd" >/dev/null 2>&1
+fi
 _test_exit=$?
 if [ $_test_exit -eq 0 ]; then
   echo "[stop-check] Tests passed — stop allowed." >&2
   exit 0
-elif [ $_test_exit -eq 124 ]; then
+elif [ -n "$_timeout_cmd" ] && [ $_test_exit -eq 124 ]; then
   bash "$PLAN_FILE_SH" record-stop-block "$active_plan" "$phase" \
     "tests timed out after ${_timeout}s — fix hanging test" 2>/dev/null || true
   echo "BLOCKED [stop-check]: tests timed out after ${_timeout}s — fix the hanging test before stopping." >&2

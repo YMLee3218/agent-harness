@@ -10,9 +10,7 @@ export PHASE_GATE_SRC_GLOB="src/domain/*:src/features/*:src/infrastructure/*:app
 export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:*.test.*:*.spec.ts:*.spec.js"
 ```
 
-> **Source of truth for default glob patterns**: `scripts/lib/path-match.sh`. If you change the patterns there, update examples in this file to match.
-
-**Defaults** cover Maven (`src/main/kotlin/`, `src/main/java/`), standard JS/Python (`src/{domain,features,infrastructure}/`), monorepos (`packages/*/src/`, `apps/*/src/`), Go (`internal/`, `cmd/`), Rails (`app/`), Rust (`crates/*/src/`), and generic `lib/`. Set these in `initializing-project` for projects with non-standard layouts.
+> **Source of truth for default glob patterns**: `scripts/lib/path-match.sh`. If you change the patterns there, update examples in this file to match. Override in `initializing-project` for non-standard layouts.
 
 ```bash
 PHASE_GATE_STRICT=1

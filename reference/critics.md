@@ -51,22 +51,17 @@ Convergence-based protocol used by every phase-gate critic (critic-spec, critic-
 
 ## Brainstorm exception
 
-`critic-feature` uses a max-2 iteration guard (not the full convergence protocol): on the second consecutive FAIL, the brainstorming skill appends `[BLOCKED-FINAL] critic-feature failed twice — manual review required` to `## Open Questions` and stops.
-
-**How `critic-feature` differs from other critics**:
-- The SubagentStop hook **does** fire and **does** append the verdict to `## Critic Verdicts` via `plan-verdicts.sh record-verdict` (hook matcher in `settings.json` covers all four critics including `critic-feature`).
-- `[BLOCKED-FINAL]` is emitted by the brainstorming skill (skill-side), not by the hook or script.
-- Phase-scoped convergence markers (`@reference/markers.md §Phase-scoped convergence markers`) and the agent-scoped `[BLOCKED-CATEGORY]` / `[BLOCKED-PARSE]` markers are not emitted for `critic-feature` — the script skips the convergence/ceiling/category machinery for this agent.
+`critic-feature` uses a max-2 iteration guard: on the second consecutive FAIL, the brainstorming skill appends `[BLOCKED] final: critic-feature failed twice — manual review required` to `## Open Questions` and stops. The SubagentStop hook records the verdict normally; convergence/ceiling/category markers are skipped for this agent.
 
 ## Consecutive same-category escalation
 
 `plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, phase-independent). If the same critic emits **two consecutive FAILs with the same category**, the script writes:
 
 ```
-[BLOCKED-CATEGORY] {critic}: category {CATEGORY} failed twice — fix the root cause before retrying
+[BLOCKED] category:{critic}: {CATEGORY} failed twice — fix the root cause before retrying
 ```
 
-to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLOCKED-CATEGORY]` marker and stops. The loop cannot converge when the same structural problem recurs; human review is required.
+to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLOCKED]` marker and stops. The loop cannot converge when the same structural problem recurs; human review is required.
 
 ## Review execution rule (subagent mandate)
 
@@ -87,13 +82,11 @@ The loop terminates on **2 consecutive PASSes** (convergence), not on a single P
 
 ### Convergence markers in ## Open Questions
 
-Full marker registry (scope, emitter, consumer, effect, clear path, written-by, gc): `@reference/markers.md §Critic loop markers`. Phase-scoped vs agent-scoped scope, FIRST-TURN and CONVERGED emission rules: `@reference/markers.md §Phase-scoped convergence markers`.
+Definitions: `@reference/markers.md §Critic loop markers` and `@reference/markers.md §Phase-scoped convergence markers`. Policy: §Skill branching logic below.
 
 #### pr-review asymmetry
 
-The pr-review fix loop (in `skills/implementing/SKILL.md §Step 5`) intentionally omits `[BLOCKED-CATEGORY]` and `[BLOCKED-PARSE]` from its marker table. pr-review failures are categorised by the skill itself (inferred from evidence), not by the category-tracking mechanism used for critics. `[BLOCKED-PARSE]` is not produced by `append-review-verdict`.
-
-Effective pr-review branching order: steps 2 (`[BLOCKED-CATEGORY]`) and 4 (`[BLOCKED-PARSE]`) are skipped — apply §Skill branching logic with steps 1 → 3 → 5 → 6 → 7 → 8 → 10 → 11. Phase-match is required for all `[...] {phase}/pr-review` markers; PASS-only steps (CONFIRMED-FIRST / AUTO-APPROVED-FIRST / FIRST-TURN) skip to FAIL when the latest verdict is FAIL.
+pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 3 → 4–7 → 9 → 10 only.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
@@ -106,44 +99,33 @@ After critic/review run → script records verdict + emits markers
 Skill reads ## Open Questions, checks in priority order:
 
   1. [BLOCKED-CEILING] {phase}/{agent}  → stop (manual review)
-  2. [BLOCKED-CATEGORY] {agent}         → stop (fix root cause)
-  3. [BLOCKED-AMBIGUOUS] {agent}        → stop (human decision)
-  4. [BLOCKED-PARSE] {agent}            → stop (investigate critic output format)
-  5. [CONVERGED] {phase}/{agent}   → proceed to next step
-  6. [CONFIRMED-FIRST] {phase}/{agent}     → re-run automatically (user confirmed in prior session)
-                                             **Only when latest verdict is PASS or PARSE_ERROR.**
-                                             If latest verdict is FAIL, skip to step 11.
-  7. [AUTO-APPROVED-FIRST] {phase}/{agent} → re-run automatically
-                                             (non-interactive: FIRST-TURN auto-approved in prior session)
-                                             **Only when latest verdict is PASS or PARSE_ERROR.**
-                                             If latest verdict is FAIL, skip to step 11.
-  8. [FIRST-TURN] {phase}/{agent}          → confirm with user, then re-run
-                                             (non-interactive: auto-approve + re-run)
-                                             **Only when latest verdict is PASS or PARSE_ERROR.**
-                                             If latest verdict is FAIL, skip to step 11.
-                                             After user confirms, call record-confirmed-first:
-                                               bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" \
-                                                 record-confirmed-first "plans/{slug}.md" {agent}
-  9. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
-                                   → re-run automatically (one retry allowed;
-                                     second consecutive PARSE_ERROR triggers [BLOCKED-PARSE])
-  10. (no terminal marker, PASS) → re-run automatically
-  11. (no terminal marker, FAIL) → LLM determines fix direction:
+  2. [BLOCKED] {any text}               → stop (read reason; fix root cause; clear marker; retry)
+  3. [BLOCKED-AMBIGUOUS] {agent}        → stop (human decision required)
+  4. [CONVERGED] {phase}/{agent}        → proceed to next step
+  5. [CONFIRMED-FIRST] {phase}/{agent}  → re-run automatically (user confirmed in prior session)
+                                          **Only when latest verdict is PASS or PARSE_ERROR.**
+                                          If latest verdict is FAIL, skip to step 9.
+  6. [AUTO-APPROVED-FIRST] {phase}/{agent} → re-run automatically
+                                          (FIRST-TURN auto-approved in prior session)
+                                          **Only when latest verdict is PASS or PARSE_ERROR.**
+                                          If latest verdict is FAIL, skip to step 9.
+  7. [FIRST-TURN] {phase}/{agent}       → auto-approve + re-run
+                                          Call record-auto-approved, then re-run:
+                                            bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" \
+                                              record-auto-approved "plans/{slug}.md" FIRST {agent}
+                                          **Only when latest verdict is PASS or PARSE_ERROR.**
+                                          If latest verdict is FAIL, skip to step 9.
+  8. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
+                                → re-run automatically (one retry allowed;
+                                  second consecutive PARSE_ERROR triggers [BLOCKED] parse:)
+  9. (no terminal marker, PASS) → re-run automatically
+  10. (no terminal marker, FAIL) → LLM determines fix direction:
        - direction is clear → apply fix + re-run
-       - direction is ambiguous → append [BLOCKED-AMBIGUOUS] + stop
-       - [DOCS CONTRADICTION] in critic output → interactive: AskUserQuestion ("docs or code?");
-         non-interactive: append [BLOCKED-AMBIGUOUS] {agent}: DOCS CONTRADICTION — cannot
-         determine whether docs or code is ground truth; human decision required and stop.
+       - direction is ambiguous → append [BLOCKED-AMBIGUOUS] {agent}: {question} + stop
+       - [DOCS CONTRADICTION] in critic output → append [BLOCKED-AMBIGUOUS] {agent}: DOCS
+         CONTRADICTION — cannot determine whether docs or code is ground truth + stop.
          Then follow §DOCS CONTRADICTION cascade.
 ```
-
-## Non-interactive mode
-
-Full non-interactive policy: @reference/non-interactive-mode.md §Critic loop behaviour
-
-## Hook exit codes
-
-`0`=allow stop, `2`=block stop (stderr fed back to Claude as context), `1`/other=non-blocking error. Use `exit 2` (never `exit 1`) to prevent Claude from stopping. Implementation: `scripts/stop-check.sh`.
 
 ---
 
@@ -279,27 +261,27 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 ```
 → re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict`
 
-## Resuming from a BLOCKED-* marker
+## Resuming from a BLOCKED marker
 
-All three (`[BLOCKED-AMBIGUOUS]`, `[BLOCKED-PARSE]`, `[BLOCKED-CATEGORY]`) are agent-scoped and do not clear on phase transition or `reset-milestone`. Rationale and lifecycle: `@reference/markers.md §Implementation notes`.
+`[BLOCKED-AMBIGUOUS]`, `[BLOCKED] category:`, and `[BLOCKED] parse:` are agent-scoped and do not clear on phase transition or `reset-milestone`. Rationale and lifecycle: `@reference/markers.md §Implementation notes`.
 
 ### Root cause per marker
 
-| Marker | What to fix |
-|--------|-------------|
+| Marker prefix | What to fix |
+|---------------|-------------|
 | `[BLOCKED-AMBIGUOUS]` | Resolve the question stated in the marker (update docs, code, or spec). If the fix changes spec or tests, roll back phase first (§Phase Rollback Procedure) before re-running. |
-| `[BLOCKED-PARSE]` | Investigate missing `<!-- verdict: -->` marker (common causes: agent ran out of turns, truncated output, model change). Fix root cause. |
-| `[BLOCKED-CATEGORY]` | Inspect consecutive same-category FAILs in `## Critic Verdicts`; address the structural cause (refactor, spec change, layer fix — not a surface tweak). |
+| `[BLOCKED] parse:` | Investigate missing `<!-- verdict: -->` marker (common causes: agent ran out of turns, truncated output, model change). Fix root cause. |
+| `[BLOCKED] category:` | Inspect consecutive same-category FAILs in `## Critic Verdicts`; address the structural cause (refactor, spec change, layer fix — not a surface tweak). |
 
 ### Clear the marker and re-run
 
-After fixing the root cause, clear the marker:
+After fixing the root cause, clear the marker using the exact text that appears in `## Open Questions`:
 
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-{TYPE}] {agent}"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED] {type}:{agent}"
 ```
 
-Re-run the critic. If streak reset needed (BLOCKED-PARSE or BLOCKED-CATEGORY): `reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED-*]` marker).
+Re-run the critic. If streak reset needed (parse or category block): `reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED]` marker).
 
 ## Phase Rollback Procedure
 
@@ -351,3 +333,60 @@ Set or confirm the correct phase in the plan file using:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" {phase} "{reason}"
 ```
 Only call `transition` when actually changing phase. Do not re-transition to the same phase.
+
+## pr-review fix loop
+
+Called from `skills/implementing/SKILL.md §Step 5` on FAIL.
+
+**Categorisation** — interactive: `AskUserQuestion`; non-interactive: infer from evidence. If ambiguous, append `[BLOCKED-AMBIGUOUS] pr-review: {question}` and stop.
+
+**Fix chains on FAIL** — on first FAIL from `implement`, transition to `review` before fixing; remain in `review` for all subsequent FAILs:
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
+  "first pr-review FAIL"
+```
+
+### Code-only
+
+Issues: naming, duplication, complexity, style, silent failures.
+
+→ Fix code → run tests → apply §Fix-chain finisher (steps 1 and 3; step 2 not needed — already in `review`)
+
+### Spec gap
+
+Issue: unhandled scenario revealed by review.
+
+→ Add scenario to `spec.md` → re-run `Skill("critic-spec")`
+→ Apply §Phase Rollback Procedure: target-phase=`red`, critic=`critic-test`
+→ Write failing test → re-run `Skill("critic-test")`
+→ Advance to `implement`:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
+  "spec gap test written — implementing fix"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" commit-phase "plans/{slug}.md" \
+  "chore(phase): advance to implement — spec gap fix"
+```
+→ Implement → apply §Fix-chain finisher (all 3 steps)
+
+### Docs conflict
+
+Issue: implementation contradicts domain rules.
+
+→ Apply §DOCS CONTRADICTION cascade (all steps including the **During `review` phase** section)
+
+### Fix-chain finisher
+
+1. **(If code changed)** Reset critic-code milestone and re-run:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
+   ```
+   → `Skill("critic-code")` (follow §Skill branching logic until `[CONVERGED]`)
+
+2. **(If not already in `review` phase)** Restore to `review`:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
+     "{fix description} — resuming pr-review"
+   ```
+
+3. Re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict`

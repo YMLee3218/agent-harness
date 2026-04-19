@@ -6,7 +6,7 @@ description: >
   Scaffolds src/features, src/domain, src/infrastructure, tests/integration, docs/requirements, plans/.
 ---
 
-**Non-interactive handling** (`CLAUDE_NONINTERACTIVE=1`): replace every `AskUserQuestion` per `@reference/non-interactive-mode.md §AskUserQuestion replacement`. `[BLOCKED] {description}` goes to `## Open Questions` when decision is required; `[AUTO-DECIDED] {decision}` when skill may proceed.
+**Non-interactive handling**: @reference/non-interactive-mode.md §AskUserQuestion replacement.
 
 # Project Initialisation
 
@@ -156,6 +156,16 @@ done
 For each domain concept directory:
 ```bash
 cp src/domain/CLAUDE.md src/domain/{concept}/CLAUDE.md
+```
+
+Generate the language-specific critic-code pattern conf (read language from `.claude/local.md`):
+```bash
+_lang="$(grep -i '^language:' "$CLAUDE_PROJECT_DIR/.claude/local.md" | head -1 | awk '{print $2}')"
+if [ -n "$_lang" ]; then
+  mkdir -p "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns"
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns.template" "$_lang" \
+    > "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns/${_lang}.conf"
+fi
 ```
 
 ## Step 4 — Create initial plan file + commit scaffold

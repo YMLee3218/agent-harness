@@ -12,8 +12,6 @@ paths:
   - domain/**
 ---
 
-**Non-interactive handling** (`CLAUDE_NONINTERACTIVE=1`): replace every `AskUserQuestion` per `@reference/non-interactive-mode.md §AskUserQuestion replacement`. `[BLOCKED] {description}` goes to `## Open Questions` when decision is required; `[AUTO-DECIDED] {decision}` when skill may proceed.
-
 # Writing Failing Tests
 
 ## Step 1 — Read plan file + spec
@@ -36,8 +34,6 @@ report: "Phase is `red` but no spec verdict found for this feature — run writi
 
 If the phase is neither `spec` nor `red`, append `[BLOCKED] writing-tests entered from unexpected phase {phase} — run writing-spec first` to `## Open Questions` and stop.
 
-@reference/non-interactive-mode.md §EnterPlanMode / ExitPlanMode
-
 - `Read` the project `CLAUDE.md` to extract the test command
 - `Read` the target `spec.md` in full
 - `Glob` `src/` to find existing file structure and naming conventions
@@ -56,8 +52,7 @@ Scenario: {name}
   Name: "should {outcome} when {condition}"
 ```
 
-Call `ExitPlanMode` to request approval (interactive only).
-- Non-interactive: @reference/non-interactive-mode.md §ExitPlanMode replacement — proceed directly to Step 3.
+Proceed directly to Step 3.
 
 ## Step 3 — Write failing tests
 

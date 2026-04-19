@@ -4,10 +4,21 @@
 # Model invocations: none — shell only.
 
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
-plan_file=$("$SCRIPTS_DIR/plan-file.sh" find-active 2>/dev/null) || {
-  echo "no active plan"
+PLAN_FILE_SH="$SCRIPTS_DIR/plan-file.sh"
+
+# Soft-fail: display tool — never exit 2; show specific status on error.
+plan_file=$("$SCRIPTS_DIR/plan-file.sh" find-active 2>/dev/null)
+_fa_rc=$?
+if [ $_fa_rc -eq 3 ]; then
+  echo "plan: ambiguous"
   exit 0
-}
+elif [ $_fa_rc -eq 4 ]; then
+  echo "plan: malformed"
+  exit 0
+elif [ $_fa_rc -ne 0 ] || [ -z "$plan_file" ]; then
+  echo "plan: none"
+  exit 0
+fi
 
 phase=$("$SCRIPTS_DIR/plan-file.sh" get-phase "$plan_file" 2>/dev/null || echo "?")
 

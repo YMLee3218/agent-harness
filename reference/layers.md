@@ -29,11 +29,23 @@ This file is the single source of truth for layer rules. CLAUDE.md, skills, and 
 - Domain concepts: `{noun}` singular kebab-case (e.g., `todo`, `user`, `notification`)
 - Spec files: `features/{name}/spec.md` (feature specs) and `domain/{concept}/spec.md` (domain specs) — top-level directories, not under `src/`
 
+## Acceptable import exceptions
+
+The following patterns produce grep hits in boundary checkers but are **not** violations:
+
+| Pattern | Reason |
+|---------|--------|
+| `infrastructure/` imports a type, interface, or enum **defined in** `domain/` | Infrastructure depends on domain contracts (allowed) |
+| `features/` (small) imports a value object or enum from `domain/` | Small features compose domain — value objects are not logic |
+| Language-generated code (e.g., protobuf, ORM stubs) auto-importing across layers | Generated; not authored violations |
+
+These exceptions apply to both the coder agent (layer enforcement) and critic-code (Angle 2 boundary checker). When in doubt, flag as `[WARN]` rather than `[CRITICAL]`.
+
 ## Test mocking levels
 
-| Test scope | Mock rule |
-|-----------|-----------|
-| Domain test | No mocks; no external dependencies |
-| Small feature test | Mock domain layer only |
-| Large feature test | Mock small features; domain not called directly |
-| Integration test (`tests/integration/`) | No mocks; real connections |
+| Test scope | Mock rule | Violation → `[FAIL]` |
+|-----------|-----------|----------------------|
+| Domain test | No mocks; no external dependencies | Any mock present |
+| Small feature test | Mock domain layer only | Infrastructure mocked directly |
+| Large feature test | Mock small features; domain not called directly | Domain called directly |
+| Integration test (`tests/integration/`) | No mocks; real connections | Any mock present |
