@@ -13,12 +13,9 @@ paths:
 
 # Brainstorming Workflow
 
-Layer rules: @reference/layers.md
-
 ## Step 0 — Detect uninitialized project (autonomous pre-check)
 
-Before branching into new feature or modification, check whether the project has been initialized.
-Use the presence of `CLAUDE.md` at the project root as the initialization signal — it is created by `initializing-project` and absent in a fresh repo. Do NOT use `Glob("src/**")` for this check: `src/` directories are empty after init and Glob would return no results even in a fully initialized project, causing a spurious re-invocation on every brainstorm run.
+Check for `CLAUDE.md` at the project root — do NOT use `Glob("src/**")` (empty after init, triggers spurious re-initialization).
 
 ```bash
 test -f "$CLAUDE_PROJECT_DIR/CLAUDE.md" && echo "initialized" || echo "not-initialized"
@@ -47,44 +44,52 @@ git status --porcelain
 
 | Condition | Interactive | Non-interactive (`CLAUDE_NONINTERACTIVE=1`) |
 |-----------|-------------|---------------------------------------------|
-| Dirty working tree (non-empty output) | `AskUserQuestion` — "Working tree has uncommitted changes. Commit or stash before brainstorming?" | Append `[BLOCKED] dirty working tree — commit or stash changes first` to `## Open Questions` and stop |
+| Dirty working tree (non-empty output) | `AskUserQuestion` — "Working tree has uncommitted changes. Commit or stash before brainstorming?" | `[BLOCKED] dirty working tree — commit or stash changes first` (→ @reference/non-interactive-mode.md §AskUserQuestion replacement) |
+
+If `CLAUDE_PLAN_FILE` is set and the file does not yet exist, create the skeleton plan file now (before any `plan-file.sh` command that requires it):
+
+```bash
+if [ -n "$CLAUDE_PLAN_FILE" ] && [ ! -f "$CLAUDE_PLAN_FILE" ]; then
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "$CLAUDE_PLAN_FILE"
+fi
+```
 
 Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 
-Use `EnterPlanMode`, then:
+@reference/non-interactive-mode.md §EnterPlanMode / ExitPlanMode
+
 - `Glob` `src/features/` to find reusable existing features
 - `Glob` `docs/` and `Read` any `docs/*.md` that exist — these are the SOT for domain knowledge
 - `Read` `features/*/spec.md` for any features that may be reused (signatures and behaviour, not implementation)
 
 If `docs/` is empty or absent:
-- **Interactive mode**: use `AskUserQuestion` — "No docs/*.md found. What are the core domain rules and concepts for this feature? I'll create docs/{concept}.md before writing specs."
-- **Non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED] docs/ is empty — create at least one docs/{concept}.md before re-running` to `## Open Questions` in the plan file, then stop.
+- Interactive: `AskUserQuestion` — "No docs/*.md found. What are the core domain rules and concepts for this feature? I'll create docs/{concept}.md before writing specs."
+- Non-interactive: `[BLOCKED] docs/ is empty — create at least one docs/{concept}.md before re-running` (→ @reference/non-interactive-mode.md §AskUserQuestion replacement)
 
 After collecting the answer (interactive) or when docs/ is present, write or update `docs/{concept}.md` (same template as initializing-project Step 3). This must happen before writing-spec runs — critics use docs/*.md as the contradiction SOT.
 
 If `docs/requirements/{name}.md` already exists and `CLAUDE_NONINTERACTIVE=1`:
 - Skip ambiguity questions below; treat the file as the complete and approved requirement.
 
-Otherwise use `AskUserQuestion` to resolve requirement ambiguity — at most three questions:
-- "What does success look like?"
-- "What external systems or events are involved?"
-- "What are the failure cases?"
+If `docs/requirements/{name}.md` does **not** exist and `CLAUDE_NONINTERACTIVE=1`:
+- `[BLOCKED] docs/requirements/{name}.md not found — write the requirement file before re-running` (→ @reference/non-interactive-mode.md §AskUserQuestion replacement)
+
+Otherwise use `AskUserQuestion` to resolve requirement ambiguity — at most three questions (language: @~/harness-builder/CLAUDE.md):
+- "성공 기준이 무엇인가요?" (What does success look like?)
+- "어떤 외부 시스템이나 이벤트가 관련되나요?" (What external systems or events are involved?)
+- "실패 케이스는 무엇인가요?" (What are the failure cases?)
 
 ### Step 2 — Decompose
 
-Classify each candidate per @reference/layers.md (Small / Large feature). Name format: `{verb}-{noun}` kebab-case. Domain concepts: `{noun}` singular kebab-case.
+Classify each candidate per @reference/layers.md (Small / Large feature). Name format per @reference/layers.md §Naming conventions.
 
 If proposing domain rules or constraints not found in `docs/*.md`, do not assume them.
-- **Interactive**: use `AskUserQuestion` to confirm with the user before including in the decomposition.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): mark the assumption `[UNVERIFIED CLAIM]` in the plan file and include it provisionally; critic-spec will independently flag unverified claims in the spec.
+- Interactive: `AskUserQuestion` to confirm with the user before including in the decomposition.
+- Non-interactive: mark the assumption `[UNVERIFIED CLAIM]` in the plan file and include it provisionally; critic-spec will independently flag unverified claims in the spec.
 
-List each candidate with layer assignment. Write decomposition to plan file. Call `ExitPlanMode` to request approval.
+List each candidate with layer assignment. Write decomposition to plan file. Call `ExitPlanMode` to request approval (interactive only).
 
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN brainstorming "decomposition plan auto-approved"
-  ```
-  and proceed to Step 3.
+- Non-interactive: @reference/non-interactive-mode.md §ExitPlanMode replacement — proceed to Step 3.
 
 ### Step 3 — Write output + create branch
 
@@ -120,34 +125,19 @@ Then (if not already on the branch): `git checkout -b feature/{name}`
 
 Set plan file phase:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" brainstorm
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" brainstorm \
+  "decomposition approved — starting brainstorm phase"
 ```
 
 ### Step 4 — Run critic-feature (max 2 iterations)
-
-**Brainstorm exception** — `critic-feature` uses a max-2 iteration guard rather than the convergence protocol in `@reference/critic-loop.md`. All other phase-gate critics and pr-review use the full convergence protocol.
 
 ```
 Skill("critic-feature", "Review docs/requirements/{name}.md. Original requirement: [paste requirement].")
 ```
 
-**Iteration counter starts at 1.**
+Max-2 iteration guard and `[BLOCKED-FINAL]` behavior per `@reference/critics.md §Brainstorm exception`. On REJECT-PASS, skip `clear-converged`.
 
-If Critic returns FAIL:
-1. Output the full verdict
-2. Write a fix plan (reclassifications, renames, missing features)
-3. Confirm the fix plan:
-   - **Interactive**: use `AskUserQuestion`
-   - **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): apply the fix plan immediately without asking
-4. Apply fixes with `Edit`
-5. If iteration < 2: increment counter, re-run Skill("critic-feature"). Else:
-   - **Interactive**: use `AskUserQuestion` — "critic-feature has failed twice. Paste the latest verdict for manual review, or describe how to proceed."
-   - **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED-FINAL] critic-feature failed twice — manual review required` to `## Open Questions` and stop.
-
-Append verdict to plan file `## Critic Verdicts`:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-verdict "plans/{slug}.md" "brainstorm/critic-feature: {PASS|FAIL}"
-```
+The verdict is auto-recorded in `## Critic Verdicts` by the SubagentStop hook when critic-feature stops.
 
 ---
 
@@ -155,18 +145,15 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-verdict "plans/{s
 
 ### Step 1 — Identify impact
 
-Use `EnterPlanMode`, then:
+@reference/non-interactive-mode.md §EnterPlanMode / ExitPlanMode
+
 - `Read` relevant `docs/requirements/*.md` and `docs/*.md`
 - `Glob` `src/features/` and `src/domain/`
 - `Read` `features/*/spec.md` for any features affected by the modification
 
-Do not read `src/` implementation. If the modification conflicts with `docs/*.md`, list required doc updates. Write impact list to plan file. Call `ExitPlanMode`.
+Do not read `src/` implementation. If the modification conflicts with `docs/*.md`, list required doc updates. Write impact list to plan file. Call `ExitPlanMode` (interactive only; in non-interactive mode, plan mode was not entered — skip `ExitPlanMode`).
 
-In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN brainstorming "impact list auto-approved"
-```
-and proceed to Step 2.
+Non-interactive: @reference/non-interactive-mode.md §ExitPlanMode replacement — proceed to Step 2.
 
 ### Step 2 — Update docs (if needed)
 
@@ -183,5 +170,5 @@ Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Featur
 Do not move to `writing-spec` until:
 - Every feature has a `{verb}-{noun}` name
 - Every feature is classified as small or large with layer assignment
-- User has approved via `ExitPlanMode` (interactive) or `record-auto-approved` (non-interactive)
+- User has approved via `ExitPlanMode` (interactive) or `ExitPlanMode` was skipped (non-interactive)
 - critic-feature returns PASS (or user has approved manual override after 2 iterations)

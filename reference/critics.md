@@ -95,11 +95,9 @@ Full marker registry (scope, emitter, consumer, effect, clear path, written-by, 
 
 #### pr-review asymmetry
 
-The pr-review fix loop (in `skills/implementing/SKILL.md §Step 5`) intentionally omits `[BLOCKED-CATEGORY]` and `[BLOCKED-PARSE]` from its marker table. pr-review failures are categorised by the skill itself (inferred from evidence), not by the category-tracking mechanism used for critics. `[BLOCKED-PARSE]` is not produced by `append-review-verdict`. This asymmetry is by design.
+The pr-review fix loop (in `skills/implementing/SKILL.md §Step 5`) intentionally omits `[BLOCKED-CATEGORY]` and `[BLOCKED-PARSE]` from its marker table. pr-review failures are categorised by the skill itself (inferred from evidence), not by the category-tracking mechanism used for critics. `[BLOCKED-PARSE]` is not produced by `append-review-verdict`.
 
-Effective pr-review branching order (from §Skill branching logic): 1 → 3 → 5 → 6 → 7 → 8 → 10 → 11 — steps 2 (`[BLOCKED-CATEGORY]`) and 4 (`[BLOCKED-PARSE]`) are skipped.
-
-Apply `§Skill branching logic` below, skipping steps 2 (`[BLOCKED-CATEGORY]`) and 4 (`[BLOCKED-PARSE]`). Phase-match is required for all `[...] {phase}/pr-review` markers; PASS-only steps (CONFIRMED-FIRST / AUTO-APPROVED-FIRST / FIRST-TURN) skip to FAIL when the latest verdict is FAIL.
+Effective pr-review branching order: steps 2 (`[BLOCKED-CATEGORY]`) and 4 (`[BLOCKED-PARSE]`) are skipped — apply §Skill branching logic with steps 1 → 3 → 5 → 6 → 7 → 8 → 10 → 11. Phase-match is required for all `[...] {phase}/pr-review` markers; PASS-only steps (CONFIRMED-FIRST / AUTO-APPROVED-FIRST / FIRST-TURN) skip to FAIL when the latest verdict is FAIL.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
@@ -142,8 +140,6 @@ Skill reads ## Open Questions, checks in priority order:
          determine whether docs or code is ground truth; human decision required and stop.
          Then follow §DOCS CONTRADICTION cascade.
 ```
-
-> **pr-review**: steps 2 (`[BLOCKED-CATEGORY]`) and 4 (`[BLOCKED-PARSE]`) are omitted from the pr-review fix loop. See §pr-review asymmetry for rationale and effective step order.
 
 ## Non-interactive mode
 

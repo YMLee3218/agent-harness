@@ -2,7 +2,7 @@
 name: implementing
 description: >
   Implement phase (drive coder subagents to make failing tests pass, then refactor in-place).
-  Trigger: "implement", "make the tests pass", "implement phase", "Green phase", "go", "proceed", after critic-test returns PASS.
+  Trigger: "implement", "make the tests pass", "implement phase", "go", "proceed", after critic-test returns PASS.
   Do NOT trigger when no spec or tests exist — route to brainstorming instead.
   Plans implementation order (domain first), then executes with isolated subagents per task.
   Also drives `review` phase during pr-review fix loop (implement → review → green).
@@ -14,29 +14,22 @@ paths:
 
 # Implementation Workflow
 
-Layer rules: @reference/layers.md
-Context hygiene: @reference/context-hygiene.md
-
 ## Step 1 — Read plan file + plan implementation order
 
-Use `EnterPlanMode`, then:
+Phase entry protocol: @reference/critics.md §Skill phase entry — expected phases: `red`, `implement` (recovery), `review` (recovery).
 
-Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `red`, `implement`, or `review` (see §Session Recovery for `implement` and `review` entry paths).
+@reference/non-interactive-mode.md §EnterPlanMode / ExitPlanMode
 
-If phase is `review` and all tasks are `completed` — skip task planning entirely; go directly to §Session Recovery.
-If phase is `implement` **and the Task Ledger is non-empty** — skip task planning entirely; go directly to §Session Recovery.
-If phase is `implement` **and the Task Ledger is empty** — this is a fresh `trivial`-profile entry (no spec/tests; phase was pre-advanced by `running-dev-cycle`). Skip the architectural-choice question; no task list to present.
-- **Interactive**: call `ExitPlanMode` immediately (trivial change — no task list to review).
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" TASKLIST implementing "trivial profile auto-approved"`.
-Define a single task covering the target file before proceeding to Step 2:
-```
-Task 1: apply trivial change
-  Files: {target file path}
-  Layer: {domain|infrastructure|small-feature — infer from the path}
-  Depends on: none
-  Parallel: no
-```
-Proceed directly to Step 2 to register this one task, then Step 3.
+Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `red` (normal entry), `implement` (recovery — task list already set), or `review` (recovery — pr-review loop).
+
+- Phase is `review` and all tasks are `completed` → skip task planning; go directly to §Session Recovery (post-task pr-review branch).
+- Phase is `review` and any tasks are NOT all `completed` → skip task planning; go directly to §Session Recovery (incomplete-tasks branch).
+- Phase is `implement` and the Task Ledger is non-empty → skip task planning; go directly to §Session Recovery.
+- Phase is `implement` and the Task Ledger is empty → go directly to §Session Recovery (trivial profile fresh start).
+- Phase is `red` → proceed with task planning below.
+- Otherwise: append `[BLOCKED] implementing entered from unexpected phase {phase} — cannot proceed` to `## Open Questions` and stop.
+
+**Phase `red` — plan task list:**
 
 - `Read` the failing tests and `spec.md`
 - `Glob` and `Read` existing domain/feature structure to determine dependencies
@@ -44,7 +37,7 @@ Proceed directly to Step 2 to register this one task, then Step 3.
 Use `AskUserQuestion` for architectural choices before committing:
 - "Should this use an existing infrastructure adapter or a new one?"
 
-In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): skip the question; reuse any existing adapter whose interface already matches the requirement. If none exists, create a minimal new adapter. Append `[AUTO-DECIDED] implementing/Step1: {decision — e.g. "reused existing HttpAdapter"}` to `## Open Questions` in the plan file.
+Non-interactive: reuse any existing adapter whose interface already matches the requirement; if none, create a minimal new adapter. Log `[AUTO-DECIDED] implementing/Step1: {decision}` to `## Open Questions`.
 
 Write task list to plan file:
 
@@ -58,12 +51,9 @@ Task N: {verb} {object}
 
 Layer order: domain tasks first, then features, then infrastructure. Mark tasks that can run in parallel within the same layer tier (no cross-task dependency within the tier).
 
-Call `ExitPlanMode` to present the task list and request approval before proceeding.
+In **interactive mode**: call `ExitPlanMode` to present the task list and request approval before proceeding.
 
-In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`; proceed directly to Step 2. Run:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" TASKLIST implementing "{N tasks, layers: domain/feature/infra summary}"
-```
+Non-interactive: @reference/non-interactive-mode.md §ExitPlanMode replacement — skip `ExitPlanMode`; proceed directly to Step 2.
 
 ## Step 2 — Track tasks
 
@@ -86,9 +76,9 @@ Advance to `implement` phase so that coder subagents (running in isolated git wo
 see a phase that permits `src/` writes. This must be committed before spawning coders —
 worktrees inherit the committed plan file state:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" implement
-git add "plans/{slug}.md" "plans/{slug}.state.json" 2>/dev/null || git add "plans/{slug}.md"
-git diff --cached --quiet || git commit -m "chore(phase): advance to implement — task list registered"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" advance-phase "plans/{slug}.md" implement \
+  "task list registered — advancing to implement" \
+  "chore(phase): advance to implement — task list registered"
 ```
 
 ## Step 3 — Execute per task (isolated subagents)
@@ -100,23 +90,29 @@ Before spawning any subagent, mark each task `in_progress` in the Task Ledger:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "in_progress"
 ```
 
+Record the current HEAD SHA before spawning so the abort check can detect whether the coder committed anything:
+```bash
+base_sha=$(git rev-parse HEAD)
+```
+
 Resolve the plan file to an absolute path before spawning coders — each coder runs in its own git worktree and needs a stable path to the shared plan file:
 ```bash
 export CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md"
 ```
 Pass `CLAUDE_PLAN_FILE` to each coder via the prompt so it can call `plan-file.sh` if needed.
 
-Determine each task's layer by checking its target path:
-- `src/domain/` → **Domain**
-- `src/infrastructure/` → **Infrastructure**
-- `src/features/` small → **Small Feature**
-- `src/features/` large → **Large Feature**
+Determine each task's layer by checking its target path per `@reference/layers.md §Layers`.
+
+Spawn per task type — select the appropriate prompt below. Do not pass the full plan or other tasks' state to subagents.
+
+**Normal** (spec + failing tests exist):
 
 ```
 Agent(
   subagent_type: "coder",
   isolation: "worktree",
   prompt: "Task: [goal]
+           Task ID: task-{N}
            Target layer: [LAYER]
            Files: [paths]
            Phase: implement  ← do NOT modify any test file
@@ -125,16 +121,40 @@ Agent(
            Test command: [command from project CLAUDE.md]
            Spec: [spec path]
            CLAUDE_PLAN_FILE: [absolute path to plans/{slug}.md]
-           Verification policy: @reference/verification-policy.md — verify external APIs via context7 before first use."
+           Verification policy: verify external APIs via context7 before first use."
 )
 ```
 
-Do not pass the full plan or other tasks' state to subagents.
+**Trivial** (no spec, no failing test — trivial profile only):
+
+```
+Agent(
+  subagent_type: "coder",
+  isolation: "worktree",
+  prompt: "Task: [goal]
+           Task ID: task-{N}
+           Target layer: [LAYER]
+           Files: [paths]
+           Phase: implement  ← do NOT modify any test file
+           Trivial change — no failing test; make the minimal edit described in Task above. Test command must still pass after your change.
+           Test command: [command from project CLAUDE.md]
+           CLAUDE_PLAN_FILE: [absolute path to plans/{slug}.md]
+           Verification policy: verify external APIs via context7 before first use."
+)
+```
+
+Capture the `worktreeBranch` field from each `Agent` result; substitute it for `{worktree-branch}` in the abort-check and merge commands below.
 
 Each coder runs in an isolated git worktree and commits its changes to a temporary branch. After each subagent returns, **check for abort before merging**:
 
 1. Check for abort: look for `<!-- coder-status: abort -->` in the last line of the coder's output. If absent, fall back to scanning for abort signals: "layer violation", "forbidden import", "hard stop", "STOP", "I stopped", "aborting".
-2. Check whether the coder actually committed: `git rev-list --count {base-sha}..{worktree-branch}` — if the output is `0`, no commit was made.
+2. Verify the worktree branch exists, then check whether the coder committed:
+   ```bash
+   git rev-parse --verify {worktree-branch} >/dev/null 2>&1 \
+     || abort_reason="worktree branch not found — Agent spawn may have failed"
+   git rev-list --count "$base_sha"..{worktree-branch}  # 0 = no commit made
+   ```
+   If the branch does not exist (spawn failed), treat it as an abort with reason "worktree branch not found — Agent spawn may have failed".
 3. If either signal is present:
    - Do NOT run `git merge`.
    - Mark the task blocked:
@@ -148,7 +168,18 @@ Each coder runs in an isolated git worktree and commits its changes to a tempora
    - **Interactive**: use `AskUserQuestion` — "Coder task-N aborted: {reason}. How should we proceed?"
    - **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): stop the current tier; do not attempt remaining tasks in this tier.
 
-If no abort signals are detected, merge and record as normal:
+**Atomic tier rule**: process abort/merge-conflict checks for ALL tasks in the tier before merging any. If any task in the tier aborted or had a merge conflict, do NOT merge any task in the tier — including those that completed successfully. A partial-tier merge leaves `src/` in an inconsistent state where some tasks' assumptions do not hold.
+
+Before merging any task in the tier, run the tier safety check with the IDs of all tasks in the current tier:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" tier-safe \
+  "plans/{slug}.md" task-1 task-2 task-3 || {
+  echo "[BLOCKED] tier merge aborted — at least one task is blocked" >&2
+  exit 2
+}
+```
+
+If no tasks aborted and no conflicts, merge each successful task in sequence and record as normal:
 ```bash
 git merge --no-ff {worktree-branch} -m "merge(task-N): {description}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "completed" "$(git rev-parse HEAD)"
@@ -175,59 +206,36 @@ If tests fail:
 
 ## Step 4 — Run critic-code at milestones (convergence loop per milestone)
 
-Full protocol: @reference/critic-loop.md
+Full protocol: @reference/critics.md §Loop convergence
 
 Track changed files during this milestone. Run after: a complete small feature, a domain concept's full rule set, or a significant chunk of a large feature.
 
-**Before starting each new milestone's critic-code run**, reset the convergence state so the 2-PASS streak restarts from scratch. `reset-milestone` clears the stale `[CONVERGED]` marker from `## Open Questions` AND appends a `[MILESTONE-BOUNDARY]` sentinel to `## Critic Verdicts` so prior-milestone PASSes do not contribute to the new streak:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
-```
+**Before the first critic-code run of each milestone** (once per milestone, not on retry runs within the same milestone), reset the convergence state: @reference/critics.md §New milestone — critic=`critic-code`.
 
 ```
 Skill("critic-code", "Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths].")
 ```
 
-After each run, `plan-file.sh record-verdict` fires automatically (SubagentStop hook). Read `## Open Questions` for `critic-code` markers in priority order:
+After each run, follow @reference/critics.md §Running the critic and @reference/critics.md §Skill branching logic, substituting `critic-code` for `{agent}`.
 
-| Marker | Action |
-|--------|--------|
-| `[BLOCKED-CEILING] {phase}/critic-code` | Stop — manual review required. **Phase-match required**: `{phase}` must equal the current plan file phase. A stale marker from a prior phase (e.g., after rollback) does not apply. |
-| `[BLOCKED-CATEGORY] critic-code` | Stop — fix root cause first |
-| `[BLOCKED-AMBIGUOUS] critic-code: …` | Stop — human decision needed |
-| `[BLOCKED-PARSE] critic-code` | Stop — check critic output format before retrying |
-| `[CONVERGED] {phase}/critic-code` | Proceed to next milestone or Step 4.5. **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[CONFIRMED-FIRST] {phase}/critic-code` | Re-run automatically (user already confirmed in a previous session). **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[AUTO-APPROVED-FIRST] {phase}/critic-code` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session). **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[FIRST-TURN] {phase}/critic-code` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-confirmed-first "plans/{slug}.md" critic-code` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-code` (non-interactive), then re-run. **Phase-match required**: same rule as BLOCKED-CEILING. |
-| PARSE_ERROR (no `[BLOCKED-PARSE]` yet) | Re-run automatically (second consecutive PARSE_ERROR triggers `[BLOCKED-PARSE]`) |
-| PASS, no `[CONVERGED]` yet | Re-run automatically |
-| FAIL | Apply fix, then re-run |
+On `[CONVERGED] {phase}/critic-code`: proceed to next milestone or Step 4.5.
 
-Evaluation order: BLOCKED-CEILING → BLOCKED-CATEGORY → BLOCKED-AMBIGUOUS → BLOCKED-PARSE → CONVERGED → CONFIRMED-FIRST → AUTO-APPROVED-FIRST → FIRST-TURN → PARSE_ERROR → PASS → FAIL
-_(Steps 1–8 check `## Open Questions`; steps 9–11 check the last entry in `## Critic Verdicts`)_
-
-On `[DOCS CONTRADICTION]`: update `docs/*.md` first, then cascade: re-run Skill("critic-spec") if spec changed → re-run Skill("critic-test") if tests changed → run test command → re-run Skill("critic-code").
-
-When any cascade causes a phase rollback:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-  "- {current-phase} → {rollback-phase} (reason: {one sentence})"
-```
+On `[DOCS CONTRADICTION]` (during implement phase): @reference/critics.md §DOCS CONTRADICTION cascade
+(Skip the **During `review` phase** section — this is the implement phase.)
 
 ## Step 4.5 — Fix pre-existing errors
 
-After all tasks complete and critic-code passes, check for errors reported by coders:
+Check for pending errors after all tasks complete and critic-code passes:
 
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" list-errors "plans/{slug}.md" --status pending
 ```
 
-If no rows are printed, proceed to Step 5.
+If no rows are printed, proceed to Step 5 (no action needed).
 
 For each pending error:
 
-**nearby scope** — group errors by file, then spawn a fix-coder subagent per file group:
+**nearby scope** — group errors by file; spawn a fix-coder subagent per file group:
 
 ```
 Agent(
@@ -246,12 +254,12 @@ On success: merge the worktree branch, then mark each fixed error:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-error "plans/{slug}.md" "{err-id}" "fixed"
 ```
 
-If tests break after the fix: do NOT commit. Mark the error deferred instead:
+If tests break after the fix — do NOT commit; mark deferred instead:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-error "plans/{slug}.md" "{err-id}" "deferred"
 ```
 
-**distant scope** — do not attempt to fix. Mark deferred and record in Open Questions:
+**distant scope** — do not attempt to fix; mark deferred and record in Open Questions:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-error "plans/{slug}.md" "{err-id}" "deferred"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" \
@@ -260,154 +268,147 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug
 
 ## Step 5 — Run pr-review-toolkit
 
-After all tasks complete, ensure a PR exists:
+After all tasks complete, reset the pr-review convergence state. This clears all stale pr-review markers (both `implement`-scoped and `review`-scoped) left by prior features in slice mode and adds a milestone boundary, so this feature requires a fresh 2-PASS streak:
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-pr-review "plans/{slug}.md"
+```
+
+Ensure a PR exists:
 
 ```bash
 gh pr view 2>/dev/null || gh pr create --draft --title "feat: {feature name}" --body "Closes #{issue}"
 ```
 
-Then run the review loop (convergence policy: @reference/critic-loop.md §Loop convergence):
+Then run the review loop (convergence policy: @reference/critics.md §Loop convergence):
 
 ```
 Skill("pr-review-toolkit:review-pr")
 ```
 
-After each run, record the verdict (PASS or FAIL based on whether the review reported issues):
+After each run, **before** recording the verdict, run §Ultrathink verdict audit (`@reference/critics.md §Ultrathink verdict audit`).
+
+> `pr-review-toolkit:review-pr` satisfies the subagent mandate (`@reference/critics.md §Review execution rule`) because the plugin internally orchestrates `pr-review-toolkit:code-reviewer`, `…:pr-test-analyzer`, `…:silent-failure-hunter`, `…:comment-analyzer`, and `…:type-design-analyzer` subagents.
+
+Apply `@reference/critics.md §Applying the audit outcome` with `{agent}` = `pr-review`.
+
+Record the verdict (PASS or FAIL — use the audit-adjusted verdict if REJECT-PASS):
 
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-review-verdict \
   "plans/{slug}.md" "pr-review" PASS|FAIL
 ```
 
-Read `## Open Questions` for `pr-review` markers, in priority order:
+Read `## Open Questions` for `pr-review` markers and branch per `@reference/critics.md §pr-review asymmetry`.
 
-<!-- Note: this marker table is intentionally shorter than the critic marker table —
-     [BLOCKED-CATEGORY] and [BLOCKED-PARSE] are absent by design (pr-review asymmetry).
-     See reference/critic-loop.md §pr-review asymmetry for the rationale. -->
-
-| Marker | Action |
-|--------|--------|
-| `[BLOCKED-CEILING] {phase}/pr-review` | Stop — manual review required. **Phase-match required**: `{phase}` must equal the current plan file phase. |
-| `[BLOCKED-AMBIGUOUS] pr-review: …` | Stop — human decision needed |
-| `[CONVERGED] {phase}/pr-review` | Set phase green and finish. **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[CONFIRMED-FIRST] {phase}/pr-review` | Re-run automatically (user already confirmed in a previous session). **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[AUTO-APPROVED-FIRST] {phase}/pr-review` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session). **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[FIRST-TURN] {phase}/pr-review` | Ask user for confirmation (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-confirmed-first "plans/{slug}.md" pr-review` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST pr-review` (non-interactive), then re-run. **Phase-match required**: same rule as BLOCKED-CEILING. |
-| PASS, no `[CONVERGED]` yet | Re-run automatically |
-| FAIL | Apply fix chain below, then re-run |
-
-Evaluation order: BLOCKED-CEILING → BLOCKED-AMBIGUOUS → CONVERGED → CONFIRMED-FIRST → AUTO-APPROVED-FIRST → FIRST-TURN → PASS → FAIL
-
-**Fix chains on FAIL** — phase transition timing:
-
-- If a FAIL occurs **and the current phase is `implement`**: immediately advance to `review` before applying any fix. This is the normal post-implementation path: tests pass (coder phase complete), now fixing review issues in source only.
-- If a FAIL occurs **and the current phase is already `review`**: remain in `review`; do not re-transition.
-- All subsequent FAILs are handled within `review` phase.
-- `green` is set only when `[CONVERGED] {phase}/pr-review` is confirmed (see below) — never on a single PASS.
+**Fix chains on FAIL** — on first FAIL from `implement`, transition to `review` (bash below) before fixing; remain in `review` for all subsequent FAILs.
 
 ```bash
 # On first FAIL (from implement phase):
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" review
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-  "- implement → review (reason: first pr-review FAIL)"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
+  "first pr-review FAIL"
 ```
 
-Categorise each issue (interactive: `AskUserQuestion`; non-interactive: infer from evidence):
+On FAIL, categorise and fix:
 
-In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): if category is unambiguous, apply the fix chain automatically and log `[AUTO-CATEGORIZED] pr-review: {issue summary} → {category}`. If ambiguous, append `[BLOCKED-AMBIGUOUS] pr-review: {question}` and stop.
+**Categorisation** — interactive: `AskUserQuestion`; non-interactive: infer from evidence. If ambiguous, append `[BLOCKED-AMBIGUOUS] pr-review: {question}` and stop.
 
-**Code-only** (naming, duplication, complexity, style, silent failures):
-→ Fix code → run tests → re-run Skill("critic-code") → re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
+### Code-only
 
-**Spec gap** (unhandled scenario revealed by review):
-→ Add scenario to `spec.md` → re-run Skill("critic-spec")
-→ Roll phase back to `red` to allow writing test files:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" red
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-    "- review → red (reason: spec gap — writing failing test for unhandled scenario)"
-  ```
-→ Write failing test → re-run Skill("critic-test")
-→ Advance to `implement` phase to allow src/ writes, and commit so coder worktrees inherit the phase:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" implement
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-    "- red → implement (reason: spec gap test written — implementing fix)"
-  git add "plans/{slug}.md" "plans/{slug}.state.json" 2>/dev/null || git add "plans/{slug}.md"
-  git diff --cached --quiet || git commit -m "chore(phase): advance to implement — spec gap fix"
-  ```
-→ Implement → re-run Skill("critic-code")
-→ Restore phase to `review` before re-running pr-review:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" review
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-    "- implement → review (reason: spec gap fixed — resuming pr-review)"
-  ```
-→ re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
+Issues: naming, duplication, complexity, style, silent failures.
 
-**Docs conflict** (implementation contradicts domain rules):
-→ Update `docs/*.md` (SOT) → fix spec → re-run Skill("critic-spec")
-→ Roll phase back to `red` to allow editing test files (test files are frozen in `review`):
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" red
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-    "- review → red (reason: docs conflict — updating test files to match corrected spec)"
-  ```
-→ Fix tests → re-run Skill("critic-test")
-→ Advance to `implement` phase to allow src/ writes, and commit so coder worktrees inherit the phase:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" implement
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-    "- red → implement (reason: docs conflict test updated — implementing fix)"
-  git add "plans/{slug}.md" "plans/{slug}.state.json" 2>/dev/null || git add "plans/{slug}.md"
-  git diff --cached --quiet || git commit -m "chore(phase): advance to implement — docs conflict fix"
-  ```
-→ Fix code → re-run Skill("critic-code")
-→ Restore phase to `review` before re-running pr-review:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" review
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-    "- implement → review (reason: docs conflict fixed — resuming pr-review)"
-  ```
-→ re-run Skill("pr-review-toolkit:review-pr") → call `append-review-verdict`
+→ Fix code → run tests → apply §Fix-chain finisher (steps 1 and 3; step 2 not needed — already in `review`)
+
+### Spec gap
+
+Issue: unhandled scenario revealed by review.
+
+→ Add scenario to `spec.md` → re-run `Skill("critic-spec")`
+→ Apply @reference/critics.md §Phase Rollback Procedure: target-phase=`red`, critic=`critic-test`
+→ Write failing test → re-run `Skill("critic-test")`
+→ Advance to `implement`:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" advance-phase "plans/{slug}.md" implement \
+  "spec gap test written — implementing fix" \
+  "chore(phase): advance to implement — spec gap fix"
+```
+→ Implement → apply §Fix-chain finisher (all 3 steps)
+
+### Docs conflict
+
+Issue: implementation contradicts domain rules.
+
+→ @reference/critics.md §DOCS CONTRADICTION cascade (apply all steps including the **During `review` phase** section)
 
 Set plan file phase to `green` when `[CONVERGED] {phase}/pr-review` is confirmed. Do not set `green` earlier — the `implement` and `review` phases keep the session in the implementation+fix loop; `green` signals that all pr-review checks have passed:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" green
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" green \
+  "pr-review converged — all checks passed"
 ```
 
-> `implementing` completes the implement phase (and review phase if pr-review fails). The `done` phase is set later by
-> `running-integration-tests` (after integration tests pass) or by `running-dev-cycle`
-> when integration tests are skipped. Do **not** set `done` here — doing so would
-> cause `find-active` to drop the plan file from its search, blocking subsequent
-> features in a multi-feature slice from writing to `tests/`.
+> Do **not** set `done` here — `find-active` drops `done` plans, blocking subsequent features in a multi-feature slice. `done` is set by `running-integration-tests` or `running-dev-cycle`.
+
+## Fix-chain finisher (pr-review FAIL)
+
+Common ending for Code-only and Spec-gap fix chains in §Step 5.
+
+1. **(If code changed)** Reset critic-code milestone and re-run:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
+   ```
+   → `Skill("critic-code")` (follow §Skill branching logic until `[CONVERGED]`)
+
+2. **(If not already in `review` phase)** Restore to `review`:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
+     "{fix description} — resuming pr-review"
+   ```
+
+3. Re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict`
 
 ## Session Recovery
 
-Use `TaskList` to find the first `pending` or `in_progress` task and resume there. For `in_progress` tasks, check the Task Ledger in `plans/{slug}.md` — if a commit-sha is recorded the task was committed; mark it `completed` and continue. Read `plans/{slug}.md` to determine the current phase.
+On entry, determine the appropriate abstract action by reconciling the Task Ledger with the current phase.
 
-If the phase is `implement` and the Task Ledger is **empty** (`trivial` profile — no tasks were registered before interruption):
-- This is a fresh start, not a mid-run recovery.
-- **Interactive**: call `ExitPlanMode` (trivial change — no task list to review; proceeding to Step 2).
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" TASKLIST implementing "trivial profile auto-approved"`.
-- Do NOT re-plan architectural questions — trivial changes have no task list overhead.
-- Proceed to **Step 2** (task registration) then **Step 3** directly.
+**Ledger reconciliation**: Run `TaskList`. For any `in_progress` task that has a `commit-sha` recorded in the Task Ledger, mark it `completed` before branching.
 
-If the phase is `implement` and tasks are incomplete:
-- **Interactive**: call `ExitPlanMode` (no task list to re-approve — informing user: resuming implement phase from Task Ledger), then resume from **Step 3**.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`; resume from **Step 3** directly.
-No need to re-plan or re-ask architectural questions — the Task Ledger already has the plan.
+**Phase + ledger → abstract action**:
 
-If the phase is `implement` and all tasks are `completed` (coder subagents finished but critic-code milestone run was interrupted):
-- **Interactive**: call `ExitPlanMode` (informing user: resuming critic-code milestone run), then skip to **Step 4**.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`; proceed directly to **Step 4**.
+| Phase | Ledger state | Abstract action |
+|---|---|---|
+| expected / empty | — | `fresh-start` |
+| expected / incomplete | has pending | `resume-from-execution` |
+| expected / all-complete | — | `skip-to-post-execution` |
+| later-expected / all-complete | — | `skip-to-post-implementation` |
+| later-phase / incomplete | unexpected | `rollback-then-resume` |
+| any | has `blocked` task | `unblock-and-rerun` |
 
-If a `blocked` task exists (e.g., from a `[BLOCKED-CODER]` merge conflict): after the conflict is resolved externally, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-N" "pending"` to unblock it, then re-run `implementing`.
+**ExitPlanMode pattern**:
+- Interactive: call `ExitPlanMode` with a brief explanation of the recovery action.
+- Non-interactive (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` and proceed to the next step. Full spec: @reference/non-interactive-mode.md §ExitPlanMode replacement.
 
-If phase is `review` and all tasks are `completed` (prior session interrupted during pr-review fix loop):
-- **Interactive**: call `ExitPlanMode` (no task list to approve — informing user: resuming pr-review fix loop), then skip to **Step 5**.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`; proceed directly to **Step 5**.
+**Blocked task unblock recipe**: resolve the external blocker, then run:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-N" "pending"
+```
+Then re-invoke the skill from scratch.
 
-## Hard Stop
+Abstract action → concrete execution point for this skill:
 
-Never commit a failing test. Never commit implementation without a passing test.
+| Abstract action | Implementing execution point |
+|---|---|
+| `fresh-start` (trivial profile) | Define single task → Step 2 → Step 3 |
+| `resume-from-execution` | Step 3 |
+| `skip-to-post-execution` | Step 4 (critic-code milestone) |
+| `skip-to-post-implementation` | Step 5 (pr-review) |
+| `rollback-then-resume` (review→implement) | `transition implement` then Step 3 |
+| `unblock-and-rerun` | `update-task ... pending` then re-invoke `implementing` |
+
+For `fresh-start` (trivial profile): define one task and proceed to Step 2 then Step 3:
+```
+Task 1: apply trivial change
+  Files: {target file path}
+  Layer: {domain|infrastructure|small-feature — infer from the path}
+  Depends on: none
+  Parallel: no
+```

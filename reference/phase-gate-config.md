@@ -10,6 +10,8 @@ export PHASE_GATE_SRC_GLOB="src/domain/*:src/features/*:src/infrastructure/*:app
 export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:*.test.*:*.spec.ts:*.spec.js"
 ```
 
+> **Source of truth for default glob patterns**: `scripts/lib/path-match.sh`. If you change the patterns there, update examples in this file to match.
+
 **Defaults** cover Maven (`src/main/kotlin/`, `src/main/java/`), standard JS/Python (`src/{domain,features,infrastructure}/`), monorepos (`packages/*/src/`, `apps/*/src/`), Go (`internal/`, `cmd/`), Rails (`app/`), Rust (`crates/*/src/`), and generic `lib/`. Set these in `initializing-project` for projects with non-standard layouts.
 
 ```bash
@@ -26,14 +28,7 @@ Pins the active plan file for `plan-file.sh find-active`. Highest priority overr
 
 ## Phase enforcement rules
 
-| Phase | src/ writes | test/ writes |
-|-------|------------|--------------|
-| `brainstorm`, `spec` | Blocked | Blocked |
-| `red` | Blocked | Allowed |
-| `implement` | Allowed | Blocked (tests frozen) |
-| `review` | Allowed | Blocked (tests frozen) |
-| `green`, `integration` | Allowed | Blocked (tests frozen) |
-| `done` | Blocked | Blocked |
+Source of truth: `scripts/phase-rules.sh` (`phase_blocks_src`, `phase_blocks_test`, `list_phases`). Update `phase-rules.sh` to change phase predicates — this file does not restate them.
 
 > **Note:** Phase gating applies only to `src/` and test paths. Writes to `docs/`, `plans/`, `reference/`, and other non-source paths are always permitted in every phase.
 
@@ -43,6 +38,10 @@ Pins the active plan file for `plan-file.sh find-active`. Highest priority overr
 > - `phase-gate.sh` blocks Write/Edit tool calls to test paths.
 > - `pretooluse-bash.sh` blocks Bash-tool redirects (`>`, `>>`) to test paths.
 > Setting `PHASE_GATE_STRICT=0` or overriding only one hook does not disable both — both must be adjusted if fail-open behaviour is needed for `implement`.
+
+## SubagentStart/Stop hook scope
+
+`critic-feature` is excluded from the convergence/ceiling/category machinery — see `@reference/critics.md §Brainstorm exception`.
 
 ## Hook execution order with `--permission-mode auto`
 
