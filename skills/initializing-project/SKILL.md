@@ -6,23 +6,24 @@ description: >
   Scaffolds src/features, src/domain, src/infrastructure, tests/integration, docs/requirements, plans/.
 ---
 
-# Project Initialisation
+**Non-interactive handling** (`CLAUDE_NONINTERACTIVE=1`): replace every `AskUserQuestion` per `@reference/non-interactive-mode.md §AskUserQuestion replacement`. `[BLOCKED] {description}` goes to `## Open Questions` when decision is required; `[AUTO-DECIDED] {decision}` when skill may proceed.
 
-Layer rules: @reference/layers.md
+# Project Initialisation
 
 ## Step 1 — Extract domain concepts
 
-Use `EnterPlanMode`, then:
+@reference/non-interactive-mode.md §EnterPlanMode / ExitPlanMode
+
 - `Read` all files in `docs/` if present
 - `Glob` for any existing source structure
 
 If docs/ is absent:
-- **Interactive**: use `AskUserQuestion` for core business concepts, actions, tech stack, and commands.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED] docs/ is absent — create at least one docs/{concept}.md and populate .claude/local.md before re-running` to `## Open Questions` in the plan file, then stop.
+- Interactive: `AskUserQuestion` for core business concepts, actions, tech stack, and commands.
+- Non-interactive: `[BLOCKED] docs/ is absent — create at least one docs/{concept}.md and populate .claude/local.md before re-running`
 
 If docs/ is present but `.claude/local.md` is absent or missing commands:
-- **Interactive**: use `AskUserQuestion` — "What are the tech stack, test command, and lint command?"
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED] .claude/local.md is missing or incomplete — fill in language, test command, and lint command` to `## Open Questions` and stop.
+- Interactive: `AskUserQuestion` — "What are the tech stack, test command, and lint command?"
+- Non-interactive: `[BLOCKED] .claude/local.md is missing or incomplete — fill in language, test command, and lint command`
 
 ## Step 2 — Propose structure
 
@@ -45,11 +46,7 @@ domain/                 ← BDD spec files per domain concept (domain/{concept}/
 List proposed `domain/{concept}/spec.md` drafts and initial domain concept names.
 
 - **Interactive**: call `ExitPlanMode` to request approval.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN initializing-project "structure auto-approved"
-  ```
-  and proceed to Step 3.
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` and proceed to Step 3.
 
 ## Step 3 — Scaffold directories and generate CLAUDE.md
 
@@ -90,7 +87,10 @@ If docs/ already contains relevant files, read and preserve them. If docs/ is ab
 - **Interactive**: use `AskUserQuestion` — "What are the core rules and constraints for {concept}? I'll use this to create docs/{concept}.md."
 - **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): leave the Definition / Rules / Vocabulary sections with `TODO` placeholders; append `[WARN] docs/{concept}.md has placeholder content — fill in domain rules before writing-spec runs` to `## Open Questions`.
 
-Write `CLAUDE.md` at project root:
+Edit `CLAUDE.md` at project root — do **not** replace the file; patch specific sections
+so the harness instructions already in the file are preserved.
+
+**1. Prepend project context at the very top** (before `@local.md`):
 
 ```markdown
 # {Project Name}
@@ -104,39 +104,53 @@ Write `CLAUDE.md` at project root:
 - Database: {if applicable}
 - Test runner: {tool}
 
-## Commands
-- Dev: `{command}`
-- Test: `{command}`
-- Integration test: `{command}`
-- Lint: `{command}`
+```
 
-## Domain Knowledge
-@docs/{filename}.md
+**2. Replace the two placeholder lines** under the existing `# Commands` section:
 
-## Architecture Decisions
-- {decision}
+Old lines (remove both):
+```
+- Test: _(run `/initializing-project` to fill this in)_
+- Integration test: _(run `/initializing-project` to fill this in)_
+```
+
+New lines (insert in their place):
+```
+- Dev: `{dev command}`
+- Test: `{test command}`
+- Integration test: `{integration-test command}`
+- Lint: `{lint command}`
+```
+
+**3. Insert after the `# Commands` section** (before `# Phase gate configuration`):
+
+```markdown
+# Domain Knowledge
+
+@docs/{concept1}.md
+@docs/{concept2}.md
+
+# Architecture Decisions
+
+- {decision if any; otherwise leave this section empty}
+
 ```
 
 Write per-layer CLAUDE.md files so Claude Code injects focused layer rules when
-editing files in each layer's directory. Strip the YAML frontmatter block from each
-source template — CLAUDE.md files do not use frontmatter:
+editing files in each layer's directory. The template at `rules/src-layer.md.template`
+is rendered for each layer — CLAUDE.md files do not use frontmatter:
 
 ```bash
-# Extract body (everything after the closing ---) from each rules template.
-# Fail immediately if a rules file is missing rather than silently writing an empty CLAUDE.md.
-for rules_file in \
-  "$CLAUDE_PROJECT_DIR/.claude/rules/src-domain.md" \
-  "$CLAUDE_PROJECT_DIR/.claude/rules/src-features.md" \
-  "$CLAUDE_PROJECT_DIR/.claude/rules/src-infrastructure.md"; do
-  [ -f "$rules_file" ] || { echo "[init] ERROR: rules file not found: $rules_file" >&2; exit 1; }
+tmpl="$CLAUDE_PROJECT_DIR/.claude/rules/src-layer.md.template"
+[ -f "$tmpl" ] || { echo "[init] ERROR: rules template not found: $tmpl" >&2; exit 1; }
+for layer in domain features infrastructure; do
+  case "$layer" in
+    domain)         label="Domain" ;;
+    features)       label="Features" ;;
+    infrastructure) label="Infrastructure" ;;
+  esac
+  sed -e "s/{{LAYER}}/$layer/g" -e "s/{{LAYER_LABEL}}/$label/g" "$tmpl" > "src/$layer/CLAUDE.md"
 done
-
-awk '/^---/{n++; if(n==2){found=1; next}} found{print}' \
-  "$CLAUDE_PROJECT_DIR/.claude/rules/src-domain.md" > src/domain/CLAUDE.md
-awk '/^---/{n++; if(n==2){found=1; next}} found{print}' \
-  "$CLAUDE_PROJECT_DIR/.claude/rules/src-features.md" > src/features/CLAUDE.md
-awk '/^---/{n++; if(n==2){found=1; next}} found{print}' \
-  "$CLAUDE_PROJECT_DIR/.claude/rules/src-infrastructure.md" > src/infrastructure/CLAUDE.md
 ```
 
 For each domain concept directory:
@@ -148,38 +162,12 @@ cp src/domain/CLAUDE.md src/domain/{concept}/CLAUDE.md
 
 Create the initial plan file `plans/{project-slug}.md` **before** committing so it is included in the scaffold commit (brainstorming's dirty-tree check runs after this commit and must see a clean tree):
 
-```markdown
----
-feature: {project-slug}
-phase: brainstorm
-schema: 1
----
-
-## Vision
-{one-sentence goal}
-
-## Scenarios
-
-## Test Manifest
-
-## Phase
-brainstorm
-
-## Phase Transitions
-- brainstorm → (initial)
-
-## Critic Verdicts
-
-## Critic Runs
-
-## Task Ledger
-
-## Pre-existing Errors
-
-## Integration Failures
-
-## Open Questions
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "plans/{project-slug}.md"
+# Then edit plans/{project-slug}.md to fill in the ## Vision section
 ```
+
+Non-interactive: @reference/non-interactive-mode.md §ExitPlanMode replacement — skip `ExitPlanMode`.
 
 Then stage and commit all scaffold files so the working tree is clean before brainstorming runs its dirty-tree check.
 
@@ -187,9 +175,10 @@ If the project is not yet a git repository (`git rev-parse --git-dir` fails):
 - **Interactive**: use `AskUserQuestion` — "No git repository found. Run `git init && git add .gitignore` first, then re-run initializing-project."
 - **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED] not a git repository — run git init before initializing-project` to `## Open Questions` in the plan file, then stop.
 
-Stage and commit if there is anything to stage (use `-A` with explicit paths to avoid glob-expansion issues in bash without `globstar`):
+Stage and commit if there is anything to stage:
 ```bash
-git add -A CLAUDE.md src docs plans features domain
+git add CLAUDE.md
+git add src/ docs/ plans/ features/ domain/
 if git diff --cached --quiet; then
   echo "[SKIP] nothing to commit — scaffold already present"
 else

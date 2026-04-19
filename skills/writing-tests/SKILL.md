@@ -12,26 +12,32 @@ paths:
   - domain/**
 ---
 
-# Writing Failing Tests
+**Non-interactive handling** (`CLAUDE_NONINTERACTIVE=1`): replace every `AskUserQuestion` per `@reference/non-interactive-mode.md §AskUserQuestion replacement`. `[BLOCKED] {description}` goes to `## Open Questions` when decision is required; `[AUTO-DECIDED] {decision}` when skill may proceed.
 
-Layer rules: @reference/layers.md
+# Writing Failing Tests
 
 ## Step 1 — Read plan file + spec
 
-Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `spec`.
+Phase entry protocol: @reference/critics.md §Skill phase entry — expected phases: `spec`, `red` (re-entry).
 
-**Batch mode exception** — In batch mode (`--profile greenfield` or explicit `--batch`), the
-orchestrator writes all specs first and then all tests. When writing tests for feature 2+, the
-plan phase may already be `red` (set by the previous feature's tests). This is expected. If the
-phase is `red` on entry and you are writing tests for a feature whose spec was written during the
-current batch run (verify by checking `## Critic Verdicts` for a `critic-spec: PASS` for this
-feature):
+**Phase `red` on entry** — Two cases where phase is already `red` when this skill starts:
+
+- **Batch mode**: In batch mode (`--profile greenfield` or explicit `--batch`), the orchestrator
+  writes all specs first and then all tests. Phase was set to `red` by the previous feature's tests.
+- **Phase-rollback re-entry**: `§Phase rollback` (below) resets phase to `red` when tests need
+  rewriting. The plan file already has a `critic-spec: PASS` from the original spec writing run.
+
+In both cases, verify by checking `## Critic Verdicts` for a `critic-spec: PASS` for this feature.
+If found:
 1. Continue from Step 2 — do NOT re-run writing-spec. (No phase transition to record — phase is already `red`.)
 
 If the phase is `red` and no `critic-spec: PASS` verdict exists for this feature, stop and
 report: "Phase is `red` but no spec verdict found for this feature — run writing-spec first."
 
-Use `EnterPlanMode`, then:
+If the phase is neither `spec` nor `red`, append `[BLOCKED] writing-tests entered from unexpected phase {phase} — run writing-spec first` to `## Open Questions` and stop.
+
+@reference/non-interactive-mode.md §EnterPlanMode / ExitPlanMode
+
 - `Read` the project `CLAUDE.md` to extract the test command
 - `Read` the target `spec.md` in full
 - `Glob` `src/` to find existing file structure and naming conventions
@@ -50,12 +56,8 @@ Scenario: {name}
   Name: "should {outcome} when {condition}"
 ```
 
-Call `ExitPlanMode` to request approval.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN writing-tests "test plan auto-approved"
-  ```
-  and proceed directly to Step 3.
+Call `ExitPlanMode` to request approval (interactive only).
+- Non-interactive: @reference/non-interactive-mode.md §ExitPlanMode replacement — proceed directly to Step 3.
 
 ## Step 3 — Write failing tests
 
@@ -69,7 +71,8 @@ TaskCreate: "Write tests for {scenario 2}"
 
 Set plan file phase to `red` before writing any test files:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" red
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" red \
+  "approved plan — writing failing tests"
 ```
 
 Mark each task `in_progress` before writing, `completed` after.
@@ -102,47 +105,20 @@ This preserves the Red state across session interruptions.
 
 ## Phase rollback
 
-If re-entering `writing-tests` from a later phase (e.g., multi-feature slice mode where the previous
-feature's implementing left the plan at `green`, or a bug requires tests to be rewritten):
+Triggered when re-entering from a later phase (slice mode or tests need rewriting).
 
-1. Preserve all existing `## Critic Verdicts` — do not delete them.
-2. Record the phase rollback:
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-     "- {previous-phase} → red (reason: {one sentence})"
-   ```
-3. Step 3 already sets the plan phase to `red` at the start of the step (before writing test
-   files); the plan-file phase check in Step 1 ("Confirm Phase is `spec`") is satisfied once
-   writing-spec has run for the current feature and set the phase to `spec` via its own rollback.
+Apply @reference/critics.md §Phase rollback entry with `{target-phase}` = `red`, `{critic-name}` = `critic-test`, `{skill-name}` = `writing-tests`.
 
-If the plan phase is `green` when this skill starts (previous feature completed in slice mode):
-- writing-spec for the current feature will have already rolled back to `spec` (see writing-spec
-  Phase rollback section) before writing-tests is invoked. By the time writing-tests runs, the
-  phase will be `spec`. ✓
+When phase is `green` on entry: `writing-spec` will have already rolled back to `spec` before `writing-tests` runs — the Step 1 phase check will pass. ✓
 
 ## Step 4 — Run critic-test (convergence loop)
 
-Full protocol: @reference/critic-loop.md
+Full protocol: @reference/critics.md §Loop convergence
 
 ```
 Skill("critic-test", "Review tests at [paths] against spec at [path]. Test command: [command].")
 ```
 
-After each run, `plan-file.sh record-verdict` fires automatically (SubagentStop hook). Read `## Open Questions` for `critic-test` markers in priority order:
+After each run, follow @reference/critics.md §Running the critic and @reference/critics.md §Skill branching logic, substituting `critic-test` for `{agent}`.
 
-| Marker | Action |
-|--------|--------|
-| `[BLOCKED-CEILING] {phase}/critic-test` | Stop — manual review required. **Phase-match required**: `{phase}` must equal the current plan file phase. |
-| `[BLOCKED-CATEGORY] critic-test` | Stop — fix root cause first |
-| `[BLOCKED-AMBIGUOUS] critic-test: …` | Stop — human decision needed |
-| `[BLOCKED-PARSE] critic-test` | Stop — check critic output format before retrying |
-| `[CONVERGED] {phase}/critic-test` | Complete — writing-tests phase done; proceed to `implementing` (if invoked via `running-dev-cycle`, it advances automatically). **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[CONFIRMED-FIRST] {phase}/critic-test` | Re-run automatically (user already confirmed in a previous session). **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[AUTO-APPROVED-FIRST] {phase}/critic-test` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session). **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[FIRST-TURN] {phase}/critic-test` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-confirmed-first "plans/{slug}.md" critic-test` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-test` (non-interactive), then re-run. **Phase-match required**: same rule as BLOCKED-CEILING. |
-| PARSE_ERROR (no `[BLOCKED-PARSE]` yet) | Re-run automatically (second consecutive PARSE_ERROR triggers `[BLOCKED-PARSE]`) |
-| PASS, no `[CONVERGED]` yet | Re-run automatically |
-| FAIL | Apply fix, then re-run |
-
-Evaluation order: BLOCKED-CEILING → BLOCKED-CATEGORY → BLOCKED-AMBIGUOUS → BLOCKED-PARSE → CONVERGED → CONFIRMED-FIRST → AUTO-APPROVED-FIRST → FIRST-TURN → PARSE_ERROR → PASS → FAIL
-_(Steps 1–8 check `## Open Questions`; steps 9–11 check the last entry in `## Critic Verdicts`)_
+On `[CONVERGED] {phase}/critic-test`: writing-tests phase done; proceed to `implementing` (if invoked via `running-dev-cycle`, it advances automatically).

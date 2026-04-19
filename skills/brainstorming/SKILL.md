@@ -11,6 +11,8 @@ paths:
   - plans/**
 ---
 
+**Non-interactive handling** (`CLAUDE_NONINTERACTIVE=1`): replace every `AskUserQuestion` per `@reference/non-interactive-mode.md §AskUserQuestion replacement`. `[BLOCKED] {description}` goes to `## Open Questions` when decision is required; `[AUTO-DECIDED] {decision}` when skill may proceed.
+
 # Brainstorming Workflow
 
 ## Step 0 — Detect uninitialized project (autonomous pre-check)
@@ -44,7 +46,7 @@ git status --porcelain
 
 | Condition | Interactive | Non-interactive (`CLAUDE_NONINTERACTIVE=1`) |
 |-----------|-------------|---------------------------------------------|
-| Dirty working tree (non-empty output) | `AskUserQuestion` — "Working tree has uncommitted changes. Commit or stash before brainstorming?" | `[BLOCKED] dirty working tree — commit or stash changes first` (→ @reference/non-interactive-mode.md §AskUserQuestion replacement) |
+| Dirty working tree (non-empty output) | `AskUserQuestion` — "Working tree has uncommitted changes. Commit or stash before brainstorming?" | `[BLOCKED] dirty working tree — commit or stash changes first` |
 
 If `CLAUDE_PLAN_FILE` is set and the file does not yet exist, create the skeleton plan file now (before any `plan-file.sh` command that requires it):
 
@@ -64,7 +66,7 @@ Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 
 If `docs/` is empty or absent:
 - Interactive: `AskUserQuestion` — "No docs/*.md found. What are the core domain rules and concepts for this feature? I'll create docs/{concept}.md before writing specs."
-- Non-interactive: `[BLOCKED] docs/ is empty — create at least one docs/{concept}.md before re-running` (→ @reference/non-interactive-mode.md §AskUserQuestion replacement)
+- Non-interactive: `[BLOCKED] docs/ is empty — create at least one docs/{concept}.md before re-running`
 
 After collecting the answer (interactive) or when docs/ is present, write or update `docs/{concept}.md` (same template as initializing-project Step 3). This must happen before writing-spec runs — critics use docs/*.md as the contradiction SOT.
 
@@ -72,7 +74,7 @@ If `docs/requirements/{name}.md` already exists and `CLAUDE_NONINTERACTIVE=1`:
 - Skip ambiguity questions below; treat the file as the complete and approved requirement.
 
 If `docs/requirements/{name}.md` does **not** exist and `CLAUDE_NONINTERACTIVE=1`:
-- `[BLOCKED] docs/requirements/{name}.md not found — write the requirement file before re-running` (→ @reference/non-interactive-mode.md §AskUserQuestion replacement)
+- `[BLOCKED] docs/requirements/{name}.md not found — write the requirement file before re-running`
 
 Otherwise use `AskUserQuestion` to resolve requirement ambiguity — at most three questions (language: @~/harness-builder/CLAUDE.md):
 - "성공 기준이 무엇인가요?" (What does success look like?)

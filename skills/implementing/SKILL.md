@@ -12,6 +12,8 @@ paths:
   - tests/**
 ---
 
+**Non-interactive handling** (`CLAUDE_NONINTERACTIVE=1`): replace every `AskUserQuestion` per `@reference/non-interactive-mode.md §AskUserQuestion replacement`. `[BLOCKED] {description}` goes to `## Open Questions` when decision is required; `[AUTO-DECIDED] {decision}` when skill may proceed.
+
 # Implementation Workflow
 
 ## Step 1 — Read plan file + plan implementation order

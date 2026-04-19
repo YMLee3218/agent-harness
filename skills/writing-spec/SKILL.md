@@ -12,17 +12,18 @@ paths:
   - plans/**
 ---
 
-# BDD Spec Writing
+**Non-interactive handling** (`CLAUDE_NONINTERACTIVE=1`): replace every `AskUserQuestion` per `@reference/non-interactive-mode.md §AskUserQuestion replacement`. `[BLOCKED] {description}` goes to `## Open Questions` when decision is required; `[AUTO-DECIDED] {decision}` when skill may proceed.
 
-Scenario templates: @reference/bdd-template.md
-Layer rules: @reference/layers.md
+# BDD Spec Writing
 
 ## Step 1 — Read plan file + sources
 
-Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `brainstorm` or `spec`.
-If Phase is neither, apply the **## Phase rollback** procedure at the bottom of this skill before proceeding.
+Phase entry protocol: @reference/critics.md §Skill phase entry — expected phases: `brainstorm`, `spec`.
+On unexpected phase: apply **## Phase rollback** at the bottom of this skill.
 
-Use `EnterPlanMode`, then read only:
+@reference/non-interactive-mode.md §EnterPlanMode / ExitPlanMode
+
+Read only:
 1. `docs/requirements/*.md` — brainstorming output
 2. `docs/*.md` — domain knowledge
 
@@ -33,7 +34,7 @@ If `docs/*.md` appears stale or contradictory to the requirement, use `AskUserQu
 
 If docs need updating, stop. Re-invoke after `docs/*.md` is updated.
 
-In **non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): skip the question; append `[WARN] writing-spec: docs/{file}.md may contradict the requirement — continuing; critic-spec will flag [DOCS CONTRADICTION] if the spec needs updating` to `## Open Questions`. Continue writing the spec.
+Non-interactive: `[WARN] writing-spec: docs/{file}.md may contradict the requirement — continuing; critic-spec will flag [DOCS CONTRADICTION] if the spec needs updating`. Continue writing the spec.
 
 ## Step 2 — Draft scenarios
 
@@ -42,19 +43,10 @@ Write the full scenario structure to the plan file. Cover for every scenario:
 - Same request while processing? Prior step incomplete?
 - Events out of order? Duplicate events?
 
-Every `Scenario Outline` Examples table must include boundaries for the input type:
-- **Numeric**: zero (`0`), negative one (`-1`), maximum
-- **Collection**: empty (`[]`)
-- **String**: empty (`""`), max-length
-- **Nullable**: `null` / absent
-- **Boolean**: `true`, `false`
+Every `Scenario Outline` Examples table must include boundaries per §Required boundary rows by input type.
 
-Call `ExitPlanMode` to request approval.
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode` — run:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN writing-spec "scenario plan auto-approved"
-  ```
-  and proceed directly to Step 3.
+Call `ExitPlanMode` to request approval (interactive only).
+- Non-interactive: @reference/non-interactive-mode.md §ExitPlanMode replacement — proceed directly to Step 3.
 
 ## Step 3 — Write spec.md
 
@@ -65,41 +57,24 @@ features/{verb}-{noun}/spec.md   ← feature spec
 domain/{concept}/spec.md         ← domain spec
 ```
 
-Domain specs: no DB, HTTP, queue, or file system references.
-
 Set plan file phase:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" spec
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" spec \
+  "approved plan — writing spec"
 ```
 
 ## Step 4 — Run critic-spec (convergence loop)
 
-Full protocol: @reference/critic-loop.md
+Full protocol: @reference/critics.md §Loop convergence
 
 ```
 Skill("critic-spec", "Review spec at [path]. Relevant docs: [paths].")
 ```
 
-After each run, `plan-file.sh record-verdict` fires automatically (SubagentStop hook). Read `## Open Questions` for `critic-spec` markers in priority order:
+After each run, follow @reference/critics.md §Running the critic and @reference/critics.md §Skill branching logic, substituting `critic-spec` for `{agent}`.
 
-| Marker | Action |
-|--------|--------|
-| `[BLOCKED-CEILING] {phase}/critic-spec` | Stop — manual review required. **Phase-match required**: `{phase}` must equal the current plan file phase. |
-| `[BLOCKED-CATEGORY] critic-spec` | Stop — fix root cause first |
-| `[BLOCKED-AMBIGUOUS] critic-spec: …` | Stop — human decision needed |
-| `[BLOCKED-PARSE] critic-spec` | Stop — check critic output format before retrying |
-| `[CONVERGED] {phase}/critic-spec` | Proceed to Step 5. **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[CONFIRMED-FIRST] {phase}/critic-spec` | Re-run automatically (user already confirmed in a previous session). **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[AUTO-APPROVED-FIRST] {phase}/critic-spec` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session). **Phase-match required**: same rule as BLOCKED-CEILING. |
-| `[FIRST-TURN] {phase}/critic-spec` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-confirmed-first "plans/{slug}.md" critic-spec` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-spec` (non-interactive), then re-run. **Phase-match required**: same rule as BLOCKED-CEILING. |
-| PARSE_ERROR (no `[BLOCKED-PARSE]` yet) | Re-run automatically (second consecutive PARSE_ERROR triggers `[BLOCKED-PARSE]`) |
-| PASS, no `[CONVERGED]` yet | Re-run automatically |
-| FAIL | Apply fix, then re-run |
-
-Evaluation order: BLOCKED-CEILING → BLOCKED-CATEGORY → BLOCKED-AMBIGUOUS → BLOCKED-PARSE → CONVERGED → CONFIRMED-FIRST → AUTO-APPROVED-FIRST → FIRST-TURN → PARSE_ERROR → PASS → FAIL
-_(Steps 1–8 check `## Open Questions`; steps 9–11 check the last entry in `## Critic Verdicts`)_
-
-On `[DOCS CONTRADICTION]`: update `docs/*.md` first, then fix the spec to match.
+On `[CONVERGED] {phase}/critic-spec`: proceed to Step 5.
+On `[DOCS CONTRADICTION]`: @reference/critics.md §DOCS CONTRADICTION cascade
 
 ## Step 5 — Commit spec file
 
@@ -116,22 +91,61 @@ Commit all spec files written in this run in a single commit. Do not commit any 
 
 ## Phase rollback
 
-If re-entering `writing-spec` from a later phase — including:
-- **slice mode**: `running-dev-cycle` calls `writing-spec` for feature 2+ while the plan phase is still `green` from the previous feature's `implementing`
-- **any rollback**: a bug, pr-review finding, or critic verdict requires the spec to be revised
+Triggered when re-entering from a later phase (slice mode or explicit rollback).
 
-Steps:
-1. Preserve all existing `## Critic Verdicts` — do not delete them
-2. Record the phase rollback:
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
-     "- {previous-phase} → spec (reason: {one sentence})"
-   ```
-3. Set plan phase: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" spec`
-4. Proceed normally from Step 2
+Apply @reference/critics.md §Phase rollback entry with `{target-phase}` = `spec`, `{critic-name}` = `critic-spec`, `{skill-name}` = `writing-spec`.
 
 ## Rules
 
 - One `Feature:` block per file
-- One `Scenario:` per distinct flow; same flow + different values → `Scenario Outline`
-- No technology names, framework names, or implementation details
+- Every `Scenario Outline` must have `Examples:`
+- No technology names (no DB engines, HTTP libraries, framework names)
+- No implementation details in Given/When/Then steps
+- Domain specs: no DB, HTTP, queue, or file system references
+- One `Scenario:` per distinct flow; same flow + different values → `Scenario Outline`.
+
+## Scenario templates
+
+One `Feature:` per file. Use `Scenario Outline` for the same flow with different values.
+
+### Basic scenario
+
+```gherkin
+Feature: {feature name}
+
+  Scenario: {happy path description}
+    Given {initial condition or context}
+    When  {action taken}
+    Then  {expected outcome}
+
+  Scenario: {failure case description}
+    Given {initial condition}
+    When  {action that fails or edge case}
+    Then  {expected error or outcome}
+```
+
+### Parameterised scenario
+
+```gherkin
+  Scenario Outline: {description covering multiple values}
+    Given {condition with <param>}
+    When  {action with <param>}
+    Then  {outcome with <result>}
+
+    Examples:
+      | {param} | {result} |
+      | value1  | result1  |
+      | value2  | result2  |
+```
+
+### Required boundary rows by input type
+
+Every `Scenario Outline` Examples table must include boundaries applicable to the input type:
+
+| Input type | Required boundary values |
+|-----------|--------------------------|
+| Numeric | zero (`0`), negative one (`-1`), maximum (`MAX_INT` or domain max) |
+| Collection / list | empty (`[]`) |
+| String | empty string (`""`), max-length string |
+| Nullable / optional | `null` / `None` / absent |
+| Boolean | `true`, `false` |
