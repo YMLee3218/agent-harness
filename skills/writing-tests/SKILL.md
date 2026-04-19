@@ -107,7 +107,7 @@ This preserves the Red state across session interruptions.
 
 Triggered when re-entering from a later phase (slice mode or tests need rewriting).
 
-Apply @reference/critics.md §Phase rollback entry with `{target-phase}` = `red`, `{critic-name}` = `critic-test`, `{skill-name}` = `writing-tests`.
+Apply @reference/critics.md §Phase Rollback Procedure with `{target-phase}` = `red`, `{critic-name}` = `critic-test`, `{skill-name}` = `writing-tests`.
 
 When phase is `green` on entry: `writing-spec` will have already rolled back to `spec` before `writing-tests` runs — the Step 1 phase check will pass. ✓
 

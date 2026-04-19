@@ -45,7 +45,7 @@ Rules:
 | FAIL | Orchestrating skill applies fixes, increments counter, re-runs this critic |
 | PASS (ceiling hit) | Orchestrating skill checks `[BLOCKED-CEILING]` marker and stops |
 
-Per-critic SKILL files include calibration examples (one PASS and one FAIL) relevant to that critic's domain. Full iteration protocol: §Loop convergence.
+Full iteration protocol: §Loop convergence.
 
 ---
 
@@ -70,16 +70,14 @@ Convergence-based protocol used by every phase-gate critic (critic-spec, critic-
 
 to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLOCKED-CATEGORY]` marker and stops. The loop cannot converge when the same structural problem recurs; human review is required.
 
-> **Phase independence**: category counter is phase-independent — not reset by `implement → review` transitions.
-
 ## Review execution rule (subagent mandate)
 
 All phase-gate critics (`critic-feature`, `critic-spec`, `critic-test`, `critic-code`) and pr-review **must** run in isolated subagents. Generating a verdict inline in the parent context (i.e., executing review logic without spawning a subagent) is forbidden.
 
 Normative implementations:
 
-- **`critic-*` (4 variants)**: `skills/critic-*/SKILL.md` frontmatter `context: fork` + `agent: critic-*` + `workspace/agents/critic-*.md` definition. The current configuration already satisfies this rule.
-- **`pr-review-toolkit:review-pr`**: The external plugin internally orchestrates `pr-review-toolkit:code-reviewer`, `…:pr-test-analyzer`, `…:silent-failure-hunter`, `…:comment-analyzer`, and `…:type-design-analyzer` subagents, so the isolation requirement is satisfied by the plugin definition. If the plugin is removed or replaced, the substitute implementation must maintain equivalent subagent orchestration.
+- **`critic-*` (4 variants)**: `skills/critic-*/SKILL.md` frontmatter `context: fork` + `agent: critic-*` + `workspace/agents/critic-*.md` definition.
+- **`pr-review-toolkit:review-pr`**: The external plugin internally orchestrates `pr-review-toolkit:code-reviewer`, `…:pr-test-analyzer`, `…:silent-failure-hunter`, `…:comment-analyzer`, and `…:type-design-analyzer` subagents, so the isolation requirement is satisfied by the plugin definition.
 
 **Prohibited**: any implementation that generates a verdict directly in the parent context without subagent isolation.
 
@@ -165,9 +163,7 @@ Every verdict returned by a review subagent **must pass a parent-context ultrath
 
 ### Audit prompt
 
-Include the literal keyword `ultrathink` in the audit prompt. Example:
-
-> Apply `ultrathink` to audit the verdict below against [spec path] and [source paths]. Check: (1) factual consistency of evidence paths/line numbers, (2) coverage gaps vs. spec scenarios, (3) fix direction on FAIL (root cause vs. workaround), (4) false positive/negative risk, (5) category accuracy per @reference/severity.md §Category priority.
+Include `ultrathink` in the audit prompt and check the five items in §Audit checklist against the spec and source paths.
 
 ### Audit outcomes
 
@@ -267,7 +263,7 @@ When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
    ```
    Re-run `Skill("critic-spec")`.
 
-3. If tests need to change (test files are frozen in every phase except `red` — roll back to `red` to allow edits):
+3. If tests need to change:
    **Rollback to red**: apply §Phase Rollback Procedure with target-phase=`red`, critic=`critic-test`.
    Fix tests → re-run `Skill("critic-test")`. Then advance back to `implement`:
    **Rollback to implement**: apply §Phase Rollback Procedure with target-phase=`implement`, critic=`critic-code`.
@@ -328,10 +324,6 @@ Calling skill specifies `{target-phase}` and `{critic-name}`.
      "rolled back phase to {target-phase} — {one sentence reason} (skill: {skill-name})"
    ```
 5. Proceed normally from Step 2 of the calling skill.
-
-## §Phase rollback entry
-
-When re-entering a phase from a later phase (slice mode or any rollback trigger), apply §Phase Rollback Procedure above with `{target-phase}` and `{critic-name}` specified by the calling skill.
 
 ## Skill phase entry
 

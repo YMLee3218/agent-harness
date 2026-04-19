@@ -93,7 +93,7 @@ Commit all spec files written in this run in a single commit. Do not commit any 
 
 Triggered when re-entering from a later phase (slice mode or explicit rollback).
 
-Apply @reference/critics.md §Phase rollback entry with `{target-phase}` = `spec`, `{critic-name}` = `critic-spec`, `{skill-name}` = `writing-spec`.
+Apply @reference/critics.md §Phase Rollback Procedure with `{target-phase}` = `spec`, `{critic-name}` = `critic-spec`, `{skill-name}` = `writing-spec`.
 
 ## Rules
 
