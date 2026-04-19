@@ -1,6 +1,6 @@
 # Critics
 
-> Single source for: critic preamble (verdict format, blocking rules), convergence policy, marker semantics, branching priority, review execution rules, ultrathink audit, running critics, blocked-state procedures, and phase rollback. Skills cite sections here by name.
+> Single source for: verdict format, critic blocking rules, convergence policy, branching priority, review execution rules, running critics, blocked-state procedures. Phase ops: `@reference/phase-ops.md`. Ultrathink audit: `@reference/ultrathink.md`. PR-review fix loop: `@reference/pr-review-loop.md`.
 
 Severity rules: @reference/severity.md
 Layer rules: @reference/layers.md
@@ -32,18 +32,7 @@ FAIL — {comma-separated list of blocking finding labels}
 <!-- category: {highest-priority category} -->
 ```
 
-Rules:
-- The verdict marker (`<!-- verdict: PASS|FAIL -->`) is always English; the explanatory summary follows @~/harness-builder/CLAUDE.md.
-- On FAIL, emit one `<!-- category: {CATEGORY} -->` per @reference/severity.md §Category priority. If multiple root causes, choose the highest-severity one.
-- Blocking consequence is critic-specific — see each critic SKILL.
-
-| Verdict | Next action |
-|---------|-------------|
-| PASS | Proceed to next phase |
-| FAIL | Orchestrating skill applies fixes, increments counter, re-runs this critic |
-| PASS (ceiling hit) | Orchestrating skill checks `[BLOCKED-CEILING]` marker and stops |
-
-Full iteration protocol: §Loop convergence.
+Rules: `@reference/markers.md §HTML verdict envelopes`. Full iteration protocol: §Loop convergence.
 
 ---
 
@@ -76,6 +65,8 @@ Normative implementations:
 
 ## Loop convergence
 
+The harness always operates in non-interactive mode — skills write `[BLOCKED]` markers to `## Open Questions` instead of prompting the user.
+
 The loop terminates on **2 consecutive PASSes** (convergence), not on a single PASS. This filters lucky single-run PASSes caused by LLM non-determinism.
 
 `plan-file.sh record-verdict` (and `append-review-verdict` for pr-review) automatically writes markers to `## Open Questions`. The skill reads these markers after each run and branches accordingly.
@@ -86,7 +77,7 @@ Definitions: `@reference/markers.md §Critic loop markers` and `@reference/marke
 
 #### pr-review asymmetry
 
-pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 3 → 4–7 → 9 → 10 only.
+pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 3 → 4–5 → 7 → 8 only.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
@@ -102,102 +93,28 @@ Skill reads ## Open Questions, checks in priority order:
   2. [BLOCKED] {any text}               → stop (read reason; fix root cause; clear marker; retry)
   3. [BLOCKED-AMBIGUOUS] {agent}        → stop (human decision required)
   4. [CONVERGED] {phase}/{agent}        → proceed to next step
-  5. [CONFIRMED-FIRST] {phase}/{agent}  → re-run automatically (user confirmed in prior session)
+  5. [FIRST-TURN] {phase}/{agent}       → re-run automatically
                                           **Only when latest verdict is PASS or PARSE_ERROR.**
-                                          If latest verdict is FAIL, skip to step 9.
-  6. [AUTO-APPROVED-FIRST] {phase}/{agent} → re-run automatically
-                                          (FIRST-TURN auto-approved in prior session)
-                                          **Only when latest verdict is PASS or PARSE_ERROR.**
-                                          If latest verdict is FAIL, skip to step 9.
-  7. [FIRST-TURN] {phase}/{agent}       → auto-approve + re-run
-                                          Call record-auto-approved, then re-run:
-                                            bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" \
-                                              record-auto-approved "plans/{slug}.md" FIRST {agent}
-                                          **Only when latest verdict is PASS or PARSE_ERROR.**
-                                          If latest verdict is FAIL, skip to step 9.
-  8. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
+                                          If latest verdict is FAIL, skip to step 7.
+  6. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
                                 → re-run automatically (one retry allowed;
                                   second consecutive PARSE_ERROR triggers [BLOCKED] parse:)
-  9. (no terminal marker, PASS) → re-run automatically
-  10. (no terminal marker, FAIL) → LLM determines fix direction:
+  7. (no terminal marker, PASS) → re-run automatically
+  8. (no terminal marker, FAIL) → LLM determines fix direction:
        - direction is clear → apply fix + re-run
        - direction is ambiguous → append [BLOCKED-AMBIGUOUS] {agent}: {question} + stop
        - [DOCS CONTRADICTION] in critic output → append [BLOCKED-AMBIGUOUS] {agent}: DOCS
          CONTRADICTION — cannot determine whether docs or code is ground truth + stop.
-         Then follow §DOCS CONTRADICTION cascade.
+         Then follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
 ```
 
 ---
-
-## Ultrathink verdict audit
-
-Every verdict returned by a review subagent **must pass a parent-context ultrathink audit** before it is accepted. Run the audit immediately after `record-verdict` (or `append-review-verdict`) completes and **before** branching on `## Open Questions` markers (§Skill branching logic).
-
-### Audit checklist (fixed — apply to every verdict)
-
-1. **Factual consistency** — do the subagent's evidence paths and line numbers match the actual files?
-2. **Coverage gaps** — are there scenarios or boundary cases in the spec/docs that the verdict did not address?
-3. **Fix direction** — on FAIL, does the proposed fix target the root cause or is it a workaround?
-4. **False positive/negative risk** — is a PASS genuinely comprehensive, or is it a conventional rubber-stamp?
-5. **Category accuracy** — does `<!-- category: X -->` reflect the true highest-severity finding per `@reference/severity.md §Category priority`?
-
-### Audit prompt
-
-Include `ultrathink` in the audit prompt and check the five items in §Audit checklist against the spec and source paths.
-
-### Audit outcomes
-
-| Outcome | Condition | Action |
-|---------|-----------|--------|
-| **ACCEPT** | Verdict is sound | Adopt verdict as-is; proceed to §Skill branching logic |
-| **REJECT-PASS** | Subagent returned PASS but audit found a substantive gap | Call `clear-converged` (if `[CONVERGED]` marker exists), then record audit and enter FAIL path. **Ultrathink may demote PASS→FAIL but must never promote FAIL→PASS.** |
-| **BLOCKED-AMBIGUOUS** | Audit result is inconclusive | Append `[BLOCKED-AMBIGUOUS] {agent}: ultrathink audit inconclusive — {question}` to `## Open Questions` and stop |
-
-### Applying the audit outcome
-
-Apply audit outcomes for `{agent}` using these commands (substitute the real agent name):
-
-**ACCEPT**:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
-  "plans/{slug}.md" "{agent}" "ACCEPT" "{one-line summary}"
-```
-Proceed to §Skill branching logic.
-
-**REJECT-PASS** — `record-verdict` runs before the parent sees the verdict, so `[CONVERGED]` may already be written. Clear it first, then record the override:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-converged \
-  "plans/{slug}.md" "{agent}"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
-  "plans/{slug}.md" "{agent}" "REJECT-PASS" "audit overrode PASS — {one-line gap description}"
-```
-Enter the FAIL path. (If no `[CONVERGED]` marker exists, `clear-converged` is a safe no-op. For agents not listed in VALID_CRITIC_AGENTS (e.g. `critic-feature`), skip `clear-converged` entirely — it will error, not no-op.)
-
-**BLOCKED-AMBIGUOUS**:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
-  "plans/{slug}.md" "{agent}" "BLOCKED-AMBIGUOUS" "{question}"
-```
-Append `[BLOCKED-AMBIGUOUS] {agent}: ultrathink audit inconclusive — {question}` to `## Open Questions` and stop.
-
-**Non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): BLOCKED-AMBIGUOUS still stops. REJECT-PASS automatically enters the FAIL path without user confirmation.
-
-### Audit trail
-
-Record every audit outcome in the plan file:
-
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
-  "plans/{slug}.md" "{agent}" "{ACCEPT|REJECT-PASS|BLOCKED-AMBIGUOUS}" "{one-line summary}"
-```
-
-Entries accumulate in `## Verdict Audits` (permanent trail — not compacted by `gc-events`).
 
 ## Running the critic
 
 Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `plan-file.sh record-verdict` automatically when the critic agent exits — do **not** call `record-verdict` manually (doing so would double-record the run, inflating the streak and ceiling counters). For pr-review (which is not a subagent), call `append-review-verdict` directly after the pr-review skill returns.
 
-After `record-verdict` (or `append-review-verdict`) completes, run the ultrathink audit (§Ultrathink verdict audit above), then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly.
+After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly.
 
 ### New milestone
 
@@ -213,6 +130,19 @@ For integration failure or unit-test failure before integration: use `reset-for-
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" {target-phase}
 ```
+
+## §Invocation recipe
+
+Standard critic convergence loop. Skills cite as:
+`Run @reference/critics.md §Invocation recipe with agent=\`{A}\`, phase=\`{P}\`, prompt="…".`
+
+1. `Skill("{agent}", "{prompt}")`
+2. Follow §Running the critic (SubagentStop records verdict; run ultrathink audit).
+3. Branch per §Skill branching logic (substitute `{agent}`).
+4. On `[CONVERGED] {phase}/{agent}`: proceed to next step.
+5. On `[DOCS CONTRADICTION]`: `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
+
+pr-review diverges from steps 2–5 — use §pr-review asymmetry instead.
 
 ## Ambiguity signaling
 
@@ -231,36 +161,6 @@ When a FAIL leaves the fix direction unclear, do **not** guess. Append a `[BLOCK
 
 If none of the above apply, fix and re-run without stopping.
 
-## DOCS CONTRADICTION cascade
-
-When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
-
-1. Update `docs/*.md` to match the correct intent (docs are the source of truth).
-
-2. If the spec changed, reset the critic-spec milestone and re-run critic-spec:
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
-   ```
-   Re-run `Skill("critic-spec")`.
-
-3. If tests need to change:
-   **Rollback to red**: apply §Phase Rollback Procedure with target-phase=`red`, critic=`critic-test`.
-   Fix tests → re-run `Skill("critic-test")`. Then advance back to `implement`:
-   **Rollback to implement**: apply §Phase Rollback Procedure with target-phase=`implement`, critic=`critic-code`.
-
-4. Run the test command. Reset the critic-code milestone before re-running:
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
-   ```
-   Re-run `Skill("critic-code")`.
-
-**During `review` phase** — after critic-code passes, restore phase to `review` before re-running pr-review:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
-  "docs contradiction fixed — resuming pr-review"
-```
-→ re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict`
-
 ## Resuming from a BLOCKED marker
 
 `[BLOCKED-AMBIGUOUS]`, `[BLOCKED] category:`, and `[BLOCKED] parse:` are agent-scoped and do not clear on phase transition or `reset-milestone`. Rationale and lifecycle: `@reference/markers.md §Implementation notes`.
@@ -269,7 +169,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 
 | Marker prefix | What to fix |
 |---------------|-------------|
-| `[BLOCKED-AMBIGUOUS]` | Resolve the question stated in the marker (update docs, code, or spec). If the fix changes spec or tests, roll back phase first (§Phase Rollback Procedure) before re-running. |
+| `[BLOCKED-AMBIGUOUS]` | Resolve the question stated in the marker (update docs, code, or spec). If the fix changes spec or tests, roll back phase first (`@reference/phase-ops.md §Phase Rollback Procedure`) before re-running. |
 | `[BLOCKED] parse:` | Investigate missing `<!-- verdict: -->` marker (common causes: agent ran out of turns, truncated output, model change). Fix root cause. |
 | `[BLOCKED] category:` | Inspect consecutive same-category FAILs in `## Critic Verdicts`; address the structural cause (refactor, spec change, layer fix — not a surface tweak). |
 
@@ -282,111 +182,3 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slu
 ```
 
 Re-run the critic. If streak reset needed (parse or category block): `reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED]` marker).
-
-## Phase Rollback Procedure
-
-Used when re-entering a writing phase from a later phase (slice mode or any rollback).
-Calling skill specifies `{target-phase}` and `{critic-name}`.
-
-1. Preserve all existing `## Critic Verdicts` — do not delete them.
-2. Set plan phase and record the rollback (`transition` sets phase first, then appends the entry — correct ordering for step 3):
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" {target-phase} \
-     "{one sentence reason}"
-   ```
-3. Reset the `{critic-name}` milestone (`transition` already ran `set-phase`, so `reset-milestone` reads the correct rollback phase when clearing the stale `[CONVERGED] {target-phase}/{critic-name}` marker):
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {critic-name}
-   ```
-4. Record the rollback for traceability:
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" \
-     "rolled back phase to {target-phase} — {one sentence reason} (skill: {skill-name})"
-   ```
-5. Proceed normally from Step 2 of the calling skill.
-
-## Skill phase entry
-
-On entry, every skill must verify the plan file phase before doing any work.
-
-### Standard check
-
-1. Read `plans/{slug}.md` (resumes context after `/compact`).
-2. Confirm phase matches the skill's expected entry phase(s) listed at the top of the skill.
-3. If phase matches: proceed.
-4. If phase does not match and rollback is allowed (e.g., slice mode re-entry or explicit rollback trigger): apply §Phase Rollback Procedure with the appropriate `{target-phase}`.
-5. If phase does not match and no rollback path applies: append `[BLOCKED] {skill-name} entered from unexpected phase {phase} — {guidance}` to `## Open Questions` and stop.
-
-### Unexpected phase handling
-
-| Situation | Action |
-|-----------|--------|
-| Phase is earlier than expected (skill was already run) | Continue if idempotent; otherwise ask/block |
-| Phase is later than expected (re-entry from slice mode) | Apply phase rollback to correct phase |
-| Phase is `done` | New feature needed — run `/brainstorming` first |
-| Phase is unknown/unreadable | Block: malformed plan file |
-
-### After phase confirmation
-
-Set or confirm the correct phase in the plan file using:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" {phase} "{reason}"
-```
-Only call `transition` when actually changing phase. Do not re-transition to the same phase.
-
-## pr-review fix loop
-
-Called from `skills/implementing/SKILL.md §Step 5` on FAIL.
-
-**Categorisation** — interactive: `AskUserQuestion`; non-interactive: infer from evidence. If ambiguous, append `[BLOCKED-AMBIGUOUS] pr-review: {question}` and stop.
-
-**Fix chains on FAIL** — on first FAIL from `implement`, transition to `review` before fixing; remain in `review` for all subsequent FAILs:
-
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
-  "first pr-review FAIL"
-```
-
-### Code-only
-
-Issues: naming, duplication, complexity, style, silent failures.
-
-→ Fix code → run tests → apply §Fix-chain finisher (steps 1 and 3; step 2 not needed — already in `review`)
-
-### Spec gap
-
-Issue: unhandled scenario revealed by review.
-
-→ Add scenario to `spec.md` → re-run `Skill("critic-spec")`
-→ Apply §Phase Rollback Procedure: target-phase=`red`, critic=`critic-test`
-→ Write failing test → re-run `Skill("critic-test")`
-→ Advance to `implement`:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
-  "spec gap test written — implementing fix"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" commit-phase "plans/{slug}.md" \
-  "chore(phase): advance to implement — spec gap fix"
-```
-→ Implement → apply §Fix-chain finisher (all 3 steps)
-
-### Docs conflict
-
-Issue: implementation contradicts domain rules.
-
-→ Apply §DOCS CONTRADICTION cascade (all steps including the **During `review` phase** section)
-
-### Fix-chain finisher
-
-1. **(If code changed)** Reset critic-code milestone and re-run:
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
-   ```
-   → `Skill("critic-code")` (follow §Skill branching logic until `[CONVERGED]`)
-
-2. **(If not already in `review` phase)** Restore to `review`:
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
-     "{fix description} — resuming pr-review"
-   ```
-
-3. Re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict`

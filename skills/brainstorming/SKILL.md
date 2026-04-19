@@ -13,21 +13,6 @@ paths:
 
 # Brainstorming Workflow
 
-## Step 0 — Detect uninitialized project (autonomous pre-check)
-
-Check for `CLAUDE.md` at the project root — do NOT use `Glob("src/**")` (empty after init, triggers spurious re-initialization).
-
-```bash
-test -f "$CLAUDE_PROJECT_DIR/CLAUDE.md" && echo "initialized" || echo "not-initialized"
-```
-
-If the project is NOT initialized (file absent):
-- Auto-invoke `initializing-project` immediately: `Skill("initializing-project")`
-- Do NOT ask the user whether to initialize — detect and act.
-- After `initializing-project` returns, continue into Step 1 below.
-
----
-
 Determine first: **new feature** or **modification**?
 
 ---
@@ -44,13 +29,7 @@ git status --porcelain
 
 If dirty working tree (non-empty output): `[BLOCKED] dirty working tree — commit or stash changes first`
 
-If `CLAUDE_PLAN_FILE` is set and the file does not yet exist, create the skeleton plan file now (before any `plan-file.sh` command that requires it):
-
-```bash
-if [ -n "$CLAUDE_PLAN_FILE" ] && [ ! -f "$CLAUDE_PLAN_FILE" ]; then
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "$CLAUDE_PLAN_FILE"
-fi
-```
+If `CLAUDE_PLAN_FILE` is set and the file does not yet exist, run `plan-file.sh init "$CLAUDE_PLAN_FILE"` before any other `plan-file.sh` command.
 
 Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 
@@ -147,6 +126,6 @@ Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Featur
 ## Hard Stop
 
 Do not move to `writing-spec` until:
-- Every feature has a `{verb}-{noun}` name
+- Feature names comply with `@reference/layers.md §Naming conventions`
 - Every feature is classified as small or large with layer assignment
 - critic-feature returns PASS (or user has approved manual override after 2 iterations)

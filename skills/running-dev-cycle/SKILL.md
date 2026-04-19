@@ -14,8 +14,6 @@ User-invocable only via `/running-dev-cycle`.
 
 Run each skill in order. Do not skip or reorder steps. Wait for each step to fully complete — including critic PASS — before invoking the next.
 
-> **Multi-feature parallel work**: if multiple features will run concurrently on the same repository, start each in its own git worktree (`git worktree add .worktrees/feature-x feature/x`) or set `CLAUDE_PLAN_FILE` to the feature's plan path. Running two features on the same branch without disambiguation causes `find-active` to fall back to the newest plan, which may be wrong.
-
 ## Autonomous preflight
 
 Requirements reference: `scripts/preflight.sh` (tool and file list in header comment).
@@ -62,10 +60,6 @@ Route accordingly:
 | `green` | PR review converged; implementation done. Skip directly to **Integration Tests** (all profiles). |
 | `integration` | Skip to **Integration Tests** step (re-run after previous failure) |
 | `done` | Excluded by `find-active` (exit 2) — falls through to Step 1 as if no plan exists. To restart, delete the plan file or create a new feature branch. |
-
-Do not re-run a phase that the plan file records as already completed. This ensures
-autonomous restarts after interruption (crash, compaction, network error) resume at
-the correct point rather than repeating finished work.
 
 ---
 

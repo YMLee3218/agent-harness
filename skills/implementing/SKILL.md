@@ -16,16 +16,11 @@ paths:
 
 ## Step 1 — Read plan file + plan implementation order
 
-Phase entry protocol: @reference/critics.md §Skill phase entry — expected phases: `red`, `implement` (recovery), `review` (recovery).
+Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `red`, `implement` (recovery), `review` (recovery).
 
 Read `plans/{slug}.md` (resume context after `/compact`). Confirm Phase is `red` (normal entry), `implement` (recovery — task list already set), or `review` (recovery — pr-review loop).
 
-- Phase is `review` and all tasks are `completed` → skip task planning; go directly to §Session Recovery (post-task pr-review branch).
-- Phase is `review` and any tasks are NOT all `completed` → skip task planning; go directly to §Session Recovery (incomplete-tasks branch).
-- Phase is `implement` and the Task Ledger is non-empty → skip task planning; go directly to §Session Recovery.
-- Phase is `implement` and the Task Ledger is empty → go directly to §Session Recovery (fresh start).
-- Phase is `red` → proceed with task planning below.
-- Otherwise: append `[BLOCKED] implementing entered from unexpected phase {phase} — cannot proceed` to `## Open Questions` and stop.
+For all non-`red` phases or non-empty Task Ledgers, consult the §Session Recovery table and jump to the indicated entry point. For unexpected phases, append `[BLOCKED] implementing entered from unexpected phase {phase} — cannot proceed` to `## Open Questions` and stop.
 
 **Phase `red` — plan task list:**
 
@@ -140,7 +135,7 @@ Each coder runs in an isolated git worktree and commits its changes to a tempora
      ```
    - Stop the current tier; do not attempt remaining tasks in this tier.
 
-**Atomic tier rule**: process abort/merge-conflict checks for ALL tasks in the tier before merging any. If any task in the tier aborted or had a merge conflict, do NOT merge any task in the tier — including those that completed successfully. A partial-tier merge leaves `src/` in an inconsistent state where some tasks' assumptions do not hold.
+**Atomic tier rule**: process abort/merge-conflict checks for ALL tasks in the tier before merging any. If any task in the tier aborted or had a merge conflict, do NOT merge any task in the tier — including those that completed successfully.
 
 Before merging any task in the tier, run the tier safety check with the IDs of all tasks in the current tier:
 ```bash
@@ -175,22 +170,13 @@ If tests fail: append `[BLOCKED] post-tier merge test failure — {failing test 
 
 ## Step 4 — Run critic-code at milestones (convergence loop per milestone)
 
-Full protocol: @reference/critics.md §Loop convergence
+Track changed files. Run after: a complete small feature, a domain concept's full rule set, or a significant chunk of a large feature.
 
-Track changed files during this milestone. Run after: a complete small feature, a domain concept's full rule set, or a significant chunk of a large feature.
+**Before each milestone's first run**, reset: @reference/critics.md §New milestone — critic=`critic-code`.
 
-**Before the first critic-code run of each milestone** (once per milestone, not on retry runs within the same milestone), reset the convergence state: @reference/critics.md §New milestone — critic=`critic-code`.
+Run @reference/critics.md §Invocation recipe with agent=`critic-code`, phase=`implement`, prompt="Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths]."
 
-```
-Skill("critic-code", "Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths].")
-```
-
-After each run, follow @reference/critics.md §Running the critic and @reference/critics.md §Skill branching logic, substituting `critic-code` for `{agent}`.
-
-On `[CONVERGED] {phase}/critic-code`: proceed to next milestone or Step 5.
-
-On `[DOCS CONTRADICTION]` (during implement phase): @reference/critics.md §DOCS CONTRADICTION cascade
-(Skip the **During `review` phase** section — this is the implement phase.)
+On `[CONVERGED]`: proceed to next milestone or Step 5. On `[DOCS CONTRADICTION]` (implement phase): `@reference/phase-ops.md §DOCS CONTRADICTION cascade` (skip **During `review` phase**).
 
 ## Step 5 — Run pr-review-toolkit
 
@@ -206,17 +192,13 @@ Ensure a PR exists:
 gh pr view 2>/dev/null || gh pr create --draft --title "feat: {feature name}" --body "Closes #{issue}"
 ```
 
-Then run the review loop (convergence policy: @reference/critics.md §Loop convergence):
+Then run the review loop (per @reference/critics.md §pr-review asymmetry):
 
 ```
 Skill("pr-review-toolkit:review-pr")
 ```
 
-After each run, **before** recording the verdict, run §Ultrathink verdict audit (`@reference/critics.md §Ultrathink verdict audit`).
-
-> `pr-review-toolkit:review-pr` satisfies the subagent mandate (`@reference/critics.md §Review execution rule`) because the plugin internally orchestrates `pr-review-toolkit:code-reviewer`, `…:pr-test-analyzer`, `…:silent-failure-hunter`, `…:comment-analyzer`, and `…:type-design-analyzer` subagents.
-
-Apply `@reference/critics.md §Applying the audit outcome` with `{agent}` = `pr-review`.
+After each run: `@reference/ultrathink.md §Ultrathink verdict audit` → `@reference/ultrathink.md §Applying the audit outcome` (`{agent}`=`pr-review`).
 
 Record the verdict (PASS or FAIL — use the audit-adjusted verdict if REJECT-PASS):
 
@@ -227,7 +209,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-review-verdict \
 
 Read `## Open Questions` for `pr-review` markers and branch per `@reference/critics.md §pr-review asymmetry`.
 
-On FAIL: apply `@reference/critics.md §pr-review fix loop`.
+On FAIL: apply `@reference/pr-review-loop.md`.
 
 Set plan file phase to `green` when `[CONVERGED] {phase}/pr-review` is confirmed:
 ```bash
@@ -249,16 +231,8 @@ Run `TaskList`. Mark any `in_progress` task that has a `commit-sha` as `complete
 | `review` or `green`, all complete | Step 5 (pr-review) |
 | `review` or `green`, incomplete | `transition implement` → Step 3 |
 | any, has `blocked` task | `update-task … pending` → re-invoke |
+| `implement`, empty ledger (fresh-start) | define one task → Step 2 → Step 3 |
 
 Proceed directly to the next step (no plan mode needed).
 
 Unblock recipe: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-N" "pending"` then re-invoke.
-
-For `fresh-start` (empty Task Ledger on `implement` entry): define one task and proceed to Step 2 then Step 3:
-```
-Task 1: apply change
-  Files: {target file path}
-  Layer: {domain|infrastructure|small-feature — infer from the path}
-  Depends on: none
-  Parallel: no
-```

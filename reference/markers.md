@@ -17,8 +17,6 @@ Managed by `scripts/lib/plan-lib.sh` and consumed by skills after each critic or
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | agent-scoped | Skills (parent context) | Manual `plan-file.sh clear-marker` | Yes |
 | `[CONVERGED] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `clear-converged {agent}` | Yes |
 | `[FIRST-TURN] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
-| `[CONFIRMED-FIRST] {phase}/{agent}` | phase-scoped | `plan-lib.sh cmd_record_confirmed_first` | `plan-file.sh reset-milestone {agent}` | Yes |
-| `[AUTO-APPROVED-FIRST] {phase}/{agent}` | phase-scoped | `plan-lib.sh cmd_record_auto_approved` | `plan-file.sh reset-milestone {agent}` | Yes |
 
 ### Non-loop stop markers (written to `## Open Questions`)
 
@@ -59,17 +57,13 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 
 ## HTML verdict envelopes
 
-Canonical format and machine-parsing rules: `@reference/critics.md §Verdict format`. The `<!-- coder-status: X -->` marker (`complete` | `abort`) is written by the coder agent to signal completion or abort.
+Format and rules: `@reference/critics.md §Verdict format` (single source of truth).
+
+The `<!-- coder-status: X -->` marker (`complete` | `abort`) is written by the coder agent to signal completion or abort.
 
 ## Audit outcome words
 
-Written by parent-context ultrathink audit to `## Verdict Audits` via `plan-file.sh append-audit`. Full protocol: `@reference/critics.md §Applying the audit outcome`.
-
-| Word | Condition | Action |
-|------|-----------|--------|
-| `ACCEPT` | Verdict is sound | Adopt verdict; proceed to §Skill branching logic |
-| `REJECT-PASS` | Subagent returned PASS but audit found a gap | Call `clear-converged` then enter FAIL path |
-| `BLOCKED-AMBIGUOUS` | Audit inconclusive | Append `[BLOCKED-AMBIGUOUS]` and stop |
+Written by parent-context ultrathink audit to `## Verdict Audits` via `plan-file.sh append-audit`. Full protocol and outcome table: `@reference/ultrathink.md §Audit outcomes`.
 
 ## Category enum values
 
@@ -90,10 +84,8 @@ What each command writes, clears, keeps, and discards in `## Open Questions` (un
 | `reset-for-rollback {target-phase}` | 2× `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | 5 markers for `{new-phase}/critic-code` (via `reset-milestone`) + 5 for `implement/pr-review` + 5 for `review/pr-review` (via `reset-pr-review`) + 5 stale `review/critic-code` markers (via `_clear_convergence_markers`) | Calls `set-phase`, `reset-milestone critic-code`, `reset-pr-review`, then `_clear_convergence_markers "review/critic-code"` |
 | `clear-converged {agent}` | REJECT-PASS sentinel (→ Critic Verdicts, streak reset) | `[CONVERGED] {phase}/{agent}` | Use on REJECT-PASS audit outcome before entering FAIL path |
 | `clear-marker {text}` | — | Any line in `## Open Questions` containing `{text}` | Low-level; prefer `reset-milestone` for milestone transitions |
-| `gc-events` | — | Discards: `[AUTO-DECIDED]`. Keeps all: `[BLOCKED*]`, `[STOP-BLOCKED]`, `[CONVERGED]`, `[FIRST-TURN]`, `[CONFIRMED-FIRST]`, `[AUTO-APPROVED-FIRST]`, `[UNVERIFIED CLAIM]`. User-memos fallthrough preserves anything else. | `[INFO]` and unrecognized markers survive via user_memos fallthrough |
+| `gc-events` | — | Discards: `[AUTO-DECIDED]`. Keeps all: `[BLOCKED*]`, `[STOP-BLOCKED]`, `[CONVERGED]`, `[FIRST-TURN]`, `[UNVERIFIED CLAIM]`. User-memos fallthrough preserves anything else. | `[INFO]` and unrecognized markers survive via user_memos fallthrough |
 | `record-verdict` | `[FIRST-TURN]`, `[CONVERGED]`, `[BLOCKED-CEILING]` via `_record_loop_state`; `[BLOCKED] parse:` on consecutive PARSE_ERROR; `[BLOCKED] category:` on consecutive same-category FAIL | — | Also appends verdict line to `## Critic Verdicts` |
-| `record-auto-approved FIRST` | `[AUTO-APPROVED-FIRST] {phase}/{agent}` | — | Survives gc; must persist to avoid re-triggering first-turn auto-approval on resume |
-| `record-confirmed-first` | `[CONFIRMED-FIRST] {phase}/{agent}` | — | Dedup-safe: no-op if already present |
 | `transition <plan-file> <to-phase> <reason>` | — | — | Sets phase in plan.md; callers must call `reset-milestone` explicitly if a streak reset is needed |
 | `commit-phase <plan-file> <msg>` | — | — | Stages plan file and commits; call after `transition` |
 | `set-phase <plan-file> <phase>` | — | — | Writes phase to plan.md `## Phase` section and frontmatter |

@@ -44,7 +44,7 @@ LAYER_VIOLATION
 | `[WARN]` only, no blocking findings | Emit PASS; list `[WARN]` items in the report for awareness |
 | Multiple `[MISSING]` in same category | Single FAIL with category `MISSING_SCENARIO`; list all missing items |
 | Both `LAYER_VIOLATION` and `SPEC_COMPLIANCE` findings | Use `LAYER_VIOLATION` (higher priority); mention both in the verdict |
-| `[DOCS CONTRADICTION]` with no other findings | Emit FAIL with category `DOCS_CONTRADICTION`; do not auto-resolve — follow @reference/critics.md §DOCS CONTRADICTION cascade |
+| `[DOCS CONTRADICTION]` with no other findings | Emit FAIL with category `DOCS_CONTRADICTION`; do not auto-resolve — follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade` |
 | Test passes before any implementation exists | `TEST_INTEGRITY` — always FAIL regardless of other findings |
 | Typo in a scenario name (cosmetic only) | `[WARN]`, not `[FAIL]` — does not block |
 

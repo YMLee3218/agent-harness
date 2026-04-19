@@ -16,7 +16,7 @@ paths:
 
 ## Step 1 — Read plan file + sources
 
-Phase entry protocol: @reference/critics.md §Skill phase entry — expected phases: `brainstorm`, `spec`.
+Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `brainstorm`, `spec`.
 On unexpected phase: apply **## Phase rollback** at the bottom of this skill.
 
 Read only:
@@ -29,12 +29,7 @@ If `docs/*.md` appears stale or contradictory to the requirement: log `[WARN] wr
 
 ## Step 2 — Draft scenarios
 
-Write the full scenario structure to the plan file. Cover for every scenario:
-- Fails / partially succeeds / times out / external system down?
-- Same request while processing? Prior step incomplete?
-- Events out of order? Duplicate events?
-
-Every `Scenario Outline` Examples table must include boundaries per §Required boundary rows by input type.
+Write the full scenario structure to the plan file. Cover all Angle 1 checks in `critic-spec`.
 
 Proceed directly to Step 3.
 
@@ -55,16 +50,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 
 ## Step 4 — Run critic-spec (convergence loop)
 
-Full protocol: @reference/critics.md §Loop convergence
-
-```
-Skill("critic-spec", "Review spec at [path]. Relevant docs: [paths].")
-```
-
-After each run, follow @reference/critics.md §Running the critic and @reference/critics.md §Skill branching logic, substituting `critic-spec` for `{agent}`.
-
-On `[CONVERGED] {phase}/critic-spec`: proceed to Step 5.
-On `[DOCS CONTRADICTION]`: @reference/critics.md §DOCS CONTRADICTION cascade
+Run @reference/critics.md §Invocation recipe with agent=`critic-spec`, phase=`spec`, prompt="Review spec at [path]. Relevant docs: [paths]."
 
 ## Step 5 — Commit spec file
 
@@ -81,18 +67,11 @@ Commit all spec files written in this run in a single commit. Do not commit any 
 
 ## Phase rollback
 
-Triggered when re-entering from a later phase (slice mode or explicit rollback).
-
-Apply @reference/critics.md §Phase Rollback Procedure with `{target-phase}` = `spec`, `{critic-name}` = `critic-spec`, `{skill-name}` = `writing-spec`.
+@reference/phase-ops.md §Phase Rollback Procedure — `{target-phase}` = `spec`, `{critic-name}` = `critic-spec`, `{skill-name}` = `writing-spec`.
 
 ## Rules
 
-- One `Feature:` block per file
-- Every `Scenario Outline` must have `Examples:`
-- No technology names (no DB engines, HTTP libraries, framework names)
-- No implementation details in Given/When/Then steps
-- Domain specs: no DB, HTTP, queue, or file system references
-- One `Scenario:` per distinct flow; same flow + different values → `Scenario Outline`.
+@reference/bdd-templates.md §Rules
 
 ## Scenario templates
 

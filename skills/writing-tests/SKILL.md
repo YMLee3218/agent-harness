@@ -16,23 +16,12 @@ paths:
 
 ## Step 1 — Read plan file + spec
 
-Phase entry protocol: @reference/critics.md §Skill phase entry — expected phases: `spec`, `red` (re-entry).
+Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `spec`, `red` (re-entry).
 
-**Phase `red` on entry** — Two cases where phase is already `red` when this skill starts:
-
-- **Batch mode**: In batch mode (`--profile greenfield` or explicit `--batch`), the orchestrator
-  writes all specs first and then all tests. Phase was set to `red` by the previous feature's tests.
-- **Phase-rollback re-entry**: `§Phase rollback` (below) resets phase to `red` when tests need
-  rewriting. The plan file already has a `critic-spec: PASS` from the original spec writing run.
-
-In both cases, verify by checking `## Critic Verdicts` for a `critic-spec: PASS` for this feature.
-If found:
-1. Continue from Step 2 — do NOT re-run writing-spec. (No phase transition to record — phase is already `red`.)
-
-If the phase is `red` and no `critic-spec: PASS` verdict exists for this feature, stop and
-report: "Phase is `red` but no spec verdict found for this feature — run writing-spec first."
-
-If the phase is neither `spec` nor `red`, append `[BLOCKED] writing-tests entered from unexpected phase {phase} — run writing-spec first` to `## Open Questions` and stop.
+Phase entry:
+- Phase `spec`: proceed normally.
+- Phase `red` + `critic-spec: PASS` in `## Critic Verdicts`: skip to Step 2 (no transition needed).
+- Phase `red` without `critic-spec: PASS`, or any other phase: `[BLOCKED] writing-tests entered from unexpected phase {phase} — run writing-spec first`.
 
 - `Read` the project `CLAUDE.md` to extract the test command
 - `Read` the target `spec.md` in full
@@ -100,20 +89,10 @@ This preserves the Red state across session interruptions.
 
 ## Phase rollback
 
-Triggered when re-entering from a later phase (slice mode or tests need rewriting).
-
-Apply @reference/critics.md §Phase Rollback Procedure with `{target-phase}` = `red`, `{critic-name}` = `critic-test`, `{skill-name}` = `writing-tests`.
+@reference/phase-ops.md §Phase Rollback Procedure — `{target-phase}` = `red`, `{critic-name}` = `critic-test`, `{skill-name}` = `writing-tests`.
 
 When phase is `green` on entry: `writing-spec` will have already rolled back to `spec` before `writing-tests` runs — the Step 1 phase check will pass. ✓
 
 ## Step 4 — Run critic-test (convergence loop)
 
-Full protocol: @reference/critics.md §Loop convergence
-
-```
-Skill("critic-test", "Review tests at [paths] against spec at [path]. Test command: [command].")
-```
-
-After each run, follow @reference/critics.md §Running the critic and @reference/critics.md §Skill branching logic, substituting `critic-test` for `{agent}`.
-
-On `[CONVERGED] {phase}/critic-test`: writing-tests phase done; proceed to `implementing` (if invoked via `running-dev-cycle`, it advances automatically).
+Run @reference/critics.md §Invocation recipe with agent=`critic-test`, phase=`red`, prompt="Review tests at [paths] against spec at [path]. Test command: [command]."
