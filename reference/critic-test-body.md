@@ -5,7 +5,7 @@ ultrathink
 
 Read the test files and spec.md at the paths provided before reviewing. Run the test command given in the prompt.
 
-## Pre-check: test file integrity (if called during or after green phase)
+## Pre-check: test file integrity (if called during or after implement phase)
 
 If git is available, run:
 ```bash
@@ -37,7 +37,7 @@ Continue to the Checks section.
 If any test file was modified after the Red phase commit, emit immediately:
 
 ```
-[CRITICAL] test file modified during green phase: {file} — FAIL
+[CRITICAL] test file modified after Red phase: {file} — FAIL
 <!-- verdict: FAIL -->
 <!-- category: TEST_INTEGRITY -->
 ```
@@ -137,7 +137,7 @@ PASS
 
 Expected output:
 ```
-[CRITICAL] test file modified during green phase: tests/add-todo.test.ts — FAIL
+[CRITICAL] test file modified after Red phase: tests/add-todo.test.ts — FAIL
 <!-- verdict: FAIL -->
 <!-- category: TEST_INTEGRITY -->
 ```

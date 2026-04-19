@@ -32,7 +32,7 @@ Break long refactors into phase-scoped sub-plans:
 | Stale tool results re-read in every turn | Read files once; pass content to subagents directly |
 | Full plan file injected every turn | SessionStart hook injects a compressed summary only |
 | Critic output leaking into next critic's context | Each critic runs as a forked subagent; transcripts are isolated |
-| Implementation details from prior phases polluting green phase | Coder subagents receive only task prompt + failing test + spec path |
+| Implementation details from prior phases polluting implement phase | Coder subagents receive only task prompt + failing test + spec path |
 
 ## Context budget management
 

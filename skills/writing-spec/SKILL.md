@@ -84,14 +84,14 @@ After each run, `plan-file.sh record-verdict` fires automatically (SubagentStop 
 
 | Marker | Action |
 |--------|--------|
-| `[BLOCKED-CEILING] critic-spec` | Stop — manual review required |
+| `[BLOCKED-CEILING] {phase}/critic-spec` | Stop — manual review required. **Phase-match required**: `{phase}` must equal the current plan file phase. |
 | `[BLOCKED-CATEGORY] critic-spec` | Stop — fix root cause first |
 | `[BLOCKED-AMBIGUOUS] critic-spec: …` | Stop — human decision needed |
 | `[BLOCKED-PARSE] critic-spec` | Stop — check critic output format before retrying |
-| `[CONVERGED] critic-spec` | Proceed to Step 5 |
-| `[CONFIRMED-FIRST] critic-spec` | Re-run automatically (user already confirmed in a previous session) |
-| `[AUTO-APPROVED-FIRST] critic-spec` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session) |
-| `[FIRST-TURN] critic-spec` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" "[CONFIRMED-FIRST] critic-spec"` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-spec` (non-interactive), then re-run |
+| `[CONVERGED] {phase}/critic-spec` | Proceed to Step 5. **Phase-match required**: same rule as BLOCKED-CEILING. |
+| `[CONFIRMED-FIRST] {phase}/critic-spec` | Re-run automatically (user already confirmed in a previous session). **Phase-match required**: same rule as BLOCKED-CEILING. |
+| `[AUTO-APPROVED-FIRST] {phase}/critic-spec` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session). **Phase-match required**: same rule as BLOCKED-CEILING. |
+| `[FIRST-TURN] {phase}/critic-spec` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-confirmed-first "plans/{slug}.md" critic-spec` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-spec` (non-interactive), then re-run. **Phase-match required**: same rule as BLOCKED-CEILING. |
 | PARSE_ERROR (no `[BLOCKED-PARSE]` yet) | Re-run automatically (second consecutive PARSE_ERROR triggers `[BLOCKED-PARSE]`) |
 | PASS, no `[CONVERGED]` yet | Re-run automatically |
 | FAIL | Apply fix, then re-run |
@@ -122,9 +122,10 @@ If re-entering `writing-spec` from a later phase — including:
 
 Steps:
 1. Preserve all existing `## Critic Verdicts` — do not delete them
-2. Append a phase transition entry to `## Phase Transitions`:
-   ```
-   - {previous-phase} → spec (reason: {one sentence})
+2. Record the phase rollback:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
+     "- {previous-phase} → spec (reason: {one sentence})"
    ```
 3. Set plan phase: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" spec`
 4. Proceed normally from Step 2

@@ -122,8 +122,9 @@ fi
 
 # awk redirect detection: awk's `print > "file"` and `printf ... > "file"` can write to
 # src/test paths while bypassing the redirect patterns below. Block these early.
+# Matches awk anywhere in the command (including pipelines like `cmd | awk '{print > "src/..."}'`).
 if printf '%s' "$cmd" | grep -iqE \
-  '^[[:space:]]*awk[[:space:]]'; then
+  '(^|[;|&[:space:]])([[:space:]]*)awk[[:space:]]'; then
   if printf '%s' "$cmd" | grep -iqE \
     'print[[:space:]]*>[[:space:]]*"?([^"[:space:]]*/)?src/' \
     || printf '%s' "$cmd" | grep -iqE \
@@ -161,9 +162,9 @@ if [ -f "$_plan_file_sh" ]; then
       printf '%s' "$cmd" | grep -iqE \
         '(>{1,2}[[:space:]]*)([^[:space:]]*/)?src/|tee[[:space:]]+([^[:space:]]*/)?src/|cp[[:space:]]+[^[:space:]]+[[:space:]]+([^[:space:]]*/)?src/' \
         && _writes_src=1 || true
-      # Detect redirects to test paths: > tests/, >> tests/, tee tests/, cp ... tests/, or *_test.* / *.test.*
+      # Detect redirects to test paths: > tests/, >> tests/, tee tests/, cp ... tests/, or *_test.* / *.test.* / *.spec.*
       printf '%s' "$cmd" | grep -iqE \
-        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?tests/|tee[[:space:]]+([^[:space:]]*/)?tests/|(>{1,2}[[:space:]]*)([^[:space:]]*)(_test\.|\.test\.|_spec\.)|cp[[:space:]]+[^[:space:]]+[[:space:]]+([^[:space:]]*/)?tests/|cp[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]*(_test\.|\.test\.|_spec\.)' \
+        '(>{1,2}[[:space:]]*)([^[:space:]]*/)?tests/|tee[[:space:]]+([^[:space:]]*/)?tests/|(>{1,2}[[:space:]]*)([^[:space:]]*)(_test\.|\.test\.|_spec\.|\.spec\.)|cp[[:space:]]+[^[:space:]]+[[:space:]]+([^[:space:]]*/)?tests/|cp[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]*(_test\.|\.test\.|_spec\.|\.spec\.)' \
         && _writes_test=1 || true
       case "$_current_phase" in
         brainstorm|spec)
@@ -177,6 +178,11 @@ if [ -f "$_plan_file_sh" ]; then
         red)
           if [ "$_writes_src" -eq 1 ]; then
             echo "BLOCKED [phase-gate/bash]: Phase is 'red'. Bash redirect to src/ detected — write tests only during Red phase." >&2; exit 2
+          fi
+          ;;
+        implement)
+          if [ "$_writes_test" -eq 1 ]; then
+            echo "BLOCKED [phase-gate/bash]: Phase is 'implement'. Bash redirect to test path detected — tests are frozen during implement phase." >&2; exit 2
           fi
           ;;
         green|integration|review)

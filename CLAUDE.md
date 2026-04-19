@@ -29,9 +29,11 @@ Key vars: `PHASE_GATE_SRC_GLOB`, `PHASE_GATE_TEST_GLOB`, `PHASE_GATE_STRICT` (de
 
 Feature work state: `plans/{feature-slug}.md` + `plans/{feature-slug}.state.json` (machine-readable phase).
 
-Phase: `brainstorm → spec → red → (review) → green → integration → done`
+Phase: `brainstorm → spec → red → implement → (review) → green → integration → done`
 
-`review` = pr-review FAIL recovery phase. Source modifications allowed; tests remain frozen. Transition to `green` only after [CONVERGED] pr-review marker. Never go `red` → `green` directly.
+`implement` = coder subagent execution phase. Source writes allowed; tests remain frozen. Set after task list is registered (implementing Step 2). Committed to git so worktrees inherit the phase.
+
+`review` = pr-review FAIL recovery phase. Source modifications allowed; tests remain frozen. Transition to `green` only after `[CONVERGED] {phase}/pr-review` marker. pr-review must always run before `green`; `review` phase is entered only on the first FAIL (happy path: `implement` → pr-review passes → `green`, never entering `review` phase).
 
 Transition: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" {phase}`
 
@@ -39,7 +41,7 @@ Transition: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "
 
 Parallel features: use separate git worktrees or pin `CLAUDE_PLAN_FILE`.
 
-Critic/review loop convergence markers in `## Open Questions`: `[BLOCKED-CEILING]`, `[BLOCKED-CATEGORY]`, `[BLOCKED-AMBIGUOUS]`, `[BLOCKED-PARSE]`, `[CONVERGED]`, `[CONFIRMED-FIRST]`, `[AUTO-APPROVED-FIRST]`, `[FIRST-TURN]`. Full policy: `reference/critic-loop.md` §Loop convergence.
+Critic/review loop convergence markers in `## Open Questions`: `[BLOCKED-CEILING] {phase}/{agent}`, `[BLOCKED-CATEGORY] {agent}`, `[BLOCKED-AMBIGUOUS] {agent}`, `[BLOCKED-PARSE] {agent}`, `[CONVERGED] {phase}/{agent}`, `[CONFIRMED-FIRST] {phase}/{agent}`, `[AUTO-APPROVED-FIRST] {phase}/{agent}`, `[FIRST-TURN] {phase}/{agent}`. Full policy: `reference/critic-loop.md` §Loop convergence.
 
 # Context continuity
 

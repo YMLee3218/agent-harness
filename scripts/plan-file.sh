@@ -3,7 +3,7 @@
 #
 # Usage:
 #   plan-file.sh get-phase <plan-file>
-#       Prints the current phase value (brainstorm|spec|red|review|green|integration|done)
+#       Prints the current phase value (brainstorm|spec|red|implement|review|green|integration|done)
 #       Exit 0 = success; exit 2 = file not found or Phase section missing
 #
 #   plan-file.sh set-phase <plan-file> <phase>
@@ -17,6 +17,11 @@
 #
 #   plan-file.sh append-note <plan-file> <note>
 #       Appends <note> to ## Open Questions in the plan file.
+#       Exit 0 = success; exit 1 = error
+#
+#   plan-file.sh append-phase-transition <plan-file> <entry>
+#       Appends <entry> to ## Phase Transitions in the plan file (e.g. "- red → implement (reason: ...)").
+#       Creates the section if absent. Use for phase rollback audit trail — NOT append-note (which goes to Open Questions).
 #       Exit 0 = success; exit 1 = error
 #
 #   plan-file.sh find-active
@@ -122,12 +127,24 @@
 #   plan-file.sh record-auto-approved <plan-file> <kind> <agent-or-skill> [note]
 #       Appends [AUTO-APPROVED-{KIND}] {agent}[: {note}] to ## Open Questions.
 #       Canonical alternative to manual append — prevents typos and duplicate entries.
-#       kind: PLAN | TASKLIST | FIRST | CATEGORIZED | DECIDED (case-insensitive)
+#       kind: PLAN | TASKLIST | FIRST | DECIDED (case-insensitive)
+#       Exit 0 = success; exit 1 = error
+#
+#   plan-file.sh clear-marker <plan-file> <marker-text>
+#       Removes all lines containing <marker-text> from ## Open Questions.
+#       Low-level utility. Prefer reset-milestone for milestone transitions.
+#       Exit 0 = success; exit 1 = error
+#
+#   plan-file.sh reset-milestone <plan-file> <agent>
+#       Clears [CONVERGED] {phase}/{agent} from ## Open Questions AND appends a
+#       [MILESTONE-BOUNDARY] sentinel to ## Critic Verdicts so the 2-PASS streak
+#       restarts from scratch for the new milestone. Use before starting each new
+#       milestone's critic run within the same phase.
 #       Exit 0 = success; exit 1 = error
 
 set -euo pipefail
 
-VALID_PHASES="brainstorm spec red review green integration done"
+VALID_PHASES="brainstorm spec red implement review green integration done"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -266,6 +283,21 @@ _append_to_open_questions() {
   '
 }
 
+# Appends <entry> to the ## Phase Transitions section of <plan_file>.
+# Creates the section if absent. Atomically appends via _awk_inplace.
+_append_to_phase_transitions() {
+  local plan_file="$1" entry="$2"
+  _awk_inplace "$plan_file" -v entry="$entry" '
+    /^## Phase Transitions$/ { print; in_section=1; found=1; next }
+    in_section && /^## / { print entry; print ""; print; in_section=0; next }
+    { print }
+    END {
+      if (in_section) print entry
+      else if (!found) { print ""; print "## Phase Transitions"; print entry }
+    }
+  '
+}
+
 # Appends <entry> to the ## Critic Runs section of <plan_file>.
 # Creates the section if absent. Uses _awk_inplace for both branches so the
 # check-and-append is atomic (flock/mkdir) even when two critics start simultaneously.
@@ -278,6 +310,21 @@ _append_to_critic_runs() {
     END {
       if (in_section) print entry
       else if (!found) { print ""; print "## Critic Runs"; print entry }
+    }
+  '
+}
+
+# Appends <entry> to the ## Critic Verdicts section of <plan_file>.
+# Creates the section if absent. Used by reset-milestone to insert a milestone boundary.
+_append_to_critic_verdicts() {
+  local plan_file="$1" entry="$2"
+  _awk_inplace "$plan_file" -v entry="$entry" '
+    /^## Critic Verdicts$/ { print; in_section=1; found=1; next }
+    in_section && /^## / { print entry; print ""; print; in_section=0; next }
+    { print }
+    END {
+      if (in_section) print entry
+      else if (!found) { print ""; print "## Critic Verdicts"; print entry }
     }
   '
 }
@@ -295,30 +342,42 @@ _record_loop_state() {
   case "$ceiling" in
     ''|*[!0-9]*) echo "[record-loop-state] invalid CLAUDE_CRITIC_LOOP_CEILING '${ceiling}'; falling back to 5" >&2; ceiling=5 ;;
   esac
+  if [ "$ceiling" -lt 1 ]; then
+    echo "[record-loop-state] CLAUDE_CRITIC_LOOP_CEILING=${ceiling} is less than 1; falling back to 5" >&2; ceiling=5
+  fi
 
   # Count existing verdicts for this phase+agent in ## Critic Verdicts section
   local pat="${current_phase}/${agent}:"
   local prior_run_count
   prior_run_count=$(awk -v pat="$pat" \
-    '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat))c++} END{print c+0}' \
+    '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)&&!index($0,"[MILESTONE-BOUNDARY"))c++} END{print c+0}' \
     "$plan_file" 2>/dev/null || echo "0")
   local run_ordinal=$((prior_run_count + 1))
 
   # CEILING check (highest priority)
+  # Guard with grep to prevent duplicates on hook retries or manual record-verdict re-invocations.
   if [ "$run_ordinal" -gt "$ceiling" ]; then
-    _append_to_open_questions "$plan_file" \
-      "[BLOCKED-CEILING] ${agent}: exceeded ${ceiling} runs for phase ${current_phase} — manual review required"
-    echo "[record-loop-state] BLOCKED-CEILING: ${agent} run #${run_ordinal} exceeds ceiling ${ceiling}" >&2
+    if ! grep -qF "[BLOCKED-CEILING] ${current_phase}/${agent}" "$plan_file" 2>/dev/null; then
+      _append_to_open_questions "$plan_file" \
+        "[BLOCKED-CEILING] ${current_phase}/${agent}: exceeded ${ceiling} runs — manual review required"
+    fi
+    echo "[record-loop-state] BLOCKED-CEILING: ${current_phase}/${agent} run #${run_ordinal} exceeds ceiling ${ceiling}" >&2
     return 1
   fi
 
-  # FIRST-TURN: emit once, on the very first run for this phase+agent.
+  # FIRST-TURN: emit once, on the very first non-PARSE_ERROR run for this phase+agent.
+  # Phase-scoped (matching [CONVERGED]) so that phase rollbacks (e.g. review → red → implement)
+  # re-emit FIRST-TURN for the new phase, prompting re-confirmation on the first run.
   # Guard with grep to prevent duplicates if _record_loop_state is called multiple times
   # for the same run (e.g. hook retry, manual record-verdict re-invocation).
-  if [ "$run_ordinal" -eq 1 ]; then
-    if ! grep -qF "[FIRST-TURN] ${agent}" "$plan_file" 2>/dev/null; then
-      _append_to_open_questions "$plan_file" "[FIRST-TURN] ${agent}"
-      echo "[record-loop-state] FIRST-TURN: ${agent} first run (phase=${current_phase})" >&2
+  # PARSE_ERROR is excluded: a malformed first output should not consume the confirmation
+  # prompt — the user should confirm after the agent produces a real verdict, not a broken one.
+  # Note: run_ordinal is NOT checked here — if run 1 produces PARSE_ERROR, FIRST-TURN must
+  # still be emitted on the first real verdict (run 2+), not silently skipped.
+  if [ "$verdict" != "PARSE_ERROR" ]; then
+    if ! grep -qF "[FIRST-TURN] ${current_phase}/${agent}" "$plan_file" 2>/dev/null; then
+      _append_to_open_questions "$plan_file" "[FIRST-TURN] ${current_phase}/${agent}"
+      echo "[record-loop-state] FIRST-TURN: ${current_phase}/${agent} first real verdict" >&2
     fi
   fi
 
@@ -340,11 +399,12 @@ _record_loop_state() {
     # Include this (PASS) verdict in the streak
     streak=$((streak + 1))
     # Emit [CONVERGED] when streak reaches 2 or more, but only if not already present
-    # (guards against duplicate entries after manual Open Questions edits).
+    # for this phase+agent combination (prevents stale markers from prior phases being
+    # mistaken for a current-phase convergence after a phase rollback).
     if [ "$streak" -ge 2 ]; then
-      if ! grep -qF "[CONVERGED] ${agent}" "$plan_file" 2>/dev/null; then
-        _append_to_open_questions "$plan_file" "[CONVERGED] ${agent}"
-        echo "[record-loop-state] CONVERGED: ${agent} with ${streak} consecutive PASSes" >&2
+      if ! grep -qF "[CONVERGED] ${current_phase}/${agent}" "$plan_file" 2>/dev/null; then
+        _append_to_open_questions "$plan_file" "[CONVERGED] ${current_phase}/${agent}"
+        echo "[record-loop-state] CONVERGED: ${current_phase}/${agent} with ${streak} consecutive PASSes" >&2
       fi
     fi
   fi
@@ -408,6 +468,7 @@ cmd_set_phase() {
     in_phase_section && /^[A-Za-z]/ { print phase; in_phase_section=0; next }
     in_phase_section && !/^[A-Za-z]/ { print phase; print; in_phase_section=0; next }
     { print }
+    END { if (in_phase_section) print phase }
   '
 }
 
@@ -512,6 +573,12 @@ cmd_append_note() {
   _append_to_open_questions "$plan_file" "$note"
 }
 
+cmd_append_phase_transition() {
+  local plan_file="$1" entry="$2"
+  require_file "$plan_file"
+  _append_to_phase_transitions "$plan_file" "$entry"
+}
+
 cmd_flush_before_compact() {
   # PreCompact hook: records a marker in the active plan so the next session knows a compact occurred.
   require_jq
@@ -533,7 +600,7 @@ cmd_log_post_compact() {
 
   local open_q_count=0
   if grep -q "^## Open Questions$" "$plan_file"; then
-    open_q_count=$(awk '/^## Open Questions$/{in_s=1;next} in_s && /^## /{exit} in_s && /\S/{count++} END{print count+0}' "$plan_file")
+    open_q_count=$(awk '/^## Open Questions$/{in_s=1;next} in_s && /^## /{exit} in_s && /[^[:space:]]/{count++} END{print count+0}' "$plan_file")
   fi
 
   _append_event_to_plan "$plan_file" "POST-COMPACT" "phase=${current_phase} open_questions=${open_q_count}"
@@ -650,11 +717,18 @@ cmd_record_verdict() {
     input_keys=$(printf '%s' "$input" | jq -r 'keys | join(", ")' 2>/dev/null || echo "unknown")
     echo "[record-verdict] missing verdict marker from ${agent_name} (payload keys: ${input_keys})" >&2
     # Track this run in the ceiling counter (prevents runaway loops on persistent PARSE_ERROR).
-    _record_loop_state "$plan_file" "$current_phase" "$agent_name" "PARSE_ERROR" || true
+    # If ceiling is exceeded, _record_loop_state already wrote [BLOCKED-CEILING] — append verdict and stop.
+    if ! _record_loop_state "$plan_file" "$current_phase" "$agent_name" "PARSE_ERROR"; then
+      cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
+      exit 1
+    fi
     # Check for consecutive PARSE_ERROR: if the prior verdict for this agent was also PARSE_ERROR,
     # emit [BLOCKED-PARSE] so the skill stops rather than retrying indefinitely.
     local last_parse_line
-    last_parse_line=$(awk -v pat="${current_phase}/${agent_name}:" \
+    # PARSE_ERROR detection is agent-scoped (not phase-scoped): matches any phase entry for this
+    # agent. This mirrors [BLOCKED-CATEGORY] treatment — a broken agent output format should be
+    # caught regardless of phase rollbacks crossing a phase boundary.
+    last_parse_line=$(awk -v pat="${agent_name}:" \
       '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat))last=$0} END{print last}' \
       "$plan_file" 2>/dev/null || true)
     if printf '%s' "$last_parse_line" | grep -q ": PARSE_ERROR"; then
@@ -689,7 +763,7 @@ cmd_record_verdict() {
   fi
 
   # Consecutive same-category FAIL detection
-  # Scoped to agent only (phase-independent) — ensures red→review phase transitions do not
+  # Scoped to agent only (phase-independent) — ensures implement→review phase transitions do not
   # reset the category counter, so the same structural problem cannot slip past the ceiling
   # by crossing a phase boundary.
   if [ "$verdict" = "FAIL" ] && [ -n "$category" ]; then
@@ -837,8 +911,13 @@ cmd_gc_events() {
         last_session_end = $0
       } else if (/\[POST-COMPACT/) {
         last_post_compact = $0
-      } else if (/\[(PRE-COMPACT|STOPFAIL|TOOL-FAIL|PERMISSION-DENIED|AUTO-APPROVED-PLAN|AUTO-APPROVED-TASKLIST|AUTO-APPROVED-CATEGORIZED|AUTO-APPROVED-DECIDED)/) {
-        # Discard machine-generated audit markers
+      } else if (/\[(PRE-COMPACT|STOPFAIL|TOOL-FAIL|PERMISSION-DENIED|AUTO-APPROVED-PLAN|AUTO-APPROVED-TASKLIST|AUTO-APPROVED-CATEGORIZED|AUTO-APPROVED-DECIDED|AUTO-CATEGORIZED|AUTO-DECIDED)/) {
+        # Discard machine-generated audit markers (AUTO-CATEGORIZED and AUTO-DECIDED are written by
+        # implementing skill via append-note; AUTO-APPROVED-PLAN/TASKLIST/DECIDED by record-auto-approved;
+        # AUTO-APPROVED-CATEGORIZED retained for backward compat — CATEGORIZED was removed as a valid kind
+        # but old plan files may still contain [AUTO-APPROVED-CATEGORIZED] entries).
+        # Note: AUTO-APPROVED-FIRST is kept above — it must survive compaction to prevent
+        # re-triggering the first-turn auto-approval on session resume.
       } else if (/^[[:space:]]*$/) {
         # Discard blank lines; spacing re-added on flush
       } else {
@@ -905,6 +984,7 @@ cmd_migrate_refactor() {
     in_phase_section && /^[A-Za-z]/ { print phase; in_phase_section=0; next }
     in_phase_section && !/^[A-Za-z]/ { print phase; print; in_phase_section=0; next }
     { print }
+    END { if (in_phase_section) print phase }
   '
   echo "[migrate-refactor] migrated ${plan_file}: refactor → green" >&2
 }
@@ -927,9 +1007,9 @@ cmd_context() {
 
   # Extract open questions: [BLOCKED*] items first (up to 3), then others (up to 2)
   local blocked_items other_items questions
-  blocked_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /\[BLOCKED/{print}' \
+  blocked_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && (/\[BLOCKED/ || /\[STOP-BLOCKED/){print}' \
     "$plan_file" 2>/dev/null | head -3 | tr '\n' '|' | sed 's/|$//' || true)
-  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/{print}' \
+  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[CONVERGED/ && !/\[FIRST-TURN/ && !/\[CONFIRMED-FIRST/ && !/\[AUTO-APPROVED/ && !/\[SESSION-END/ && !/\[POST-COMPACT/ && !/\[PRE-COMPACT/ && !/\[STOPFAIL/ && !/\[TOOL-FAIL/ && !/\[PERMISSION-DENIED/ && !/\[AUTO-CATEGORIZED/ && !/\[AUTO-DECIDED/{print}' \
     "$plan_file" 2>/dev/null | head -2 | tr '\n' '|' | sed 's/|$//' || true)
 
   if [ -n "$blocked_items" ] && [ -n "$other_items" ]; then
@@ -1163,23 +1243,103 @@ cmd_record_stop_block() {
   echo "[record-stop-block] recorded stop block (phase=${phase}): ${reason}" >&2
 }
 
+cmd_record_confirmed_first() {
+  # record-confirmed-first <plan-file> <agent>
+  # Writes [CONFIRMED-FIRST] {phase}/{agent} to ## Open Questions.
+  # Reads current phase from the plan file so skills don't need to know it explicitly.
+  # Dedup guard: no-op if the marker already exists (prevents duplicate entries on hook
+  # retries or session resumption that re-enters the FIRST-TURN branch).
+  local plan_file="$1" agent="$2"
+  require_file "$plan_file"
+  local current_phase
+  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
+  if ! grep -qF "[CONFIRMED-FIRST] ${current_phase}/${agent}" "$plan_file" 2>/dev/null; then
+    _append_to_open_questions "$plan_file" "[CONFIRMED-FIRST] ${current_phase}/${agent}"
+    echo "[record-confirmed-first] ${current_phase}/${agent}" >&2
+  else
+    echo "[record-confirmed-first] already present — skipping duplicate for ${current_phase}/${agent}" >&2
+  fi
+}
+
 cmd_record_auto_approved() {
   # record-auto-approved <plan-file> <kind> <agent-or-skill> [note]
   # Appends [AUTO-APPROVED-{KIND}] {agent}[: {note}] to ## Open Questions.
-  # Kind examples: PLAN, TASKLIST, FIRST, CATEGORIZED, DECIDED (case-insensitive).
+  # Kind examples: PLAN, TASKLIST, FIRST, DECIDED (case-insensitive).
   local plan_file="$1" kind="$2" agent="$3" note="${4:-}"
   require_file "$plan_file"
   kind=$(printf '%s' "$kind" | tr '[:lower:]' '[:upper:]')
   case "$kind" in
-    PLAN|TASKLIST|FIRST|CATEGORIZED|DECIDED) ;;
-    *) die "record-auto-approved: invalid kind '${kind}'. Valid values: PLAN TASKLIST FIRST CATEGORIZED DECIDED" ;;
+    PLAN|TASKLIST|FIRST|DECIDED) ;;
+    *) die "record-auto-approved: invalid kind '${kind}'. Valid values: PLAN TASKLIST FIRST DECIDED" ;;
   esac
-  local marker="[AUTO-APPROVED-${kind}] ${agent}"
+  local current_phase marker
+  if [ "$kind" = "FIRST" ]; then
+    # FIRST is phase-scoped to match [FIRST-TURN] {phase}/{agent} emitted by _record_loop_state.
+    current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
+    marker="[AUTO-APPROVED-FIRST] ${current_phase}/${agent}"
+  else
+    marker="[AUTO-APPROVED-${kind}] ${agent}"
+  fi
   if [ -n "$note" ]; then
     marker="${marker}: ${note}"
   fi
+  if grep -qF "$marker" "$plan_file" 2>/dev/null; then
+    echo "[record-auto-approved] already present — skipping duplicate: ${marker}" >&2
+    return 0
+  fi
   _append_to_open_questions "$plan_file" "$marker"
   echo "[record-auto-approved] ${marker}" >&2
+}
+
+cmd_clear_marker() {
+  # clear-marker <plan-file> <marker-text>
+  # Removes all lines containing <marker-text> from ## Open Questions.
+  # Low-level utility. Prefer reset-milestone for milestone transitions (see below).
+  local plan_file="$1" marker="$2"
+  require_file "$plan_file"
+  _awk_inplace "$plan_file" -v marker="$marker" '
+    /^## Open Questions$/ { in_section=1; print; next }
+    in_section && /^## / { in_section=0 }
+    in_section && index($0, marker) > 0 { next }
+    { print }
+  '
+  echo "[clear-marker] removed '$marker' from ## Open Questions in $plan_file" >&2
+}
+
+cmd_reset_milestone() {
+  # reset-milestone <plan-file> <agent>
+  # Clears [CONVERGED] {phase}/{agent} from ## Open Questions AND appends a
+  # [MILESTONE-BOUNDARY] sentinel to ## Critic Verdicts.
+  #
+  # The boundary sentinel breaks the trailing-PASS streak calculation in
+  # _record_loop_state: verdicts from a prior milestone stop contributing to
+  # the streak, so the new milestone requires 2 fresh PASSes to converge.
+  #
+  # Use before starting each new milestone's critic run within the same phase.
+  local plan_file="$1" agent="$2"
+  require_file "$plan_file"
+  local current_phase
+  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
+  local converged_marker="[CONVERGED] ${current_phase}/${agent}"
+
+  # 1. Clear the CONVERGED marker from Open Questions
+  _awk_inplace "$plan_file" -v marker="$converged_marker" '
+    /^## Open Questions$/ { in_section=1; print; next }
+    in_section && /^## / { in_section=0 }
+    in_section && index($0, marker) > 0 { next }
+    { print }
+  '
+
+  # 2. Append a milestone boundary to Critic Verdicts so the streak resets.
+  # The sentinel line matches the pat="${current_phase}/${agent}:" pattern used
+  # by _record_loop_state, but does not contain ": PASS", so the backward walk
+  # stops here and streak = 0 from prior history.
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S")
+  _append_to_critic_verdicts "$plan_file" \
+    "- [MILESTONE-BOUNDARY @${ts}] ${current_phase}/${agent}:"
+
+  echo "[reset-milestone] cleared [CONVERGED] and added milestone boundary for ${current_phase}/${agent}" >&2
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
@@ -1191,6 +1351,7 @@ case "$1" in
   set-phase)            [ $# -eq 3 ] || die "Usage: plan-file.sh set-phase <plan-file> <phase>"; cmd_set_phase "$2" "$3" ;;
   append-verdict)       [ $# -eq 3 ] || die "Usage: plan-file.sh append-verdict <plan-file> <label>"; cmd_append_verdict "$2" "$3" ;;
   append-note)          [ $# -eq 3 ] || die "Usage: plan-file.sh append-note <plan-file> <note>"; cmd_append_note "$2" "$3" ;;
+  append-phase-transition) [ $# -eq 3 ] || die "Usage: plan-file.sh append-phase-transition <plan-file> <entry>"; cmd_append_phase_transition "$2" "$3" ;;
   find-active)          cmd_find_active ;;
   find-latest)          cmd_find_latest ;;
   record-verdict)         cmd_record_verdict ;;
@@ -1216,6 +1377,9 @@ case "$1" in
   record-integration-attempt) [ $# -eq 2 ] || die "Usage: plan-file.sh record-integration-attempt <plan-file>"; cmd_record_integration_attempt "$2" ;;
   get-integration-attempts)   [ $# -eq 2 ] || die "Usage: plan-file.sh get-integration-attempts <plan-file>"; cmd_get_integration_attempts "$2" ;;
   record-stop-block)          [ $# -eq 4 ] || die "Usage: plan-file.sh record-stop-block <plan-file> <phase> <reason>"; cmd_record_stop_block "$2" "$3" "$4" ;;
+  record-confirmed-first)     [ $# -eq 3 ] || die "Usage: plan-file.sh record-confirmed-first <plan-file> <agent>"; cmd_record_confirmed_first "$2" "$3" ;;
   record-auto-approved)       [ $# -ge 4 ] || die "Usage: plan-file.sh record-auto-approved <plan-file> <kind> <agent> [note]"; cmd_record_auto_approved "$2" "$3" "$4" "${5:-}" ;;
+  clear-marker)               [ $# -eq 3 ] || die "Usage: plan-file.sh clear-marker <plan-file> <marker-text>"; cmd_clear_marker "$2" "$3" ;;
+  reset-milestone)            [ $# -eq 3 ] || die "Usage: plan-file.sh reset-milestone <plan-file> <agent>"; cmd_reset_milestone "$2" "$3" ;;
   *) die "Unknown command: $1" ;;
 esac

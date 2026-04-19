@@ -144,28 +144,9 @@ For each domain concept directory:
 cp src/domain/CLAUDE.md src/domain/{concept}/CLAUDE.md
 ```
 
-## Step 4 — Commit scaffold
+## Step 4 — Create initial plan file + commit scaffold
 
-Stage and commit all scaffold files so the working tree is clean before brainstorming runs its dirty-tree check.
-
-If the project is not yet a git repository (`git rev-parse --git-dir` fails):
-- **Interactive**: use `AskUserQuestion` — "No git repository found. Run `git init && git add .gitignore` first, then re-run initializing-project."
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED] not a git repository — run git init before initializing-project` to `## Open Questions` in the plan file, then stop.
-
-Verify there is something to stage before committing:
-```bash
-git status --porcelain | grep -q . || { echo "[SKIP] nothing to commit — scaffold already present"; }
-```
-
-Stage and commit (use `-A` with explicit paths to avoid glob-expansion issues in bash without `globstar`):
-```bash
-git add -A CLAUDE.md src docs plans features domain
-git commit -m "chore(init): scaffold VSA+DDD project structure"
-```
-
-## Step 5 — Create initial plan file
-
-Create initial plan file `plans/{project-slug}.md`:
+Create the initial plan file `plans/{project-slug}.md` **before** committing so it is included in the scaffold commit (brainstorming's dirty-tree check runs after this commit and must see a clean tree):
 
 ```markdown
 ---
@@ -189,7 +170,29 @@ brainstorm
 
 ## Critic Verdicts
 
+## Critic Runs
+
 ## Task Ledger
 
+## Pre-existing Errors
+
+## Integration Failures
+
 ## Open Questions
+```
+
+Then stage and commit all scaffold files so the working tree is clean before brainstorming runs its dirty-tree check.
+
+If the project is not yet a git repository (`git rev-parse --git-dir` fails):
+- **Interactive**: use `AskUserQuestion` — "No git repository found. Run `git init && git add .gitignore` first, then re-run initializing-project."
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED] not a git repository — run git init before initializing-project` to `## Open Questions` in the plan file, then stop.
+
+Stage and commit if there is anything to stage (use `-A` with explicit paths to avoid glob-expansion issues in bash without `globstar`):
+```bash
+git add -A CLAUDE.md src docs plans features domain
+if git diff --cached --quiet; then
+  echo "[SKIP] nothing to commit — scaffold already present"
+else
+  git commit -m "chore(init): scaffold VSA+DDD project structure"
+fi
 ```

@@ -94,9 +94,10 @@ If tests fail:
 
 4. After confirmation (or auto-categorization), invoke the appropriate skill via `Skill(...)`.
 
-5. Append to `## Phase Transitions` in the plan file:
-   ```
-   - integration → {rollback-phase} (reason: {one sentence})
+5. Record the phase rollback:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
+     "- integration → {rollback-phase} (reason: {one sentence})"
    ```
 
 ## Step 4 — Re-run after fix (max 2 re-run attempts)

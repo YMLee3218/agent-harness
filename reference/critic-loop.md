@@ -51,7 +51,7 @@ If a single FAIL has multiple root causes from different categories, choose the 
 
 to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLOCKED-CATEGORY]` marker and stops. The loop cannot converge when the same structural problem recurs; human review is required.
 
-> **Phase independence**: the category counter is not reset by `red → review` phase transitions. This prevents the same structural failure from escaping detection by crossing a phase boundary.
+> **Phase independence**: the category counter is not reset by `implement → review` phase transitions. This prevents the same structural failure from escaping detection by crossing a phase boundary.
 
 ## Loop convergence
 
@@ -63,14 +63,14 @@ The loop terminates on **2 consecutive PASSes** (convergence), not on a single P
 
 | Marker | Condition | Skill action |
 |--------|-----------|--------------|
-| `[BLOCKED-CEILING] {agent}` | Total runs for this phase+agent > N (default 5) | Stop — manual review required |
+| `[BLOCKED-CEILING] {phase}/{agent}` | Total runs for this phase+agent > N (default 5) | Stop — manual review required |
 | `[BLOCKED-CATEGORY] {agent}` | Two consecutive FAILs with same category (agent-scoped, phase-independent) | Stop — fix root cause first |
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | LLM cannot determine fix direction | Stop — human decision required |
 | `[BLOCKED-PARSE] {agent}` | Critic output missing verdict markers two consecutive times | Stop — investigate agent output format before retrying |
-| `[CONVERGED] {agent}` | PASS streak ≥ 2 for this phase+agent (emitted once; duplicate-safe) | Proceed to next step |
-| `[CONFIRMED-FIRST] {agent}` | Interactive: user confirmed FIRST-TURN; skill writes this marker (via append-note) after user confirms and before re-running, so a resumed session can skip re-confirmation | Re-run automatically (skip re-confirmation) |
-| `[AUTO-APPROVED-FIRST] {agent}` | Non-interactive mode: `[FIRST-TURN]` auto-approved | Re-run automatically (FIRST-TURN auto-approved in prior non-interactive session) |
-| `[FIRST-TURN] {agent}` | First run ever for this phase+agent | Ask user for confirmation, then re-run (or auto-approve in non-interactive mode) |
+| `[CONVERGED] {phase}/{agent}` | PASS streak ≥ 2 for this phase+agent (emitted once; phase-scoped to prevent stale markers surviving rollbacks) | Proceed to next step |
+| `[CONFIRMED-FIRST] {phase}/{agent}` | Interactive: user confirmed FIRST-TURN; skill writes this marker (via `record-confirmed-first`) after user confirms and before re-running, so a resumed session can skip re-confirmation | Re-run automatically (skip re-confirmation) |
+| `[AUTO-APPROVED-FIRST] {phase}/{agent}` | Non-interactive mode: `[FIRST-TURN]` auto-approved | Re-run automatically (FIRST-TURN auto-approved in prior non-interactive session) |
+| `[FIRST-TURN] {phase}/{agent}` | First run ever for this phase+agent (phase-scoped so rollbacks re-prompt confirmation) | Ask user for confirmation, then re-run (or auto-approve in non-interactive mode) |
 | `[AUTO-APPROVED-PLAN] {skill}: {note}` | Non-interactive mode: `ExitPlanMode` skipped, plan auto-approved | Log only — proceed to write step |
 | `[AUTO-APPROVED-TASKLIST] implementing: {note}` | Non-interactive mode: implementation task list auto-approved in `implementing` skill | Log only — proceed to task execution |
 | `[AUTO-CATEGORIZED] {agent}: {summary} → {category}` | Non-interactive mode: pr-review FAIL category inferred and fix applied automatically | Log only — re-run automatically |
@@ -92,16 +92,16 @@ Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOC
 After critic/review run → script records verdict + emits markers
 Skill reads ## Open Questions, checks in priority order:
 
-  1. [BLOCKED-CEILING] {agent}  → stop (manual review)
-  2. [BLOCKED-CATEGORY] {agent} → stop (fix root cause)
-  3. [BLOCKED-AMBIGUOUS] {agent} → stop (human decision)
-  4. [BLOCKED-PARSE] {agent}    → stop (investigate critic output format)
-  5. [CONVERGED] {agent}           → proceed to next step
-  6. [CONFIRMED-FIRST] {agent}     → re-run automatically (user confirmed in prior session)
-  7. [AUTO-APPROVED-FIRST] {agent} → re-run automatically
-                                     (non-interactive: FIRST-TURN auto-approved in prior session)
-  8. [FIRST-TURN] {agent}          → confirm with user, then re-run
-                                     (non-interactive: auto-approve + re-run)
+  1. [BLOCKED-CEILING] {phase}/{agent}  → stop (manual review)
+  2. [BLOCKED-CATEGORY] {agent}         → stop (fix root cause)
+  3. [BLOCKED-AMBIGUOUS] {agent}        → stop (human decision)
+  4. [BLOCKED-PARSE] {agent}            → stop (investigate critic output format)
+  5. [CONVERGED] {phase}/{agent}   → proceed to next step
+  6. [CONFIRMED-FIRST] {phase}/{agent}     → re-run automatically (user confirmed in prior session)
+  7. [AUTO-APPROVED-FIRST] {phase}/{agent} → re-run automatically
+                                             (non-interactive: FIRST-TURN auto-approved in prior session)
+  8. [FIRST-TURN] {phase}/{agent}          → confirm with user, then re-run
+                                             (non-interactive: auto-approve + re-run)
   9. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
                                    → re-run automatically (one retry allowed;
                                      second consecutive PARSE_ERROR triggers [BLOCKED-PARSE])
@@ -139,14 +139,19 @@ The `SubagentStart` hook automatically calls `plan-file.sh record-critic-start` 
 After `record-verdict` (or `append-review-verdict`) returns:
 
 1. Read `## Open Questions` for this agent's markers (priority order above).
-2. If any `[BLOCKED-*]` marker is present for this agent — stop immediately
+2. If any `[BLOCKED-CEILING] {phase}/{agent}`, `[BLOCKED-CATEGORY] {agent}`, `[BLOCKED-AMBIGUOUS] {agent}`, or `[BLOCKED-PARSE] {agent}` marker is present for this agent — stop immediately
    (BLOCKED states take precedence over convergence even on a PASS run; do not continue to steps 3–7).
-3. If `[CONVERGED]` is present → proceed to the next step.
-4. If `[CONFIRMED-FIRST]` is present (and no `[CONVERGED]`) → re-run automatically (user confirmed in a previous session).
-5. If `[AUTO-APPROVED-FIRST]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`) → re-run automatically (non-interactive FIRST-TURN was already approved in a prior session).
-6. If `[FIRST-TURN]` is present (and no `[CONVERGED]`, no `[CONFIRMED-FIRST]`, no `[AUTO-APPROVED-FIRST]`) → ask user (interactive), then re-run. (Non-interactive: see §Non-interactive mode.)
+   _For `[BLOCKED-CEILING]`: `{phase}` must equal the current plan file phase — same matching rule as `[CONVERGED]` below. Agent-scoped markers (`[BLOCKED-CATEGORY]`, `[BLOCKED-AMBIGUOUS]`, `[BLOCKED-PARSE]`) match regardless of phase._
+3. If `[CONVERGED] {phase}/{agent}` is present → proceed to the next step.
+   _"Matching" means the exact text `[CONVERGED] {phase}/{agent}` where `{phase}` equals the current phase at check time. A stale `[CONVERGED] implement/critic-code` marker does **not** satisfy a `review/critic-code` check — they are different phases._
+4. If `[CONFIRMED-FIRST] {phase}/{agent}` is present (and no matching `[CONVERGED]`) → re-run automatically (user confirmed in a previous session).
+   _Same phase-matching rule as `[CONVERGED]` — `{phase}` must equal the current plan file phase._
+5. If `[AUTO-APPROVED-FIRST] {phase}/{agent}` is present (and no matching `[CONVERGED]`, no matching `[CONFIRMED-FIRST]`) → re-run automatically (non-interactive FIRST-TURN was already approved in a prior session).
+   _Same phase-matching rule as `[CONVERGED]`._
+6. If `[FIRST-TURN] {phase}/{agent}` is present (and no matching `[CONVERGED]`, no matching `[CONFIRMED-FIRST]`, no matching `[AUTO-APPROVED-FIRST]`) → ask user (interactive), then re-run. (Non-interactive: see §Non-interactive mode.)
+   _Same phase-matching rule as `[CONVERGED]`._
    **Interactive only:** after the user confirms, run:
-   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" "[CONFIRMED-FIRST] {agent}"`
+   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-confirmed-first "plans/{slug}.md" {agent}`
    before re-running, so a resumed session can skip re-confirmation.
 7. Otherwise (PASS but no convergence yet) → re-run automatically.
 
@@ -173,7 +178,7 @@ Two flags control non-interactive behaviour; they compose additively:
 When either flag is set:
 
 - Replace all `AskUserQuestion` calls in the critic loop with plan file writes.
-- `[FIRST-TURN]` handling: instead of asking, the skill should run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST {agent}` and re-run automatically.
+- `[FIRST-TURN]` handling: instead of asking, the skill should run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST {agent}` and re-run automatically. (`record-auto-approved FIRST` reads the current phase from the plan file and writes `[AUTO-APPROVED-FIRST] {phase}/{agent}` automatically.)
 - `ExitPlanMode` (in writing-spec, writing-tests, implementing, initializing-project, brainstorming): skip the gate — the skill should run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" PLAN {skill} "{note}"` and proceed to the write step.
 - On first FAIL (critic loop): apply the fix plan automatically and re-run without stopping (auto-apply replaces the `AskUserQuestion` confirmation). For pr-review FAILs: infer the issue category and log `[AUTO-CATEGORIZED] pr-review: {summary} → {category}` to `## Open Questions` before applying the fix chain.
 - `[BLOCKED-CEILING]` / `[BLOCKED-AMBIGUOUS]` / `[BLOCKED-CATEGORY]` / `[BLOCKED-PARSE]`: stop cleanly (do not apply further fixes).

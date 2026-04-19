@@ -24,11 +24,32 @@ CLAUDE_PLAN_FILE=/path/to/plans/feature-slug.md
 
 Pins the active plan file for `plan-file.sh find-active`. Highest priority override — use when multiple features run in parallel on the same branch, or in CI where branch-based lookup is unreliable.
 
+## Phase enforcement rules
+
+| Phase | src/ writes | test/ writes |
+|-------|------------|--------------|
+| `brainstorm`, `spec` | Blocked | Blocked |
+| `red` | Blocked | Allowed |
+| `implement` | Allowed | Blocked (tests frozen) |
+| `review` | Allowed | Blocked (tests frozen) |
+| `green`, `integration` | Allowed | Blocked (tests frozen) |
+| `done` | Blocked | Blocked |
+
+> **Note:** Phase gating applies only to `src/` and test paths. Writes to `docs/`, `plans/`, `reference/`, and other non-source paths are always permitted in every phase.
+
+`implement` is the coder subagent execution phase — source writes are permitted; test files remain frozen so coder worktrees cannot alter test baselines.
+
+> **Note:** The `implement`-phase test-file freeze is enforced by two independent hooks:
+> - `phase-gate.sh` blocks Write/Edit tool calls to test paths.
+> - `pretooluse-bash.sh` blocks Bash-tool redirects (`>`, `>>`) to test paths.
+> Setting `PHASE_GATE_STRICT=0` or overriding only one hook does not disable both — both must be adjusted if fail-open behaviour is needed for `implement`.
+
 ## Hook execution order with `--permission-mode auto`
 
 `PreToolUse` hooks (`phase-gate.sh`, `pretooluse-bash.sh`) run *before* the auto-classifier evaluates a permission request. A phase-gate `FAIL` (exit 2) aborts the tool call even in auto mode — the classifier never sees it. In non-interactive pipelines a phase-gate block therefore terminates the current step rather than prompting.
 
 To avoid spurious aborts, set `CLAUDE_PLAN_FILE` and advance the plan to the correct phase before launching:
 ```bash
-claude --permission-mode auto -p "/running-dev-cycle"
+CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md" \
+  claude --permission-mode auto -p "/running-dev-cycle"
 ```

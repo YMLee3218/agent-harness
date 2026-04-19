@@ -20,7 +20,13 @@
 # pattern — stop_hook_active=true means we already fired once; a second block
 # would loop forever if tests keep failing.
 _payload=$(cat)
-if command -v jq >/dev/null 2>&1 && [ -n "$_payload" ]; then
+if ! command -v jq >/dev/null 2>&1; then
+  # jq is required for stop_hook_active detection. Without it, we cannot detect
+  # a second-stop event, so allow the stop to prevent an undetectable infinite loop.
+  echo "[stop-check] jq not found — bypassing stop check to avoid undetectable loop (install jq to enable test verification)" >&2
+  exit 0
+fi
+if [ -n "$_payload" ]; then
   if [ "$(printf '%s' "$_payload" | jq -r '.stop_hook_active // false' 2>/dev/null)" = "true" ]; then
     echo "[stop-check] stop_hook_active=true — bypassing to avoid infinite loop" >&2
     exit 0
@@ -33,15 +39,24 @@ PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
   active_plan="$CLAUDE_PLAN_FILE"
 else
-  active_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) || exit 0
+  active_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null)
+  rc=$?
+  if [ $rc -eq 3 ]; then
+    echo "BLOCKED [stop-check]: multiple active plan files — set CLAUDE_PLAN_FILE to disambiguate" >&2
+    exit 2
+  elif [ $rc -ne 0 ]; then
+    exit 0
+  fi
 fi
 
 [ -z "$active_plan" ] && exit 0
 
-# Enforce in green, integration, and done phases (unit tests must pass in all three).
-# review phase is intentionally excluded: it is the pr-review FAIL recovery phase where
-# source modifications are allowed mid-cycle and tests may temporarily be broken.
-# The phase transitions to green (and triggers enforcement) only after [CONVERGED] pr-review.
+# Enforce in green, integration, and done phases only (unit tests must pass in all three).
+# All other phases — brainstorm, spec, red, implement, review — are excluded.
+# review is excluded because it is the pr-review FAIL recovery phase: source modifications
+# are allowed mid-cycle and tests may temporarily be broken.
+# implement is excluded because coder subagents write source to satisfy failing tests.
+# The phase transitions to green (and triggers enforcement) only after [CONVERGED] {phase}/pr-review.
 phase=$(bash "$PLAN_FILE_SH" get-phase "$active_plan" 2>/dev/null) || exit 0
 case "$phase" in
   green|integration|done) ;;
@@ -53,8 +68,7 @@ esac
 # This avoids an infinite Stop-hook block loop when stop_hook_active is unavailable
 # in the Stop payload (plan-file-based self-halt, no dependency on stop_hook_active).
 if [ "$phase" = "integration" ]; then
-  if grep -qF "[BLOCKED] integration tests failed after 2 fix attempts" "$active_plan" 2>/dev/null \
-     || grep -qF "[BLOCKED-INTEGRATION]" "$active_plan" 2>/dev/null; then
+  if grep -qF "[BLOCKED-INTEGRATION]" "$active_plan" 2>/dev/null; then
     echo "[stop-check] integration [BLOCKED] already recorded — allowing stop (plan-based self-halt)" >&2
     exit 0
   fi
@@ -67,20 +81,28 @@ if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
   exit 0
 fi
 test_cmd=""
+_raw_test_line=""
 claude_md="${CLAUDE_PROJECT_DIR}/CLAUDE.md"
 claude_md_exists=0
 if [ -f "$claude_md" ]; then
   claude_md_exists=1
-  test_cmd=$(grep -E '^\- Test: ' "$claude_md" 2>/dev/null \
-    | sed "s/^- Test: \`\(.*\)\`/\1/" \
-    | head -1 || true)
+  _raw_test_line=$(grep -E '^\- Test: ' "$claude_md" 2>/dev/null | head -1 || true)
+  test_cmd=$(printf '%s' "$_raw_test_line" | sed "s/^- Test: \`\(.*\)\`/\1/" || true)
+  # If sed did not transform the line (no backtick wrapping), the command is not parseable
+  if [ "$test_cmd" = "$_raw_test_line" ]; then
+    test_cmd=""
+  fi
 fi
 
 # Skip gracefully if the line is still an initializing-project placeholder, has unfilled {template-vars},
 # or contains angle-bracket placeholders such as <command> (used in examples/local.md template).
 # Use pattern {word} (lowercase letters, digits, underscores, hyphens) to avoid false positives
 # from legitimate brace usage such as pytest --deselect 'tests/{foo}'.
-if printf '%s' "$test_cmd" | grep -q "initializing-project" \
+# NOTE: also check _raw_test_line here — if sed failed to extract test_cmd (e.g. the line had text
+# before the backtick, like the initializing-project placeholder), test_cmd is empty but the raw
+# line still contains placeholder text that should suppress a false BLOCK.
+if printf '%s' "$_raw_test_line" | grep -q "initializing-project" \
+   || printf '%s' "$test_cmd" | grep -q "initializing-project" \
    || printf '%s' "$test_cmd" | grep -qE '\{[a-z0-9_-]+\}' \
    || printf '%s' "$test_cmd" | grep -qE '<[a-z0-9_-]+>'; then
   echo "[stop-check] test command is a placeholder; skipping test verification" >&2

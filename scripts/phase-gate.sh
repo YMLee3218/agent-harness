@@ -136,6 +136,14 @@ mode_write() {
         exit 2
       fi
       ;;
+    implement)
+      # Implementation phase: coder subagents write source files to satisfy failing tests.
+      # Test files remain frozen — coders must not modify tests.
+      if is_test_path "$file_path"; then
+        echo "BLOCKED [phase-gate]: Phase is 'implement'. Test files are frozen — implement code in src/ only, do not modify tests." >&2
+        exit 2
+      fi
+      ;;
     review)
       # PR review fix phase: source files may be modified to address review issues.
       # Test files remain frozen (as in green phase).
@@ -174,7 +182,7 @@ mode_write() {
 # UserPromptSubmit hook: injects a phase reminder into Claude's context when the
 # pipeline is in an early phase (brainstorm or spec). Outputs the canonical
 # hookSpecificOutput JSON so Claude sees the current phase before responding.
-# No output for red/green/integration/done — gating is handled by Write hooks.
+# No output for red/implement/review/green/integration/done — gating is handled by Write hooks.
 
 mode_prompt() {
   # Read the payload (not used directly, but must consume stdin)

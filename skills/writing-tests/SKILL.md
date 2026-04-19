@@ -26,8 +26,7 @@ plan phase may already be `red` (set by the previous feature's tests). This is e
 phase is `red` on entry and you are writing tests for a feature whose spec was written during the
 current batch run (verify by checking `## Critic Verdicts` for a `critic-spec: PASS` for this
 feature):
-1. Append a phase transition entry to `## Phase Transitions` (preserve existing verdicts).
-2. Continue from Step 2 — do NOT re-run writing-spec.
+1. Continue from Step 2 — do NOT re-run writing-spec. (No phase transition to record — phase is already `red`.)
 
 If the phase is `red` and no `critic-spec: PASS` verdict exists for this feature, stop and
 report: "Phase is `red` but no spec verdict found for this feature — run writing-spec first."
@@ -88,7 +87,7 @@ After writing all tests, run the test command from project CLAUDE.md.
 **Exception — existing implementation already satisfies a scenario:** if a test passes immediately and the scenario is already fully handled by existing code, do NOT force it to fail. Instead:
 1. Mark it `GREEN (pre-existing)` in `## Test Manifest`
 2. Note it in `## Open Questions` so the user can confirm the existing behaviour is intentional
-3. Skip the Green phase for that test — it does not need implementing
+3. Skip the implement phase for that test — it does not need implementing
 
 Tests that pass due to incomplete test logic (e.g. empty assertions, wrong subject) must still be rewritten to fail properly.
 
@@ -107,9 +106,10 @@ If re-entering `writing-tests` from a later phase (e.g., multi-feature slice mod
 feature's implementing left the plan at `green`, or a bug requires tests to be rewritten):
 
 1. Preserve all existing `## Critic Verdicts` — do not delete them.
-2. Append a phase transition entry to `## Phase Transitions`:
-   ```
-   - {previous-phase} → red (reason: {one sentence})
+2. Record the phase rollback:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-phase-transition "plans/{slug}.md" \
+     "- {previous-phase} → red (reason: {one sentence})"
    ```
 3. Step 3 already sets the plan phase to `red` at the start of the step (before writing test
    files); the plan-file phase check in Step 1 ("Confirm Phase is `spec`") is satisfied once
@@ -132,14 +132,14 @@ After each run, `plan-file.sh record-verdict` fires automatically (SubagentStop 
 
 | Marker | Action |
 |--------|--------|
-| `[BLOCKED-CEILING] critic-test` | Stop — manual review required |
+| `[BLOCKED-CEILING] {phase}/critic-test` | Stop — manual review required. **Phase-match required**: `{phase}` must equal the current plan file phase. |
 | `[BLOCKED-CATEGORY] critic-test` | Stop — fix root cause first |
 | `[BLOCKED-AMBIGUOUS] critic-test: …` | Stop — human decision needed |
 | `[BLOCKED-PARSE] critic-test` | Stop — check critic output format before retrying |
-| `[CONVERGED] critic-test` | Complete — writing-tests phase done; proceed to `implementing` (if invoked via `running-dev-cycle`, it advances automatically) |
-| `[CONFIRMED-FIRST] critic-test` | Re-run automatically (user already confirmed in a previous session) |
-| `[AUTO-APPROVED-FIRST] critic-test` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session) |
-| `[FIRST-TURN] critic-test` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" "[CONFIRMED-FIRST] critic-test"` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-test` (non-interactive), then re-run |
+| `[CONVERGED] {phase}/critic-test` | Complete — writing-tests phase done; proceed to `implementing` (if invoked via `running-dev-cycle`, it advances automatically). **Phase-match required**: same rule as BLOCKED-CEILING. |
+| `[CONFIRMED-FIRST] {phase}/critic-test` | Re-run automatically (user already confirmed in a previous session). **Phase-match required**: same rule as BLOCKED-CEILING. |
+| `[AUTO-APPROVED-FIRST] {phase}/critic-test` | Re-run automatically (FIRST-TURN auto-approved in a prior non-interactive session). **Phase-match required**: same rule as BLOCKED-CEILING. |
+| `[FIRST-TURN] {phase}/critic-test` | Ask user (interactive) — after confirming, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-confirmed-first "plans/{slug}.md" critic-test` then re-run; or run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-auto-approved "plans/{slug}.md" FIRST critic-test` (non-interactive), then re-run. **Phase-match required**: same rule as BLOCKED-CEILING. |
 | PARSE_ERROR (no `[BLOCKED-PARSE]` yet) | Re-run automatically (second consecutive PARSE_ERROR triggers `[BLOCKED-PARSE]`) |
 | PASS, no `[CONVERGED]` yet | Re-run automatically |
 | FAIL | Apply fix, then re-run |

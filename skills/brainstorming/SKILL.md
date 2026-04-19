@@ -17,13 +17,14 @@ Layer rules: @reference/layers.md
 
 ## Step 0 — Detect uninitialized project (autonomous pre-check)
 
-Before branching into new feature or modification, check whether the project has been initialized:
+Before branching into new feature or modification, check whether the project has been initialized.
+Use the presence of `CLAUDE.md` at the project root as the initialization signal — it is created by `initializing-project` and absent in a fresh repo. Do NOT use `Glob("src/**")` for this check: `src/` directories are empty after init and Glob would return no results even in a fully initialized project, causing a spurious re-invocation on every brainstorm run.
 
-```
-Glob("src/**")
+```bash
+test -f "$CLAUDE_PROJECT_DIR/CLAUDE.md" && echo "initialized" || echo "not-initialized"
 ```
 
-If `src/` does not exist (Glob returns no results):
+If the project is NOT initialized (file absent):
 - Auto-invoke `initializing-project` immediately: `Skill("initializing-project")`
 - Do NOT ask the user whether to initialize — detect and act.
 - After `initializing-project` returns, continue into Step 1 below.

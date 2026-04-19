@@ -58,18 +58,29 @@ If exit code is **3** (ambiguous — two or more active plan files):
 If exit code is **1** (plan-file.sh error — plans directory missing or script error):
 treat as exit 2 — fall through to Step 1 (brainstorming).
 
-Otherwise, if a plan file is found (`find_active_rc=0`), read its current phase and route accordingly:
+Otherwise, if a plan file is found (`find_active_rc=0`), check for terminal-block markers and read its current phase:
+
+```bash
+if [ "$find_active_rc" -eq 0 ] && grep -qF "[BLOCKED-FINAL]" "$plan_file" 2>/dev/null; then
+  echo "[BLOCKED] [BLOCKED-FINAL] marker found in ${plan_file} — critic-feature failed twice in brainstorm phase. Fix the feature decomposition, then remove this marker to re-run."
+  exit 1
+fi
+```
+
+Route accordingly:
 
 | Phase in plan file | Action |
 |--------------------|--------|
 | _(no plan file / exit 2)_ | Fall through to Step 1 (brainstorming) as normal |
 | `brainstorm` | Fall through to Step 1; brainstorming will resume from the existing plan |
 | `spec` | Skip to **Step 2a** (writing-spec for the next un-specced feature) |
-| `red` | **Slice mode** (trivial / patch / feature profiles): Skip to **Step 2c** (implementing; tests already written for the current feature). **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry, skip directly to **Step 4** (Implementation). |
+| `red` | **Slice mode** (patch / feature profiles): Skip to **Step 2c** (implementing). Feature profile: tests already written. Patch profile: spec written and phase set to `red` by Step 2a — no tests phase. **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry, skip directly to **Step 4** (Implementation). |
+| `implement` | Coder task execution: normal mid-run state for all profiles (set by `implementing` after task list registration). Fresh entry for `trivial` profile (empty Task Ledger); interrupted mid-run for `patch`/`feature`/`greenfield`. Re-invoke the `implementing` skill — it handles both sub-cases via Task Ledger state. |
 | `review` | PR review loop was interrupted mid-fix. Re-invoke the `implementing` skill to resume the pr-review fix loop for the current feature. |
 | `green` | PR review converged; implementation done. Skip directly to **Integration Tests** (all profiles). |
 | `integration` | Skip to **Integration Tests** step (re-run after previous failure) |
-| `done` | Output: "Cycle is already complete for this plan." Stop. |
+
+> **Note**: `done` plans are excluded by `find-active` (exit 2), so the routing table never receives `done`. A plan in `done` phase causes Step 0 to fall through to Step 1 (new brainstorming). To restart a completed plan, either delete the plan file or create a new feature branch.
 
 Do not re-run a phase that the plan file records as already completed. This ensures
 autonomous restarts after interruption (crash, compaction, network error) resume at
@@ -83,7 +94,7 @@ Choose the profile that matches the scope of the change. Profiles control which 
 
 | Profile | Flag | Phases active | Critics active | When to use |
 |---------|------|--------------|----------------|-------------|
-| **trivial** | `--profile trivial` or `--trivial` | implementing only | critic-code, pr-review-toolkit | Single-file typo/comment fix that cannot affect behaviour |
+| **trivial** | `--profile trivial` or `--trivial` | implementing only (starts at `implement` phase) | critic-code, pr-review-toolkit | Single-file typo/comment fix that cannot affect behaviour |
 | **patch** | `--profile patch` | spec + implementing | critic-spec, critic-code, pr-review-toolkit | Bug fix or small change with a clear, bounded scope |
 | **feature** | `--profile feature` *(default)* | full cycle | all four critics | New feature or behaviour change |
 | **greenfield** | `--profile greenfield` | full cycle + batch mode | all four critics | New project or major domain rewrite where all specs must align before any tests |
@@ -108,7 +119,7 @@ Do not proceed to Step 2 until:
 
 After brainstorming returns, record the active profile in the plan file frontmatter so that resumed sessions can determine the profile without the original command-line argument. Use `Edit` to insert `mode: {profile}` into the YAML frontmatter block of `plans/{slug}.md` (between the `---` delimiters). Where `{profile}` is the resolved profile name (`trivial`, `patch`, `feature`, or `greenfield`).
 
-*Skip Step 1 for `trivial` and `patch` profiles. Create the plan file manually before proceeding:*
+*Skip Step 1 for `trivial` and `patch` profiles. Create the plan file and advance to the correct starting phase before proceeding:*
 
 ```bash
 cat > "plans/{slug}.md" << 'EOF'
@@ -134,12 +145,27 @@ brainstorm
 
 ## Critic Verdicts
 
+## Critic Runs
+
 ## Task Ledger
+
+## Pre-existing Errors
+
+## Integration Failures
 
 ## Open Questions
 EOF
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" brainstorm
 ```
+
+Then advance phase to the correct starting point:
+- **patch profile**: leave at `brainstorm` — Step 2a (writing-spec) will advance to `spec`, and immediately after writing-spec returns, set phase to `red` before invoking implementing:
+  ```bash
+  # (done in Step 2a after writing-spec completes — see below)
+  ```
+- **trivial profile**: advance to `implement` (no spec or tests — skip directly to implementation):
+  ```bash
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" implement
+  ```
 
 ---
 
@@ -162,11 +188,16 @@ Invoke the `writing-spec` skill for the feature. Wait for critic-spec PASS.
 
 *Skip for `trivial` profile.*
 
+**For `patch` profile only**: after writing-spec completes, advance phase to `red` (no writing-tests step for patch):
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" set-phase "plans/{slug}.md" red
+```
+
 ### Step 2b — Tests (`feature` profile only)
 
 Invoke the `writing-tests` skill for the feature. Wait for critic-test PASS and Plan file Phase `red`.
 
-*Skip for `trivial` and `patch` profiles. Set Phase to `red` directly and proceed to implementing.*
+*Skip for `trivial` profile (phase is already `implement`, set in Step 1). Skip for `patch` profile (phase is set to `red` in Step 2a — proceed directly to implementing).*
 
 ### Step 2c — Implementation (all profiles)
 

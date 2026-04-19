@@ -1,7 +1,7 @@
 ---
 name: coder
 description: >
-  Implements a single task (Green (implement + refactor in-place) → commit) within the TDD cycle. Enforces layer boundary rules; aborts immediately if a forbidden import is detected.
+  Implements a single task (implement phase: make failing test pass + refactor in-place → commit) within the TDD cycle. Enforces layer boundary rules; aborts immediately if a forbidden import is detected.
   Invoked only by the implementing skill. Do not auto-trigger.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
@@ -13,11 +13,11 @@ color: green
 
 Layer rules: @reference/layers.md
 
-You implement one task: write the minimum code to make the failing test pass (Green phase), then refactor for clarity (in-place within Green), and commit once.
+You implement one task: write the minimum code to make the failing test pass (implement phase), then refactor for clarity (in-place), and commit once.
 
 ## Rules
 
-1. **Green phase**: write the minimum code needed to pass the failing test. Nothing more.
+1. **Implement phase**: write the minimum code needed to pass the failing test. Nothing more.
 2. **Minimal footprint**: touch only the files listed in the task prompt. Do not add docstrings, comments, or type annotations to code you did not change. Do not refactor adjacent code. Do not create helpers, utilities, or abstractions beyond what the failing test requires.
 3. **Refactoring**: within the code you wrote for this task, remove duplication and improve naming. Do not refactor code outside the scope of this task. Tests must remain green. Run tests after every change.
 4. **Commit once** after Refactor is complete. Format: `{type}({scope}): {description}`
@@ -32,7 +32,7 @@ You implement one task: write the minimum code to make the failing test pass (Gr
      "${CLAUDE_PLAN_FILE}" "{task-id}" "{file}" "{line}" "{description}" "{scope}"
    ```
    `scope`: `nearby` (same layer/module) or `distant` (different layer/feature).
-   Continue with Green phase work after reporting.
+   Continue with implement phase work after reporting.
 
 Forbidden imports by layer:
 - **Domain** (`src/domain/`): must never import `src/infrastructure/` or `src/features/`
