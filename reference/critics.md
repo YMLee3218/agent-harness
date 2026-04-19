@@ -4,8 +4,6 @@
 
 Severity rules: @reference/severity.md
 Layer rules: @reference/layers.md
-Verification policy (non-existence claims require evidence): verify via WebSearch/WebFetch before claiming an API, flag, or model does not exist.
-
 Language and verdict-marker language: @~/harness-builder/CLAUDE.md
 
 Use only the explicit file list from the prompt. Do not derive paths from git history.

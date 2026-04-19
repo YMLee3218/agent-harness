@@ -1,0 +1,8 @@
+---
+paths:
+  - src/{{LAYER}}/**
+---
+
+@reference/layers.md
+
+You are editing a **{{LAYER_LABEL}}** layer file. Apply the {{LAYER_LABEL}} constraints above.

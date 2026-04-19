@@ -1,6 +1,6 @@
 # Severity Rules
 
-Imported by all four critic bodies (`@reference/severity.md`).
+Imported via `@reference/critics.md` by all four critic skills.
 Defines how to map finding labels to severity levels, when to emit PASS vs FAIL, and how to choose a category when multiple findings apply.
 
 ## Severity levels
@@ -44,12 +44,7 @@ LAYER_VIOLATION
 | `[WARN]` only, no blocking findings | Emit PASS; list `[WARN]` items in the report for awareness |
 | Multiple `[MISSING]` in same category | Single FAIL with category `MISSING_SCENARIO`; list all missing items |
 | Both `LAYER_VIOLATION` and `SPEC_COMPLIANCE` findings | Use `LAYER_VIOLATION` (higher priority); mention both in the verdict |
-| `[DOCS CONTRADICTION]` with no other findings | Emit FAIL with category `DOCS_CONTRADICTION`; do not auto-resolve — escalate via the DOCS CONTRADICTION path in `critic-loop.md` |
+| `[DOCS CONTRADICTION]` with no other findings | Emit FAIL with category `DOCS_CONTRADICTION`; do not auto-resolve — follow @reference/critics.md §DOCS CONTRADICTION cascade |
 | Test passes before any implementation exists | `TEST_INTEGRITY` — always FAIL regardless of other findings |
 | Typo in a scenario name (cosmetic only) | `[WARN]`, not `[FAIL]` — does not block |
 
-## Integration with critic-loop.md
-
-This file is the single source of truth for severity levels, PASS/FAIL thresholds, and category priority.
-`reference/critic-loop.md` references this file for those definitions and does not duplicate them.
-A critic body that imports this file does not need to duplicate any of those tables.
