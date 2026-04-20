@@ -77,7 +77,7 @@ Definitions: `@reference/markers.md §Critic loop markers` and `@reference/marke
 
 #### pr-review asymmetry
 
-pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 3 → 4–5 → 7 → 8 only.
+pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 3 → 4–5 → 7 → 8 only. Steps 2 and 6 are omitted: step 2 (`[BLOCKED]` check) because the implementing skill's tier-safe checks ensure no unresolved `[BLOCKED]` markers exist before pr-review starts; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
@@ -122,12 +122,14 @@ Before starting a critic run for a new milestone within the same phase, call:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}
 ```
-This clears the 5 phase-scoped convergence markers (see `@reference/markers.md §Phase-scoped convergence markers`) for this phase+agent from `## Open Questions`, and appends a `[MILESTONE-BOUNDARY]` sentinel to `## Critic Verdicts` so prior-milestone history does not contribute to the new streak. `set-phase` must run before `reset-milestone` when also changing phase, so `reset-milestone` reads the correct phase when clearing phase-scoped markers. For the full list of markers written and cleared by `reset-milestone`, `reset-pr-review`, and `reset-for-rollback`, see `reference/markers.md §Operation → markers reverse lookup`.
+This clears the 3 phase-scoped convergence markers (see `@reference/markers.md §Phase-scoped convergence markers`) for this phase+agent from `## Open Questions`, and appends a `[MILESTONE-BOUNDARY]` sentinel to `## Critic Verdicts` so prior-milestone history does not contribute to the new streak. `set-phase` must run before `reset-milestone` when also changing phase, so `reset-milestone` reads the correct phase when clearing phase-scoped markers. For the full list of markers written and cleared by `reset-milestone`, `reset-pr-review`, and `reset-for-rollback`, see `reference/markers.md §Operation → markers reverse lookup`.
 
 ### Full rollback reset
 
-For integration failure or unit-test failure before integration: use `reset-for-rollback` to atomically set phase, run `reset-milestone critic-code`, run `reset-pr-review`, and clear stale `review/critic-code` markers in one call:
+For integration failure or unit-test failure before integration: call `transition` first to log the rollback reason in Phase Transitions, then `reset-for-rollback` to atomically set phase, run `reset-milestone critic-code`, run `reset-pr-review`, and clear stale `review/critic-code` markers:
 ```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" {target-phase} \
+  "{one sentence reason}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" {target-phase}
 ```
 

@@ -6,13 +6,13 @@ description: >
   Scaffolds src/features, src/domain, src/infrastructure, tests/integration, docs/requirements, plans/.
 ---
 
-**Non-interactive handling**: @reference/non-interactive-mode.md §AskUserQuestion replacement.
+**Non-interactive handling**: @reference/critics.md §Skill branching logic.
 
 # Project Initialisation
 
 ## Step 1 — Extract domain concepts
 
-@reference/non-interactive-mode.md §EnterPlanMode / ExitPlanMode
+@reference/critics.md §Skill branching logic
 
 - `Read` all files in `docs/` if present
 - `Glob` for any existing source structure
@@ -122,7 +122,7 @@ New lines (insert in their place):
 - Lint: `{lint command}`
 ```
 
-**3. Insert after the `# Commands` section** (before `# Phase gate configuration`):
+**3. Insert after the `# Commands` section** (before `# Operations`):
 
 ```markdown
 # Domain Knowledge
@@ -177,7 +177,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "plans/{project-slu
 # Then edit plans/{project-slug}.md to fill in the ## Vision section
 ```
 
-Non-interactive: @reference/non-interactive-mode.md §ExitPlanMode replacement — skip `ExitPlanMode`.
+Non-interactive (@reference/critics.md §Skill branching logic): skip `ExitPlanMode`.
 
 Then stage and commit all scaffold files so the working tree is clean before brainstorming runs its dirty-tree check.
 

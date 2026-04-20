@@ -26,7 +26,7 @@ Written by skills or hooks outside the critic convergence protocol.
 |--------|---------|--------|------------|----|
 | `[BLOCKED] {reason}` | Various skills | Generic stop — human action required | Manual `plan-file.sh clear-marker` after fixing | Yes |
 | `[BLOCKED] final: critic-feature failed twice…` | brainstorming skill | critic-feature failed twice — manual review required | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] coder:{task-id}: {reason}` | implementing skill / coder agent | Coder hit unresolvable blocker or abort | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED] coder:{task-id} — {reason}` | implementing skill / coder agent | Coder hit unresolvable blocker or abort | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] preflight:{tool}: {fix}` | preflight.sh | Autonomous pre-flight check failed | Fix prerequisite, then `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] integration:{test}: {reason}` | running-integration-tests | Failure category ambiguous — manual review required | Manual | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | stop-check.sh | Why Stop hook blocked the previous stop attempt | Informational; survives `gc-events` | Yes |
@@ -79,9 +79,9 @@ What each command writes, clears, keeps, and discards in `## Open Questions` (un
 
 | Operation | Markers written | Markers cleared | Notes |
 |-----------|----------------|----------------|-------|
-| `reset-milestone {agent}` | `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | 5 phase-scoped markers (§Phase-scoped convergence markers) for `{phase}/{agent}` | Does NOT clear `[BLOCKED]` variants — those require manual `clear-marker` |
-| `reset-pr-review` | `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | Same 5 markers for `implement/pr-review` and `review/pr-review` | Does NOT clear `[BLOCKED]` variants |
-| `reset-for-rollback {target-phase}` | 2× `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | 5 markers for `{new-phase}/critic-code` (via `reset-milestone`) + 5 for `implement/pr-review` + 5 for `review/pr-review` (via `reset-pr-review`) + 5 stale `review/critic-code` markers (via `_clear_convergence_markers`) | Calls `set-phase`, `reset-milestone critic-code`, `reset-pr-review`, then `_clear_convergence_markers "review/critic-code"` |
+| `reset-milestone {agent}` | `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | 3 phase-scoped markers (§Phase-scoped convergence markers) for `{phase}/{agent}` | Does NOT clear `[BLOCKED]` variants — those require manual `clear-marker` |
+| `reset-pr-review` | `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | Same 3 markers for `implement/pr-review` and `review/pr-review` | Does NOT clear `[BLOCKED]` variants |
+| `reset-for-rollback {target-phase}` | 2× `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | 3 markers for `{new-phase}/critic-code` (via `reset-milestone`) + 3 for `implement/pr-review` + 3 for `review/pr-review` (via `reset-pr-review`) + 3 stale `review/critic-code` markers (via `_clear_convergence_markers`) | Calls `set-phase`, `reset-milestone critic-code`, `reset-pr-review`, then `_clear_convergence_markers "review/critic-code"` |
 | `clear-converged {agent}` | REJECT-PASS sentinel (→ Critic Verdicts, streak reset) | `[CONVERGED] {phase}/{agent}` | Use on REJECT-PASS audit outcome before entering FAIL path |
 | `clear-marker {text}` | — | Any line in `## Open Questions` containing `{text}` | Low-level; prefer `reset-milestone` for milestone transitions |
 | `gc-events` | — | Discards: `[AUTO-DECIDED]`. Keeps all: `[BLOCKED*]`, `[STOP-BLOCKED]`, `[CONVERGED]`, `[FIRST-TURN]`, `[UNVERIFIED CLAIM]`. User-memos fallthrough preserves anything else. | `[INFO]` and unrecognized markers survive via user_memos fallthrough |
@@ -96,6 +96,6 @@ What each command writes, clears, keeps, and discards in `## Open Questions` (un
 
 - **`[INFO]`** — Falls through to `user_memos` in `gc-events`, treated like a user memo.
 
-- **`[BLOCKED] category:`** — Persists across phase rollback by design: category escalation is phase-independent per `@reference/critics.md §Consecutive same-category escalation`. Recipe at `@reference/critics.md §Resuming from a BLOCKED-* marker`.
+- **`[BLOCKED] category:`** — Persists across phase rollback by design: category escalation is phase-independent per `@reference/critics.md §Consecutive same-category escalation`. Recipe at `@reference/critics.md §Resuming from a BLOCKED marker`.
 
-- **`[BLOCKED] parse:`** — Persists across phase rollback by design. Recipe at `@reference/critics.md §Resuming from a BLOCKED-* marker`.
+- **`[BLOCKED] parse:`** — Persists across phase rollback by design. Recipe at `@reference/critics.md §Resuming from a BLOCKED marker`.
