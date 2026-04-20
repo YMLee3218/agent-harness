@@ -36,6 +36,8 @@ Before running integration tests, run the unit test command from project CLAUDE.
 If unit tests fail:
 1. Roll back phase so `implementing` can enter with fresh task planning:
    ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
+     "unit tests failing at integration entry — clearing implement-phase markers"
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" implement
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" red \
      "unit tests failing at integration entry — fresh task planning needed"
@@ -76,17 +78,11 @@ If tests fail:
    ```
 2. Determine the failure category by inferring from failure evidence:
 
-**docs conflict** — implementation contradicts documented domain rules:
-→ Update `docs/*.md` (SOT) first
-→ Automatically invoke `writing-spec` skill for the affected feature
-→ Then invoke `writing-tests` and `implementing` as needed
-
-**spec gap** — scenario not covered in existing specs:
-→ Automatically invoke `writing-spec` skill for the affected feature
-→ Then invoke `writing-tests` and `implementing` as needed
-
-**implementation bug** — spec is correct but code does not match:
-→ Automatically invoke `implementing` skill for the affected feature
+| Category | Action | Rollback target |
+|----------|--------|----------------|
+| **docs conflict** | Update `docs/*.md` (SOT) first, then invoke `writing-spec` → `writing-tests` → `implementing` as needed | spec |
+| **spec gap** | Invoke `writing-spec` → `writing-tests` → `implementing` as needed | spec |
+| **implementation bug** | Invoke `implementing` | implement |
 
 3. If the category is unambiguous, log `[AUTO-CATEGORIZED-INTEGRATION] {test name}: {category}` to `## Integration Failures` and proceed. If the category is ambiguous, append `[BLOCKED] integration:{test name}: cannot determine category automatically — manual review required` to `## Open Questions` and stop.
 
