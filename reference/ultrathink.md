@@ -38,7 +38,7 @@ Entries accumulate in `## Verdict Audits` (permanent trail — not compacted by 
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-converged "plans/{slug}.md" "{agent}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit "plans/{slug}.md" "{agent}" "REJECT-PASS" "audit overrode PASS — {gap}"
 ```
-Enter the FAIL path. (`clear-converged` is a safe no-op if no `[CONVERGED]` marker exists. For agents outside VALID_CRITIC_AGENTS like `critic-feature`, skip `clear-converged`.)
+Enter the FAIL path. (`clear-converged` is a safe no-op if no `[CONVERGED]` marker exists.)
 
 **BLOCKED-AMBIGUOUS**: record via `append-audit`, append `[BLOCKED-AMBIGUOUS] {agent}: ultrathink audit inconclusive — {question}` to `## Open Questions`, and stop.
 

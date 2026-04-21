@@ -10,7 +10,7 @@ _PLAN_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_PHASE_POLICY_LOADED:-}" ]] || . "${_PLAN_LIB_DIR}/../phase-policy.sh"
 VALID_PHASES="$(list_phases)"
 
-VALID_CRITIC_AGENTS="critic-spec critic-test critic-code pr-review"
+VALID_CRITIC_AGENTS="critic-feature critic-spec critic-test critic-code pr-review"
 
 # ── Core helpers ──────────────────────────────────────────────────────────────
 
@@ -22,6 +22,14 @@ _validate_critic_agent() {
   case " $VALID_CRITIC_AGENTS " in
     *" $agent "*) ;;
     *) die "${cmd}: unknown agent '${agent}'. Valid values: ${VALID_CRITIC_AGENTS}" ;;
+  esac
+}
+
+# Agents whose verdicts are recorded via cmd_record_verdict (pr-review uses append-review-verdict).
+_is_subagent_critic() {
+  case "${1:-}" in
+    critic-spec|critic-test|critic-code|critic-feature) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -128,13 +136,6 @@ _append_to_open_questions()    { _append_to_section "$1" "Open Questions"   "$2"
 _append_to_phase_transitions() { _append_to_section "$1" "Phase Transitions" "$2"; }
 _append_to_critic_verdicts()   { _append_to_section "$1" "Critic Verdicts"  "$2" --bullet; }
 _append_to_verdict_audits()    { _append_to_section "$1" "Verdict Audits"   "$2"; }
-
-_append_event_to_plan() {
-  local plan_file="$1" marker="$2" detail="$3"
-  local ts
-  ts=$(_iso_timestamp)
-  _append_to_open_questions "$plan_file" "[${marker} @${ts}] ${detail}"
-}
 
 # ── Phase lifecycle commands ──────────────────────────────────────────────────
 
@@ -308,8 +309,6 @@ PHASE_CONVERGENCE_MARKERS=(
   "BLOCKED-CEILING"
   "CONVERGED"
   "FIRST-TURN"
-  "CONFIRMED-FIRST"
-  "AUTO-APPROVED-FIRST"
 )
 
 _record_loop_state() {
@@ -378,8 +377,6 @@ _clear_convergence_markers() {
   done
 }
 
-_is_brainstorm_exception() { [ "${1:-}" = "critic-feature" ]; }
-
 cmd_append_verdict() {
   local plan_file="$1" label="$2"
   require_file "$plan_file"
@@ -416,10 +413,9 @@ cmd_record_verdict() {
   local agent_name
   agent_name=$(printf '%s' "$input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
 
-  case "$agent_name" in
-    critic-spec|critic-test|critic-code|critic-feature) ;;
-    *) exit 0 ;;
-  esac
+  if ! _is_subagent_critic "$agent_name"; then
+    exit 0
+  fi
 
   local agent_transcript transcript
   agent_transcript=$(printf '%s' "$input" | jq -r '.agent_transcript_path // empty' 2>/dev/null || true)
@@ -466,10 +462,6 @@ cmd_record_verdict() {
     local input_keys
     input_keys=$(printf '%s' "$input" | jq -r 'keys | join(", ")' 2>/dev/null || echo "unknown")
     echo "[record-verdict] missing verdict marker from ${agent_name} (payload keys: ${input_keys})" >&2
-    if _is_brainstorm_exception "$agent_name"; then
-      cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
-      exit 1
-    fi
     if ! _record_loop_state "$plan_file" "$current_phase" "$agent_name" "PARSE_ERROR"; then
       cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
       exit 1
@@ -490,17 +482,34 @@ cmd_record_verdict() {
   fi
 
   local category=""
-  category=$(printf '%s' "$output" | grep -o '<!-- category: [A-Z_]* -->' | head -1 \
+  category=$(printf '%s' "$output" | grep -o '<!-- category: [A-Z_]* -->' | tail -1 \
              | sed 's/<!-- category: //; s/ -->//' || true)
+
+  # FAIL verdict must be accompanied by a category marker
+  if [ "$verdict" = "FAIL" ] && [ -z "$category" ]; then
+    echo "[record-verdict] FAIL verdict without category marker from ${agent_name} — treating as PARSE_ERROR" >&2
+    if ! _record_loop_state "$plan_file" "$current_phase" "$agent_name" "PARSE_ERROR"; then
+      cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
+      exit 1
+    fi
+    local last_parse_line
+    last_parse_line=$(awk -v pat="/${agent_name}:" \
+      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)&&!index($0,"[MILESTONE-BOUNDARY @"))last=$0} END{print last}' \
+      "$plan_file" 2>/dev/null || true)
+    if printf '%s' "$last_parse_line" | grep -q ": PARSE_ERROR"; then
+      _append_to_open_questions "$plan_file" \
+        "[BLOCKED] parse:${agent_name}: FAIL without category twice — check agent output format before retrying"
+      echo "[record-verdict] BLOCKED parse: ${agent_name} two consecutive PARSE_ERRORs (FAIL without category)" >&2
+    else
+      echo "[record-verdict] first FAIL-without-category for ${agent_name} — will retry automatically" >&2
+    fi
+    cmd_append_verdict "$plan_file" "${current_phase}/${agent_name}: PARSE_ERROR"
+    exit 1
+  fi
 
   local verdict_label="${current_phase}/${agent_name}: ${verdict}"
   if [ -n "$category" ]; then
     verdict_label="${verdict_label} [category: ${category}]"
-  fi
-
-  if _is_brainstorm_exception "$agent_name"; then
-    cmd_append_verdict "$plan_file" "$verdict_label"
-    exit 0
   fi
 
   if ! _record_loop_state "$plan_file" "$current_phase" "$agent_name" "$verdict"; then
@@ -512,7 +521,7 @@ cmd_record_verdict() {
   if [ "$verdict" = "FAIL" ] && [ -n "$category" ]; then
     local last_verdict_line
     last_verdict_line=$(awk -v pat="/${agent_name}:" \
-      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)){if(index($0,"[MILESTONE-BOUNDARY @"))last="";else last=$0}} END{print last}' \
+      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)){if(index($0,"[MILESTONE-BOUNDARY @"))last="";else if(!index($0,": PARSE_ERROR"))last=$0}} END{print last}' \
       "$plan_file" 2>/dev/null || true)
     if [ -n "$last_verdict_line" ] && printf '%s' "$last_verdict_line" | grep -q ": FAIL"; then
       local last_category
@@ -534,6 +543,7 @@ cmd_record_verdict() {
 cmd_append_review_verdict() {
   local plan_file="$1" agent="$2" verdict="$3"
   require_file "$plan_file"
+  [ "$agent" = "pr-review" ] || die "append-review-verdict: agent must be 'pr-review', got: ${agent}"
   case "$verdict" in
     PASS|FAIL) ;;
     *) die "append-review-verdict: verdict must be PASS or FAIL, got: ${verdict}" ;;
@@ -548,39 +558,6 @@ cmd_append_review_verdict() {
   fi
   cmd_append_verdict "$plan_file" "$verdict_label"
   echo "[append-review-verdict] recorded ${verdict_label}" >&2
-}
-
-cmd_record_confirmed_first() {
-  local plan_file="$1" agent="$2"
-  require_file "$plan_file"
-  _validate_critic_agent "$agent" "record-confirmed-first"
-  local current_phase
-  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
-  [ "$current_phase" = "unknown" ] && die "record-confirmed-first: could not determine current phase from ${plan_file}"
-  if ! grep -qF "[CONFIRMED-FIRST] ${current_phase}/${agent}" "$plan_file" 2>/dev/null; then
-    _append_to_open_questions "$plan_file" "[CONFIRMED-FIRST] ${current_phase}/${agent}"
-    echo "[record-confirmed-first] ${current_phase}/${agent}" >&2
-  else
-    echo "[record-confirmed-first] already present — skipping duplicate for ${current_phase}/${agent}" >&2
-  fi
-}
-
-cmd_record_auto_approved() {
-  local plan_file="$1" kind="$2" agent="$3" note="${4:-}"
-  require_file "$plan_file"
-  kind=$(printf '%s' "$kind" | tr '[:lower:]' '[:upper:]')
-  [ "$kind" = "FIRST" ] || die "record-auto-approved: only kind=FIRST is supported"
-  _validate_critic_agent "$agent" "record-auto-approved FIRST"
-  local current_phase
-  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
-  [ "$current_phase" = "unknown" ] && die "record-auto-approved FIRST: could not determine current phase from ${plan_file}"
-  local marker="[AUTO-APPROVED-FIRST] ${current_phase}/${agent}"
-  if grep -qF "$marker" "$plan_file" 2>/dev/null; then
-    echo "[record-auto-approved] already present — skipping duplicate: ${marker}" >&2
-    return 0
-  fi
-  _append_to_open_questions "$plan_file" "$marker"
-  echo "[record-auto-approved] ${marker}" >&2
 }
 
 cmd_clear_marker() {
@@ -669,7 +646,7 @@ cmd_context() {
   local blocked_items other_items questions
   blocked_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && (/\[BLOCKED/ || /\[STOP-BLOCKED/){print}' \
     "$plan_file" 2>/dev/null | head -3 | tr '\n' '|' | sed 's/|$//' || true)
-  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[CONVERGED/ && !/\[FIRST-TURN/ && !/\[CONFIRMED-FIRST/ && !/\[AUTO-APPROVED/ && !/\[AUTO-DECIDED/{print}' \
+  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[CONVERGED/ && !/\[FIRST-TURN/ && !/\[AUTO-DECIDED/{print}' \
     "$plan_file" 2>/dev/null | head -2 | tr '\n' '|' | sed 's/|$//' || true)
 
   if [ -n "$blocked_items" ] && [ -n "$other_items" ]; then
@@ -821,7 +798,7 @@ cmd_gc_events() {
       next
     }
     in_section {
-      if (/\[BLOCKED/ || /\[STOP-BLOCKED/ || /\[CONVERGED/ || /\[FIRST-TURN/ || /\[CONFIRMED-FIRST/ || /\[AUTO-APPROVED-FIRST/ || /\[UNVERIFIED CLAIM/) {
+      if (/\[BLOCKED/ || /\[STOP-BLOCKED/ || /\[CONVERGED/ || /\[FIRST-TURN/ || /\[UNVERIFIED CLAIM/) {
         kept[++kept_count] = $0
       } else if (/\[(AUTO-DECIDED)/) {
         # Discard transient audit markers.

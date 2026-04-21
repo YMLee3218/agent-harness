@@ -12,7 +12,7 @@ paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 ---
 
 @reference/critics.md
-BDD templates: @skills/writing-spec/SKILL.md §Scenario templates
+BDD templates: @reference/bdd-templates.md
 
 You are an adversarial reviewer. Your goal is to find cases where implementing this spec would fail. Assume the spec is flawed until proven otherwise.
 
@@ -25,7 +25,7 @@ Apply to every scenario:
 1. **Failure paths**: fails / partially succeeds / times out / external system down?
 2. **Concurrent state**: same request while processing? Prior step incomplete when next starts?
 3. **Ordering**: events out of order? Duplicate events?
-4. **Boundaries**: every `Scenario Outline` Examples table includes boundaries per @skills/writing-spec/SKILL.md §Required boundary rows by input type?
+4. **Boundaries**: every `Scenario Outline` Examples table includes boundaries per @reference/bdd-templates.md §Required boundary rows by input type?
 
 Also compare spec against `docs/*.md`. If the spec contradicts documented domain knowledge, report `[DOCS CONTRADICTION]`. Do not judge which side is wrong — report the conflict only.
 
@@ -66,22 +66,14 @@ None: "No unverified claims"
 
 Verdict & blocking rules: @reference/critics.md §Verdict format. On FAIL blocks progress to `writing-tests`.
 
-## Calibration examples
+Category mapping (per `@reference/severity.md §Category priority`):
 
-### PASS — complete BDD spec
-Spec has: "Successfully add a todo" (happy path), "Reject empty title" (failure path), "Reject title exceeding max length" (boundary), `Scenario Outline: Title boundary validation` with Examples covering lengths 0/1/255/256. All scenarios have `Given`/`When`/`Then`. Feature placed at `features/add-todo/spec.md`. No DB/HTTP mention.
+| Check | Category |
+|-------|----------|
+| Domain purity / feature classification (Angle 2 §6–7) | `LAYER_VIOLATION` |
+| Docs contradiction (Angle 1) | `DOCS_CONTRADICTION` |
+| Unverified claim (Angle 3) | `UNVERIFIED_CLAIM` |
+| Missing scenario / boundary (Angle 1 §1–4) | `MISSING_SCENARIO` |
+| Placement / BDD format (Angle 2 §5, §8) | `STRUCTURAL` |
 
-### FAIL — missing failure scenarios
-Spec has only: "Successfully add a todo". No empty-title rejection, no max-length boundary, no concurrent-add scenario, no `Scenario Outline`.
-
-```
-### Angle 1 — Missing Scenarios
-[MISSING] empty title: no scenario covers title="" rejection
-  Suggestion: Given a user / When title="" / Then error "title cannot be empty"
-[MISSING] max-length boundary: no Scenario Outline for title length boundaries (0/1/255/256)
-[MISSING] concurrent add: same user adding two todos simultaneously not covered
-
-### Verdict
-FAIL — missing failure scenarios, missing boundary outline
-```
-(Verdict envelope format: `@reference/critics.md §Verdict format`; category: `MISSING_SCENARIO`)
+When multiple FAILs fire, pick the highest-priority category per `@reference/severity.md §Category priority`.

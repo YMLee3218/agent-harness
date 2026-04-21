@@ -4,6 +4,7 @@ description: >
   Write failing Red-phase tests for every Scenario in an approved spec.md.
   Trigger: "write the tests", "write failing tests", "Red phase", "start TDD", after spec is approved.
   Never writes implementation code — all tests must fail.
+disable-model-invocation: true
 effort: medium
 paths:
   - tests/**
@@ -21,7 +22,7 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 Phase entry:
 - Phase `spec`: proceed normally.
 - Phase `red` + `critic-spec: PASS` in `## Critic Verdicts`: skip to Step 2 (no transition needed).
-- Phase `red` without `critic-spec: PASS`, or any other phase: `[BLOCKED] writing-tests entered from unexpected phase {phase} — run writing-spec first`.
+- Phase `red` without `critic-spec: PASS`, or any other phase: `[BLOCKED] writing-tests entered from unexpected phase {phase} — critic-spec PASS required; re-run writing-spec`.
 
 - `Read` the project `CLAUDE.md` to extract the test command
 - `Read` the target `spec.md` in full

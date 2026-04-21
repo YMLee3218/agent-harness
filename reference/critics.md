@@ -4,7 +4,7 @@
 
 Severity rules: @reference/severity.md
 Layer rules: @reference/layers.md
-Language and verdict-marker language: @~/harness-builder/CLAUDE.md
+Language and verdict-marker language: @reference/language.md
 
 Use only the explicit file list from the prompt. Do not derive paths from git history.
 
@@ -32,19 +32,13 @@ FAIL — {comma-separated list of blocking finding labels}
 <!-- category: {highest-priority category} -->
 ```
 
-Rules: `@reference/markers.md §HTML verdict envelopes`. Full iteration protocol: §Loop convergence.
+A **FAIL** verdict must include a `<!-- category: X -->` marker. A FAIL that has a verdict marker but no category marker is recorded as PARSE_ERROR; on the second consecutive occurrence `[BLOCKED] parse:{agent}` is set.
 
----
-
-Convergence-based protocol used by every phase-gate critic (critic-spec, critic-test, critic-code) and the pr-review step.
-
-## Brainstorm exception
-
-`critic-feature` uses a max-2 iteration guard: on the second consecutive FAIL, the brainstorming skill appends `[BLOCKED] final: critic-feature failed twice — manual review required` to `## Open Questions` and stops. The SubagentStop hook records the verdict normally; convergence/ceiling/category markers are skipped for this agent.
+Full iteration protocol: §Loop convergence.
 
 ## Consecutive same-category escalation
 
-`plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, phase-independent). If the same critic emits **two consecutive FAILs with the same category**, the script writes:
+`plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, phase-independent). If the same critic emits **two consecutive FAILs with the same category** (PARSE_ERROR verdicts between them are transparent — they do not reset the streak), the script writes:
 
 ```
 [BLOCKED] category:{critic}: {CATEGORY} failed twice — fix the root cause before retrying
@@ -65,6 +59,8 @@ Normative implementations:
 
 ## Loop convergence
 
+Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code) and the pr-review step.
+
 The harness always operates in non-interactive mode — skills write `[BLOCKED]` markers to `## Open Questions` instead of prompting the user.
 
 The loop terminates on **2 consecutive PASSes** (convergence), not on a single PASS. This filters lucky single-run PASSes caused by LLM non-determinism.
@@ -77,7 +73,7 @@ Definitions: `@reference/markers.md §Critic loop markers` and `@reference/marke
 
 #### pr-review asymmetry
 
-pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 3 → 4–5 → 7 → 8 only. Steps 2 and 6 are omitted: step 2 (`[BLOCKED]` check) because the implementing skill's tier-safe checks ensure no unresolved `[BLOCKED]` markers exist before pr-review starts; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
+pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 3 → 4–5 → 7 → 8 only. Steps 2 and 6 are omitted: step 2 (`[BLOCKED]` check) because any non-coder `[BLOCKED]` markers would have halted the skill at an earlier §Skill branching logic step before pr-review is reached, and tier-safe verifies all coder task blocks are cleared; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
@@ -95,7 +91,7 @@ Skill reads ## Open Questions, checks in priority order:
   4. [CONVERGED] {phase}/{agent}        → proceed to next step
   5. [FIRST-TURN] {phase}/{agent}       → re-run automatically
                                           **Only when latest verdict is PASS or PARSE_ERROR.**
-                                          If latest verdict is FAIL, skip to step 7.
+                                          If latest verdict is FAIL, skip to step 8.
   6. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
                                 → re-run automatically (one retry allowed;
                                   second consecutive PARSE_ERROR triggers [BLOCKED] parse:)
@@ -123,6 +119,8 @@ Before starting a critic run for a new milestone within the same phase, call:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}
 ```
 This clears the 3 phase-scoped convergence markers (see `@reference/markers.md §Phase-scoped convergence markers`) for this phase+agent from `## Open Questions`, and appends a `[MILESTONE-BOUNDARY]` sentinel to `## Critic Verdicts` so prior-milestone history does not contribute to the new streak. `set-phase` must run before `reset-milestone` when also changing phase, so `reset-milestone` reads the correct phase when clearing phase-scoped markers. For the full list of markers written and cleared by `reset-milestone`, `reset-pr-review`, and `reset-for-rollback`, see `reference/markers.md §Operation → markers reverse lookup`.
+
+Re-brainstorming the same requirements doc: call `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-feature` to break the prior streak before re-invoking the `brainstorming` skill.
 
 ### Full rollback reset
 
@@ -185,4 +183,4 @@ After fixing the root cause, clear the marker using the exact text that appears 
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED] {type}:{agent}"
 ```
 
-Re-run the critic. If streak reset needed (parse or category block): `reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED]` marker).
+Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED]` marker).

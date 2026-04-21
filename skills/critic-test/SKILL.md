@@ -114,28 +114,13 @@ GREEN integrity violations (created in Red phase): {list or "none"}
 
 Verdict & blocking rules: @reference/critics.md §Verdict format. On FAIL blocks progress to `implementing`.
 
-## Calibration examples
+Category mapping (per `@reference/severity.md §Category priority`):
 
-### PASS — complete test suite
-All 4 spec scenarios have 1:1 tests. Names follow `"should {outcome} when {condition}"`. Domain test uses no mocks. Run confirms all tests fail. One test marked `GREEN (pre-existing)` was created 3 commits before the `test(red):` commit — verified as genuinely pre-existing.
+| Check | Category |
+|-------|----------|
+| Test file modified after Red / GREEN (pre-existing) violation (Pre-check, Check 4) | `TEST_INTEGRITY` |
+| Mocking level violation (Check 2 — `layers.md §Test mocking levels`) | `LAYER_VIOLATION` |
+| Scenario coverage gap — missing test (Check 1) | `MISSING_SCENARIO` |
+| Test maps multiple scenarios / implementation logic in tests / naming (Check 3) | `TEST_QUALITY` |
 
-### FAIL — test file modified after Red phase
-`git log HEAD -- tests/add-todo.test.ts` shows a commit after the `test(red): add-todo` commit touching the file.
-
-```
-[CRITICAL] test file modified after Red phase: tests/add-todo.test.ts — FAIL
-<!-- verdict: FAIL -->
-<!-- category: TEST_INTEGRITY -->
-```
-
-### FAIL — GREEN (pre-existing) integrity violation
-`tests/add-widget.test.ts` is marked `GREEN (pre-existing)` in the Test Manifest but its first commit timestamp matches the `test(red): add-widget` commit — it was not pre-existing.
-
-```
-### Failing Confirmation
-GREEN integrity violations (created in Red phase): tests/add-widget.test.ts
-
-### Verdict
-FAIL — GREEN (pre-existing) claim is false; test was created in Red phase
-```
-(Verdict envelope format: `@reference/critics.md §Verdict format`; category: `TEST_INTEGRITY`)
+When multiple FAILs fire, pick the highest-priority category per `@reference/severity.md §Category priority`.

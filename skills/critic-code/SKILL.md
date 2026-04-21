@@ -32,8 +32,8 @@ For every `Scenario` in spec.md:
 Also compare against `docs/*.md`. If implementation or spec contradicts documented domain knowledge, report `[DOCS CONTRADICTION]`.
 
 Test coverage/mocking: cited from `@skills/critic-test`; critic-code does not re-check.
-9. **Unverified API usage**: code imports or calls an external library method not already used in the project? Was it verified via context7 before first use? (→ `[UNVERIFIED CLAIM]`)
-10. **Hardcoded external facts**: code contains hardcoded URLs, model names, version strings, or magic numbers that represent external facts? Are they sourced from `docs/*.md` or config? (→ `[WARN]`)
+7. **Unverified API usage**: code imports or calls an external library method not already used in the project? Was it verified via context7 before first use? (→ `[UNVERIFIED CLAIM]`)
+8. **Hardcoded external facts**: code contains hardcoded URLs, model names, version strings, or magic numbers that represent external facts? Are they sourced from `docs/*.md` or config? (→ `[WARN]`)
 
 ## Angle 2 — Layer boundary
 
@@ -80,20 +80,14 @@ None: "No layer boundary violations"
 
 Verdict & blocking rules: @reference/critics.md §Verdict format. On FAIL blocks the next task.
 
-## Calibration examples
+Category mapping (per `@reference/severity.md §Category priority`):
 
-### PASS — spec-compliant, clean layers
-Every Scenario Given/When/Then is implemented. Layer checker (`ts.sh`) reports zero forbidden imports. Failure paths return errors matching spec. No `[DOCS CONTRADICTION]`.
+| Check | Category |
+|-------|----------|
+| Layer boundary violation (Angle 2) | `LAYER_VIOLATION` |
+| Large feature calls domain directly (Angle 1 §6) | `LAYER_VIOLATION` |
+| Docs contradiction (Angle 1) | `DOCS_CONTRADICTION` |
+| Unverified API / hardcoded external fact (Angle 1 §7–8) | `UNVERIFIED_CLAIM` |
+| Spec compliance — missing/incorrect code path (Angle 1 §1–5) | `SPEC_COMPLIANCE` |
 
-### FAIL — domain imports infrastructure
-`ts.sh` finds `import { db } from '../infrastructure/database'` in `src/domain/todo.ts:3`.
-
-```
-### Angle 2 — Layer Boundary
-[CRITICAL] src/domain/todo.ts:3 — domain imports infrastructure (db)
-  Fix: extract DB call to infrastructure layer; domain depends on a repository interface only
-
-### Verdict
-FAIL — domain imports infrastructure
-```
-(Verdict envelope format: `@reference/critics.md §Verdict format`; category: `LAYER_VIOLATION`)
+When multiple FAILs fire, pick the highest-priority category per `@reference/severity.md §Category priority`.

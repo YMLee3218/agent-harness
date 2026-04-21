@@ -5,7 +5,7 @@
 # In interactive mode (CLAUDE_NONINTERACTIVE unset/0), exits 0 immediately to avoid
 # running tests after every response.
 #
-# Phase coverage: green and integration only — see phase_runs_stop_check in phase-rules.sh.
+# Phase coverage: green and integration only — see phase_runs_stop_check in phase-policy.sh.
 # done is excluded: session already closed, no test run needed.
 #
 # Exit codes: 0=allow stop, 2=block stop (stderr fed back to Claude as context),
@@ -96,15 +96,8 @@ if [ -f "$claude_md" ]; then
   fi
 fi
 
-# Skip gracefully if the line is still an initializing-project placeholder, has unfilled {template-vars},
-# or contains angle-bracket placeholders such as <command> (used in examples/local.md template).
-# Use pattern {word} (lowercase letters, digits, underscores, hyphens) to avoid false positives
-# from legitimate brace usage such as pytest --deselect 'tests/{foo}'.
-# NOTE: both _raw_test_line and test_cmd are checked for "initializing-project":
-# if sed failed to extract the backtick command (e.g. the line had prose before the backtick),
-# test_cmd is empty — but _raw_test_line still contains the placeholder text that should
-# suppress a false BLOCK. The test_cmd check is a belt-and-suspenders guard for the case where
-# sed extraction succeeds but the extracted text still contains the placeholder (edge case).
+# Skip if placeholder: checks both _raw_test_line (catches failed sed) and test_cmd (catches extracted placeholder).
+# {word} pattern avoids false positives from legitimate brace usage like pytest --deselect 'tests/{foo}'.
 if printf '%s' "$_raw_test_line" | grep -q "initializing-project" \
    || printf '%s' "$test_cmd" | grep -q "initializing-project" \
    || printf '%s' "$test_cmd" | grep -qE '\{[a-z0-9_-]+\}' \
@@ -152,8 +145,8 @@ echo "[stop-check] Verifying tests pass before stop (phase=${phase}, CLAUDE_NONI
 if [ -n "$_timeout_cmd" ]; then
   "$_timeout_cmd" "$_timeout" bash -c "$test_cmd" >/dev/null 2>&1
 elif [ "${_timeout}" -gt 0 ] 2>/dev/null; then
-  bash "$PLAN_FILE_SH" append-note "$active_plan" \
-    "[STOP-BLOCKED] stop-check.sh: no timeout binary — install coreutils/gnu-timeout (brew install coreutils) or set CLAUDE_STOP_CHECK_TIMEOUT=0 to disable the cap" 2>/dev/null || true
+  bash "$PLAN_FILE_SH" record-stop-block "$active_plan" "$phase" \
+    "no timeout binary — install coreutils/gnu-timeout (brew install coreutils) or set CLAUDE_STOP_CHECK_TIMEOUT=0 to disable the cap" 2>/dev/null || true
   echo "[STOP-BLOCKED] stop-check.sh: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_STOP_CHECK_TIMEOUT=0 to disable the cap" >&2
   exit 2
 else

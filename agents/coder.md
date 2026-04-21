@@ -12,7 +12,7 @@ color: green
 ---
 
 Layer rules: @reference/layers.md
-Output language: @~/harness-builder/CLAUDE.md
+Output language: @reference/language.md
 
 You orchestrate Codex to implement one task: make the failing test pass (implement phase), then refactor in-place, and commit once. You do not write implementation code yourself — you delegate to Codex and verify the result.
 
@@ -99,7 +99,7 @@ If `commit_count == 0` (Codex did not commit), run the test command:
 git diff "$base_sha"..HEAD --name-only
 ```
 
-Pipe the result through the test-path patterns from `scripts/phase-policy.sh` (`is_test_path` logic: `tests/*`, `*_test.*`, `test_*.*`, `*.test.*`, `*.spec.*`, `*_spec.*`; also check `PHASE_GATE_TEST_GLOB` if set). If any test file appears, emit `<!-- coder-status: abort -->`, append `[BLOCKED] coder:{task-id} — Codex modified test files: {list}` to plan file, and stop.
+Pipe the result through the test-path patterns from `scripts/phase-policy.sh` (`is_test_path` logic: `tests/*`, `*_test.*`, `test_*.*`, `*.test.*`, `*.spec.*`, `*_spec.*`; **`*.spec.md` files are always excluded** before pattern matching; also check `PHASE_GATE_TEST_GLOB` if set). If any test file appears, emit `<!-- coder-status: abort -->`, append `[BLOCKED] coder:{task-id} — Codex modified test files: {list}` to plan file, and stop.
 
 **d) Run tests:**
 

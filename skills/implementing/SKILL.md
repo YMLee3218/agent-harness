@@ -6,6 +6,7 @@ description: >
   Do NOT trigger when no spec or tests exist — route to brainstorming instead.
   Plans implementation order (domain first), then executes with isolated subagents per task.
   Also drives `review` phase during pr-review fix loop (implement → review → green).
+disable-model-invocation: true
 effort: high
 paths:
   - src/**
@@ -149,14 +150,14 @@ Ensure a PR exists: `gh pr view 2>/dev/null || gh pr create --draft --title "fea
 
 Run the review loop (per @reference/critics.md §pr-review asymmetry): `Skill("pr-review-toolkit:review-pr")`
 
-After each run: `@reference/ultrathink.md §Ultrathink verdict audit` → `@reference/ultrathink.md §Applying the audit outcome` (`{agent}`=`pr-review`).
-
-Record the verdict (PASS or FAIL — use the audit-adjusted verdict if REJECT-PASS):
+Record the verdict:
 
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-review-verdict \
   "plans/{slug}.md" "pr-review" PASS|FAIL
 ```
+
+Then run `@reference/ultrathink.md §Ultrathink verdict audit` → `@reference/ultrathink.md §Applying the audit outcome` (`{agent}`=`pr-review`).
 
 Read `## Open Questions` for `pr-review` markers and branch per `@reference/critics.md §pr-review asymmetry`.
 

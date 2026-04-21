@@ -25,7 +25,6 @@ Written by skills or hooks outside the critic convergence protocol.
 | Marker | Emitter | Effect | Clear path | gc |
 |--------|---------|--------|------------|----|
 | `[BLOCKED] {reason}` | Various skills | Generic stop — human action required | Manual `plan-file.sh clear-marker` after fixing | Yes |
-| `[BLOCKED] final: critic-feature failed twice…` | brainstorming skill | critic-feature failed twice — manual review required | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] coder:{task-id} — {reason}` | implementing skill / coder agent | Coder hit unresolvable blocker or abort | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] preflight:{tool}: {fix}` | preflight.sh | Autonomous pre-flight check failed | Fix prerequisite, then `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] integration:{test}: {reason}` | running-integration-tests | Failure category ambiguous — manual review required | Manual | Yes |
@@ -72,6 +71,18 @@ Category enum values and priority: `@reference/severity.md §Category priority`
 ## Phase-scoped convergence markers
 
 Canonical list: `PHASE_CONVERGENCE_MARKERS` array in `scripts/lib/plan-lib.sh` (`_clear_convergence_markers`). All markers require `{phase}` to equal the current plan phase — stale markers from prior phases do not satisfy a check.
+
+| Phase | Agent | Invocation site |
+|-------|-------|-----------------|
+| `brainstorm` | `critic-feature` | `skills/brainstorming/SKILL.md` Step 4 |
+| `spec` | `critic-spec` | `skills/writing-spec/SKILL.md` (post-spec review) |
+| `red` | `critic-test` | `skills/writing-tests/SKILL.md` (post-test review) |
+| `implement` | `critic-code` | `skills/implementing/SKILL.md` (post-task review) |
+| `implement`/`review` | `pr-review` | `skills/implementing/SKILL.md` (pr-review loop) |
+
+Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase.
+
+`review/critic-code` has no active invocation site — the cleanup in `cmd_reset_for_rollback` (`scripts/lib/plan-lib.sh:608`) defensively clears stale markers that would arise if `critic-code` ever ran while the plan phase was `review`.
 
 ## Operation → markers reverse lookup
 

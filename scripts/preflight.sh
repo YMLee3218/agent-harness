@@ -66,6 +66,16 @@ if ! claude plugin list 2>/dev/null | grep -q 'pr-review-toolkit'; then
   _append_blocked "pr-review-toolkit" "install via settings.json enabledPlugins or 'claude plugin install'"
 fi
 
+# Check: codex plugin
+if ! claude plugin list 2>/dev/null | grep -q 'codex'; then
+  _append_blocked "codex" "install via settings.json enabledPlugins or 'claude plugin install codex@openai-codex'"
+fi
+
+# Check: codex auth (OPENAI_API_KEY or ~/.codex/config.toml)
+if [ -z "${OPENAI_API_KEY:-}" ] && [ ! -f "${HOME}/.codex/config.toml" ]; then
+  _append_blocked "codex-auth" "set OPENAI_API_KEY or run 'codex login' to authenticate (creates ~/.codex/config.toml)"
+fi
+
 # Check: .claude/local.md
 if [ -z "${CLAUDE_PROJECT_DIR:-}" ] || [ ! -f "${CLAUDE_PROJECT_DIR}/.claude/local.md" ]; then
   _append_blocked "local.md" "create .claude/local.md with language, test command, and lint command"

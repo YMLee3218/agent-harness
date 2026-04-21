@@ -23,8 +23,6 @@ case "$1" in
   update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
   append-review-verdict) [ $# -eq 4 ] || die "Usage: plan-file.sh append-review-verdict <plan-file> <agent> PASS|FAIL"; cmd_append_review_verdict "$2" "$3" "$4" ;;
   record-stop-block)          [ $# -eq 4 ] || die "Usage: plan-file.sh record-stop-block <plan-file> <phase> <reason>"; cmd_record_stop_block "$2" "$3" "$4" ;;
-  record-confirmed-first)     [ $# -eq 3 ] || die "Usage: plan-file.sh record-confirmed-first <plan-file> <agent>"; cmd_record_confirmed_first "$2" "$3" ;;
-  record-auto-approved)       [ $# -ge 4 ] || die "Usage: plan-file.sh record-auto-approved <plan-file> <kind> <agent> [note]"; cmd_record_auto_approved "$2" "$3" "$4" "${5:-}" ;;
   clear-marker)               [ $# -eq 3 ] || die "Usage: plan-file.sh clear-marker <plan-file> <marker-text>"; cmd_clear_marker "$2" "$3" ;;
   clear-converged)            [ $# -eq 3 ] || die "Usage: plan-file.sh clear-converged <plan-file> <agent>"; cmd_clear_converged "$2" "$3" ;;
   reset-milestone)            [ $# -eq 3 ] || die "Usage: plan-file.sh reset-milestone <plan-file> <agent>"; cmd_reset_milestone "$2" "$3" ;;
@@ -33,6 +31,5 @@ case "$1" in
   transition)                 [ $# -eq 4 ] || die "Usage: plan-file.sh transition <plan-file> <to-phase> <reason>"; cmd_transition "$2" "$3" "$4" ;;
   commit-phase)               [ $# -eq 3 ] || die "Usage: plan-file.sh commit-phase <plan-file> <commit-message>"; cmd_commit_phase "$2" "$3" ;;
   tier-safe)                  [ $# -ge 3 ] || die "Usage: plan-file.sh tier-safe <plan-file> <task-id>..."; cmd_tier_safe "$2" "${@:3}" ;;
-  append-phase-transition)    [ $# -eq 3 ] || die "Usage: plan-file.sh append-phase-transition <plan-file> <entry>"; cmd_append_phase_transition "$2" "$3" ;;
   *) die "Unknown command: $1" ;;
 esac

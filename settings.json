@@ -139,13 +139,20 @@
   },
   "enabledPlugins": {
     "context7-plugin@context7-marketplace": true,
-    "pr-review-toolkit@claude-plugins-official": true
+    "pr-review-toolkit@claude-plugins-official": true,
+    "codex@openai-codex": true
   },
   "extraKnownMarketplaces": {
     "context7-marketplace": {
       "source": {
         "source": "github",
         "repo": "upstash/context7"
+      }
+    },
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
       }
     }
   }

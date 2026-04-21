@@ -4,15 +4,14 @@ description: >
   Initialize VSA+DDD project structure and generate a project-level CLAUDE.md.
   Trigger: "set up the project", "initialise", "create the project structure", new project start, no src/ exists.
   Scaffolds src/features, src/domain, src/infrastructure, tests/integration, docs/requirements, plans/.
+disable-model-invocation: true
 ---
 
-**Non-interactive handling**: @reference/critics.md §Skill branching logic.
+**Non-interactive handling**: emit `[BLOCKED] {reason}` per the inline conditions below; do not ask questions.
 
 # Project Initialisation
 
 ## Step 1 — Extract domain concepts
-
-@reference/critics.md §Skill branching logic
 
 - `Read` all files in `docs/` if present
 - `Glob` for any existing source structure
@@ -160,7 +159,7 @@ cp src/domain/CLAUDE.md src/domain/{concept}/CLAUDE.md
 
 Generate the language-specific critic-code pattern conf (read language from `.claude/local.md`):
 ```bash
-_lang="$(grep -i '^language:' "$CLAUDE_PROJECT_DIR/.claude/local.md" | head -1 | awk '{print $2}')"
+_lang="$(grep -i 'language:' "$CLAUDE_PROJECT_DIR/.claude/local.md" | head -1 | awk -F: '{gsub(/^[[:space:]-]*/,"",$2); print $2}' | awk '{print $1}')"
 if [ -n "$_lang" ]; then
   mkdir -p "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns"
   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns.template" "$_lang" \

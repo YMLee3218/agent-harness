@@ -4,6 +4,7 @@ description: >
   Write BDD spec.md (Given/When/Then scenarios) for features and domain concepts.
   Trigger: "write the spec", "define scenarios", "document the behaviour", after brainstorming is approved.
   References only docs/*.md and brainstorming output — never reads src/.
+disable-model-invocation: true
 effort: medium
 paths:
   - features/**

@@ -49,4 +49,13 @@ None: "No missing features"
 ```
 
 Verdict & blocking rules: @reference/critics.md §Verdict format. On FAIL blocks progress to `writing-spec`.
-Naming violations map to `STRUCTURAL`.
+
+Category mapping (per `@reference/severity.md §Category priority`):
+
+| Check | Category |
+|-------|----------|
+| Layer assignment / size-classification violation (Checks 1–2) | `LAYER_VIOLATION` |
+| Naming violation (Check 3) | `STRUCTURAL` |
+| Missing domain concept (Check 4) | `MISSING_SCENARIO` |
+
+When multiple FAILs fire, pick the highest-priority category per `@reference/severity.md §Category priority`.

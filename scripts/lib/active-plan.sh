@@ -116,7 +116,7 @@ bootstrap_block_if_strict() {
   local path="$1"
   [ "${PHASE_GATE_STRICT:-1}" = "1" ] || return 0
   [ -n "$path" ] || return 0
-  # Source path-match.sh if functions are not yet available (standalone invocation guard).
+  # Source phase-policy.sh if functions are not yet available (standalone invocation guard).
   if ! declare -f is_source_path >/dev/null 2>&1; then
     local _lib_dir
     _lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

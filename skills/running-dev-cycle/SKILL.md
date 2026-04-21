@@ -43,8 +43,6 @@ Exit codes: 0=found 2=none 3=ambiguous 4=malformed 1=error.
 
 Otherwise, if a plan file is found (`find_active_rc=0`), read its current phase:
 
-If `[BLOCKED] final: critic-feature` is present in `## Open Questions`: stop per @reference/critics.md §Brainstorm exception (report marker verbatim, do not auto-retry).
-
 If any `[BLOCKED]` or `[BLOCKED-CEILING]` marker is present: stop and report the marker to the user — do not auto-retry.
 
 Route accordingly:
@@ -52,9 +50,10 @@ Route accordingly:
 | Phase in plan file | Action |
 |--------------------|--------|
 | _(no plan file / exit 2)_ | Fall through to Step 1 (brainstorming) as normal |
-| `brainstorm` | Fall through to Step 1; brainstorming will resume from the existing plan |
+| `brainstorm` (and `[CONVERGED] brainstorm/critic-feature` present) | Skip to **Step 2a** — brainstorming already converged; phase transition is pending |
+| `brainstorm` (no `[CONVERGED]` marker) | Fall through to Step 1; brainstorming will resume from the existing plan |
 | `spec` | Skip to **Step 2a** (writing-spec for the next un-specced feature) |
-| `red` | **Slice mode** (feature profile): Skip to **Step 2c** (implementing). Tests already written. **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry, skip directly to **Step 4** (Implementation). |
+| `red` | **Slice mode** (feature profile): If `[CONVERGED] red/critic-test` is present in `## Open Questions` → skip to **Step 2c** (implementing). Otherwise → resume **Step 2b** (invoke `writing-tests` — it handles `red` phase re-entry and runs critic-test). **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry, skip directly to **Step 4** (Implementation). |
 | `implement` | Coder task execution: normal mid-run state (set by `implementing` after task list registration). Re-invoke the `implementing` skill — it handles both sub-cases via Task Ledger state. |
 | `review` | PR review loop was interrupted mid-fix. Re-invoke the `implementing` skill to resume the pr-review fix loop for the current feature. |
 | `green` | PR review converged; implementation done. Skip directly to **Integration Tests** (all profiles). |
@@ -83,7 +82,7 @@ Invoke the `brainstorming` skill.
 Do not proceed to Step 2 until:
 - `docs/requirements/{name}.md` is created
 - Feature branch `feature/{name}` is created
-- critic-feature returns PASS (or user has approved manual override)
+- `[CONVERGED] brainstorm/critic-feature` is present in `## Open Questions`
 - Plan file `plans/{slug}.md` exists with Phase `brainstorm`
 
 After brainstorming returns, record the active profile in the plan file frontmatter so that resumed sessions can determine the profile without the original command-line argument. Use `Edit` to insert `mode: {profile}` into the YAML frontmatter block of `plans/{slug}.md` (between the `---` delimiters). Where `{profile}` is the resolved profile name (`feature` or `greenfield`).

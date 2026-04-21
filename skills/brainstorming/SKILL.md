@@ -2,9 +2,10 @@
 name: brainstorming
 description: >
   Brainstorm/decompose new features into VSA Small/Large features and DDD domain concepts.
-  Trigger: "build X", "add Y", "need Z", "만들자", "추가", "feature", or any new-functionality phrasing.
+  Trigger: "build X", "add Y", "need Z", "feature", or any new-functionality phrasing.
   Decomposes requirements before any spec or code is written.
   Always run before writing-spec. For brand-new repos, run initializing-project first.
+disable-model-invocation: true
 effort: medium
 paths:
   - docs/**
@@ -43,7 +44,7 @@ After docs/ is present, write or update `docs/{concept}.md` (same template as in
 
 If `docs/requirements/{name}.md` already exists: treat the file as the complete and approved requirement.
 
-If `docs/requirements/{name}.md` does **not** exist: `[BLOCKED] docs/requirements/{name}.md not found — write the requirement file before re-running`
+If `docs/requirements/{name}.md` does **not** exist: proceed — Step 3 will create it from the user's feature request.
 
 ### Step 2 — Decompose
 
@@ -91,13 +92,9 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
   "decomposition approved — starting brainstorm phase"
 ```
 
-### Step 4 — Run critic-feature (max 2 iterations)
+### Step 4 — Run critic-feature
 
-```
-Skill("critic-feature", "Review docs/requirements/{name}.md. Original requirement: [paste requirement].")
-```
-
-Max-2 iteration guard and `[BLOCKED] final:` behavior per `@reference/critics.md §Brainstorm exception`. On REJECT-PASS, skip `clear-converged`.
+Run @reference/critics.md §Invocation recipe with agent=`critic-feature`, phase=`brainstorm`, prompt="Review docs/requirements/{name}.md. Original requirement: [paste requirement]."
 
 The verdict is auto-recorded in `## Critic Verdicts` by the SubagentStop hook when critic-feature stops.
 
@@ -119,7 +116,7 @@ Update affected `docs/*.md` (SOT) before proceeding.
 
 ### Step 3 — Write output + run critic-feature
 
-Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Feature Flow Step 3. Run critic-feature with the same max-2 iteration guard.
+Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Feature Flow Step 3. Run critic-feature per @reference/critics.md §Invocation recipe with agent=`critic-feature`, phase=`brainstorm`, prompt="Review docs/requirements/{name}.md. Original requirement: [paste requirement]."
 
 ---
 
@@ -128,4 +125,4 @@ Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Featur
 Do not move to `writing-spec` until:
 - Feature names comply with `@reference/layers.md §Naming conventions`
 - Every feature is classified as small or large with layer assignment
-- critic-feature returns PASS (or user has approved manual override after 2 iterations)
+- `[CONVERGED] brainstorm/critic-feature` is present in `## Open Questions`
