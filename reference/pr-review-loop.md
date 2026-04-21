@@ -53,4 +53,4 @@ Issue: implementation contradicts domain rules.
      "{fix description} — resuming pr-review"
    ```
 
-3. Re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict`
+3. Re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict` → run `@reference/ultrathink.md §Ultrathink verdict audit` → branch per `@reference/critics.md §pr-review asymmetry` (PASS: convergence reached, return to calling context; FAIL: re-categorize above and apply the appropriate fix chain again)
