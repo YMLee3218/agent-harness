@@ -96,4 +96,9 @@ When phase is `green` on entry: `writing-spec` will have already rolled back to 
 
 ## Step 4 — Run critic-test (convergence loop)
 
+Reset the critic-test milestone before running (clears stale `[CONVERGED] red/critic-test` and `[FIRST-TURN]` markers from any prior run, and adds a `[MILESTONE-BOUNDARY]` so prior-run verdicts do not inflate the new streak):
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-test
+```
+
 Run @reference/critics.md §Invocation recipe with agent=`critic-test`, phase=`red`, prompt="Review tests at [paths] against spec at [path]. Test command: [command]."

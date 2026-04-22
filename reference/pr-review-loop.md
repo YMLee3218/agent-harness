@@ -21,7 +21,16 @@ Issues: naming, duplication, complexity, style, silent failures.
 
 Issue: unhandled scenario revealed by review.
 
-→ Add scenario to `spec.md` → re-run `Skill("critic-spec")`
+→ Add scenario to `spec.md`
+
+→ Reset the critic-spec milestone and transition to `spec` phase (stale `[CONVERGED] spec/critic-spec` would short-circuit convergence; `reset-milestone` requires the current phase to equal the marker scope):
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" spec \
+  "spec gap — resetting critic-spec milestone before re-review"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
+```
+→ Re-run `Skill("critic-spec")` (follow `@reference/critics.md §Invocation recipe` until `[CONVERGED]`)
+
 → Apply `@reference/phase-ops.md §Phase Rollback Procedure`: target-phase=`red`, critic=`critic-test`
 → Write failing test → re-run `Skill("critic-test")`
 → Advance to `implement`:

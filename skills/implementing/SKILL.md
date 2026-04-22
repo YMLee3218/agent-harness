@@ -56,7 +56,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" commit-phase "plans/{slu
 
 ## Step 3 — Execute per task (isolated subagents)
 
-Use `TaskList` to identify pending tasks by layer tier. Within a tier, `Parallel: yes` tasks **MUST be spawned in parallel** — issue all `Agent(...)` calls in a single turn.
+Read `plans/{slug}.md` and check the `## Task Ledger` section to identify pending tasks by layer tier. Within a tier, `Parallel: yes` tasks **MUST be spawned in parallel** — issue all `Agent(...)` calls in a single turn.
 
 Before spawning, mark tasks `in_progress`, record base SHA, and resolve plan file path:
 ```bash
@@ -85,7 +85,7 @@ Agent(
 
 Capture `worktreeBranch` from each `Agent` result. After each returns, **check for abort before merging**:
 
-1. Check for abort: look for `<!-- coder-status: abort -->` in the last line of the coder's output. If absent, fall back to scanning for abort signals: "layer violation", "forbidden import", "hard stop", "STOP", "I stopped", "aborting".
+1. Check for abort: look for `<!-- coder-status: abort -->` in the last line of the coder's output. If absent, fall back to scanning for abort signals: "layer violation", "forbidden import", "cannot implement without violating", "would violate", "stopping", "hard stop", "STOP", "I stopped", "aborting".
 2. Verify the worktree branch exists and check whether the coder committed:
    ```bash
    git rev-parse --verify {worktree-branch} >/dev/null 2>&1 \
@@ -173,7 +173,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 
 ## Session Recovery
 
-Run `TaskList`. Mark any `in_progress` task that has a `commit-sha` as `completed`. Then branch:
+Read `plans/{slug}.md` and check the `## Task Ledger` section. Mark any `in_progress` task that has a `commit-sha` as `completed`. Then branch:
 
 | Phase / Ledger state | Entry point |
 |---|---|
