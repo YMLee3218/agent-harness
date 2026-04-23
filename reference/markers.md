@@ -36,7 +36,7 @@ Written by `running-integration-tests`; do not interact with the critic converge
 
 | Marker | Emitter | Effect | Clear path |
 |--------|---------|--------|------------|
-| `[AUTO-CATEGORIZED-INTEGRATION] {test name}: {category}` | running-integration-tests | Failure category inferred; fix skill invoked | Discarded by `gc-events` |
+| `[AUTO-CATEGORIZED-INTEGRATION] {test name}: {category}` | running-integration-tests | Failure category inferred; fix skill invoked | Log entry — persists in `## Integration Failures`; not processed by `gc-events` |
 
 ### Audit and run markers
 
@@ -75,14 +75,14 @@ Canonical list: `PHASE_CONVERGENCE_MARKERS` array in `scripts/lib/plan-lib.sh` (
 | Phase | Agent | Invocation site |
 |-------|-------|-----------------|
 | `brainstorm` | `critic-feature` | `skills/brainstorming/SKILL.md` Step 4 |
-| `spec` | `critic-spec` | `skills/writing-spec/SKILL.md` (post-spec review) |
-| `red` | `critic-test` | `skills/writing-tests/SKILL.md` (post-test review) |
+| `spec` | `critic-spec` | `skills/running-dev-cycle/SKILL.md` Step 2a |
+| `red` | `critic-test` | `skills/running-dev-cycle/SKILL.md` Step 2b |
 | `implement` | `critic-code` | `skills/implementing/SKILL.md` (post-task review) |
 | `implement`/`review` | `pr-review` | `skills/implementing/SKILL.md` (pr-review loop) |
 
 Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase.
 
-`review/critic-code` has no active invocation site — the cleanup in `cmd_reset_for_rollback` (`scripts/lib/plan-lib.sh:608`) defensively clears stale markers that would arise if `critic-code` ever ran while the plan phase was `review`.
+`review/critic-code` has no active invocation site — the cleanup in `cmd_reset_for_rollback` (`scripts/lib/plan-lib.sh`) defensively clears stale markers that would arise if `critic-code` ever ran while the plan phase was `review`.
 
 ## Operation → markers reverse lookup
 
@@ -91,8 +91,8 @@ What each command writes, clears, keeps, and discards in `## Open Questions` (un
 | Operation | Markers written | Markers cleared | Notes |
 |-----------|----------------|----------------|-------|
 | `reset-milestone {agent}` | `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | 3 phase-scoped markers (§Phase-scoped convergence markers) for `{phase}/{agent}` | Does NOT clear `[BLOCKED]` variants — those require manual `clear-marker` |
-| `reset-pr-review` | `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | Same 3 markers for `implement/pr-review` and `review/pr-review` | Does NOT clear `[BLOCKED]` variants |
-| `reset-for-rollback {target-phase}` | 2× `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | 3 markers for `{new-phase}/critic-code` (via `reset-milestone`) + 3 for `implement/pr-review` + 3 for `review/pr-review` (via `reset-pr-review`) + 3 stale `review/critic-code` markers (via `_clear_convergence_markers`) | Calls `set-phase`, `reset-milestone critic-code`, `reset-pr-review`, then `_clear_convergence_markers "review/critic-code"` |
+| `reset-pr-review` | `2× [MILESTONE-BOUNDARY]` (→ Critic Verdicts, one per phase: `implement/pr-review` and `review/pr-review`) | Same 3 markers for `implement/pr-review` and `review/pr-review` | Does NOT clear `[BLOCKED]` variants |
+| `reset-for-rollback {target-phase}` | 3× `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | 3 markers for `{new-phase}/critic-code` (via `reset-milestone`) + 3 for `implement/pr-review` + 3 for `review/pr-review` (via `reset-pr-review`) + 3 stale `review/critic-code` markers (via `_clear_convergence_markers`) | Calls `set-phase`, `reset-milestone critic-code`, `reset-pr-review`, then `_clear_convergence_markers "review/critic-code"` |
 | `clear-converged {agent}` | REJECT-PASS sentinel (→ Critic Verdicts, streak reset) | `[CONVERGED] {phase}/{agent}` | Use on REJECT-PASS audit outcome before entering FAIL path |
 | `clear-marker {text}` | — | Any line in `## Open Questions` containing `{text}` | Low-level; prefer `reset-milestone` for milestone transitions |
 | `gc-events` | — | Discards: `[AUTO-DECIDED]`. Keeps all: `[BLOCKED*]`, `[STOP-BLOCKED]`, `[CONVERGED]`, `[FIRST-TURN]`, `[UNVERIFIED CLAIM]`. User-memos fallthrough preserves anything else. | `[INFO]` and unrecognized markers survive via user_memos fallthrough |

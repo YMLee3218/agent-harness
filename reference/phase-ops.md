@@ -63,22 +63,32 @@ When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
 
 1. Update `docs/*.md` to match the correct intent (docs are the source of truth).
 
-2. If the spec changed, reset the critic-spec milestone and re-run critic-spec:
+2. If the spec changed, transition to `spec` first (skip if already in `spec`; required so `reset-milestone` targets `spec/critic-spec` — not the current-phase-scoped variant; see `@reference/critics.md §New milestone`), then reset the milestone and re-run critic-spec:
    ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" spec \
+     "docs contradiction — resetting spec milestone for re-review"
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
    ```
-   Re-run `Skill("critic-spec")`.
+   Run `@reference/critics.md §Invocation recipe` with agent=`critic-spec`, phase=`spec`, prompt="Review spec at [spec-path]. Relevant docs: [doc-paths]."
+   After critic-spec converges, restore to `implement` (step 3's §Phase Rollback handles the restore if step 3 also runs):
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
+     "docs contradiction fixed — spec re-verified"
+   ```
 
 3. If tests need to change:
    **Rollback to red**: apply §Phase Rollback Procedure with target-phase=`red`, critic=`critic-test`.
-   Fix tests → re-run `Skill("critic-test")`. Then advance back to `implement`:
-   **Rollback to implement**: apply §Phase Rollback Procedure with target-phase=`implement`, critic=`critic-code`.
+   Fix tests → Run `@reference/critics.md §Invocation recipe` with agent=`critic-test`, phase=`red`, prompt="Review tests at [paths] against spec at [path]. Test command: [command]." (Phase Rollback already reset the milestone.) Then advance back to `implement`:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
+     "docs contradiction fixed — tests updated and passing"
+   ```
 
 4. Run the test command. Reset the critic-code milestone before re-running:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
    ```
-   Re-run `Skill("critic-code")`.
+   Run `@reference/critics.md §Invocation recipe` with agent=`critic-code`, phase=`implement`, prompt="Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."
 
 **During `review` phase** — after critic-code passes, restore phase to `review` before re-running pr-review:
 ```bash
