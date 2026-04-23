@@ -15,7 +15,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 
 Issues: naming, duplication, complexity, style, silent failures.
 
-→ Fix code → run tests → apply §Fix-chain finisher (steps 1 and 3; step 2 not needed — already in `review`)
+→ Fix code → run tests → apply §Fix-chain finisher (all 3 steps)
 
 ## Spec gap
 
@@ -29,10 +29,10 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
   "spec gap — resetting critic-spec milestone before re-review"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
 ```
-→ Re-run `Skill("critic-spec")` (follow `@reference/critics.md §Invocation recipe` until `[CONVERGED]`)
+→ Run `@reference/critics.md §Invocation recipe` with agent=`critic-spec`, phase=`spec`, prompt="Review spec at [spec-path]."
 
 → Apply `@reference/phase-ops.md §Phase Rollback Procedure`: target-phase=`red`, critic=`critic-test`
-→ Write failing test → re-run `Skill("critic-test")`
+→ Write failing test → run `@reference/critics.md §Invocation recipe` with agent=`critic-test`, phase=`red`, prompt="Review tests at [paths] against spec at [path]. Test command: [command]." (§Phase Rollback already reset the milestone.)
 → Advance to `implement`:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
@@ -50,11 +50,17 @@ Issue: implementation contradicts domain rules.
 
 ## Fix-chain finisher
 
-1. **(If code changed)** Reset critic-code milestone and re-run:
+1. **(If code changed)** Re-run critic-code:
+   (a) Transition to `implement` (ensures `record-verdict` stamps `implement/critic-code`; without this, the plan may be in `review` and markers would be stamped `review/critic-code`, breaking convergence):
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
+     "pr-review fix — re-running critic-code"
+   ```
+   (b) Reset critic-code milestone:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
    ```
-   → `Skill("critic-code")` (follow `@reference/critics.md §Skill branching logic` until `[CONVERGED]`)
+   → Run `@reference/critics.md §Invocation recipe` with agent=`critic-code`, phase=`implement`, prompt="Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths]."
 
 2. **(If not already in `review` phase)** Restore to `review`:
    ```bash

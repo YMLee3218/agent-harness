@@ -173,7 +173,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 
 ## Session Recovery
 
-Read `plans/{slug}.md` and check the `## Task Ledger` section. Mark any `in_progress` task that has a `commit-sha` as `completed`. Then branch:
+Read `plans/{slug}.md` and check the `## Task Ledger` section. Mark any `in_progress` task that has a `commit-sha` as `completed`. Mark any `in_progress` task without a `commit-sha` as `pending` (interrupted coder session — no commit was made). Then branch:
 
 | Phase / Ledger state | Entry point |
 |---|---|

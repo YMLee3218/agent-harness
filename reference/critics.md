@@ -41,7 +41,7 @@ Full iteration protocol: §Loop convergence.
 `plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, phase-independent). If the same critic emits **two consecutive FAILs with the same category** (PARSE_ERROR verdicts between them are transparent — they do not reset the streak), the script writes:
 
 ```
-[BLOCKED] category:{critic}: {CATEGORY} failed twice — fix the root cause before retrying
+[BLOCKED] category:{agent}: {CATEGORY} failed twice — fix the root cause before retrying
 ```
 
 to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLOCKED]` marker and stops. The loop cannot converge when the same structural problem recurs; human review is required.
@@ -73,7 +73,7 @@ Definitions: `@reference/markers.md §Critic loop markers` and `@reference/marke
 
 #### pr-review asymmetry
 
-pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 3 → 4–5 → 7 → 8 only. Steps 2 and 6 are omitted: step 2 (`[BLOCKED]` check) because any non-coder `[BLOCKED]` markers would have halted the skill at an earlier §Skill branching logic step before pr-review is reached, and tier-safe verifies all coder task blocks are cleared; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
+pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 2 → 4–5 → 7 → 8 only. Steps 3 and 6 are omitted: step 3 (`[BLOCKED]` check) because any non-coder `[BLOCKED]` markers would have halted the skill at an earlier §Skill branching logic step before pr-review is reached, and tier-safe verifies all coder task blocks are cleared; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
@@ -86,8 +86,8 @@ After critic/review run → script records verdict + emits markers
 Skill reads ## Open Questions, checks in priority order:
 
   1. [BLOCKED-CEILING] {phase}/{agent}  → stop (manual review)
-  2. [BLOCKED] {any text}               → stop (read reason; fix root cause; clear marker; retry)
-  3. [BLOCKED-AMBIGUOUS] {agent}        → stop (human decision required)
+  2. [BLOCKED-AMBIGUOUS] {agent}        → stop (human decision required)
+  3. [BLOCKED] {any text}               → stop (read reason; fix root cause; clear marker; retry)
   4. [CONVERGED] {phase}/{agent}        → proceed to next step
   5. [FIRST-TURN] {phase}/{agent}       → re-run automatically
                                           **Only when latest verdict is PASS or PARSE_ERROR.**
@@ -120,7 +120,13 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{
 ```
 This clears the 3 phase-scoped convergence markers (see `@reference/markers.md §Phase-scoped convergence markers`) for this phase+agent from `## Open Questions`, and appends a `[MILESTONE-BOUNDARY]` sentinel to `## Critic Verdicts` so prior-milestone history does not contribute to the new streak. `set-phase` must run before `reset-milestone` when also changing phase, so `reset-milestone` reads the correct phase when clearing phase-scoped markers. For the full list of markers written and cleared by `reset-milestone`, `reset-pr-review`, and `reset-for-rollback`, see `reference/markers.md §Operation → markers reverse lookup`.
 
-Re-brainstorming the same requirements doc: call `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-feature` to break the prior streak before re-invoking the `brainstorming` skill.
+Re-brainstorming the same requirements doc: transition to `brainstorm` first (required before `reset-milestone` so the correct phase-scoped markers are cleared — see line above), then reset the prior critic-feature streak:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" brainstorm \
+  "re-brainstorming"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-feature
+```
+Then re-invoke the `brainstorming` skill.
 
 ### Full rollback reset
 
@@ -135,16 +141,18 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 
 ## §Invocation recipe
 
-Standard critic convergence loop. Skills cite as:
-`Run @reference/critics.md §Invocation recipe with agent=\`{A}\`, phase=\`{P}\`, prompt="…".`
+Standard critic convergence loop. Skills cite as: `Run @reference/critics.md §Invocation recipe with agent=\`{A}\`, phase=\`{P}\`, prompt="…".`
+1. `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent {A} --phase {P} --plan "plans/{slug}.md" --prompt "{prompt}"`
+2. exit 0 → next step. exit 1/2 → §Resuming from a BLOCKED marker. `[DOCS CONTRADICTION]` in plan → `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
 
-1. `Skill("{agent}", "{prompt}")`
-2. Follow §Running the critic (SubagentStop records verdict; run ultrathink audit).
-3. Branch per §Skill branching logic (substitute `{agent}`).
-4. On `[CONVERGED] {phase}/{agent}`: proceed to next step.
-5. On `[DOCS CONTRADICTION]`: `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
+pr-review diverges — use §pr-review asymmetry instead.
 
-pr-review diverges from steps 2–5 — use §pr-review asymmetry instead.
+## §Critic one-shot iteration
+
+One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** loop — one critic run per session.
+1. If `first=true`: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "{plan}" {agent}`.
+2. `Skill("{agent}", "{prompt}")` — `SubagentStop` fires `record-verdict` automatically.
+3. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 5–7 are the shell loop's responsibility); exit after each branching action.
 
 ## Ambiguity signaling
 
@@ -180,7 +188,11 @@ If none of the above apply, fix and re-run without stopping.
 After fixing the root cause, clear the marker using the exact text that appears in `## Open Questions`:
 
 ```bash
+# For [BLOCKED] parse: and [BLOCKED] category: markers:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED] {type}:{agent}"
+
+# For [BLOCKED-AMBIGUOUS] markers (clear-marker uses substring match):
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
 ```
 
 Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED]` marker).
