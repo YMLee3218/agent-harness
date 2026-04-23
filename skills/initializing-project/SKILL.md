@@ -38,7 +38,7 @@ tests/
 docs/
 └── requirements/       ← append-only
 plans/                  ← plan files live here
-features/               ← BDD spec files per feature (features/{verb-noun}/spec.md)
+features/               ← BDD spec files per feature (features/{verb}-{noun}/spec.md)
 domain/                 ← BDD spec files per domain concept (domain/{concept}/spec.md)
 ```
 
@@ -176,7 +176,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "plans/{project-slu
 # Then edit plans/{project-slug}.md to fill in the ## Vision section
 ```
 
-Non-interactive (@reference/critics.md §Skill branching logic): skip `ExitPlanMode`.
+Non-interactive (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`.
 
 Then stage and commit all scaffold files so the working tree is clean before brainstorming runs its dirty-tree check.
 

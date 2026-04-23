@@ -46,21 +46,13 @@ Proceed directly to Step 3.
 
 ## Step 3 — Write failing tests
 
-Create tasks to track progress:
-
-```
-TaskCreate: "Write tests for {scenario 1}"
-TaskCreate: "Write tests for {scenario 2}"
-...
-```
-
 Set plan file phase to `red` before writing any test files:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" red \
   "approved plan — writing failing tests"
 ```
 
-Mark each task `in_progress` before writing, `completed` after.
+Work through scenarios in sequence: write each test, then move to the next.
 
 Each test must:
 - Map directly to one `Scenario`
@@ -93,12 +85,3 @@ This preserves the Red state across session interruptions.
 @reference/phase-ops.md §Phase Rollback Procedure — `{target-phase}` = `red`, `{critic-name}` = `critic-test`, `{skill-name}` = `writing-tests`.
 
 When phase is `green` on entry: `writing-spec` will have already rolled back to `spec` before `writing-tests` runs — the Step 1 phase check will pass. ✓
-
-## Step 4 — Run critic-test (convergence loop)
-
-Reset the critic-test milestone before running (clears stale `[CONVERGED] red/critic-test` and `[FIRST-TURN]` markers from any prior run, and adds a `[MILESTONE-BOUNDARY]` so prior-run verdicts do not inflate the new streak):
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-test
-```
-
-Run @reference/critics.md §Invocation recipe with agent=`critic-test`, phase=`red`, prompt="Review tests at [paths] against spec at [path]. Test command: [command]."

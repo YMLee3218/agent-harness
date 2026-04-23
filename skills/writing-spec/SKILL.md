@@ -18,7 +18,7 @@ paths:
 ## Step 1 — Read plan file + sources
 
 Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `brainstorm`, `spec`.
-On unexpected phase: apply **## Phase rollback** at the bottom of this skill.
+On unexpected phase: apply **## Phase rollback** at the bottom of this skill (except phase `done`: `[BLOCKED] writing-spec entered from phase done — run /brainstorming to start a new feature`).
 
 Read only:
 1. `docs/requirements/*.md` — brainstorming output
@@ -36,35 +36,16 @@ Proceed directly to Step 3.
 
 ## Step 3 — Write spec.md
 
-After approval:
-
 ```
 features/{verb}-{noun}/spec.md   ← feature spec
 domain/{concept}/spec.md         ← domain spec
 ```
 
-Set plan file phase:
+Set plan file phase (skip if phase is already `spec` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`):
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" spec \
   "approved plan — writing spec"
 ```
-
-## Step 4 — Run critic-spec (convergence loop)
-
-Run @reference/critics.md §Invocation recipe with agent=`critic-spec`, phase=`spec`, prompt="Review spec at [path]. Relevant docs: [paths]."
-
-## Step 5 — Commit spec file
-
-After critic-spec PASS, commit the spec file so it is visible to coder subagents running in isolated worktrees:
-
-```bash
-git add features/{verb}-{noun}/spec.md   # feature spec
-# or
-git add domain/{concept}/spec.md         # domain spec
-git commit -m "feat(spec): add BDD scenarios for {name}"
-```
-
-Commit all spec files written in this run in a single commit. Do not commit any src/ or tests/ files here.
 
 ## Phase rollback
 

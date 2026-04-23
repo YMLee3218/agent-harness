@@ -18,7 +18,7 @@ Read the requirements document at the path provided.
 ## Checks
 
 **1. Small vs large classification**
-- Small feature: calls only domain? Single responsibility?
+- Small feature: calls domain and/or infrastructure directly? Single responsibility?
 - Large feature: composes only small features? Calls domain directly? (→ `[FAIL]`)
 
 **2. Layer assignment**

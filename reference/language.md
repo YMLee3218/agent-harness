@@ -6,6 +6,9 @@ Applies to user-facing output: `AskUserQuestion` text, `ExitPlanMode` summaries,
 
 **Always English regardless of conversation language**:
 - Internal thinking and reasoning.
-- File contents (plans, specs, docs, comments, tests).
+- File contents (harness plan files, specs, docs, comments, tests).
 - Research summaries and harness-internal prompts.
 - Commit messages.
+
+**Always in user's conversation language (Korean by default)**:
+- Plan mode plan files (approval plans for the user to read).

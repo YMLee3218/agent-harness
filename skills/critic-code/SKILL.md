@@ -31,7 +31,7 @@ For every `Scenario` in spec.md:
 
 Also compare against `docs/*.md`. If implementation or spec contradicts documented domain knowledge, report `[DOCS CONTRADICTION]`.
 
-Test coverage/mocking: cited from `@skills/critic-test`; critic-code does not re-check.
+Test coverage/mocking: cited from `critic-test`; critic-code does not re-check.
 7. **Unverified API usage**: code imports or calls an external library method not already used in the project? Was it verified via context7 before first use? (→ `[UNVERIFIED CLAIM]`)
 8. **Hardcoded external facts**: code contains hardcoded URLs, model names, version strings, or magic numbers that represent external facts? Are they sourced from `docs/*.md` or config? (→ `[WARN]`)
 

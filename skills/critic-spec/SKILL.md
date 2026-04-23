@@ -33,7 +33,7 @@ Also compare spec against `docs/*.md`. If the spec contradicts documented domain
 
 5. **Placement**: feature spec at `features/{verb}-{noun}/spec.md`? Domain spec at `domain/{concept}/spec.md`?
 6. **Domain purity**: domain spec mentions DB, HTTP, queue, or file system? (→ `[FAIL]`)
-7. **Feature classification**: small feature scenario implies calling infrastructure? (→ `[FAIL]`) Large feature scenario implies calling domain directly? (→ `[FAIL]`)
+7. **Feature classification**: large feature scenario implies calling domain directly? (→ `[FAIL]`)
 8. **BDD format**: every scenario has `Given`, `When`, `Then`? Every `Scenario Outline` has `Examples:`? `Feature:` declaration present?
 
 ## Angle 3 — Unverified claims

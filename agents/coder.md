@@ -76,7 +76,7 @@ Wait for Codex to return. Do not proceed until the Skill call completes.
 
 **a) Check for self-reported violations:**
 
-If Codex output contains "layer violation", "forbidden import", "cannot implement without violating", "would violate", "STOP", or "stopping", emit `<!-- coder-status: abort -->` and append to plan file:
+If Codex output contains "layer violation", "forbidden import", "cannot implement without violating", "would violate", "hard stop", "STOP", "I stopped", "stopping", or "aborting", emit `<!-- coder-status: abort -->` and append to plan file:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
   "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — Codex reported violation: {reason}"

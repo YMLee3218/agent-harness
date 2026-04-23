@@ -15,6 +15,10 @@ Default test path: `tests/integration/**`. Override per project via `PHASE_GATE_
 
 Invocable via `/running-integration-tests` or automatically by `running-dev-cycle`.
 
+## Phase entry
+
+Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `green`, `integration` (re-run after previous failure). For unexpected phases: `[BLOCKED] running-integration-tests entered from unexpected phase {phase} — expected green or integration`.
+
 ## When to run
 
 - Major features completed (milestone boundary)
@@ -34,13 +38,14 @@ Write scope summary to plan file. Proceed to Step 1.5.
 Before running integration tests, run the unit test command from project CLAUDE.md to confirm there are no pre-existing regressions.
 
 If unit tests fail:
-1. Roll back phase so `implementing` can enter with fresh task planning:
+1. Roll back phase and clear the critic-test convergence marker so the next run re-validates tests before re-implementing:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
      "unit tests failing at integration entry — clearing implement-phase markers"
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" implement
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" red \
      "unit tests failing at integration entry — fresh task planning needed"
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-test
    ```
 2. Append `[BLOCKED] unit tests failing before integration tests — resolve via /implementing before re-running` to `## Open Questions` and stop.
 
@@ -70,11 +75,15 @@ Done.
 
 If tests fail:
 
-1. Record each failure in `plans/{slug}.md` under a `## Integration Failures` section (append; do not overwrite). Do **not** write failure logs into `docs/requirements/` — that directory is for business requirements, not incident records.
+1. Record each failure in `plans/{slug}.md` under a `## Integration Failures` section (append; do not overwrite). Do **not** write failure logs into `docs/requirements/` — that directory is for business requirements, not incident records. Open one `### Run {N}` block per re-run attempt (N = number of prior `### Run` headers + 1), then list each failing test as a `####` entry inside it:
    ```
-   ### {date} — {test name}
+   ### Run {N} — {date}
+   #### {test name}
    Category: {docs conflict | spec gap | implementation bug}
    Description: {one sentence}
+   #### {test name 2}
+   Category: ...
+   Description: ...
    ```
 2. Determine the failure category by inferring from failure evidence:
 
@@ -92,13 +101,17 @@ If tests fail:
      "{one sentence reason}"
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" {rollback-phase}
    ```
+   When rollback-phase is `spec`: also reset the critic-spec milestone so the updated spec is reviewed (stale `[CONVERGED] spec/critic-spec` would otherwise cause writing-spec to skip critic-spec):
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
+   ```
    Then invoke the appropriate skill via `Skill(...)`.
 
 ## Step 4 — Re-run after fix (max 2 re-run attempts)
 
-Count prior fix attempts by counting `### ` header entries in `## Integration Failures`:
+Count prior fix attempts by counting `### Run` headers in `## Integration Failures` (one per re-run cycle, not per failing test):
 ```bash
-attempt=$(awk '/^## Integration Failures$/{s=1;next} s&&/^## /{exit} s&&/^### /{count++} END{print count+0}' "plans/{slug}.md")
+attempt=$(awk '/^## Integration Failures$/{s=1;next} s&&/^## /{exit} s&&/^### Run /{count++} END{print count+0}' "plans/{slug}.md")
 ```
 
 Return to Step 2 and re-run integration tests.

@@ -458,6 +458,21 @@ cmd_record_verdict() {
   local current_phase
   current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null || echo "unknown")
 
+  # Forked-execution guard: skills may spawn multiple sub-agents. Skip non-authoritative ones:
+  #   (a) Textual "Verdict:" present but no HTML markers — summary/forked copy.
+  #   (b) No "### Verdict" or "<!-- verdict:" section at all — setup/exploratory sub-agent.
+  # Only the primary transcript (HTML markers present) should record a verdict.
+  if [ -z "$verdict" ]; then
+    if printf '%s' "$output" | grep -qE 'Verdict:\s*(PASS|FAIL)|\*\*Verdict:\s*(PASS|FAIL)\*\*'; then
+      echo "[record-verdict] textual-verdict-only transcript for ${agent_name} (forked-execution summary) — skipping" >&2
+      exit 0
+    fi
+    if ! printf '%s' "$output" | grep -qE '### Verdict|<!-- verdict:'; then
+      echo "[record-verdict] no verdict section in transcript for ${agent_name} (setup/exploratory sub-agent) — skipping" >&2
+      exit 0
+    fi
+  fi
+
   if [ -z "$verdict" ]; then
     local input_keys
     input_keys=$(printf '%s' "$input" | jq -r 'keys | join(", ")' 2>/dev/null || echo "unknown")
@@ -612,11 +627,11 @@ cmd_reset_pr_review() {
   [ "$current_phase" = "unknown" ] && die "reset-pr-review: could not determine current phase from ${plan_file}"
   for phase in implement review; do
     _clear_convergence_markers "$plan_file" "${phase}/pr-review"
+    local ts
+    ts=$(_iso_timestamp)
+    _append_to_critic_verdicts "$plan_file" \
+      "[MILESTONE-BOUNDARY @${ts}] ${phase}/pr-review:"
   done
-  local ts
-  ts=$(_iso_timestamp)
-  _append_to_critic_verdicts "$plan_file" \
-    "[MILESTONE-BOUNDARY @${ts}] ${current_phase}/pr-review:"
   echo "[reset-pr-review] cleared pr-review convergence markers for implement and review phases" >&2
 }
 

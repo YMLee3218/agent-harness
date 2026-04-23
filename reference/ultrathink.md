@@ -24,14 +24,14 @@ Include `ultrathink` in the audit prompt and check the five items in §Audit che
 
 ## Applying the audit outcome
 
-Record every audit outcome:
+Entries accumulate in `## Verdict Audits` (permanent trail — not compacted by `gc-events`). Each outcome section below is self-contained — call `append-audit` exactly once per audit run.
+
+**ACCEPT**: record and proceed.
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
-  "plans/{slug}.md" "{agent}" "{ACCEPT|REJECT-PASS|BLOCKED-AMBIGUOUS}" "{one-line summary}"
+  "plans/{slug}.md" "{agent}" "ACCEPT" "{one-line summary}"
 ```
-Entries accumulate in `## Verdict Audits` (permanent trail — not compacted by `gc-events`).
-
-**ACCEPT**: proceed to `@reference/critics.md §Skill branching logic`.
+Proceed to `@reference/critics.md §Skill branching logic`.
 
 **REJECT-PASS** — `[CONVERGED]` may already be written; clear it first, then record:
 ```bash
@@ -40,6 +40,11 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit "plans/{slu
 ```
 Enter the FAIL path. (`clear-converged` is a safe no-op if no `[CONVERGED]` marker exists.)
 
-**BLOCKED-AMBIGUOUS**: record via `append-audit`, append `[BLOCKED-AMBIGUOUS] {agent}: ultrathink audit inconclusive — {question}` to `## Open Questions`, and stop.
+**BLOCKED-AMBIGUOUS**: record, then stop.
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
+  "plans/{slug}.md" "{agent}" "BLOCKED-AMBIGUOUS" "{one-line summary}"
+```
+Append `[BLOCKED-AMBIGUOUS] {agent}: ultrathink audit inconclusive — {question}` to `## Open Questions` and stop.
 
 **Non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): BLOCKED-AMBIGUOUS still stops. REJECT-PASS automatically enters the FAIL path.

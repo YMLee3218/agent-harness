@@ -116,7 +116,16 @@ Update affected `docs/*.md` (SOT) before proceeding.
 
 ### Step 3 — Write output + run critic-feature
 
-Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Feature Flow Step 3. Run critic-feature per @reference/critics.md §Invocation recipe with agent=`critic-feature`, phase=`brainstorm`, prompt="Review docs/requirements/{name}.md. Original requirement: [paste requirement]."
+Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Feature Flow Step 3.
+
+Set phase to `brainstorm` first (required before `reset-milestone` so the correct phase-scoped markers are cleared), then reset the prior critic-feature streak (stale `[CONVERGED] brainstorm/critic-feature` from the previous run would otherwise cause false convergence):
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" brainstorm \
+  "re-brainstorming — setting phase before resetting critic-feature streak"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-feature
+```
+
+Run critic-feature per @reference/critics.md §Invocation recipe with agent=`critic-feature`, phase=`brainstorm`, prompt="Review docs/requirements/{name}.md. Original requirement: [paste requirement]."
 
 ---
 

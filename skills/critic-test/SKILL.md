@@ -48,6 +48,9 @@ If any test file was modified after the Red phase commit, emit immediately:
 
 ```
 [CRITICAL] test file modified after Red phase: {file} — FAIL
+
+### Verdict
+FAIL — TEST_INTEGRITY
 <!-- verdict: FAIL -->
 <!-- category: TEST_INTEGRITY -->
 ```

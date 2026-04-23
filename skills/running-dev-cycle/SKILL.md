@@ -12,6 +12,8 @@ argument-hint: "[--profile feature|greenfield] [--batch]"
 
 User-invocable only via `/running-dev-cycle`.
 
+Critic invocation rule: any time a critic must run — from the step sequence or from a user request — use §Invocation recipe (`bash run-critic-loop.sh`). Calling `Skill("{agent}", ...)` directly from within this skill is forbidden; it bypasses the convergence loop and marker tracking.
+
 Run each skill in order. Do not skip or reorder steps. Wait for each step to fully complete — including critic PASS — before invoking the next.
 
 ## Autonomous preflight
@@ -43,7 +45,7 @@ Exit codes: 0=found 2=none 3=ambiguous 4=malformed 1=error.
 
 Otherwise, if a plan file is found (`find_active_rc=0`), read its current phase:
 
-If any `[BLOCKED]` or `[BLOCKED-CEILING]` marker is present: stop and report the marker to the user — do not auto-retry.
+If any `[BLOCKED]`, `[BLOCKED-CEILING]`, or `[BLOCKED-AMBIGUOUS]` marker is present: stop and report the marker to the user — do not auto-retry.
 
 Route accordingly:
 
@@ -52,8 +54,10 @@ Route accordingly:
 | _(no plan file / exit 2)_ | Fall through to Step 1 (brainstorming) as normal |
 | `brainstorm` (and `[CONVERGED] brainstorm/critic-feature` present) | Skip to **Step 2a** — brainstorming already converged; phase transition is pending |
 | `brainstorm` (no `[CONVERGED]` marker) | Fall through to Step 1; brainstorming will resume from the existing plan |
-| `spec` | Skip to **Step 2a** (writing-spec for the next un-specced feature) |
-| `red` | **Slice mode** (feature profile): If `[CONVERGED] red/critic-test` is present in `## Open Questions` → skip to **Step 2c** (implementing). Otherwise → resume **Step 2b** (invoke `writing-tests` — it handles `red` phase re-entry and runs critic-test). **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry, skip directly to **Step 4** (Implementation). |
+| `spec` (spec.md does not exist) | Read `mode` from plan file frontmatter. **Feature mode** (`mode: feature`): invoke full Step 2a (writing-spec + critic-spec loop + commit). **Batch mode** (`mode: greenfield` or `--batch`): continue writing specs for remaining un-specced features in batch order before any tests. |
+| `spec` (no `[CONVERGED] spec/critic-spec`, spec.md exists) | Skip writing-spec; go directly to critic-spec loop in Step 2a |
+| `red` (no `[CONVERGED] red/critic-test`, Test Manifest non-empty) | Skip writing-tests; go directly to critic-test loop in Step 2b |
+| `red` | **Slice mode** (feature profile): If `[CONVERGED] red/critic-test` is present in `## Open Questions` → skip to **Step 2c** (implementing). Otherwise (Test Manifest empty) → invoke `writing-tests` (it handles `red` phase re-entry). **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry, skip directly to **Step 4** (Implementation). |
 | `implement` | Coder task execution: normal mid-run state (set by `implementing` after task list registration). Re-invoke the `implementing` skill — it handles both sub-cases via Task Ledger state. |
 | `review` | PR review loop was interrupted mid-fix. Re-invoke the `implementing` skill to resume the pr-review fix loop for the current feature. |
 | `green` | PR review converged; implementation done. Skip directly to **Integration Tests** (all profiles). |
@@ -72,9 +76,7 @@ Choose the profile that matches the scope of the change.
 | **greenfield** | `--profile greenfield` | full cycle + batch mode | all four critics | New project or major domain rewrite where all specs must align before any tests |
 
 Set `mode: {profile}` in the plan file frontmatter to track the active profile.
-
 ---
-
 ## Step 1 — Brainstorming
 
 Invoke the `brainstorming` skill.
@@ -96,19 +98,41 @@ Read `docs/requirements/{name}.md` to get the full feature list (Small Features 
 **Before iterating, determine which features are already done.** A feature is considered complete when ALL of the following hold:
 - `features/{verb}-{noun}/spec.md` exists (spec was written), AND
 - `## Critic Verdicts` in the plan file contains a `PASS` line from `critic-spec` recorded after that spec was written, AND
-- All tasks for that feature in `## Task Ledger` are `completed`.
+- `## Critic Verdicts` in the plan file contains a `PASS` line from `critic-test` recorded after those tests were written, AND
+- `## Task Ledger` contains at least one task for that feature AND all of those tasks are `completed` (an empty ledger means implementing has not yet run — the feature is not done).
 
-Skip features that satisfy all three conditions. Start from the first feature that does NOT satisfy them.
+Skip features that satisfy all four conditions. Start from the first feature that does NOT satisfy them.
 
 **For each remaining feature in the list, in dependency order:**
 
 ### Step 2a — Spec
 
-Invoke the `writing-spec` skill for the feature. Wait for critic-spec PASS.
+Invoke the `writing-spec` skill for the feature.
+Wait until: spec.md is written and plan file phase is `spec`.
+
+Reset the critic-spec milestone (clears stale `[CONVERGED] spec/critic-spec` from a prior feature's run):
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
+```
+
+Run @reference/critics.md §Invocation recipe with agent=`critic-spec`, phase=`spec`,
+prompt="Review spec at [path]. Relevant docs: [paths]."
+
+After `[CONVERGED] spec/critic-spec` is confirmed, commit the spec file:
+```bash
+git add features/{verb}-{noun}/spec.md   # or domain/{concept}/spec.md
+git commit -m "feat(spec): add BDD scenarios for {name}"
+```
 
 ### Step 2b — Tests
 
-Invoke the `writing-tests` skill for the feature. Wait for critic-test PASS and Plan file Phase `red`.
+Invoke the `writing-tests` skill for the feature.
+Wait until: tests are written and committed, plan file phase is `red`.
+Reset critic-test milestone (clears stale `[CONVERGED] red/critic-test` from a prior feature's run): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-test`
+Run @reference/critics.md §Invocation recipe with agent=`critic-test`, phase=`red`,
+prompt="Review tests at [paths] against spec at [path]. Test command: [command]."
+
+Do not proceed to Step 2c until `[CONVERGED] red/critic-test` is present.
 
 ### Step 2c — Implementation
 
@@ -126,9 +150,12 @@ Read `docs/requirements/{name}.md` to get the full feature list.
 
 For each feature:
 1. Invoke the `writing-spec` skill for that feature
-2. Wait for critic-spec PASS before moving to the next feature
+2. Wait until spec.md is written and plan file phase is `spec`
+3. Reset the critic-spec milestone: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec`
+4. Run @reference/critics.md §Invocation recipe with agent=`critic-spec`, phase=`spec`, prompt="Review spec at [path]. Relevant docs: [paths]."
+5. After `[CONVERGED] spec/critic-spec` is confirmed, commit: `git add features/{verb}-{noun}/spec.md && git commit -m "feat(spec): add BDD scenarios for {name}"`
 
-Do not proceed to Step 3 until all features have a PASS-verified spec.md.
+Do not proceed to Step 3 until all features have a committed, PASS-verified spec.md.
 
 ### Step 3 — Tests (all features)
 
@@ -136,7 +163,9 @@ Read `docs/requirements/{name}.md` to get the full feature list.
 
 For each feature, in the same order as Step 2:
 1. Invoke the `writing-tests` skill for that feature
-2. Wait for the skill to complete (tests written and failing, critic-test PASS, Plan file Phase `red`)
+2. Wait until tests are written and committed, plan file phase is `red`; reset critic-test milestone: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-test`
+3. Run @reference/critics.md §Invocation recipe with agent=`critic-test`, phase=`red`, prompt="Review tests at [paths] against spec at [path]. Test command: [command]."
+4. Do not move to the next feature until `[CONVERGED] red/critic-test` is present
 
 Do not proceed to Step 4 until every feature has completed Step 3.
 
@@ -145,7 +174,6 @@ Do not proceed to Step 4 until every feature has completed Step 3.
 Invoke the `implementing` skill.
 
 ---
-
 ## Integration Tests
 
 After all features have completed `implementing` (i.e., all feature-slice iterations or the single batch implementation are done):
