@@ -324,7 +324,7 @@ _record_loop_state() {
   local pat="${current_phase}/${agent}:"
   local prior_run_count
   prior_run_count=$(awk -v pat="$pat" \
-    '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)){if(index($0,"[MILESTONE-BOUNDARY @"))c=0;else c++}} END{print c+0}' \
+    '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)){if(index($0,"[MILESTONE-BOUNDARY @"))c=0;else if(!index($0,"REJECT-PASS"))c++}} END{print c+0}' \
     "$plan_file" 2>/dev/null || echo "0")
   local run_ordinal=$((prior_run_count + 1))
 

@@ -9,6 +9,8 @@
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
 #   context7-plugin         — implementing calls /context7-plugin:docs for library lookups
 #   pr-review-toolkit       — implementing calls pr-review-toolkit:review-pr per feature
+#   codex                   — coder agent delegates implementation to Codex via codex:rescue
+#   codex-auth              — Codex requires OPENAI_API_KEY or ~/.codex/auth.json
 # Required files:
 #   .claude/local.md        — language, runtime, test/lint/integration-test commands
 #   CLAUDE.md (project)     — created by initializing-project; absence triggers re-init

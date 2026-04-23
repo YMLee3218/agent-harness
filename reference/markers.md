@@ -11,9 +11,10 @@ Managed by `scripts/lib/plan-lib.sh` and consumed by skills after each critic or
 
 | Marker | Scope | Written by | Clear path | gc |
 |--------|-------|------------|------------|----|
-| `[BLOCKED-CEILING] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
-| `[BLOCKED] category:{agent}: {category} failed twice…` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] parse:{agent}: verdict marker missing twice…` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED-CEILING] {phase}/{agent}: exceeded {N} runs — manual review required` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
+| `[BLOCKED] category:{agent}: {CATEGORY} failed twice — fix the root cause before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED] parse:{agent}: verdict marker missing twice — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED] parse:{agent}: FAIL without category twice — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | agent-scoped | Skills (parent context) | Manual `plan-file.sh clear-marker` | Yes |
 | `[CONVERGED] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `clear-converged {agent}` | Yes |
 | `[FIRST-TURN] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
@@ -74,7 +75,7 @@ Canonical list: `PHASE_CONVERGENCE_MARKERS` array in `scripts/lib/plan-lib.sh` (
 
 | Phase | Agent | Invocation site |
 |-------|-------|-----------------|
-| `brainstorm` | `critic-feature` | `skills/brainstorming/SKILL.md` Step 4 |
+| `brainstorm` | `critic-feature` | `skills/brainstorming/SKILL.md` Step 4 (new feature) / Step 3 (modification) |
 | `spec` | `critic-spec` | `skills/running-dev-cycle/SKILL.md` Step 2a (feature-slice) / Step 2 (batch) |
 | `red` | `critic-test` | `skills/running-dev-cycle/SKILL.md` Step 2b (feature-slice) / Step 3 (batch) |
 | `implement` | `critic-code` | `skills/implementing/SKILL.md` (post-task review) |
@@ -110,3 +111,5 @@ What each command writes, clears, keeps, and discards in `## Open Questions` (un
 - **`[BLOCKED] category:`** — Persists across phase rollback by design: category escalation is phase-independent per `@reference/critics.md §Consecutive same-category escalation`. Recipe at `@reference/critics.md §Resuming from a BLOCKED marker`.
 
 - **`[BLOCKED] parse:`** — Persists across phase rollback by design. Recipe at `@reference/critics.md §Resuming from a BLOCKED marker`.
+
+- **`[BLOCKED-AMBIGUOUS]`** — Persists across phase rollback by design: the embedded question requires human input to resolve; auto-clearing on phase transition would discard the question before the human can act. Recipe: resolve the stated question, then `plan-file.sh clear-marker "[BLOCKED-AMBIGUOUS] {agent}"` and re-run.
