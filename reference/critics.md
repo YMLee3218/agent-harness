@@ -73,7 +73,7 @@ Definitions: `@reference/markers.md §Critic loop markers` and `@reference/marke
 
 #### pr-review asymmetry
 
-pr-review omits category/parse tracking — failures are categorised by the skill (see `skills/implementing/SKILL.md §Step 5`). Apply §Skill branching logic steps 1 → 2 → 4–5 → 7 → 8 only. Steps 3 and 6 are omitted: step 3 (`[BLOCKED]` check) because any non-coder `[BLOCKED]` markers would have halted the skill at an earlier §Skill branching logic step before pr-review is reached, and tier-safe verifies all coder task blocks are cleared; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
+pr-review omits category/parse tracking — failures are categorised by the skill (see `@reference/pr-review-loop.md`). Apply §Skill branching logic steps 1 → 2 → 4–5 → 7 → 8 only. Steps 3 and 6 are omitted: step 3 (`[BLOCKED]` check) because any non-coder `[BLOCKED]` markers would have halted the skill at an earlier §Skill branching logic step before pr-review is reached, and tier-safe verifies all coder task blocks are cleared; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
@@ -118,7 +118,7 @@ Before starting a critic run for a new milestone within the same phase, call:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}
 ```
-This clears the 3 phase-scoped convergence markers (see `@reference/markers.md §Phase-scoped convergence markers`) for this phase+agent from `## Open Questions`, and appends a `[MILESTONE-BOUNDARY]` sentinel to `## Critic Verdicts` so prior-milestone history does not contribute to the new streak. `set-phase` must run before `reset-milestone` when also changing phase, so `reset-milestone` reads the correct phase when clearing phase-scoped markers. For the full list of markers written and cleared by `reset-milestone`, `reset-pr-review`, and `reset-for-rollback`, see `reference/markers.md §Operation → markers reverse lookup`.
+This clears the 3 phase-scoped convergence markers (see `@reference/markers.md §Phase-scoped convergence markers`) for this phase+agent from `## Open Questions`, and appends a `[MILESTONE-BOUNDARY]` sentinel to `## Critic Verdicts` so prior-milestone history does not contribute to the new streak. `transition` must run before `reset-milestone` when also changing phase (`transition` calls `set-phase` internally and writes a Phase Transitions log entry; using `plan-file.sh set-phase` directly would skip the log entry), so `reset-milestone` reads the correct phase when clearing phase-scoped markers. For the full list of markers written and cleared by `reset-milestone`, `reset-pr-review`, and `reset-for-rollback`, see `reference/markers.md §Operation → markers reverse lookup`.
 
 Re-brainstorming the same requirements doc: transition to `brainstorm` first (required before `reset-milestone` so the correct phase-scoped markers are cleared — see line above), then reset the prior critic-feature streak:
 ```bash
@@ -139,20 +139,12 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plan
 
 When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`.
 
-## §Invocation recipe
-
-Standard critic convergence loop. Skills cite as: `Run @reference/critics.md §Invocation recipe with agent=\`{A}\`, phase=\`{P}\`, prompt="…".`
-1. `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent {A} --phase {P} --plan "plans/{slug}.md" --prompt "{prompt}"`
-2. exit 0 → next step. exit 1/2 → §Resuming from a BLOCKED marker. `[DOCS CONTRADICTION]` in plan → `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
-
-pr-review diverges — use §pr-review asymmetry instead.
-
 ## §Critic one-shot iteration
 
 One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** loop — one critic run per session.
 1. If `first=true`: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "{plan}" {agent}`.
 2. `Skill("{agent}", "{prompt}")` — `SubagentStop` fires `record-verdict` automatically.
-3. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 5–7 are the shell loop's responsibility); exit after each branching action.
+3. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 5/6/7 hand their re-run back to the shell loop; however step 5's FAIL branch routes to step 8, which this session does execute before exiting); exit after each branching action.
 
 ## Ambiguity signaling
 

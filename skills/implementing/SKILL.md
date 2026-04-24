@@ -5,7 +5,6 @@ description: >
   Trigger: "implement", "make the tests pass", "implement phase", "go", "proceed", after critic-test returns PASS.
   Do NOT trigger when no spec or tests exist — route to brainstorming instead.
   Plans implementation order (domain first), then executes with isolated subagents per task.
-  Also drives `review` phase during pr-review fix loop (implement → review → green).
 disable-model-invocation: true
 effort: high
 paths:
@@ -17,7 +16,7 @@ paths:
 
 ## Step 1 — Read plan file + plan implementation order
 
-Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `red`, `implement` (recovery), `review` (recovery). Read `plans/{slug}.md`. For non-`red` phases or non-empty Task Ledgers, consult §Session Recovery. For unexpected phases: `[BLOCKED] implementing entered from unexpected phase {phase} — cannot proceed`.
+Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `red`, `implement` (recovery). Read `plans/{slug}.md`. For non-`red` phases or non-empty Task Ledgers, consult §Session Recovery. For unexpected phases: `[BLOCKED] implementing entered from unexpected phase {phase} — cannot proceed`.
 
 **Phase `red` — plan task list:**
 
@@ -117,7 +116,7 @@ git merge --no-ff {worktree-branch} -m "merge(task-N): {description}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "completed" "$(git rev-parse HEAD)"
 ```
 
-If `git merge` fails with conflicts: mark task `blocked`, run `git merge --abort`, append `[BLOCKED] coder:task-N merge conflict — resolve conflict in {worktree-branch} then re-run implementing` to `## Open Questions`, stop the tier. After manual resolution, update task to `completed` with merge SHA.
+If `git merge` fails with conflicts: mark task `blocked`, run `git merge --abort`, append `[BLOCKED] coder:task-N merge conflict — resolve conflict in {worktree-branch} then re-run implementing` to `## Open Questions`, stop the tier. After manual resolution: clear the marker (`plan-file.sh clear-marker "plans/{slug}.md" "[BLOCKED] coder:task-N"`), then update task to `completed` with merge SHA.
 
 Move to the next tier.
 
@@ -125,51 +124,9 @@ Move to the next tier.
 
 After all tasks in a tier are merged, run the unit test command from project CLAUDE.md.
 
-If tests pass: continue to Step 4.
+If tests pass: continue to next tier.
 
 If tests fail: append `[BLOCKED] post-tier merge test failure — {failing test list}` to `## Open Questions` in the plan file, then stop.
-
-## Step 4 — Run critic-code at milestones (convergence loop per milestone)
-
-Track changed files. Run after: a complete small feature, a domain concept's full rule set, or a significant chunk of a large feature.
-
-**Before each milestone's first run**, reset: @reference/critics.md §New milestone — critic=`critic-code`.
-
-Run @reference/critics.md §Invocation recipe with agent=`critic-code`, phase=`implement`, prompt="Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths]."
-
-On `[CONVERGED]`: proceed to next milestone or Step 5. On `[DOCS CONTRADICTION]` (implement phase): `@reference/phase-ops.md §DOCS CONTRADICTION cascade` (skip **During `review` phase**).
-
-## Step 5 — Run pr-review-toolkit
-
-After all tasks complete, reset pr-review convergence state (clears stale markers, adds milestone boundary):
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-pr-review "plans/{slug}.md"
-```
-
-Ensure a PR exists: `gh pr view 2>/dev/null || gh pr create --draft --title "feat: {feature name}" --body "Closes #{issue}"`
-
-Run the review loop (per @reference/critics.md §pr-review asymmetry): `Skill("pr-review-toolkit:review-pr")`
-
-Record the verdict:
-
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-review-verdict \
-  "plans/{slug}.md" "pr-review" PASS|FAIL
-```
-
-Then run `@reference/ultrathink.md §Ultrathink verdict audit` → `@reference/ultrathink.md §Applying the audit outcome` (`{agent}`=`pr-review`).
-
-Read `## Open Questions` for `pr-review` markers and branch per `@reference/critics.md §pr-review asymmetry`.
-
-On FAIL: apply `@reference/pr-review-loop.md`.
-
-Set plan file phase to `green` when `[CONVERGED] {phase}/pr-review` is confirmed:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" green \
-  "pr-review converged — all checks passed"
-```
-
-> Do **not** set `done` here — `find-active` drops `done` plans. `done` is set by `running-integration-tests` or `running-dev-cycle`.
 
 ## Session Recovery
 
@@ -179,12 +136,15 @@ Read `plans/{slug}.md` and check the `## Task Ledger` section. Mark any `in_prog
 |---|---|
 | `red`, empty ledger | Step 1 (task planning) |
 | `implement` or `red`, has pending tasks | Step 3 |
-| `implement` or `red`, all tasks complete | Step 4 (critic-code) |
-| `review` or `green`, all complete | Step 5 (pr-review) |
-| `review` or `green`, incomplete | `transition implement` → Step 3 |
-| any, has `blocked` task | `update-task … pending` → re-invoke |
+| `implement` or `red`, all tasks complete | Tasks complete — signal caller |
+| any, has `blocked` task | clear `[BLOCKED] coder:` marker → `update-task … pending` → re-invoke |
 | `implement`, empty ledger (fresh-start) | define one task → Step 2 → Step 3 |
 
 Proceed directly to the next step (no plan mode needed).
 
-Unblock recipe: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-N" "pending"` then re-invoke.
+Unblock recipe:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED] coder:task-N"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-N" "pending"
+```
+Then re-invoke.

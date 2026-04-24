@@ -75,11 +75,11 @@ Canonical list: `PHASE_CONVERGENCE_MARKERS` array in `scripts/lib/plan-lib.sh` (
 
 | Phase | Agent | Invocation site |
 |-------|-------|-----------------|
-| `brainstorm` | `critic-feature` | `skills/brainstorming/SKILL.md` Step 4 (new feature) / Step 3 (modification) |
+| `brainstorm` | `critic-feature` | `skills/running-dev-cycle/SKILL.md` Step 1 |
 | `spec` | `critic-spec` | `skills/running-dev-cycle/SKILL.md` Step 2a (feature-slice) / Step 2 (batch) |
 | `red` | `critic-test` | `skills/running-dev-cycle/SKILL.md` Step 2b (feature-slice) / Step 3 (batch) |
-| `implement` | `critic-code` | `skills/implementing/SKILL.md` (post-task review) |
-| `implement`/`review` | `pr-review` | `skills/implementing/SKILL.md` (pr-review loop) |
+| `implement` | `critic-code` | `skills/running-dev-cycle/SKILL.md` Step 2c |
+| `implement`/`review` | `pr-review` | `skills/running-dev-cycle/SKILL.md` Step 2c |
 
 Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase.
 

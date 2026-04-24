@@ -1,6 +1,6 @@
 # Phase Gate Configuration
 
-The phase gate checks `src/` and `test/` paths based on built-in heuristics. Override per project if your layout differs.
+The phase gate checks `src/` and `tests/` paths based on built-in heuristics. Override per project if your layout differs.
 
 ## Environment variables
 

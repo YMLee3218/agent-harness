@@ -1,6 +1,6 @@
 # PR-Review Fix Loop
 
-Called from `skills/implementing/SKILL.md §Step 5` on FAIL.
+Called from `skills/running-dev-cycle/SKILL.md §Step 2c` on pr-review FAIL.
 
 **Categorisation** — interactive: `AskUserQuestion`; non-interactive: infer from evidence. If ambiguous, append `[BLOCKED-AMBIGUOUS] pr-review: {question}` and stop.
 
@@ -29,10 +29,10 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
   "spec gap — resetting critic-spec milestone before re-review"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
 ```
-→ Run `@reference/critics.md §Invocation recipe` with agent=`critic-spec`, phase=`spec`, prompt="Review spec at [spec-path]."
+→ `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --prompt "Review spec at [spec-path]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
 
 → Apply `@reference/phase-ops.md §Phase Rollback Procedure`: target-phase=`red`, critic=`critic-test`
-→ Write failing test → run `@reference/critics.md §Invocation recipe` with agent=`critic-test`, phase=`red`, prompt="Review tests at [paths] against spec at [path]. Test command: [command]." (§Phase Rollback already reset the milestone.)
+→ Write failing test → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (§Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
 → Advance to `implement`:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
@@ -60,7 +60,7 @@ Issue: implementation contradicts domain rules.
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
    ```
-   → Run `@reference/critics.md §Invocation recipe` with agent=`critic-code`, phase=`implement`, prompt="Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths]."
+   → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --prompt "Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
 
 2. **(If not already in `review` phase)** Restore to `review`:
    ```bash
@@ -68,4 +68,4 @@ Issue: implementation contradicts domain rules.
      "{fix description} — resuming pr-review"
    ```
 
-3. Re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict` → run `@reference/ultrathink.md §Ultrathink verdict audit` → branch per `@reference/critics.md §pr-review asymmetry` (PASS: convergence reached, return to calling context; FAIL: re-categorize above and apply the appropriate fix chain again)
+3. Re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict` → run `@reference/ultrathink.md §Ultrathink verdict audit` → branch per `@reference/critics.md §pr-review asymmetry` ([CONVERGED]: return to calling context; FAIL: re-categorize above and apply the appropriate fix chain again)

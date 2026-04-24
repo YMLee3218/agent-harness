@@ -69,7 +69,7 @@ When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
      "docs contradiction — resetting spec milestone for re-review"
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
    ```
-   Run `@reference/critics.md §Invocation recipe` with agent=`critic-spec`, phase=`spec`, prompt="Review spec at [spec-path]. Relevant docs: [doc-paths]."
+   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
    After critic-spec converges, restore to `implement` (step 3's §Phase Rollback handles the restore if step 3 also runs):
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
@@ -78,7 +78,7 @@ When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
 
 3. If tests need to change:
    **Rollback to red**: apply §Phase Rollback Procedure with target-phase=`red`, critic=`critic-test`.
-   Fix tests → Run `@reference/critics.md §Invocation recipe` with agent=`critic-test`, phase=`red`, prompt="Review tests at [paths] against spec at [path]. Test command: [command]." (Phase Rollback already reset the milestone.) Then advance back to `implement`:
+   Fix tests → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required. Then advance back to `implement`:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
      "docs contradiction fixed — tests updated and passing"
@@ -88,11 +88,11 @@ When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
    ```
-   Run `@reference/critics.md §Invocation recipe` with agent=`critic-code`, phase=`implement`, prompt="Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."
+   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --prompt "Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
 
 **During `review` phase** — after critic-code passes, restore phase to `review` before re-running pr-review:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
   "docs contradiction fixed — resuming pr-review"
 ```
-→ re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict`
+→ re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict` → run `@reference/ultrathink.md §Ultrathink verdict audit` → branch per `@reference/critics.md §pr-review asymmetry` ([CONVERGED]: return to calling context; FAIL: re-categorize above and apply the appropriate fix chain again)

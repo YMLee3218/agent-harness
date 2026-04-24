@@ -91,7 +91,12 @@ commit_count=$(git rev-list --count "$base_sha"..HEAD 2>/dev/null || echo 0)
 
 If `commit_count == 0` (Codex did not commit), run the test command:
 - Tests pass → commit explicitly: `git add -u && git commit -m "{type}({scope}): {description}"`
-- Tests fail → emit `<!-- coder-status: abort -->`, append `[BLOCKED] coder:{task-id} — Codex returned no commit and tests still fail` to plan file, and stop.
+- Tests fail → emit `<!-- coder-status: abort -->`, append to plan file:
+  ```bash
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
+    "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — Codex returned no commit and tests still fail"
+  ```
+  and stop.
 
 **c) Check for test-file modifications:**
 
@@ -99,7 +104,12 @@ If `commit_count == 0` (Codex did not commit), run the test command:
 git diff "$base_sha"..HEAD --name-only
 ```
 
-Pipe the result through the test-path patterns from `scripts/phase-policy.sh` (`is_test_path` logic: `tests/*`, `*_test.*`, `test_*.*`, `*.test.*`, `*.spec.*`, `*_spec.*`; **`*.spec.md` files are always excluded** before pattern matching; also check `PHASE_GATE_TEST_GLOB` if set). If any test file appears, emit `<!-- coder-status: abort -->`, append `[BLOCKED] coder:{task-id} — Codex modified test files: {list}` to plan file, and stop.
+Pipe the result through the test-path patterns from `scripts/phase-policy.sh` (`is_test_path` logic: `tests/*`, `*_test.*`, `test_*.*`, `*.test.*`, `*.spec.*`, `*_spec.*`; **`*.spec.md` files are always excluded** before pattern matching; also check `PHASE_GATE_TEST_GLOB` if set). If any test file appears, emit `<!-- coder-status: abort -->`, append to plan file:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
+  "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — Codex modified test files: {list}"
+```
+and stop.
 
 **d) Run tests:**
 
@@ -107,7 +117,12 @@ Pipe the result through the test-path patterns from `scripts/phase-policy.sh` (`
 {test command from prompt}
 ```
 
-If tests fail: emit `<!-- coder-status: abort -->`, append `[BLOCKED] coder:{task-id} — tests still failing after Codex commit: {summary}` to plan file, and stop.
+If tests fail: emit `<!-- coder-status: abort -->`, append to plan file:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
+  "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — tests still failing after Codex commit: {summary}"
+```
+and stop.
 
 ### Step 5 — Emit status marker
 

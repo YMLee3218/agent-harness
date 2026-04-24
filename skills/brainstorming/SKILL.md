@@ -92,12 +92,6 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
   "decomposition approved — starting brainstorm phase"
 ```
 
-### Step 4 — Run critic-feature
-
-Run @reference/critics.md §Invocation recipe with agent=`critic-feature`, phase=`brainstorm`, prompt="Review docs/requirements/{name}.md. Original requirement: [paste requirement]."
-
-The verdict is auto-recorded in `## Critic Verdicts` by the SubagentStop hook when critic-feature stops.
-
 ---
 
 ## Modification Flow
@@ -114,18 +108,15 @@ Do not read `src/` implementation. If the modification conflicts with `docs/*.md
 
 Update affected `docs/*.md` (SOT) before proceeding.
 
-### Step 3 — Write output + run critic-feature
+### Step 3 — Write output
 
 Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Feature Flow Step 3.
 
-Set phase to `brainstorm` first (required before `reset-milestone` so the correct phase-scoped markers are cleared), then reset the prior critic-feature streak (stale `[CONVERGED] brainstorm/critic-feature` from the previous run would otherwise cause false convergence):
+Set phase to `brainstorm`:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" brainstorm \
-  "re-brainstorming — setting phase before resetting critic-feature streak"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-feature
+  "re-brainstorming"
 ```
-
-Run critic-feature per @reference/critics.md §Invocation recipe with agent=`critic-feature`, phase=`brainstorm`, prompt="Review docs/requirements/{name}.md. Original requirement: [paste requirement]."
 
 ---
 
@@ -134,4 +125,4 @@ Run critic-feature per @reference/critics.md §Invocation recipe with agent=`cri
 Do not move to `writing-spec` until:
 - Feature names comply with `@reference/layers.md §Naming conventions`
 - Every feature is classified as small or large with layer assignment
-- `[CONVERGED] brainstorm/critic-feature` is present in `## Open Questions`
+- Plan file `plans/{slug}.md` exists with Phase `brainstorm`
