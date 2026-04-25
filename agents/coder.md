@@ -90,7 +90,7 @@ commit_count=$(git rev-list --count "$base_sha"..HEAD 2>/dev/null || echo 0)
 ```
 
 If `commit_count == 0` (Codex did not commit), run the test command:
-- Tests pass → commit explicitly: `git add -u && git commit -m "{type}({scope}): {description}"`
+- Tests pass → commit explicitly: `git add -A && git commit -m "{type}({scope}): {description}"`
 - Tests fail → emit `<!-- coder-status: abort -->`, append to plan file:
   ```bash
   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
