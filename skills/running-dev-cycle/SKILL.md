@@ -50,7 +50,7 @@ Route accordingly:
 | Phase in plan file | Action |
 |--------------------|--------|
 | _(no plan file / exit 2)_ | Fall through to Step 1 (brainstorming) as normal |
-| `brainstorm` (and `[CONVERGED] brainstorm/critic-feature` present) | Skip to **Step 2a** — brainstorming already converged; phase transition is pending |
+| `brainstorm` (and `[CONVERGED] brainstorm/critic-feature` present) | Read `mode` from plan file frontmatter. **Feature mode** (`mode: feature`): skip to **Step 2a**. **Batch mode** (`mode: greenfield` or `--batch`): skip to **Step 2** (batch mode). Phase transition is pending in both cases. |
 | `brainstorm` (no `[CONVERGED]` marker) | Fall through to Step 1 — brainstorming resumes; after returning, critic-feature loop runs |
 | `spec` (spec.md does not exist) | Read `mode` from plan file frontmatter. **Feature mode** (`mode: feature`): invoke full Step 2a (writing-spec + critic-spec loop + commit). **Batch mode** (`mode: greenfield` or `--batch`): continue writing specs for remaining un-specced features in batch order before any tests. |
 | `spec` (no `[CONVERGED] spec/critic-spec`, spec.md exists) | Skip writing-spec; go directly to critic-spec loop in Step 2a |

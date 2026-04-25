@@ -82,4 +82,4 @@ This preserves the Red state across session interruptions.
 
 ## Phase rollback
 
-@reference/phase-ops.md §Phase Rollback Procedure — `{target-phase}` = `red`, `{critic-name}` = `critic-test`, `{skill-name}` = `writing-tests`.
+@reference/phase-ops.md §Phase Rollback Procedure — `{target-phase}` = `red`, `{critic-name}` = `critic-test`.

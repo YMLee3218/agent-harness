@@ -73,7 +73,7 @@ Definitions: `@reference/markers.md §Critic loop markers` and `@reference/marke
 
 #### pr-review asymmetry
 
-pr-review omits category/parse tracking — failures are categorised by the skill (see `@reference/pr-review-loop.md`). Apply §Skill branching logic steps 1 → 2 → 4–5 → 7 → 8 only. Steps 3 and 6 are omitted: step 3 (`[BLOCKED]` check) because any non-coder `[BLOCKED]` markers would have halted the skill at an earlier §Skill branching logic step before pr-review is reached, and tier-safe verifies all coder task blocks are cleared; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
+pr-review omits category/parse tracking — failures are categorised by the skill (see `@reference/pr-review-loop.md`). Apply §Skill branching logic steps 1 → 2 → 4–5 → 7 → 8 only. Steps 3 and 6 are omitted: step 3 (`[BLOCKED]` check) because any `[BLOCKED]` markers would have halted the orchestrating skill's Step 0 check before pr-review is reached; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
@@ -112,7 +112,7 @@ Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `
 
 ### Background execution
 
-`run-critic-loop.sh` may exceed the Bash tool's 10-minute maximum timeout. Always run it with `run_in_background=true`. Do **not** set up a Monitor — Monitor surfaces B/C session output, which causes the parent agent to intervene with fixes that belong to the spawned B session.
+`run-critic-loop.sh` may exceed the Bash tool's 10-minute maximum timeout. Always run it with `run_in_background=true` (Bash tool parameter). Do **not** append `&` to the command string — `run_in_background=true` handles backgrounding; adding `&` orphans the script. Do **not** set up a Monitor — Monitor surfaces B/C session output, which causes the parent agent to intervene with fixes that belong to the spawned B session.
 
 After launching in background, wait for the completion notification, then read `## Open Questions` in the plan file for terminal markers and proceed per exit code rules. Do **not** apply fixes based on any output observed before the notification — B sessions handle all fixes.
 

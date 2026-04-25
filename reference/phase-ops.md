@@ -21,12 +21,7 @@ Calling skill specifies `{target-phase}` and `{critic-name}`.
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {critic-name}
    ```
-4. Record the rollback for traceability:
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "plans/{slug}.md" \
-     "rolled back phase to {target-phase} — {one sentence reason} (skill: {skill-name})"
-   ```
-5. Proceed normally from Step 2 of the calling skill.
+4. Proceed normally from Step 2 of the calling skill.
 
 ## Skill phase entry
 
