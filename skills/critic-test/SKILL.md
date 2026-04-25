@@ -80,7 +80,7 @@ Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed 
 
 ```bash
 # Find the test(red): commit for this feature (scoped to test files from prompt, matching pre-check at line 22)
-red_commit=$(git log --grep='^test(red):' --format='%H %at' -- <test file path(s) from prompt> | head -1 | awk '{print $2}')
+red_commit_ts=$(git log --grep='^test(red):' --format='%H %at' -- <test file path(s) from prompt> | head -1 | awk '{print $2}')
 # For each GREEN (pre-existing) file, find its creation commit timestamp
 create_ts=$(git log --follow --diff-filter=A --format='%at' -- "$test_file" | tail -1)
 # If create_ts >= red_commit_ts: the file was created in or after the Red phase — not pre-existing
