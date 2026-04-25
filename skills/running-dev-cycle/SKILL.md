@@ -137,7 +137,7 @@ Invoke the `implementing` skill for the feature. Wait until the feature's tasks 
 Then run critic-code:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --prompt "Review changed files. Spec: features/{name}/spec.md. Docs: [paths]."
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --prompt "Review changed files. Spec: [spec-path]. Docs: [paths]."
 ```
 exit 0 → proceed to pr-review. exit 1 → `[BLOCKED]` written to plan — stop and report. exit 2 → `[BLOCKED-CEILING]` — manual review required.
 
