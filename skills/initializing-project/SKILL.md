@@ -137,7 +137,7 @@ New lines (insert in their place):
 
 Write per-layer CLAUDE.md files so Claude Code injects focused layer rules when
 editing files in each layer's directory. The template at `rules/src-layer.md.template`
-is rendered for each layer — CLAUDE.md files do not use frontmatter:
+is rendered for each layer (includes `paths:` frontmatter for Claude Code path scoping):
 
 ```bash
 tmpl="$CLAUDE_PROJECT_DIR/.claude/rules/src-layer.md.template"

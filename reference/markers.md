@@ -13,8 +13,8 @@ Managed by `scripts/lib/plan-lib.sh` and consumed by skills after each critic or
 |--------|-------|------------|------------|----|
 | `[BLOCKED-CEILING] {phase}/{agent}: exceeded {N} runs — manual review required` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
 | `[BLOCKED] category:{agent}: {CATEGORY} failed twice — fix the root cause before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] parse:{agent}: verdict marker missing twice — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] parse:{agent}: FAIL without category twice — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED] parse:{agent}: verdict marker missing (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED] parse:{agent}: FAIL without category (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | agent-scoped | Skills (parent context) | Manual `plan-file.sh clear-marker` | Yes |
 | `[CONVERGED] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `clear-converged {agent}` | Yes |
 | `[FIRST-TURN] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |

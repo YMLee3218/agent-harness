@@ -32,7 +32,7 @@ trap '_on_interrupt' INT TERM
 
 # Timeout command (cross-platform)
 TIMEOUT_CMD=$(command -v gtimeout || command -v timeout || true)
-SESSION_TIMEOUT="${CLAUDE_CRITIC_SESSION_TIMEOUT:-300}"
+SESSION_TIMEOUT="${CLAUDE_CRITIC_SESSION_TIMEOUT:-3600}"
 
 iter=0
 LAST_PLAN_HASH=""
@@ -45,6 +45,8 @@ while true; do
     *BLOCKED-CEILING*) echo "$marker";   exit 2 ;;
     *BLOCKED*)         echo "$marker";   exit 1 ;;
   esac
+
+  bash "$PLAN_FILE_SH" gc-verdicts "$PLAN" 2>/dev/null || true
 
   iter=$((iter + 1))
   first_arg=""

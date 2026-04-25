@@ -19,6 +19,7 @@ case "$1" in
   record-task-completed)  cmd_record_task_completed ;;
   context)              cmd_context ;;
   gc-events)            cmd_gc_events ;;
+  gc-verdicts)          [ $# -eq 2 ] || die "Usage: plan-file.sh gc-verdicts <plan-file>"; cmd_gc_verdicts "$2" ;;
   add-task)             [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
   update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
   append-review-verdict) [ $# -eq 4 ] || die "Usage: plan-file.sh append-review-verdict <plan-file> <agent> PASS|FAIL"; cmd_append_review_verdict "$2" "$3" "$4" ;;

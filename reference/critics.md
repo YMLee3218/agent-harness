@@ -52,7 +52,7 @@ All phase-gate critics (`critic-feature`, `critic-spec`, `critic-test`, `critic-
 
 Normative implementations:
 
-- **`critic-*` (4 variants)**: `skills/critic-*/SKILL.md` frontmatter `context: fork` + `agent: critic-*` + `workspace/agents/critic-*.md` definition.
+- **`critic-*` (4 variants)**: `skills/critic-*/SKILL.md` frontmatter `context: fork` + `agent: critic-*` + `agents/critic-*.md` definition.
 - **`pr-review-toolkit:review-pr`**: The external plugin internally orchestrates `pr-review-toolkit:code-reviewer`, `…:pr-test-analyzer`, `…:silent-failure-hunter`, `…:comment-analyzer`, and `…:type-design-analyzer` subagents, so the isolation requirement is satisfied by the plugin definition.
 
 **Prohibited**: any implementation that generates a verdict directly in the parent context without subagent isolation.
@@ -90,7 +90,7 @@ Skill reads ## Open Questions, checks in priority order:
   3. [BLOCKED] {any text}               → stop (read reason; fix root cause; clear marker; retry)
   4. [CONVERGED] {phase}/{agent}        → proceed to next step
   5. [FIRST-TURN] {phase}/{agent}       → re-run automatically
-                                          **Only when latest verdict is PASS or PARSE_ERROR.**
+                                          **Only when latest verdict is PASS.**
                                           If latest verdict is FAIL, skip to step 8.
   6. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
                                 → re-run automatically (one retry allowed;
@@ -101,7 +101,7 @@ Skill reads ## Open Questions, checks in priority order:
        - direction is ambiguous → append [BLOCKED-AMBIGUOUS] {agent}: {question} + stop
        - [DOCS CONTRADICTION] in critic output → append [BLOCKED-AMBIGUOUS] {agent}: DOCS
          CONTRADICTION — cannot determine whether docs or code is ground truth + stop.
-         Then follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
+         (The calling context must then follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade` — see [BLOCKED-AMBIGUOUS] recovery below.)
 ```
 
 ---
@@ -109,6 +109,12 @@ Skill reads ## Open Questions, checks in priority order:
 ## Running the critic
 
 Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `plan-file.sh record-verdict` automatically when the critic agent exits — do **not** call `record-verdict` manually (doing so would double-record the run, inflating the streak and ceiling counters). For pr-review (which is not a subagent), call `append-review-verdict` directly after the pr-review skill returns.
+
+### Background execution
+
+`run-critic-loop.sh` may exceed the Bash tool's 10-minute maximum timeout. Always run it with `run_in_background=true`. Do **not** set up a Monitor — Monitor surfaces B/C session output, which causes the parent agent to intervene with fixes that belong to the spawned B session.
+
+After launching in background, wait for the completion notification, then read `## Open Questions` in the plan file for terminal markers and proceed per exit code rules. Do **not** apply fixes based on any output observed before the notification — B sessions handle all fixes.
 
 After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly.
 
@@ -171,8 +177,9 @@ If none of the above apply, fix and re-run without stopping.
 
 | Marker prefix | What to fix |
 |---------------|-------------|
-| `[BLOCKED-AMBIGUOUS]` | Resolve the question stated in the marker (update docs, code, or spec). If the fix changes spec or tests, roll back phase first (`@reference/phase-ops.md §Phase Rollback Procedure`) before re-running. |
-| `[BLOCKED] parse:` | Investigate missing `<!-- verdict: -->` marker (common causes: agent ran out of turns, truncated output, model change). Fix root cause. |
+| `[BLOCKED-AMBIGUOUS]` | Resolve the question stated in the marker (update docs, code, or spec). **If the marker text says `DOCS CONTRADICTION`**: follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade` to determine ground truth and re-run the full critic chain — do not simply re-run the one blocked critic. Otherwise: if the fix changes spec or tests, roll back phase first (`@reference/phase-ops.md §Phase Rollback Procedure`) before re-running. |
+| `[BLOCKED] parse:` (verdict marker missing) | Investigate missing `<!-- verdict: -->` marker (common causes: agent ran out of turns, truncated output, model change). Fix root cause. |
+| `[BLOCKED] parse:` (FAIL without category) | Investigate missing `<!-- category: -->` marker — agent emitted a FAIL verdict without a category. Fix agent output format. |
 | `[BLOCKED] category:` | Inspect consecutive same-category FAILs in `## Critic Verdicts`; address the structural cause (refactor, spec change, layer fix — not a surface tweak). |
 
 ### Clear the marker and re-run

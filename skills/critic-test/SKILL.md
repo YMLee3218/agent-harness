@@ -47,10 +47,10 @@ Continue to the Checks section.
 If any test file was modified after the Red phase commit, emit immediately:
 
 ```
-[CRITICAL] test file modified after Red phase: {file} — FAIL
+[CRITICAL] test file modified after Red phase: {file}
 
 ### Verdict
-FAIL — TEST_INTEGRITY
+FAIL — [CRITICAL] test file modified after Red phase: {file}
 <!-- verdict: FAIL -->
 <!-- category: TEST_INTEGRITY -->
 ```
@@ -79,8 +79,8 @@ Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed 
 **Independent git verification of GREEN (pre-existing) entries**: for each test file listed as `GREEN (pre-existing)` in the Test Manifest, verify using git that the file predates the current Red-phase commit:
 
 ```bash
-# Find the test(red): commit for this feature
-red_commit=$(git log --grep='^test(red):' --format='%H %at' | head -1 | awk '{print $2}')
+# Find the test(red): commit for this feature (scoped to test files from prompt, matching pre-check at line 22)
+red_commit=$(git log --grep='^test(red):' --format='%H %at' -- <test file path(s) from prompt> | head -1 | awk '{print $2}')
 # For each GREEN (pre-existing) file, find its creation commit timestamp
 create_ts=$(git log --follow --diff-filter=A --format='%at' -- "$test_file" | tail -1)
 # If create_ts >= red_commit_ts: the file was created in or after the Red phase — not pre-existing

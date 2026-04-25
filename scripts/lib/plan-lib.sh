@@ -487,7 +487,7 @@ cmd_record_verdict() {
       "$plan_file" 2>/dev/null || true)
     if printf '%s' "$last_parse_line" | grep -q ": PARSE_ERROR"; then
       _append_to_open_questions "$plan_file" \
-        "[BLOCKED] parse:${agent_name}: verdict marker missing twice — check agent output format before retrying"
+        "[BLOCKED] parse:${agent_name}: verdict marker missing (two consecutive parse errors) — check agent output format before retrying"
       echo "[record-verdict] BLOCKED parse: ${agent_name} two consecutive PARSE_ERRORs" >&2
     else
       echo "[record-verdict] first PARSE_ERROR for ${agent_name} — will retry automatically" >&2
@@ -513,7 +513,7 @@ cmd_record_verdict() {
       "$plan_file" 2>/dev/null || true)
     if printf '%s' "$last_parse_line" | grep -q ": PARSE_ERROR"; then
       _append_to_open_questions "$plan_file" \
-        "[BLOCKED] parse:${agent_name}: FAIL without category twice — check agent output format before retrying"
+        "[BLOCKED] parse:${agent_name}: FAIL without category (two consecutive parse errors) — check agent output format before retrying"
       echo "[record-verdict] BLOCKED parse: ${agent_name} two consecutive PARSE_ERRORs (FAIL without category)" >&2
     else
       echo "[record-verdict] first FAIL-without-category for ${agent_name} — will retry automatically" >&2
@@ -833,6 +833,32 @@ cmd_gc_events() {
     }
   '
   echo "[gc-events] compacted Open Questions in ${plan_file}" >&2
+}
+
+cmd_gc_verdicts() {
+  local plan_file="$1"
+  require_file "$plan_file"
+  if ! grep -q "^## Critic Verdicts$" "$plan_file"; then
+    echo "[gc-verdicts] no Critic Verdicts section in ${plan_file}" >&2; return 0
+  fi
+  _awk_inplace "$plan_file" '
+    /^## Critic Verdicts$/ { in_section=1; print; next }
+    in_section && /^## / { in_section=0 }
+    in_section {
+      lines[++n] = $0
+      if (index($0, "[MILESTONE-BOUNDARY @") > 0) last_boundary = n
+      next
+    }
+    { print }
+    END {
+      if (n == 0) { exit }
+      start = (last_boundary > 0) ? last_boundary : 1
+      dropped = start - 1
+      for (i = start; i <= n; i++) print lines[i]
+      if (dropped > 0)
+        print "[gc-verdicts] dropped " dropped " pre-boundary verdict lines" > "/dev/stderr"
+    }
+  '
 }
 
 cmd_record_stop_block() {

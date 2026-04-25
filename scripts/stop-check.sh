@@ -19,15 +19,8 @@
 # would loop forever if tests keep failing.
 _payload=$(cat)
 if ! command -v jq >/dev/null 2>&1; then
-  # jq is required for stop_hook_active detection and test verification.
-  # In non-interactive mode, block the stop so the pipeline doesn't silently skip verification.
-  # In interactive mode, bypass to avoid blocking the user with an undetectable loop.
-  if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ]; then
-    echo "[STOP-BLOCKED] jq required for autonomous stop-check — install jq and re-run" >&2
-    exit 2
-  fi
-  echo "[stop-check] jq not found — bypassing stop check to avoid undetectable loop (install jq to enable test verification)" >&2
-  exit 0
+  echo "[STOP-BLOCKED] jq required for autonomous stop-check — install jq and re-run" >&2
+  exit 2
 fi
 if [ -n "$_payload" ]; then
   if [ "$(printf '%s' "$_payload" | jq -r '.stop_hook_active // false' 2>/dev/null)" = "true" ]; then
