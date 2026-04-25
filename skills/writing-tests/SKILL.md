@@ -4,7 +4,7 @@ description: >
   Write failing Red-phase tests for every Scenario in an approved spec.md.
   Trigger: "write the tests", "write failing tests", "Red phase", "start TDD", after spec is approved.
   Never writes implementation code — all tests must fail.
-disable-model-invocation: true
+  Do NOT trigger automatically — only on explicit user request or when called by running-dev-cycle.
 effort: medium
 paths:
   - tests/**

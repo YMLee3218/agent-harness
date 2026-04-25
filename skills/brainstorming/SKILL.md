@@ -5,7 +5,7 @@ description: >
   Trigger: "build X", "add Y", "need Z", "feature", or any new-functionality phrasing.
   Decomposes requirements before any spec or code is written.
   Always run before writing-spec. For brand-new repos, run initializing-project first.
-disable-model-invocation: true
+  Do NOT trigger automatically — only on explicit user request or when called by running-dev-cycle.
 effort: medium
 paths:
   - docs/**

@@ -4,8 +4,8 @@ description: >
   Implement phase (drive coder subagents to make failing tests pass, then refactor in-place).
   Trigger: "implement", "make the tests pass", "implement phase", "go", "proceed", after critic-test returns PASS.
   Do NOT trigger when no spec or tests exist — route to brainstorming instead.
+  Do NOT trigger on plan mode exit or post-plan summary commands.
   Plans implementation order (domain first), then executes with isolated subagents per task.
-disable-model-invocation: true
 effort: high
 paths:
   - src/**

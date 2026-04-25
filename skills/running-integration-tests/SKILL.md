@@ -4,7 +4,7 @@ description: >
   Run end-to-end integration tests (no mocks, real connections).
   Invoked by running-dev-cycle after all features complete, or manually via `/running-integration-tests`.
   Handles failures by auto-invoking writing-spec, writing-tests, or implementing as appropriate.
-disable-model-invocation: true
+  Do NOT trigger automatically — only on explicit user request or when called by running-dev-cycle.
 ---
 
 # Integration Testing
