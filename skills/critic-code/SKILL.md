@@ -87,7 +87,7 @@ Category mapping (per `@reference/severity.md §Category priority`):
 | Layer boundary violation (Angle 2) | `LAYER_VIOLATION` |
 | Large feature calls domain directly (Angle 1 §6) | `LAYER_VIOLATION` |
 | Docs contradiction (Angle 1) | `DOCS_CONTRADICTION` |
-| Unverified API / hardcoded external fact (Angle 1 §7–8) | `UNVERIFIED_CLAIM` |
+| Unverified API usage (Angle 1 §7) | `UNVERIFIED_CLAIM` |
 | Spec compliance — missing/incorrect code path (Angle 1 §1–5) | `SPEC_COMPLIANCE` |
 
 When multiple FAILs fire, pick the highest-priority category per `@reference/severity.md §Category priority`.

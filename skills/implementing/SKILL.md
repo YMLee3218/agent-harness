@@ -84,14 +84,14 @@ Agent(
 
 Capture `worktreeBranch` from each `Agent` result. After each returns, **check for abort before merging**:
 
-1. Check for abort: look for `<!-- coder-status: abort -->` in the last line of the coder's output. If absent, fall back to scanning for abort signals: "layer violation", "forbidden import", "cannot implement without violating", "would violate", "stopping", "hard stop", "STOP", "I stopped", "aborting".
+1. Check for abort: look for `<!-- coder-status: abort -->` in the last line of the coder's output. If absent, fall back to scanning for abort signals: "layer violation", "forbidden import", "cannot implement without violating", "would violate", "stopping", "hard stop", "STOP", "I stopped", "aborting". If none of the above, check whether `<!-- coder-status: complete -->` is present anywhere in the output — if it is also absent, treat as implicit abort (Codex session was truncated before emitting a status marker).
 2. Verify the worktree branch exists and check whether the coder committed:
    ```bash
    git rev-parse --verify {worktree-branch} >/dev/null 2>&1 \
      || abort_reason="worktree branch not found — Agent spawn may have failed"
    git rev-list --count "$base_sha"..{worktree-branch}  # 0 = no commit made
    ```
-3. If either signal is present:
+3. If any abort signal is present (explicit, keyword, or implicit truncation):
    - Do NOT run `git merge`.
    - Mark the task blocked:
      ```bash
