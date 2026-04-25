@@ -54,13 +54,13 @@ Route accordingly:
 | `brainstorm` (no `[CONVERGED]` marker) | Fall through to Step 1 — brainstorming resumes; after returning, critic-feature loop runs |
 | `spec` (spec.md does not exist) | Read `mode` from plan file frontmatter. **Feature mode** (`mode: feature`): invoke full Step 2a (writing-spec + critic-spec loop + commit). **Batch mode** (`mode: greenfield` or `--batch`): continue writing specs for remaining un-specced features in batch order before any tests. |
 | `spec` (no `[CONVERGED] spec/critic-spec`, spec.md exists) | Skip writing-spec; go directly to critic-spec loop in Step 2a |
-| `spec` (spec.md exists, `[CONVERGED] spec/critic-spec` present) | **Feature mode**: skip to **Step 2b** (writing-tests; spec already reviewed and committed). **Batch mode**: proceed to **Step 3** (tests for all features). |
+| `spec` (spec.md exists, `[CONVERGED] spec/critic-spec` present) | **Feature mode**: if spec.md is not yet committed (`git status --porcelain features/{verb}-{noun}/spec.md` or `domain/{concept}/spec.md` is non-empty), run `git add features/{verb}-{noun}/spec.md && git commit -m "feat(spec): add BDD scenarios for {name}"` first; then skip to **Step 2b**. **Batch mode**: proceed to **Step 3** (tests for all features). |
 | `red` (mode: `feature`, no `[CONVERGED] red/critic-test`, Test Manifest non-empty) | Skip writing-tests; go directly to critic-test loop in Step 2b |
 | `red` | **Slice mode** (feature profile): If `[CONVERGED] red/critic-test` is present in `## Open Questions` → skip to **Step 2c** (implementing). Otherwise (Test Manifest empty) → invoke `writing-tests` (it handles `red` phase re-entry). **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry AND `[CONVERGED] red/critic-test` is present, skip directly to **Step 4** (Implementation). If every feature already has a Test Manifest entry but `[CONVERGED] red/critic-test` is absent (session interrupted after test-writing but before critic-test converged), skip sub-step 1 (tests already written) and run sub-steps 2–4 for the last feature in the list, then proceed to Step 4. |
 | `implement` (tasks pending) | Re-invoke the `implementing` skill. |
 | `implement` (all tasks complete) | Skip to Step 2c post-implementation (critic-code → pr-review). |
 | `review` | PR review interrupted mid-fix — resume pr-review from Step 2c. Apply `@reference/pr-review-loop.md`. |
-| `green` | Read feature list from `docs/requirements/{name}.md`; apply **§Skip done features** check (§Feature-slice mode). If any feature undone → resume at **Step 2a** for first undone feature. If all features done → skip directly to **Integration Tests**. |
+| `green` | Read feature list from `docs/requirements/{name}.md`; apply **Skip done features** check (§Feature-slice mode). If any feature undone → resume at **Step 2a** for first undone feature. If all features done → skip directly to **Integration Tests**. |
 | `integration` | Skip to **Integration Tests** step (re-run after previous failure) |
 | `done` | Excluded by `find-active` (exit 2) — falls through to Step 1 as if no plan exists. To restart, delete the plan file or create a new feature branch. |
 
@@ -91,7 +91,7 @@ After brainstorming returns, insert `mode: {profile}` (`feature` or `greenfield`
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-feature
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-feature --phase brainstorm --plan "plans/{slug}.md" --prompt "Review docs/requirements/{name}.md. Original requirement: [paste requirement]."
 ```
-exit 0 → proceed to Step 2. exit 1 → `[BLOCKED]` written to plan — stop and report. exit 2 → `[BLOCKED-CEILING]` — manual review required.
+exit 0 → proceed to **Step 2a** (feature-slice mode) or **Step 2** (batch mode). exit 1 → `[BLOCKED]` written to plan — stop and report. exit 2 → `[BLOCKED-CEILING]` — manual review required.
 
 ---
 

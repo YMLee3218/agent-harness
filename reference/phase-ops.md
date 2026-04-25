@@ -84,7 +84,13 @@ When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
      "docs contradiction fixed — tests updated and passing"
    ```
 
-4. Run the test command. Reset the critic-code milestone before re-running:
+4. If steps 2 and 3 did not run (docs-only fix with no spec or test changes), check the current plan phase. If it is `review`, transition to `implement` so `record-verdict` stamps `implement/critic-code` (not `review/critic-code`). If already in `implement`, skip this transition:
+   ```bash
+   # Only run if plan phase is `review` — do not re-transition if already in `implement`
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
+     "docs contradiction applied — no spec or test changes; re-running critic-code"
+   ```
+   Run the test command. Reset the critic-code milestone before re-running:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
    ```
