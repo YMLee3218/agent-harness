@@ -28,7 +28,7 @@ Pins the active plan file for `plan-file.sh find-active`. Highest priority overr
 CLAUDE_CRITIC_SESSION_TIMEOUT=3600
 ```
 
-Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-loop.sh`. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` exits 1 and appends `[BLOCKED] {agent}: session-timeout — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` to `## Open Questions`.
+Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-loop.sh`. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` exits 1 and appends `[BLOCKED] {agent}: session-timeout after {N}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` to `## Open Questions` (where `{N}` is the value of `CLAUDE_CRITIC_SESSION_TIMEOUT`).
 
 ```bash
 CLAUDE_CRITIC_LOOP_CEILING=5

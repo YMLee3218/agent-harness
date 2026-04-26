@@ -483,7 +483,7 @@ cmd_record_verdict() {
     fi
     local last_parse_line
     last_parse_line=$(awk -v pat="/${agent_name}:" \
-      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)&&!index($0,"[MILESTONE-BOUNDARY @"))last=$0} END{print last}' \
+      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)){if(index($0,"[MILESTONE-BOUNDARY @"))last="";else last=$0}} END{print last}' \
       "$plan_file" 2>/dev/null || true)
     if printf '%s' "$last_parse_line" | grep -q ": PARSE_ERROR"; then
       _append_to_open_questions "$plan_file" \
@@ -509,7 +509,7 @@ cmd_record_verdict() {
     fi
     local last_parse_line
     last_parse_line=$(awk -v pat="/${agent_name}:" \
-      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)&&!index($0,"[MILESTONE-BOUNDARY @"))last=$0} END{print last}' \
+      '/^## Critic Verdicts$/{s=1;next} s&&/^## /{s=0} s&&/^- /{if(index($0,pat)){if(index($0,"[MILESTONE-BOUNDARY @"))last="";else last=$0}} END{print last}' \
       "$plan_file" 2>/dev/null || true)
     if printf '%s' "$last_parse_line" | grep -q ": PARSE_ERROR"; then
       _append_to_open_questions "$plan_file" \
