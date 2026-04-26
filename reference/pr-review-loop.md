@@ -1,10 +1,27 @@
-# PR-Review Fix Loop
+# PR-Review Loop
 
-Called from `skills/running-dev-cycle/SKILL.md §Step 2c` on pr-review FAIL.
+Iteration protocol (`§PR-review one-shot iteration`) is spawned by `run-critic-loop.sh`.
+Fix chains below are invoked from within that iteration on FAIL.
+
+## §PR-review one-shot iteration
+
+Single iteration spawned by `run-critic-loop.sh`. Do not loop — one pr-review per session.
+
+1. `Skill("pr-review-toolkit:review-pr")`
+2. `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-review-verdict "plans/{slug}.md" pr-review PASS|FAIL`
+   (Manual call, not a SubagentStop hook — pr-review is not a critic subagent)
+3. `@reference/ultrathink.md §Ultrathink verdict audit`
+4. Read `## Open Questions` — apply `@reference/critics.md §pr-review asymmetry` (steps 1→2→4-5→7→8):
+   - `[BLOCKED-CEILING]` → exit (shell loop returns exit 2)
+   - `[CONVERGED]` → exit (shell loop returns exit 0)
+   - `[FIRST-TURN]` or no terminal marker + PASS → exit (shell loop re-runs)
+   - No terminal marker + FAIL → apply fix chain below, then exit
+5. On FAIL: §Categorisation below → appropriate fix chain → §Fix-chain finisher → exit.
+   Shell loop re-runs pr-review in the next iteration.
 
 **Categorisation** — interactive: `AskUserQuestion`; non-interactive: infer from evidence. If ambiguous, append `[BLOCKED-AMBIGUOUS] pr-review: {question}` and stop.
 
-**Fix chains on FAIL** — on first FAIL from `implement`, transition to `review` before fixing; remain in `review` for all subsequent FAILs:
+**Fix chains on FAIL** — **(if not already in `review` phase)** transition to `review` before fixing; remain in `review` for all subsequent FAILs:
 
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
@@ -15,7 +32,9 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 
 Issues: naming, duplication, complexity, style, silent failures.
 
-→ Fix code → run tests → apply §Fix-chain finisher (all 3 steps)
+→ Codex fix: write a fix prompt containing the critic finding, target file, change to apply, and test command to a tmp file:
+  `codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"`
+→ run tests → apply §Fix-chain finisher (steps 1–2 only; step 3 is handled by the shell loop)
 
 ## Spec gap
 
@@ -68,4 +87,4 @@ Issue: implementation contradicts domain rules.
      "{fix description} — resuming pr-review"
    ```
 
-3. Re-run `Skill("pr-review-toolkit:review-pr")` → call `append-review-verdict` → run `@reference/ultrathink.md §Ultrathink verdict audit` → branch per `@reference/critics.md §pr-review asymmetry` ([CONVERGED]: return to calling context; FAIL: re-categorize above and apply the appropriate fix chain again)
+3. Exit current iteration — the shell loop (`run-critic-loop.sh`) re-runs pr-review in the next iteration.

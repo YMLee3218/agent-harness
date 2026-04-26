@@ -79,7 +79,7 @@ Canonical list: `PHASE_CONVERGENCE_MARKERS` array in `scripts/lib/plan-lib.sh` (
 | `spec` | `critic-spec` | `skills/running-dev-cycle/SKILL.md` Step 2a (feature-slice) / Step 2 (batch) |
 | `red` | `critic-test` | `skills/running-dev-cycle/SKILL.md` Step 2b (feature-slice) / Step 3 (batch) |
 | `implement` | `critic-code` | `skills/running-dev-cycle/SKILL.md` Step 2c |
-| `implement`/`review` | `pr-review` | `skills/running-dev-cycle/SKILL.md` Step 2c |
+| `review` | `pr-review` | `skills/running-dev-cycle/SKILL.md` Step 2c (always called with `--phase review`; `reset-pr-review` also clears `implement/pr-review` defensively — see §Operation → markers reverse lookup) |
 
 Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase.
 

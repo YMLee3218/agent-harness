@@ -58,9 +58,8 @@ Route accordingly:
 | `red` (mode: `feature`, no `[CONVERGED] red/critic-test`, Test Manifest non-empty) | Skip writing-tests; go directly to critic-test loop in Step 2b |
 | `red` | **Feature mode** (feature profile): If `[CONVERGED] red/critic-test` is present in `## Open Questions` → skip to **Step 2c** (implementing). Otherwise (Test Manifest empty) → invoke `writing-tests` (it handles `red` phase re-entry). **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry AND `[CONVERGED] red/critic-test` is present, skip directly to **Step 4** (Implementation). If every feature already has a Test Manifest entry but `[CONVERGED] red/critic-test` is absent (session interrupted after test-writing but before critic-test converged), skip sub-step 1 (tests already written) and run sub-steps 2–4 for the last feature in the list, then proceed to Step 4. |
 | `implement` (tasks pending) | Re-invoke the `implementing` skill. |
-| `implement` (all tasks complete + `[CONVERGED] implement/pr-review` present) | Check `## Verdict Audits` for a `pr-review` ACCEPT entry in this milestone (after the last `[MILESTONE-BOUNDARY]` in `## Critic Verdicts`). **If found** → transition to `green`. **If missing** (session died between `append-review-verdict` and the ultrathink audit) → re-run `Skill("pr-review-toolkit:review-pr")` → `append-review-verdict` → `@reference/ultrathink.md §Ultrathink verdict audit` → if `[CONVERGED]` still present → transition to `green`. |
 | `implement` (all tasks complete) | Skip to Step 2c post-implementation (critic-code → pr-review). |
-| `review` | PR review interrupted — check `## Open Questions`: if `[CONVERGED] review/pr-review` is present, check `## Verdict Audits` for a `pr-review` ACCEPT entry in this milestone (after the last `[MILESTONE-BOUNDARY]` in `## Critic Verdicts`). **If found** → transition to `green`. **If missing** (session died between `append-review-verdict` and the ultrathink audit) → re-run `Skill("pr-review-toolkit:review-pr")` → `append-review-verdict` → `@reference/ultrathink.md §Ultrathink verdict audit` → if `[CONVERGED]` still present → transition to `green`. Otherwise (no `[CONVERGED]`) → Apply `@reference/pr-review-loop.md` (do **not** call `reset-pr-review`). |
+| `review` | PR review interrupted — check `## Open Questions`: if `[CONVERGED] review/pr-review` is present → check `## Verdict Audits` for a pr-review `ACCEPT` entry after the last `[MILESTONE-BOUNDARY]` in `## Critic Verdicts`: ACCEPT found → transition to `green`; no ACCEPT (session died between `append-review-verdict` and ultrathink audit) → run `@reference/ultrathink.md §Ultrathink verdict audit` on the last pr-review `PASS` verdict, then proceed per audit outcome (`ACCEPT`: transition to `green`; `REJECT-PASS`: re-run `run-critic-loop.sh` per "no `[CONVERGED]`" path below; `BLOCKED-AMBIGUOUS`: stop). Otherwise (no `[CONVERGED]`) → re-run `run-critic-loop.sh` (do **not** call `reset-pr-review`): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent pr-review --phase review --plan "plans/{slug}.md" --iteration-doc "@reference/pr-review-loop.md §PR-review one-shot iteration" --prompt "PR: {pr-url}. Spec: {spec-path}. Docs: {doc-paths}."` |
 | `green` | Read feature list from `docs/requirements/{name}.md`; apply **Skip done features** check (§Feature-slice mode). If any feature undone → resume at **Step 2a** for first undone feature. If all features done → skip directly to **Integration Tests**. |
 | `integration` | Skip to **Integration Tests** step (re-run after previous failure) |
 | `done` | Excluded by `find-active` (exit 2) — falls through to Step 1 as if no plan exists. To restart, delete the plan file or create a new feature branch. |
@@ -106,8 +105,7 @@ Read `docs/requirements/{name}.md` to get the full feature list (Small Features 
 
 ### Step 2a — Spec
 
-Invoke the `writing-spec` skill for the feature.
-Wait until: spec.md is written and plan file phase is `spec`.
+Invoke the `writing-spec` skill; wait until spec.md is written and plan file phase is `spec`.
 
 Reset the critic-spec milestone (clears stale `[CONVERGED] spec/critic-spec` from a prior feature's run):
 ```bash
@@ -124,8 +122,7 @@ git commit -m "feat(spec): add BDD scenarios for {name}"
 
 ### Step 2b — Tests
 
-Invoke the `writing-tests` skill for the feature.
-Wait until: tests are written and committed, plan file phase is `red`.
+Invoke the `writing-tests` skill; wait until tests are written and committed, plan file phase is `red`.
 Reset critic-test milestone (clears stale `[CONVERGED] red/critic-test` from a prior feature's run): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-test`
 `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written to plan — stop and report; exit 2 → `[BLOCKED-CEILING]` — manual review required.
 
@@ -142,7 +139,14 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-cod
 ```
 exit 0 → proceed to pr-review. exit 1 → `[BLOCKED]` written to plan — stop and report. exit 2 → `[BLOCKED-CEILING]` — manual review required.
 
-After `[CONVERGED] implement/critic-code`, run pr-review: `plan-file.sh reset-pr-review` → `gh pr view 2>/dev/null || gh pr create --draft --title "feat: {name}"` → `Skill("pr-review-toolkit:review-pr")` → `append-review-verdict` → `@reference/ultrathink.md §Ultrathink verdict audit` → branch per `@reference/critics.md §pr-review asymmetry` → on FAIL: `@reference/pr-review-loop.md` → transition `green` on `[CONVERGED]`.
+After `[CONVERGED] implement/critic-code`, run pr-review:
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review "critic-code converged — starting pr-review"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-pr-review "plans/{slug}.md"
+gh pr view 2>/dev/null || gh pr create --draft --title "feat: {name}"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent pr-review --phase review --plan "plans/{slug}.md" --iteration-doc "@reference/pr-review-loop.md §PR-review one-shot iteration" --prompt "PR: {pr-url}. Spec: {spec-path}. Docs: {doc-paths}."
+```
+exit 0 → transition to `green`; exit 1 → stop and report; exit 2 → manual review required.
 
 Then move to the next feature. Repeat until all features are done.
 
@@ -193,5 +197,3 @@ After all features have completed `implementing` (i.e., all feature-slice iterat
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" done \
      "no integration test command — skipped"
    ```
-
-

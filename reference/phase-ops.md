@@ -65,8 +65,9 @@ When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
    ```
    `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
-   After critic-spec converges, restore to `implement` (step 3's §Phase Rollback handles the restore if step 3 also runs):
+   After critic-spec converges, **only if step 3 will NOT also run** (tests do not need changing), restore to `implement`:
    ```bash
+   # Skip this block if step 3 (tests need changing) will also run — step 3's §Phase Rollback handles the phase advance from spec → red → implement
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
      "docs contradiction fixed — spec re-verified"
    ```
