@@ -24,6 +24,12 @@ CLAUDE_PLAN_FILE=/path/to/plans/feature-slug.md
 
 Pins the active plan file for `plan-file.sh find-active`. Highest priority override — use when multiple features run in parallel on the same branch, or in CI where branch-based lookup is unreliable.
 
+```bash
+CLAUDE_CRITIC_SESSION_TIMEOUT=3600
+```
+
+Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-loop.sh`. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` exits 1 and appends `[BLOCKED] {agent}: session-timeout — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` to `## Open Questions`.
+
 ## Phase enforcement rules
 
 Source of truth: `scripts/phase-policy.sh` (`phase_blocks_src`, `phase_blocks_test`, `list_phases`). Update `phase-policy.sh` to change phase predicates — this file does not restate them.

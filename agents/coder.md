@@ -5,7 +5,6 @@ description: >
   Invoked only by the implementing skill. Do not auto-trigger.
 tools: Read, Edit, Write, Bash, Grep, Glob, Skill
 model: sonnet
-maxTurns: 15
 effort: high
 isolation: worktree
 color: green

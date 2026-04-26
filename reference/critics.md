@@ -148,9 +148,8 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 ## §Critic one-shot iteration
 
 One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** loop — one critic run per session.
-1. If `first=true`: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "{plan}" {agent}`.
-2. `Skill("{agent}", "{prompt}")` — `SubagentStop` fires `record-verdict` automatically.
-3. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 5/6/7 hand their re-run back to the shell loop; however step 5's FAIL branch routes to step 8, which this session does execute before exiting); exit after each branching action.
+1. `Skill("{agent}", "{prompt}")` — `SubagentStop` fires `record-verdict` automatically.
+2. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 5/6/7 hand their re-run back to the shell loop; however step 5's FAIL branch routes to step 8, which this session does execute before exiting); exit after each branching action.
 
 ## Ambiguity signaling
 

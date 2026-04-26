@@ -5,7 +5,6 @@ description: >
   Invoked by critic-test skill only.
 disallowedTools: Write, Edit, NotebookEdit
 model: sonnet
-maxTurns: 5
 color: yellow
 ---
 

@@ -49,10 +49,7 @@ while true; do
   bash "$PLAN_FILE_SH" gc-verdicts "$PLAN" 2>/dev/null || true
 
   iter=$((iter + 1))
-  first_arg=""
-  [[ $iter -eq 1 ]] && first_arg=" first=true"
-
-  ITER_PROMPT="Run one critic iteration per @reference/critics.md §Critic one-shot iteration. agent=$AGENT phase=$PHASE plan=$PLAN${first_arg} prompt: $PROMPT"
+  ITER_PROMPT="Run one critic iteration per @reference/critics.md §Critic one-shot iteration. agent=$AGENT phase=$PHASE plan=$PLAN prompt: $PROMPT"
 
   if [[ -n "$TIMEOUT_CMD" ]]; then
     CLAUDE_NONINTERACTIVE=1 "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \

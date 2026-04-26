@@ -15,7 +15,7 @@ paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 
 Read the test files and spec.md at the paths provided. Run the test command given in the prompt.
 
-## Pre-check: test file integrity (if called during or after implement phase)
+## Pre-check: test file integrity
 
 If git is available, run:
 ```bash

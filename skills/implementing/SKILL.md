@@ -101,6 +101,11 @@ Capture `worktreeBranch` from each `Agent` result. After each returns, **check f
      ```
      [BLOCKED] coder:task-N aborted without commit — {reason from coder output}
      ```
+   - Clean up the worktree:
+     ```bash
+     git worktree list --porcelain | awk '/^worktree/{wt=substr($0,10)} $0=="branch refs/heads/{worktree-branch}"{print wt}' | xargs git worktree remove --force
+     git branch -D {worktree-branch}
+     ```
    - Stop the current tier; do not attempt remaining tasks in this tier.
 
 **Atomic tier rule**: check ALL tier tasks for abort/conflict before merging any. Run:
@@ -114,9 +119,15 @@ If no tasks aborted and no conflicts, merge each successful task in sequence and
 ```bash
 git merge --no-ff {worktree-branch} -m "merge(task-N): {description}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-1" "completed" "$(git rev-parse HEAD)"
+git worktree list --porcelain | awk '/^worktree/{wt=substr($0,10)} $0=="branch refs/heads/{worktree-branch}"{print wt}' | xargs git worktree remove --force
+git branch -d {worktree-branch}
 ```
 
-If `git merge` fails with conflicts: mark task `blocked`, run `git merge --abort`, append `[BLOCKED] coder:task-N merge conflict — resolve conflict in {worktree-branch} then re-run implementing` to `## Open Questions`, stop the tier. After manual resolution: clear the marker (`plan-file.sh clear-marker "plans/{slug}.md" "[BLOCKED] coder:task-N"`), then update task to `completed` with merge SHA.
+If `git merge` fails with conflicts: mark task `blocked`, run `git merge --abort`, append `[BLOCKED] coder:task-N merge conflict — resolve conflict in {worktree-branch} then re-run implementing` to `## Open Questions`, stop the tier. After manual resolution: clear the marker (`plan-file.sh clear-marker "plans/{slug}.md" "[BLOCKED] coder:task-N"`), update task to `completed` with merge SHA, then clean up:
+```bash
+git worktree list --porcelain | awk '/^worktree/{wt=substr($0,10)} $0=="branch refs/heads/{worktree-branch}"{print wt}' | xargs git worktree remove --force
+git branch -d {worktree-branch}
+```
 
 Move to the next tier.
 
