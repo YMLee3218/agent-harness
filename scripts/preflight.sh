@@ -7,7 +7,7 @@
 # Required tools (single source of truth):
 #   gh CLI (authenticated)  — implementing runs gh pr create; without auth PR step fails
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
-#   context7-plugin         — implementing calls /context7-plugin:docs for library lookups
+#   context7-plugin         — critic-code and critic-spec use context7 to verify external API usage
 #   pr-review-toolkit       — implementing calls pr-review-toolkit:review-pr per feature
 #   codex                   — coder agent delegates implementation to Codex via codex:rescue
 #   codex-auth              — Codex requires OPENAI_API_KEY or ~/.codex/auth.json

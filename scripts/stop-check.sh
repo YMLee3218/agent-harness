@@ -128,10 +128,10 @@ fi
 # macOS ships without GNU coreutils by default; check for gtimeout (Homebrew coreutils) or timeout.
 _timeout="${CLAUDE_STOP_CHECK_TIMEOUT:-600}"
 _timeout_cmd=""
-if command -v timeout >/dev/null 2>&1; then
-  _timeout_cmd="timeout"
-elif command -v gtimeout >/dev/null 2>&1; then
+if command -v gtimeout >/dev/null 2>&1; then
   _timeout_cmd="gtimeout"
+elif command -v timeout >/dev/null 2>&1; then
+  _timeout_cmd="timeout"
 fi
 
 echo "[stop-check] Verifying tests pass before stop (phase=${phase}, CLAUDE_NONINTERACTIVE=1)..." >&2

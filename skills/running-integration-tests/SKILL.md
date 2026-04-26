@@ -124,6 +124,6 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 Stop.
 
 **If tests still fail**:
-- If `attempt < 3`: loop back to Step 3 to categorize the new failure.
-- If `attempt >= 3`:
+- If `attempt < 2`: loop back to Step 3 to categorize the new failure.
+- If `attempt >= 2`:
   Append `[BLOCKED] integration tests failed after 2 fix attempts — manual review required` to `## Open Questions`. Do not set phase `done`.
