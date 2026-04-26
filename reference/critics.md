@@ -77,7 +77,7 @@ pr-review omits category/parse tracking — failures are categorised by the skil
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
-Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOCKED-CEILING]`). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
+Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOCKED-CEILING]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
 
 ### Skill branching logic (after each run)
 

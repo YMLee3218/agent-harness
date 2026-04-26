@@ -65,11 +65,24 @@ Spec: {spec path}
 
 ### Step 3 — Delegate to Codex
 
-```
-Skill("codex:rescue", "<full prompt from Step 2>")
+Write the Step 2 prompt to a temp file, run Codex non-interactively, and capture all output to a log file. Read only the tail — the full transcript is intentionally discarded to avoid context overflow:
+
+```bash
+_codex_prompt=$(mktemp /tmp/codex-prompt-XXXXXX.txt)
+_codex_log=$(mktemp /tmp/codex-log-XXXXXX.txt)
 ```
 
-Wait for Codex to return. Do not proceed until the Skill call completes.
+Write the full prompt from Step 2 into `$_codex_prompt` using the Write tool. Then:
+
+```bash
+codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
+_codex_exit=$?
+echo "=== Codex exit: $_codex_exit ==="
+tail -200 "$_codex_log"
+rm -f "$_codex_prompt" "$_codex_log"
+```
+
+Wait for the Bash command to complete before proceeding to Step 4.
 
 ### Step 4 — Verify result
 

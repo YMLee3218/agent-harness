@@ -117,7 +117,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{
 
 After `[CONVERGED] spec/critic-spec` is confirmed, commit the spec file:
 ```bash
-git add features/{verb}-{noun}/spec.md   # or domain/{concept}/spec.md
+git add {spec-path}   # features/{verb}-{noun}/spec.md or domain/{concept}/spec.md — the actual path written by writing-spec
 git commit -m "feat(spec): add BDD scenarios for {name}"
 ```
 
