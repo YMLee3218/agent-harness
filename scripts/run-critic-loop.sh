@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AGENT="" PHASE="" PLAN="" PROMPT=""
+AGENT="" PHASE="" PLAN="" PROMPT="" ITER_DOC=""
 PLAN_FILE_SH="$(dirname "${BASH_SOURCE[0]}")/plan-file.sh"
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --agent)  AGENT="$2";  shift 2 ;;
-    --phase)  PHASE="$2";  shift 2 ;;
-    --plan)   PLAN="$2";   shift 2 ;;
-    --prompt) PROMPT="$2"; shift 2 ;;
+    --agent)         AGENT="$2";    shift 2 ;;
+    --phase)         PHASE="$2";    shift 2 ;;
+    --plan)          PLAN="$2";     shift 2 ;;
+    --prompt)        PROMPT="$2";   shift 2 ;;
+    --iteration-doc) ITER_DOC="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
+ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
+
 [[ -z "$AGENT" || -z "$PHASE" || -z "$PLAN" || -z "$PROMPT" ]] && {
-  echo "Usage: run-critic-loop.sh --agent NAME --phase PHASE --plan PATH --prompt TEXT" >&2
+  echo "Usage: run-critic-loop.sh --agent NAME --phase PHASE --plan PATH --prompt TEXT [--iteration-doc DOC]" >&2
   exit 2
 }
 
@@ -49,7 +52,7 @@ while true; do
   bash "$PLAN_FILE_SH" gc-verdicts "$PLAN" 2>/dev/null || true
 
   iter=$((iter + 1))
-  ITER_PROMPT="Run one critic iteration per @reference/critics.md §Critic one-shot iteration. agent=$AGENT phase=$PHASE plan=$PLAN prompt: $PROMPT"
+  ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=$AGENT phase=$PHASE plan=$PLAN prompt: $PROMPT"
 
   if [[ -n "$TIMEOUT_CMD" ]]; then
     CLAUDE_NONINTERACTIVE=1 "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \

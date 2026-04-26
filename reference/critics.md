@@ -73,7 +73,7 @@ Definitions: `@reference/markers.md §Critic loop markers` and `@reference/marke
 
 #### pr-review asymmetry
 
-pr-review omits category/parse tracking — failures are categorised by the skill (see `@reference/pr-review-loop.md`). Apply §Skill branching logic steps 1 → 2 → 4–5 → 7 → 8 only. Steps 3 and 6 are omitted: step 3 (`[BLOCKED]` check) because any `[BLOCKED]` markers would have halted the orchestrating skill's Step 0 check before pr-review is reached; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
+pr-review omits category/parse tracking — failures are categorised by the skill (see `@reference/pr-review-loop.md`). Apply §Skill branching logic steps 1 → 4–5 → 7 → 8 only. Steps 2, 3, and 6 are omitted: step 2 (`[BLOCKED-AMBIGUOUS]` stop) because pre-existing markers are caught by the orchestrating skill's Step 0 check before pr-review is reached, and any marker written during the fix chain causes an immediate `stop` that exits the B-session before step 4 is re-entered — same out-of-band handling as step 3; step 3 (`[BLOCKED]` check) because any `[BLOCKED]` markers would have halted the orchestrating skill's Step 0 check before pr-review is reached; step 6 (PARSE_ERROR retry) because pr-review uses `append-review-verdict` directly and does not produce PARSE_ERROR verdicts.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 

@@ -11,11 +11,11 @@ Single iteration spawned by `run-critic-loop.sh`. Do not loop — one pr-review 
 2. `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-review-verdict "plans/{slug}.md" pr-review PASS|FAIL`
    (Manual call, not a SubagentStop hook — pr-review is not a critic subagent)
 3. `@reference/ultrathink.md §Ultrathink verdict audit`
-4. Read `## Open Questions` — apply `@reference/critics.md §pr-review asymmetry` (steps 1→2→4-5→7→8):
+4. Read `## Open Questions` — apply `@reference/critics.md §pr-review asymmetry` (steps 1→4-5→7→8):
    - `[BLOCKED-CEILING]` → exit (shell loop returns exit 2)
    - `[CONVERGED]` → exit (shell loop returns exit 0)
-   - `[FIRST-TURN]` or no terminal marker + PASS → exit (shell loop re-runs)
-   - No terminal marker + FAIL → apply fix chain below, then exit
+   - `[FIRST-TURN]` + PASS, or no terminal marker + PASS → exit (shell loop re-runs)
+   - `[FIRST-TURN]` + FAIL, or no terminal marker + FAIL → apply fix chain below, then exit
 5. On FAIL: §Categorisation below → appropriate fix chain → §Fix-chain finisher → exit.
    Shell loop re-runs pr-review in the next iteration.
 
