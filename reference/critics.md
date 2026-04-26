@@ -77,7 +77,7 @@ pr-review omits category/parse tracking — failures are categorised by the skil
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
-Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOCKED-CEILING]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
+Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOCKED-CEILING]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting; `REJECT-PASS` entries written by `clear-converged` do **not** count). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
 
 ### Skill branching logic (after each run)
 
@@ -146,7 +146,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" {target-phase}
 ```
 
-When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`.
+When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`. After `transition {destination-phase}`, additionally call `reset-milestone {destination-critic}` if a stale `[CONVERGED] {destination-phase}/{destination-critic}` marker remains from a prior milestone (e.g., rolling back to `red` requires `reset-milestone critic-test` to clear any stale `[CONVERGED] red/critic-test`).
 
 ## §Critic one-shot iteration
 
@@ -179,7 +179,7 @@ If none of the above apply, fix and re-run without stopping.
 
 | Marker prefix | What to fix |
 |---------------|-------------|
-| `[BLOCKED-AMBIGUOUS]` | Resolve the question stated in the marker (update docs, code, or spec). **If the marker text says `DOCS CONTRADICTION`**: follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade` to determine ground truth and re-run the full critic chain — do not simply re-run the one blocked critic. Otherwise: if the fix changes spec or tests, roll back phase first (`@reference/phase-ops.md §Phase Rollback Procedure`) before re-running. |
+| `[BLOCKED-AMBIGUOUS]` | Resolve the question stated in the marker (update docs, code, or spec). **If the marker text says `DOCS CONTRADICTION`**: follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade` to resolve the contradiction and re-run the full critic chain — do not simply re-run the one blocked critic. Otherwise: if the fix changes spec or tests, roll back phase first (`@reference/phase-ops.md §Phase Rollback Procedure`) before re-running. |
 | `[BLOCKED] parse:` (verdict marker missing) | Investigate missing `<!-- verdict: -->` marker (common causes: agent ran out of turns, truncated output, model change). Fix root cause. |
 | `[BLOCKED] parse:` (FAIL without category) | Investigate missing `<!-- category: -->` marker — agent emitted a FAIL verdict without a category. Fix agent output format. |
 | `[BLOCKED] category:` | Inspect consecutive same-category FAILs in `## Critic Verdicts`; address the structural cause (refactor, spec change, layer fix — not a surface tweak). |

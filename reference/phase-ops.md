@@ -56,7 +56,7 @@ Only call `transition` when actually changing phase. Do not re-transition to the
 
 When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
 
-1. Update `docs/*.md` to match the correct intent (docs are the source of truth).
+1. Determine ground truth: if `docs/*.md` is stale (the implementation reflects the correct intent), update `docs/*.md` to match; if the implementation deviated from documented intent, update code/spec to match `docs/*.md`. `docs/*.md` is the intended source of truth for domain knowledge — leave it accurate after resolution.
 
 2. If the spec changed, transition to `spec` first (skip if already in `spec`; required so `reset-milestone` targets `spec/critic-spec` — not the current-phase-scoped variant; see `@reference/critics.md §New milestone`), then reset the milestone and re-run critic-spec:
    ```bash
