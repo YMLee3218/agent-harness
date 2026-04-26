@@ -17,25 +17,28 @@ You orchestrate Codex to implement one task: make the failing test pass (impleme
 
 ## Rules
 
-1. **Layer enforcement**: your target file belongs to the layer specified in the prompt. Forbidden imports are defined in @reference/layers.md. If Codex self-reports a violation, propagate as abort immediately.
-2. **Test files are read-only**. Codex must never modify any path matching the project test glob. Verify this in the post-Codex diff before declaring success.
-3. **Commit once** after implement + in-place refactor. Format: `{type}({scope}): {description}`
-4. **Pre-existing errors**: log with `plan-file.sh append-note`; do not fix.
+1. **Layer enforcement**: your target file belongs to the layer specified in the prompt. Forbidden imports are defined in @reference/layers.md. If Codex self-reports a violation, abort immediately — no retry (requires task re-decomposition).
+2. **Test files are read-only**. If Codex modifies a test file, restore it and retry once with an augmented prompt.
+3. **Test failure**: if tests still fail after Codex runs, retry once with failure context appended to the prompt.
+4. **Commit once** after implement + in-place refactor. Format: `{type}({scope}): {description}`
+5. **Pre-existing errors**: log with `plan-file.sh append-note`; do not fix.
 
 ## Status markers
 
 On your final output line, emit exactly one of:
 - `<!-- coder-status: complete -->` — task committed successfully
-- `<!-- coder-status: abort -->` — hard stop triggered (layer violation, test-file write, failing tests, or no commit)
+- `<!-- coder-status: abort -->` — hard stop triggered (layer violation, or repeated failure after retry)
 
 The `implementing` skill uses these markers to detect abort reliably. Do not omit them.
 
 ## Workflow
 
-### Step 1 — Record base SHA
+### Step 1 — Setup
 
 ```bash
 base_sha=$(git rev-parse HEAD)
+_attempt=1
+_codex_extra=""
 ```
 
 ### Step 2 — Build Codex prompt
@@ -61,18 +64,19 @@ Failing test:
 
 Test command: {test command}
 Spec: {spec path}
+{_codex_extra}
 ```
 
-### Step 3 — Delegate to Codex
+### Step 3 — Run Codex
 
-Write the Step 2 prompt to a temp file, run Codex non-interactively, and capture all output to a log file. Read only the tail — the full transcript is intentionally discarded to avoid context overflow:
+Write the current prompt (Step 2 + `_codex_extra`) to a temp file. Capture full output to a log file; read only the tail — the full transcript is intentionally discarded to avoid context overflow:
 
 ```bash
 _codex_prompt=$(mktemp /tmp/codex-prompt-XXXXXX.txt)
 _codex_log=$(mktemp /tmp/codex-log-XXXXXX.txt)
 ```
 
-Write the full prompt from Step 2 into `$_codex_prompt` using the Write tool. Then:
+Write prompt into `$_codex_prompt` using the Write tool. Then:
 
 ```bash
 codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
@@ -82,46 +86,50 @@ tail -200 "$_codex_log"
 rm -f "$_codex_prompt" "$_codex_log"
 ```
 
-Wait for the Bash command to complete before proceeding to Step 4.
+### Step 4 — Verify
 
-### Step 4 — Verify result
+**a) Layer violation** (scan tail for: "layer violation", "forbidden import", "cannot implement without violating", "would violate", "hard stop", "STOP", "I stopped", "stopping", "aborting"):
 
-**a) Check for self-reported violations:**
-
-If Codex output contains "layer violation", "forbidden import", "cannot implement without violating", "would violate", "hard stop", "STOP", "I stopped", "stopping", or "aborting", emit `<!-- coder-status: abort -->` and append to plan file:
+→ Abort immediately. No retry.
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
-  "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — Codex reported violation: {reason}"
+  "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — layer violation: {reason} (re-decompose task)"
 ```
-Then stop.
+Emit `<!-- coder-status: abort -->` and stop.
 
-**b) Check commit count:**
+**b) Test-file modification:**
+
+```bash
+_test_files=$(git diff "$base_sha"..HEAD --name-only \
+  | grep -E '(^|/)tests/|_test\.|test_\.|\.test\.|\.spec\.|_spec\.' \
+  | grep -v '\.spec\.md$')
+```
+
+If `_test_files` is non-empty:
+- **Attempt 1**: restore test files, commit restoration, augment prompt, retry:
+  ```bash
+  git checkout "$base_sha" -- $_test_files
+  git add $_test_files
+  git commit -m "chore: restore test files modified by Codex"
+  _codex_extra="${_codex_extra}
+  RETRY: previous attempt modified test files (${_test_files}) — these are strictly read-only."
+  _attempt=2
+  ```
+  Go back to Step 3.
+- **Attempt 2**: abort:
+  ```bash
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
+    "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — Codex modified test files after retry: {_test_files}"
+  ```
+  Emit `<!-- coder-status: abort -->` and stop.
+
+**c) Commit check:**
 
 ```bash
 commit_count=$(git rev-list --count "$base_sha"..HEAD 2>/dev/null || echo 0)
 ```
 
-If `commit_count == 0` (Codex did not commit), run the test command:
-- Tests pass → commit explicitly: `git add -A && git commit -m "{type}({scope}): {description}"`
-- Tests fail → emit `<!-- coder-status: abort -->`, append to plan file:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
-    "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — Codex returned no commit and tests still fail"
-  ```
-  and stop.
-
-**c) Check for test-file modifications:**
-
-```bash
-git diff "$base_sha"..HEAD --name-only
-```
-
-Pipe the result through the test-path patterns from `scripts/phase-policy.sh` (`is_test_path` logic: `tests/*`, `*_test.*`, `test_*.*`, `*.test.*`, `*.spec.*`, `*_spec.*`; **`*.spec.md` files are always excluded** before pattern matching; also check `PHASE_GATE_TEST_GLOB` if set). If any test file appears, emit `<!-- coder-status: abort -->`, append to plan file:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
-  "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — Codex modified test files: {list}"
-```
-and stop.
+If `commit_count == 0` and tests pass → commit: `git add -A && git commit -m "{type}({scope}): {description}"`. Proceed to **d**.
 
 **d) Run tests:**
 
@@ -129,23 +137,28 @@ and stop.
 {test command from prompt}
 ```
 
-If tests fail: emit `<!-- coder-status: abort -->`, append to plan file:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
-  "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — tests still failing after Codex commit: {summary}"
-```
-and stop.
+If tests pass → Step 5.
+
+If tests fail:
+- **Attempt 1**: augment prompt with failure context, retry:
+  ```bash
+  _codex_extra="${_codex_extra}
+  RETRY: previous attempt left tests failing. Failure output:
+  {test failure summary}"
+  _attempt=2
+  ```
+  Go back to Step 3.
+- **Attempt 2**: abort:
+  ```bash
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
+    "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — tests still failing after retry: {summary}"
+  ```
+  Emit `<!-- coder-status: abort -->` and stop.
 
 ### Step 5 — Emit status marker
 
-All checks passed:
 ```
 <!-- coder-status: complete -->
-```
-
-Any check failed (already emitted inline above):
-```
-<!-- coder-status: abort -->
 ```
 
 ## Hard stop
