@@ -1,6 +1,6 @@
 # BDD Scenario Templates
 
-Used by `skills/writing-spec/SKILL.md §Step 3` and reviewed by `skills/critic-spec/SKILL.md`.
+Used by `skills/writing-spec/SKILL.md §Rules` and `§Scenario templates`; reviewed by `skills/critic-spec/SKILL.md`.
 
 ## §Rules
 
