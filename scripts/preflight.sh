@@ -9,7 +9,7 @@
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
 #   context7-plugin         — critic-code and critic-spec use context7 to verify external API usage
 #   pr-review-toolkit       — implementing calls pr-review-toolkit:review-pr per feature
-#   codex                   — coder agent delegates implementation to Codex via codex:rescue
+#   codex                   — coder agent delegates implementation via codex exec --full-auto
 #   codex-auth              — Codex requires OPENAI_API_KEY or ~/.codex/auth.json
 # Required files:
 #   .claude/local.md        — language, runtime, test/lint/integration-test commands

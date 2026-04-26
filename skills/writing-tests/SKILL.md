@@ -46,7 +46,7 @@ Proceed directly to Step 3.
 
 ## Step 3 — Write failing tests
 
-Set plan file phase to `red` before writing any test files:
+Set plan file phase to `red` (skip if already in `red` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`) before writing any test files:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" red \
   "approved plan — writing failing tests"

@@ -163,7 +163,8 @@ _lang="$(grep -i 'language:' "$CLAUDE_PROJECT_DIR/.claude/local.md" | head -1 | 
 if [ -n "$_lang" ]; then
   mkdir -p "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns"
   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns.template" "$_lang" \
-    > "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns/${_lang}.conf"
+    > "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns/${_lang}.conf" \
+    || { echo "[init] ERROR: failed to generate patterns conf for language '${_lang}'" >&2; exit 1; }
 fi
 ```
 

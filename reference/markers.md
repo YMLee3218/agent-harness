@@ -9,8 +9,8 @@ Includes per-marker Write/Read/Clear/gc lifecycle and operation→marker reverse
 
 Managed by `scripts/lib/plan-lib.sh` and consumed by skills after each critic or pr-review run. Policy: `@reference/critics.md §Loop convergence`.
 
-| Marker | Scope | Written by | Clear path | gc |
-|--------|-------|------------|------------|----|
+| Marker | Scope | Written by | Clear path | Survives gc? |
+|--------|-------|------------|------------|-------------|
 | `[BLOCKED-CEILING] {phase}/{agent}: exceeded {N} runs — manual review required` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
 | `[BLOCKED] category:{agent}: {CATEGORY} failed twice — fix the root cause before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] parse:{agent}: verdict marker missing (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
@@ -23,8 +23,8 @@ Managed by `scripts/lib/plan-lib.sh` and consumed by skills after each critic or
 
 Written by skills or hooks outside the critic convergence protocol.
 
-| Marker | Emitter | Effect | Clear path | gc |
-|--------|---------|--------|------------|----|
+| Marker | Emitter | Effect | Clear path | Survives gc? |
+|--------|---------|--------|------------|-------------|
 | `[BLOCKED] {reason}` | Various skills | Generic stop — human action required | Manual `plan-file.sh clear-marker` after fixing | Yes |
 | `[BLOCKED] coder:{task-id} — {reason}` | implementing skill / coder agent | Coder hit unresolvable blocker or abort | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] preflight:{tool}: {fix}` | preflight.sh | Autonomous pre-flight check failed | Fix prerequisite, then `plan-file.sh clear-marker` | Yes |

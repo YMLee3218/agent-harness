@@ -97,7 +97,10 @@ Skill reads ## Open Questions, checks in priority order:
                                   second consecutive PARSE_ERROR triggers [BLOCKED] parse:)
   7. (no terminal marker, PASS) → re-run automatically
   8. (no terminal marker, FAIL) → LLM determines fix direction:
-       - direction is clear → apply fix + re-run
+       - direction is clear → construct Codex fix prompt (critic finding, target file,
+         change to apply, test command, layer rules if applicable); write to tmp file:
+           codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
+         → re-run critic
        - direction is ambiguous → append [BLOCKED-AMBIGUOUS] {agent}: {question} + stop
        - [DOCS CONTRADICTION] in critic output → append [BLOCKED-AMBIGUOUS] {agent}: DOCS
          CONTRADICTION — cannot determine whether docs or code is ground truth + stop.
@@ -116,7 +119,7 @@ Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `
 
 After launching in background, wait for the completion notification, then read `## Open Questions` in the plan file for terminal markers and proceed per exit code rules. Do **not** apply fixes based on any output observed before the notification — B sessions handle all fixes.
 
-After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly.
+After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. **Exception — `run-critic-loop.sh` background runs**: the one-shot B-session runs the audit internally per §Critic one-shot iteration step 2; do **not** re-run the audit after the loop returns. This step applies to `append-review-verdict` (pr-review) and direct critic invocations only.
 
 ### New milestone
 

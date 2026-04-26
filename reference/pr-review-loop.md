@@ -51,7 +51,7 @@ Issue: implementation contradicts domain rules.
 ## Fix-chain finisher
 
 1. **(If code changed)** Re-run critic-code:
-   (a) Transition to `implement` (ensures `record-verdict` stamps `implement/critic-code`; without this, the plan may be in `review` and markers would be stamped `review/critic-code`, breaking convergence):
+   (a) **(If not already in `implement` phase)** Transition to `implement` (ensures `record-verdict` stamps `implement/critic-code`; without this, the plan may be in `review` and markers would be stamped `review/critic-code`, breaking convergence):
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
      "pr-review fix — re-running critic-code"

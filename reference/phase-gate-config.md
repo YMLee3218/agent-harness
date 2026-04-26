@@ -30,6 +30,12 @@ CLAUDE_CRITIC_SESSION_TIMEOUT=3600
 
 Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-loop.sh`. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` exits 1 and appends `[BLOCKED] {agent}: session-timeout — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` to `## Open Questions`.
 
+```bash
+CLAUDE_CRITIC_LOOP_CEILING=5
+```
+
+Maximum critic loop iterations per run (runs 1–N allowed; the (N+1)th triggers `[BLOCKED-CEILING]`). Default: `5`. Must be a numeric integer ≥ 2; invalid values or values below 2 fall back to 5. See `@reference/critics.md` for how PARSE_ERROR verdicts count toward the ceiling.
+
 ## Phase enforcement rules
 
 Source of truth: `scripts/phase-policy.sh` (`phase_blocks_src`, `phase_blocks_test`, `list_phases`). Update `phase-policy.sh` to change phase predicates — this file does not restate them.
@@ -48,3 +54,5 @@ CLAUDE_NONINTERACTIVE=1 \
 CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md" \
   claude --permission-mode auto -p "/running-dev-cycle"
 ```
+
+`run-critic-loop.sh` adds `--dangerously-skip-permissions` to each internal `claude` invocation so that critic sessions never block on a permission prompt. This flag is appropriate only for autonomous subagent calls inside the critic loop, where the parent session already owns the plan file lock and phase gate.

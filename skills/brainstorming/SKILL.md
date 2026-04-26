@@ -86,7 +86,7 @@ Pre-branch checks:
 
 Then (if not already on the branch): `git checkout -b feature/{name}`
 
-Set plan file phase:
+Set plan file phase (skip if already in `brainstorm` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`):
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" brainstorm \
   "decomposition approved — starting brainstorm phase"
@@ -112,7 +112,7 @@ Update affected `docs/*.md` (SOT) before proceeding.
 
 Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Feature Flow Step 3.
 
-Set phase to `brainstorm`:
+Set phase to `brainstorm` (skip if already in `brainstorm` — do not re-transition to the same phase):
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" brainstorm \
   "re-brainstorming"
