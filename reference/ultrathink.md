@@ -2,7 +2,9 @@
 
 Every verdict returned by a review subagent **must pass a parent-context ultrathink audit** before it is accepted. Run the audit immediately after `record-verdict` (or `append-review-verdict`) completes and **before** branching on `## Open Questions` markers (per `@reference/critics.md §Skill branching logic`).
 
-## Audit checklist (fixed — apply to every verdict)
+## §Ultrathink verdict audit
+
+### Audit checklist (fixed — apply to every verdict)
 
 1. **Factual consistency** — do the subagent's evidence paths and line numbers match the actual files?
 2. **Coverage gaps** — are there scenarios or boundary cases in the spec/docs that the verdict did not address?
@@ -10,11 +12,11 @@ Every verdict returned by a review subagent **must pass a parent-context ultrath
 4. **False positive/negative risk** — is a PASS genuinely comprehensive, or is it a conventional rubber-stamp?
 5. **Category accuracy** — does `<!-- category: X -->` reflect the true highest-severity finding per `@reference/severity.md §Category priority`?
 
-## Audit prompt
+### Audit prompt
 
 Include `ultrathink` in the audit prompt and check the five items in §Audit checklist against the spec and source paths.
 
-## Audit outcomes
+### Audit outcomes
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
@@ -22,7 +24,7 @@ Include `ultrathink` in the audit prompt and check the five items in §Audit che
 | **REJECT-PASS** | Subagent returned PASS but audit found a substantive gap | Call `clear-converged` (if `[CONVERGED]` marker exists), then record audit and enter FAIL path. **Ultrathink may demote PASS→FAIL but must never promote FAIL→PASS.** |
 | **BLOCKED-AMBIGUOUS** | Audit result is inconclusive | Append `[BLOCKED-AMBIGUOUS] {agent}: ultrathink audit inconclusive — {question}` to `## Open Questions` and stop |
 
-## Applying the audit outcome
+### Applying the audit outcome
 
 Entries accumulate in `## Verdict Audits` (permanent trail — not compacted by `gc-events`). Each outcome section below is self-contained — call `append-audit` exactly once per audit run.
 
