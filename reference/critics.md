@@ -38,7 +38,7 @@ Full iteration protocol: §Loop convergence.
 
 ## Consecutive same-category escalation
 
-`plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, phase-independent). If the same critic emits **two consecutive FAILs with the same category** (PARSE_ERROR verdicts between them are transparent — they do not reset the streak), the script writes:
+`plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, phase-independent). If the same critic emits **two consecutive FAILs with the same category** (PARSE_ERROR verdicts between them are transparent — they do not reset the streak; `reset-milestone` writes a `[MILESTONE-BOUNDARY @ts]` sentinel that **does** reset the streak — streaks are therefore isolated per milestone), the script writes:
 
 ```
 [BLOCKED] category:{agent}: {CATEGORY} failed twice — fix the root cause before retrying
@@ -63,7 +63,7 @@ Convergence-based protocol used by every phase-gate critic (critic-feature, crit
 
 The harness always operates in non-interactive mode — skills write `[BLOCKED]` markers to `## Open Questions` instead of prompting the user.
 
-The loop terminates on **2 consecutive PASSes** (convergence), not on a single PASS. This filters lucky single-run PASSes caused by LLM non-determinism.
+The loop terminates on **2 consecutive PASSes** (convergence), not on a single PASS. This filters lucky single-run PASSes caused by LLM non-determinism. Unlike the FAIL category streak (§Consecutive same-category escalation, where PARSE_ERROR is transparent), a PARSE_ERROR between two PASSes interrupts the convergence streak: `PASS → PARSE_ERROR → PASS` counts as streak=1, not 2 — two uninterrupted consecutive PASSes are required for CONVERGED.
 
 `plan-file.sh record-verdict` (and `append-review-verdict` for pr-review) automatically writes markers to `## Open Questions`. The skill reads these markers after each run and branches accordingly.
 
