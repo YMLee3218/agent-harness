@@ -51,6 +51,8 @@ If unit tests fail:
 
 Do not start integration tests with a broken unit test baseline.
 
+If unit tests pass: proceed to Step 2.
+
 ## Step 2 — Run tests
 
 Set phase to `integration` **before** executing tests so that the stop-check hook and any

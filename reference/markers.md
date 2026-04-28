@@ -29,6 +29,8 @@ Written by skills or hooks outside the critic convergence protocol.
 | `[BLOCKED] coder:{task-id} — {reason}` | implementing skill / coder agent | Coder hit unresolvable blocker or abort | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] preflight:{tool}: {fix}` | preflight.sh | Autonomous pre-flight check failed | Fix prerequisite, then `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] integration:{test}: {reason}` | running-integration-tests | Failure category ambiguous — manual review required | Manual | Yes |
+| `[BLOCKED] {agent}: session-timeout after {N}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` | `run-critic-loop.sh` | Critic session timed out — increase `CLAUDE_CRITIC_SESSION_TIMEOUT` or re-run | Manual `plan-file.sh clear-marker` after adjusting timeout | Yes |
+| `[BLOCKED] {agent}: plan unchanged for {N} consecutive iterations — critic is not writing to plan file; check session logs` | `run-critic-loop.sh` | Critic session produced no verdicts — check session logs | Manual `plan-file.sh clear-marker` after debugging | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | stop-check.sh | Why Stop hook blocked the previous stop attempt | Informational; survives `gc-events` | Yes |
 
 ### Integration test markers (written to `## Integration Failures`)
