@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-AGENT="" PHASE="" PLAN="" PROMPT="" ITER_DOC=""
+AGENT="" PHASE="" PLAN="" PROMPT="" ITER_DOC="" NESTED=0
 PLAN_FILE_SH="$(dirname "${BASH_SOURCE[0]}")/plan-file.sh"
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -10,6 +10,7 @@ while [[ $# -gt 0 ]]; do
     --plan)          PLAN="$2";     shift 2 ;;
     --prompt)        PROMPT="$2";   shift 2 ;;
     --iteration-doc) ITER_DOC="$2"; shift 2 ;;
+    --nested)        NESTED=1;      shift ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -17,16 +18,18 @@ done
 ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
 
 [[ -z "$AGENT" || -z "$PHASE" || -z "$PLAN" || -z "$PROMPT" ]] && {
-  echo "Usage: run-critic-loop.sh --agent NAME --phase PHASE --plan PATH --prompt TEXT [--iteration-doc DOC]" >&2
+  echo "Usage: run-critic-loop.sh --agent NAME --phase PHASE --plan PATH --prompt TEXT [--iteration-doc DOC] [--nested]" >&2
   exit 2
 }
 
-# Lock file — prevent concurrent runs on the same plan
-LOOP_LOCK="${PLAN}.critic.lock"
-if ! (set -C; echo $$ > "$LOOP_LOCK") 2>/dev/null; then
-  echo "=== run-critic-loop: already running for $PLAN ===" >&2; exit 2
+# Lock file — prevent concurrent runs on the same plan (skipped for --nested calls inside B-sessions)
+if [[ $NESTED -eq 0 ]]; then
+  LOOP_LOCK="${PLAN}.critic.lock"
+  if ! (set -C; echo $$ > "$LOOP_LOCK") 2>/dev/null; then
+    echo "=== run-critic-loop: already running for $PLAN ===" >&2; exit 2
+  fi
+  trap 'rm -f "$LOOP_LOCK"' EXIT
 fi
-trap 'rm -f "$LOOP_LOCK"' EXIT
 
 # Signal handling — clean up subprocess on interrupt
 CLAUDE_PID=""
@@ -42,23 +45,24 @@ LAST_PLAN_HASH=""
 CONSECUTIVE_NOOP=0
 
 while true; do
-  marker=$(awk -v agent="$AGENT" -v phase="$PHASE" '/^## Open Questions/{f=1} f && /\[CONVERGED\]/{if(index($0,"[CONVERGED] " phase "/" agent)>0){print;exit};next} f && /\[BLOCKED-CEILING\]/{if(index($0,"[BLOCKED-CEILING] " phase "/" agent)>0){print;exit};next} f && /\[BLOCKED/{print;exit}' "$PLAN" 2>/dev/null || true)
+  marker=$(awk -v agent="$AGENT" -v phase="$PHASE" '/^## Open Questions/{f=1} f&&/\[BLOCKED-CEILING\]/{if(index($0,"[BLOCKED-CEILING] " phase "/" agent)>0)ceiling=$0;next} f&&/\[BLOCKED/{if(blocked=="")blocked=$0} f&&/\[CONVERGED\]/{if(index($0,"[CONVERGED] " phase "/" agent)>0)converged=$0} END{if(ceiling!=""){print ceiling}else if(blocked!=""){print blocked}else if(converged!=""){print converged}}' "$PLAN" 2>/dev/null || true)
   case "$marker" in
     *CONVERGED*)       echo "CONVERGED"; exit 0 ;;
     *BLOCKED-CEILING*) echo "$marker";   exit 2 ;;
     *BLOCKED*)         echo "$marker";   exit 1 ;;
   esac
 
-  bash "$PLAN_FILE_SH" gc-verdicts "$PLAN" 2>/dev/null || true
+  [[ $NESTED -eq 0 ]] && bash "$PLAN_FILE_SH" gc-verdicts "$PLAN" 2>/dev/null || true
 
   iter=$((iter + 1))
   ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=$AGENT phase=$PHASE plan=$PLAN prompt: $PROMPT"
 
+  CRITIC_LOOP_MODEL="${CLAUDE_CRITIC_LOOP_MODEL:-opus}"
   if [[ -n "$TIMEOUT_CMD" ]]; then
     CLAUDE_NONINTERACTIVE=1 "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
-      claude --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
+      claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
   else
-    CLAUDE_NONINTERACTIVE=1 claude --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
+    CLAUDE_NONINTERACTIVE=1 claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
   fi
   CLAUDE_PID=$!
   wait "$CLAUDE_PID" || {

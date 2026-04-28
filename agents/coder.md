@@ -3,7 +3,7 @@ name: coder
 description: >
   Implements a single task (implement phase: make failing test pass + refactor in-place → commit) within the TDD cycle.
   Invoked only by the implementing skill. Do not auto-trigger.
-tools: Read, Edit, Write, Bash, Grep, Glob, Skill
+tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
 effort: high
 isolation: worktree

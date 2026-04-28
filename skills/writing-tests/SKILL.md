@@ -6,6 +6,8 @@ description: >
   Never writes implementation code — all tests must fail.
   Do NOT trigger automatically — only on explicit user request or when called by running-dev-cycle.
 effort: medium
+context: fork
+agent: test-writer
 paths:
   - tests/**
   - plans/**
@@ -21,8 +23,8 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 
 Phase entry:
 - Phase `spec`: proceed normally.
-- Phase `red` + `critic-spec: PASS` in `## Critic Verdicts`: skip to Step 2 (no transition needed).
-- Phase `red` without `critic-spec: PASS`, or any other phase: `[BLOCKED] writing-tests entered from unexpected phase {phase} — critic-spec PASS required; re-run writing-spec`.
+- Phase `red` + `[CONVERGED] spec/critic-spec` in `## Open Questions`: skip to Step 2 (no transition needed).
+- Phase `red` without `[CONVERGED] spec/critic-spec`, or any other phase: `[BLOCKED] writing-tests entered from unexpected phase {phase} — critic-spec convergence required; re-run writing-spec`.
 
 - `Read` the project `CLAUDE.md` to extract the test command
 - `Read` the target `spec.md` in full

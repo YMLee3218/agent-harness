@@ -69,7 +69,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slu
      "docs contradiction — resetting spec milestone for re-review"
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
    ```
-   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
+   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --nested --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
    After critic-spec converges, **only if step 3 will NOT also run** (tests do not need changing), restore to `implement`:
    ```bash
    # Skip this block if step 3 (tests need changing) will also run — step 3's §Phase Rollback handles the phase advance from spec → red → implement
@@ -79,7 +79,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slu
 
 3. If tests need to change:
    **Rollback to red**: apply §Phase Rollback Procedure with target-phase=`red`, critic=`critic-test`.
-   Fix tests → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required. Then advance back to `implement`:
+   Fix tests → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --nested --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required. Then advance back to `implement`:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
      "docs contradiction fixed — tests updated and passing"
@@ -95,7 +95,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slu
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
    ```
-   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --prompt "Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
+   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --nested --prompt "Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
 
 **During `review` phase** — after critic-code passes, restore phase to `review` before re-running pr-review:
 ```bash

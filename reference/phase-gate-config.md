@@ -36,6 +36,12 @@ CLAUDE_CRITIC_LOOP_CEILING=5
 
 Maximum critic loop iterations per run (runs 1–N allowed; the (N+1)th triggers `[BLOCKED-CEILING]`). Default: `5`. Must be a numeric integer ≥ 2; invalid values or values below 2 fall back to 5. See `@reference/critics.md` for how PARSE_ERROR verdicts count toward the ceiling.
 
+```bash
+CLAUDE_CRITIC_LOOP_MODEL=opus
+```
+
+Model for the orchestration session spawned by `run-critic-loop.sh`. Default: `opus`. The orchestration session runs the one-shot iteration logic (skill invocation, `record-verdict`, ultrathink audit per `@reference/critics.md §Critic one-shot iteration`). Critic subagents use their own `model:` field from their agent definition (e.g., `agents/critic-code.md` specifies `sonnet`), so this variable controls only the parent session — not the critic review itself.
+
 ## Phase enforcement rules
 
 Source of truth: `scripts/phase-policy.sh` (`phase_blocks_src`, `phase_blocks_test`, `list_phases`). Update `phase-policy.sh` to change phase predicates — this file does not restate them.

@@ -6,6 +6,8 @@ description: >
   References only docs/*.md and brainstorming output — never reads src/.
   Do NOT trigger automatically — only on explicit user request or when called by running-dev-cycle.
 effort: medium
+context: fork
+agent: spec-writer
 paths:
   - features/**
   - domain/**
