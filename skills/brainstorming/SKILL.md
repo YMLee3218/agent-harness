@@ -21,6 +21,14 @@ Determine first: **new feature** or **modification**?
 
 ### Step 1 — Read plan file + clarify
 
+Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `brainstorm` (re-entry), `done` (new feature after previous feature complete).
+
+Phase entry:
+- Phase `brainstorm`: proceed normally (re-entry after `/compact` or session interruption).
+- Phase `done`: proceed normally (new feature after previous feature is complete).
+- No plan file (CLAUDE_PLAN_FILE unset or file does not exist): proceed normally — Step 1 initialises it.
+- Any other phase: `[BLOCKED] brainstorming entered from unexpected phase {phase} — finish the current feature first, or unset CLAUDE_PLAN_FILE to start a fresh plan for the new feature`.
+
 **Pre-entry git check** — run before any other work:
 
 ```bash
