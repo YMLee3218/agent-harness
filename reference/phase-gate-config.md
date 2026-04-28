@@ -42,6 +42,18 @@ CLAUDE_CRITIC_LOOP_MODEL=opus
 
 Model for the orchestration session spawned by `run-critic-loop.sh`. Default: `opus`. The orchestration session runs the one-shot iteration logic (skill invocation, `record-verdict`, ultrathink audit per `@reference/critics.md §Critic one-shot iteration`). Critic subagents use their own `model:` field from their agent definition (e.g., `agents/critic-code.md` specifies `sonnet`), so this variable controls only the parent session — not the critic review itself.
 
+```bash
+CLAUDE_STOP_CHECK_TIMEOUT=600
+```
+
+Per-test-run timeout (seconds) for `scripts/stop-check.sh`. Default: `600` (10 minutes). Raise when test suites are expected to exceed 10 minutes. Set to `0` to disable the timeout cap (requires `gtimeout` or `timeout` to be absent, or use `CLAUDE_STOP_CHECK_TIMEOUT=0` when no timeout binary is available). The stop-check hook runs in the `green` and `integration` phases only (non-interactive runs: `CLAUDE_NONINTERACTIVE=1`).
+
+```bash
+MAX_CONSECUTIVE_NOOP=2
+```
+
+Maximum number of consecutive critic-loop iterations allowed where the plan file is unchanged (i.e., the critic session produced no verdicts). Default: `2`. If the plan file hash is unchanged for this many consecutive iterations, `run-critic-loop.sh` writes `[BLOCKED] {agent}: plan unchanged for {N} consecutive iterations — critic is not writing to plan file; check session logs` to `## Open Questions` and exits 1. This fires when a critic session silently exits without writing to the plan file. Increase only if your critic is expected to produce multiple plan-unchanged iterations (unusual).
+
 ## Phase enforcement rules
 
 Source of truth: `scripts/phase-policy.sh` (`phase_blocks_src`, `phase_blocks_test`, `list_phases`). Update `phase-policy.sh` to change phase predicates — this file does not restate them.

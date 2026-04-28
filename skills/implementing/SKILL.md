@@ -97,9 +97,10 @@ Capture `worktreeBranch` from each `Agent` result. After each returns, **check f
      ```bash
      bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug}.md" "task-N" "blocked"
      ```
-   - Append to `## Open Questions`:
-     ```
-     [BLOCKED] coder:task-N aborted without commit — {reason from coder output}
+   - Append the blocked marker:
+     ```bash
+     bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
+       "plans/{slug}.md" "[BLOCKED] coder:task-N aborted without commit — {reason from coder output}"
      ```
    - Clean up the worktree:
      ```bash

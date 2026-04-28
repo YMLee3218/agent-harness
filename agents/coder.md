@@ -129,7 +129,7 @@ If `_test_files` is non-empty:
 commit_count=$(git rev-list --count "$base_sha"..HEAD 2>/dev/null || echo 0)
 ```
 
-If `commit_count == 0` and tests pass → commit: `git add -A && git commit -m "{type}({scope}): {description}"`. Proceed to **d**.
+If `commit_count == 0` and Codex's test output in the tail shows tests passing → commit: `git add -A && git commit -m "{type}({scope}): {description}"`. Proceed to **d**.
 
 **d) Run tests:**
 
