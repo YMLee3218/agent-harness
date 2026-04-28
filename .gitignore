@@ -3,6 +3,9 @@
 *.md.XXXXXX
 *.lock
 
+# Stray harness plan.md (belongs at harness root, not workspace) — never commit
+/plan.md
+
 # Tool caches — never committed
 .ruff_cache/
 __pycache__/
