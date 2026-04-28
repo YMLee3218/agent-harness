@@ -7,9 +7,8 @@ description: >
   Always run before writing-spec. For brand-new repos, run initializing-project first.
   Do NOT trigger automatically — only on explicit user request or when called by running-dev-cycle.
 effort: medium
-paths:
-  - docs/**
-  - plans/**
+context: fork
+agent: brainstormer
 ---
 
 # Brainstorming Workflow
@@ -30,7 +29,7 @@ git status --porcelain
 
 If dirty working tree (non-empty output): `[BLOCKED] dirty working tree — commit or stash changes first`
 
-If `CLAUDE_PLAN_FILE` is set and the file does not yet exist, run `plan-file.sh init "$CLAUDE_PLAN_FILE"` before any other `plan-file.sh` command.
+If `CLAUDE_PLAN_FILE` is set and the file does not yet exist, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "$CLAUDE_PLAN_FILE"` before any other `plan-file.sh` command.
 
 Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 
