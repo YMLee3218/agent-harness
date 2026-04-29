@@ -146,7 +146,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-pr-review "plans/{
 gh pr view 2>/dev/null || gh pr create --draft --title "feat: {name}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent pr-review --phase review --plan "plans/{slug}.md" --iteration-doc "@reference/pr-review-loop.md §PR-review one-shot iteration" --prompt "PR: {pr-url}. Spec: {spec-path}. Docs: {doc-paths}."
 ```
-exit 0 → transition to `green`; exit 1 → stop and report; exit 2 → manual review required.
+exit 0 → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" green "pr-review converged — feature complete"`; exit 1 → stop and report; exit 2 → manual review required.
 
 Then move to the next feature. Repeat until all features are done.
 

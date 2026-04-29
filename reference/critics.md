@@ -115,9 +115,9 @@ Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `
 
 ### Background execution
 
-`run-critic-loop.sh` may exceed the Bash tool's 10-minute maximum timeout. Always run it with `run_in_background=true` (Bash tool parameter). Do **not** append `&` to the command string — `run_in_background=true` handles backgrounding; adding `&` orphans the script. Do **not** set up a Monitor — Monitor surfaces B/C session output, which causes the parent agent to intervene with fixes that belong to the spawned B session.
+`run-critic-loop.sh` may exceed the Bash tool's 10-minute maximum timeout. Always run it with `run_in_background=true` (Bash tool parameter). Do **not** append `&` to the command string — `run_in_background=true` handles backgrounding; adding `&` orphans the script.
 
-After launching in background, wait for the completion notification, then read `## Open Questions` in the plan file for terminal markers and proceed per exit code rules. Do **not** apply fixes based on any output observed before the notification — B sessions handle all fixes.
+After launching, end your turn immediately. The background completion notification resumes execution in the next turn automatically — no Monitor, ScheduleWakeup, or polling of any kind. When the notification arrives, read `## Open Questions` for terminal markers and proceed per exit code rules. B sessions handle all fixes; do not act on output observed before the notification.
 
 After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. **Exception — `run-critic-loop.sh` background runs**: the one-shot B-session runs the audit internally per §Critic one-shot iteration step 2; do **not** re-run the audit after the loop returns. This step applies to `append-review-verdict` (pr-review) and direct critic invocations only.
 
