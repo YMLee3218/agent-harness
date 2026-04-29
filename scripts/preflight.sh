@@ -5,7 +5,7 @@
 # on failure, appends [BLOCKED] preflight: markers to ## Open Questions and exits 2.
 #
 # Required tools (single source of truth):
-#   gh CLI (authenticated)  — implementing runs gh pr create; without auth PR step fails
+#   gh CLI (authenticated)  — implementing runs gh pr create; without auth PR step fails (skipped in B-sessions: CLAUDE_CRITIC_SESSION=1)
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
 #   context7-plugin         — critic-code and critic-spec use context7 to verify external API usage
 #   pr-review-toolkit       — implementing calls pr-review-toolkit:review-pr per feature
@@ -48,8 +48,8 @@ _append_blocked() {
   _blocked=1
 }
 
-# Check: gh CLI authenticated
-if ! gh auth status >/dev/null 2>&1; then
+# Check: gh CLI authenticated (skipped in B-sessions — critic/pr-review never call gh)
+if [ "${CLAUDE_CRITIC_SESSION:-0}" != "1" ] && ! gh auth status >/dev/null 2>&1; then
   _append_blocked "gh" "run 'gh auth login' to authenticate the GitHub CLI"
 fi
 

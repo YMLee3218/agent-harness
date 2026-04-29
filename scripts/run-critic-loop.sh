@@ -59,10 +59,10 @@ while true; do
 
   CRITIC_LOOP_MODEL="${CLAUDE_CRITIC_LOOP_MODEL:-opus}"
   if [[ -n "$TIMEOUT_CMD" ]]; then
-    CLAUDE_NONINTERACTIVE=1 "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
+    CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
       claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
   else
-    CLAUDE_NONINTERACTIVE=1 claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
+    CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
   fi
   CLAUDE_PID=$!
   wait "$CLAUDE_PID" || {
