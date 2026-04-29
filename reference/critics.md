@@ -96,7 +96,7 @@ Skill reads ## Open Questions, checks in priority order:
                                 → re-run automatically (one retry allowed;
                                   second consecutive PARSE_ERROR triggers [BLOCKED] parse:)
   7. (no terminal marker, PASS) → re-run automatically
-  8. (no terminal marker, FAIL) → LLM determines fix direction:
+  8. (no terminal marker, FAIL; or redirected from step 5 on [FIRST-TURN]+FAIL) → LLM determines fix direction:
        - direction is clear → construct Codex fix prompt (critic finding, target file,
          change to apply, test command, layer rules if applicable); write to tmp file:
            codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
