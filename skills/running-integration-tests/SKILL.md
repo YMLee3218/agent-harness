@@ -103,9 +103,10 @@ If tests fail:
      "{one sentence reason}"
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" {rollback-phase}
    ```
-   When rollback-phase is `spec`: also reset the critic-spec milestone so the updated spec is reviewed (stale `[CONVERGED] spec/critic-spec` would otherwise cause writing-spec to skip critic-spec):
+   When rollback-phase is `spec`: also reset the critic-spec and critic-test milestones (stale `[CONVERGED]` markers would skip critic review — `spec/critic-spec` would cause writing-spec to skip critic-spec; `red/critic-test` would cause session-recovery routing to skip critic-test after writing-tests re-transitions to `red`):
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-test
    ```
    Then invoke the appropriate skill via `Skill(...)`.
 
