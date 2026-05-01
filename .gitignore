@@ -14,3 +14,6 @@ __pycache__/
 
 # User-local Claude Code overrides (contain personal paths/tokens — never commit)
 .claude/settings.local.json
+
+# Claude Code runtime worktrees — ephemeral, never committed
+worktrees/
