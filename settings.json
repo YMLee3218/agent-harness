@@ -90,7 +90,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-verdict"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-verdict-guarded"
           }
         ]
       }

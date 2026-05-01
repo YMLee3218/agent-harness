@@ -21,16 +21,14 @@ Read the requirements document at the path provided.
 - Small feature: calls domain and/or infrastructure directly? Single responsibility?
 - Large feature: composes only small features? Calls domain directly? (→ `[FAIL]`)
 
-**2. Layer assignment**
-- Each candidate correctly assigned to `features/`, `domain/`, or `infrastructure/`?
-- Domain concept placed in `features/`? (→ `[FAIL]`)
-- Infrastructure concern placed in `domain/`? (→ `[FAIL]`)
+**2. Requirements scope**
+- Does the requirements doc contain only user-facing features?
+- Domain concepts or infrastructure items listed as features? (→ `[WARN]` — not blocking; writing-spec will classify them correctly)
 
 **3. Naming** — per `@reference/layers.md §Naming conventions` (→ `[FAIL]` if violated)
 
 **4. Completeness**
 - Failure paths that need their own feature?
-- Domain concepts implied but not listed? (→ `[MISSING]`)
 - Existing `features/` that could be reused?
 
 ## Output format
@@ -44,7 +42,8 @@ Read the requirements document at the path provided.
 None: "No classification issues"
 
 ### Missing Features
-[MISSING] {description}: {suggested name and classification}
+[MISSING] {description}: {suggested name} — missing failure path or reusable feature
+[WARN] {description}: domain concept or infrastructure item noted in requirements — writing-spec will classify
 None: "No missing features"
 ```
 
@@ -54,8 +53,8 @@ Category mapping (per `@reference/severity.md §Category priority`):
 
 | Check | Category |
 |-------|----------|
-| Layer assignment / size-classification violation (Checks 1–2) | `LAYER_VIOLATION` |
+| Size-classification violation (Check 1) | `LAYER_VIOLATION` |
 | Naming violation (Check 3) | `STRUCTURAL` |
-| Missing domain concept (Check 4) | `MISSING_SCENARIO` |
+| Missing feature (Check 4) | `MISSING_SCENARIO` |
 
 When multiple FAILs fire, pick the highest-priority category per `@reference/severity.md §Category priority`.

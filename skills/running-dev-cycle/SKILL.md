@@ -56,7 +56,7 @@ Route accordingly:
 | `spec` (no `[CONVERGED] spec/critic-spec`, spec.md exists) | Skip writing-spec; go directly to critic-spec loop in Step 2a |
 | `spec` (spec.md exists, `[CONVERGED] spec/critic-spec` present) | **Feature mode**: if spec.md is not yet committed (`git status --porcelain features/{verb}-{noun}/spec.md` or `domain/{concept}/spec.md` is non-empty), run `git add {spec-path} && git commit -m "feat(spec): add BDD scenarios for {name}"` first (where `{spec-path}` is the uncommitted path from the status check: `features/{verb}-{noun}/spec.md` or `domain/{concept}/spec.md`); then skip to **Step 2b**. **Batch mode**: proceed to **Step 3** (tests for all features). |
 | `red` (mode: `feature`, no `[CONVERGED] red/critic-test`, Test Manifest non-empty) | Skip writing-tests; go directly to critic-test loop in Step 2b |
-| `red` | **Feature mode** (feature profile): If `[CONVERGED] red/critic-test` is present in `## Open Questions` → skip to **Step 2c** (implementing). Otherwise (Test Manifest empty) → invoke `writing-tests` (it handles `red` phase re-entry). **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry AND `[CONVERGED] red/critic-test` is present, skip directly to **Step 4** (Implementation). If every feature already has a Test Manifest entry but `[CONVERGED] red/critic-test` is absent (session interrupted after test-writing but before critic-test converged), skip sub-step 1 (tests already written) and run sub-steps 2–4 for the last feature in the list, then proceed to Step 4. |
+| `red` | **Feature mode** (feature profile): If `[CONVERGED] red/critic-test` is present in `## Open Questions` → skip to **Step 2c** (implementing). Otherwise (Test Manifest empty): check `## Open Questions` for `[CONVERGED] spec/critic-spec` — if absent → transition to `spec` (`plan-file.sh transition plans/{slug}.md spec "recovery: spec critic must re-run before writing tests"`) and proceed per row above (skip writing-spec; go directly to critic-spec loop in Step 2a); if present → invoke `writing-tests`. **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry AND `[CONVERGED] red/critic-test` is present, skip directly to **Step 4** (Implementation). If every feature already has a Test Manifest entry but `[CONVERGED] red/critic-test` is absent (session interrupted after test-writing but before critic-test converged), skip sub-step 1 (tests already written) and run sub-steps 2–4 for the last feature in the list, then proceed to Step 4. |
 | `implement` (tasks pending) | Re-invoke the `implementing` skill. |
 | `implement` (all tasks complete) | Skip to Step 2c post-implementation (critic-code → pr-review). |
 | `review` | PR review interrupted — check `## Open Questions`: if `[CONVERGED] review/pr-review` is present → check `## Verdict Audits` for a pr-review `ACCEPT` entry after the last `[MILESTONE-BOUNDARY]` in `## Critic Verdicts`: ACCEPT found → transition to `green`; no ACCEPT (session died between `append-review-verdict` and ultrathink audit) → run `@reference/ultrathink.md §Ultrathink verdict audit` on the last pr-review `PASS` verdict, then proceed per audit outcome (`ACCEPT`: transition to `green`; `REJECT-PASS`: re-run `run-critic-loop.sh` per "no `[CONVERGED]`" path below; `BLOCKED-AMBIGUOUS`: stop). Otherwise (no `[CONVERGED]`) → re-run `run-critic-loop.sh` (do **not** call `reset-pr-review`): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent pr-review --phase review --plan "plans/{slug}.md" --iteration-doc "@reference/pr-review-loop.md §PR-review one-shot iteration" --prompt "PR: {pr-url}. Spec: {spec-path}. Docs: {doc-paths}."` |
@@ -91,7 +91,7 @@ After brainstorming returns, insert `mode: {profile}` (`feature` or `greenfield`
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-feature
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-feature --phase brainstorm --plan "plans/{slug}.md" --prompt "Review docs/requirements/{name}.md. Original requirement: [paste requirement]."
 ```
-exit 0 → proceed to **Step 2a** (feature-slice mode) or **Step 2** (batch mode). exit 1 → `[BLOCKED]` written to plan — stop and report. exit 2 → `[BLOCKED-CEILING]` — manual review required.
+exit 0 → proceed to **Step 2a** (feature-slice mode) or **Step 2** (batch mode). exit 1 → `[BLOCKED]` written — stop. exit 2 → `[BLOCKED-CEILING]` — manual review. other exit → script failure (@reference/critics.md §Script failure).
 
 ---
 
@@ -112,7 +112,7 @@ Reset the critic-spec milestone (clears stale `[CONVERGED] spec/critic-spec` fro
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
 ```
 
-`bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --prompt "Review spec at [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written to plan — stop and report; exit 2 → `[BLOCKED-CEILING]` — manual review required.
+`bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --prompt "Review spec at [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written — stop; exit 2 → `[BLOCKED-CEILING]` — manual review; other exit → script failure (@reference/critics.md §Script failure).
 
 After `[CONVERGED] spec/critic-spec` is confirmed, commit the spec file:
 ```bash
@@ -124,7 +124,7 @@ git commit -m "feat(spec): add BDD scenarios for {name}"
 
 Invoke the `writing-tests` skill; wait until tests are written and committed, plan file phase is `red`.
 Reset critic-test milestone (clears stale `[CONVERGED] red/critic-test` from a prior feature's run): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-test`
-`bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written to plan — stop and report; exit 2 → `[BLOCKED-CEILING]` — manual review required.
+`bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written — stop; exit 2 → `[BLOCKED-CEILING]` — manual review; other exit → script failure (@reference/critics.md §Script failure).
 
 Do not proceed to Step 2c until `[CONVERGED] red/critic-test` is present.
 
@@ -137,7 +137,7 @@ Then run critic-code:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --prompt "Review changed files. Spec: [spec-path]. Docs: [paths]."
 ```
-exit 0 → proceed to pr-review. exit 1 → `[BLOCKED]` written to plan — stop and report. exit 2 → `[BLOCKED-CEILING]` — manual review required.
+exit 0 → proceed to pr-review. exit 1 → `[BLOCKED]` written — stop. exit 2 → `[BLOCKED-CEILING]` — manual review. other exit → script failure (@reference/critics.md §Script failure).
 
 After `[CONVERGED] implement/critic-code`, run pr-review:
 ```bash
@@ -146,7 +146,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-pr-review "plans/{
 gh pr view 2>/dev/null || gh pr create --draft --title "feat: {name}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent pr-review --phase review --plan "plans/{slug}.md" --iteration-doc "@reference/pr-review-loop.md §PR-review one-shot iteration" --prompt "PR: {pr-url}. Spec: {spec-path}. Docs: {doc-paths}."
 ```
-exit 0 → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" green "pr-review converged — feature complete"`; exit 1 → stop and report; exit 2 → manual review required.
+exit 0 → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" green "pr-review converged — feature complete"`; exit 1 → stop and report; exit 2 → manual review required; other exit → script failure (@reference/critics.md §Script failure).
 
 Then move to the next feature. Repeat until all features are done.
 
@@ -162,7 +162,7 @@ For each feature:
 1. Invoke the `writing-spec` skill for that feature
 2. Wait until spec.md is written and plan file phase is `spec`
 3. Reset the critic-spec milestone: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec`
-4. `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --prompt "Review spec at [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written to plan — stop and report; exit 2 → `[BLOCKED-CEILING]` — manual review required.
+4. `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --prompt "Review spec at [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written — stop; exit 2 → `[BLOCKED-CEILING]` — manual review; other exit → script failure (@reference/critics.md §Script failure).
 5. After `[CONVERGED] spec/critic-spec` is confirmed, commit: `git add {spec-path} && git commit -m "feat(spec): add BDD scenarios for {name}"` (where `{spec-path}` is the actual spec path written by `writing-spec`: `features/{verb}-{noun}/spec.md` or `domain/{concept}/spec.md`)
 
 Do not proceed to Step 3 until all features have a committed, PASS-verified spec.md.
@@ -174,7 +174,7 @@ Read `docs/requirements/{name}.md` to get the full feature list.
 For each feature, in the same order as Step 2:
 1. Invoke the `writing-tests` skill for that feature
 2. Wait until tests are written and committed, plan file phase is `red`; reset critic-test milestone: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-test`
-3. `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written to plan — stop and report; exit 2 → `[BLOCKED-CEILING]` — manual review required.
+3. `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written — stop; exit 2 → `[BLOCKED-CEILING]` — manual review; other exit → script failure (@reference/critics.md §Script failure).
 4. Do not move to the next feature until `[CONVERGED] red/critic-test` is present
 
 Do not proceed to Step 4 until every feature has completed Step 3.

@@ -29,7 +29,15 @@ This file is the single source of truth for layer rules. CLAUDE.md, skills, and 
 
 - Features: `{verb}-{noun}` kebab-case (e.g., `add-todo`, `send-notification`)
 - Domain concepts: `{noun}` singular kebab-case (e.g., `todo`, `user`, `notification`)
-- Spec files: `features/{verb}-{noun}/spec.md` (feature specs) and `domain/{concept}/spec.md` (domain specs) — top-level directories, not under `src/`
+- Spec files: top-level directories, not under `src/`
+- Infrastructure concepts: `{noun}` singular kebab-case (e.g., `noop-deploy`, `postgres-store`)
+- Layer-to-spec-path mapping (canonical for all skills and critics):
+
+  | Layer | Spec path |
+  |-------|-----------|
+  | Domain | `domain/{concept}/spec.md` |
+  | Infrastructure | `infrastructure/{concept}/spec.md` |
+  | Feature (small or large) | `features/{verb}-{noun}/spec.md` |
 
 ## Acceptable import exceptions
 

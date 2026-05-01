@@ -31,8 +31,9 @@ Also compare spec against `docs/*.md`. If the spec contradicts documented domain
 
 ## Angle 2 — Structural correctness
 
-5. **Placement**: feature spec at `features/{verb}-{noun}/spec.md`? Domain spec at `domain/{concept}/spec.md`?
+5. **Placement**: spec path matches the component's classified layer per `@reference/layers.md §Naming conventions`? Feature: `features/{verb}-{noun}/spec.md`? Domain: `domain/{concept}/spec.md`? Infrastructure: `infrastructure/{concept}/spec.md`? (→ `[FAIL]` if path does not match layer)
 6. **Domain purity**: domain spec mentions DB, HTTP, queue, or file system? (→ `[FAIL]`)
+6b. **Infrastructure purity**: infrastructure spec describes pure business logic or domain decisions with no I/O? (→ `[FAIL]` — belongs in domain, not infrastructure)
 7. **Feature classification**: large feature scenario implies calling domain directly? (→ `[FAIL]`)
 8. **BDD format**: every scenario has `Given`, `When`, `Then`? Every `Scenario Outline` has `Examples:`? `Feature:` declaration present?
 
@@ -70,7 +71,7 @@ Category mapping (per `@reference/severity.md §Category priority`):
 
 | Check | Category |
 |-------|----------|
-| Domain purity / feature classification (Angle 2 §6–7) | `LAYER_VIOLATION` |
+| Domain purity / infrastructure purity / feature classification (Angle 2 §6–6b–7) | `LAYER_VIOLATION` |
 | Docs contradiction (Angle 1) | `DOCS_CONTRADICTION` |
 | Unverified claim (Angle 3) | `UNVERIFIED_CLAIM` |
 | Missing scenario / boundary (Angle 1 §1–4) | `MISSING_SCENARIO` |

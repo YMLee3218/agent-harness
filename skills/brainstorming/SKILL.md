@@ -1,7 +1,7 @@
 ---
 name: brainstorming
 description: >
-  Brainstorm/decompose new features into VSA Small/Large features and DDD domain concepts.
+  Brainstorm/decompose new features into user-facing Small/Large features. Domain concepts and infrastructure components are not identified here — that is writing-spec's responsibility.
   Trigger: "build X", "add Y", "need Z", "feature", or any new-functionality phrasing.
   Decomposes requirements before any spec or code is written.
   Always run before writing-spec. For brand-new repos, run initializing-project first.
@@ -55,11 +55,13 @@ If `docs/requirements/{name}.md` does **not** exist: proceed — Step 3 will cre
 
 ### Step 2 — Decompose
 
-Classify each candidate per @reference/layers.md (Small / Large feature). Name format per @reference/layers.md §Naming conventions.
+Classify each candidate as Small or Large feature per @reference/layers.md §Feature size classification. Name format per @reference/layers.md §Naming conventions.
+
+Do NOT identify domain concepts, infrastructure components, or assign anything to `domain/` or `infrastructure/` — those are architectural decisions made by writing-spec.
 
 If proposing domain rules or constraints not found in `docs/*.md`: mark the assumption `[UNVERIFIED CLAIM]` in the plan file and include it provisionally; critic-spec will independently flag unverified claims in the spec.
 
-List each candidate with layer assignment. Write decomposition to plan file. Proceed to Step 3.
+List each candidate as small or large. Write decomposition to plan file. Proceed to Step 3.
 
 ### Step 3 — Write output + create branch
 
@@ -131,5 +133,5 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 
 Do not move to `writing-spec` until:
 - Feature names comply with `@reference/layers.md §Naming conventions`
-- Every feature is classified as small or large with layer assignment
+- Every feature is classified as small or large (no layer assignment — writing-spec's responsibility)
 - Plan file `plans/{slug}.md` exists with Phase `brainstorm`

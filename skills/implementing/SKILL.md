@@ -29,19 +29,21 @@ Write task list to plan file:
 ```
 Task N: {verb} {object}
   Files: {exact paths}
-  Layer: domain|infrastructure|small-feature|large-feature
+  Spec: {spec path — e.g. domain/{concept}/spec.md}
+  Layer: {derived from spec path prefix per @reference/layers.md §Naming conventions}
   Depends on: Task M (omit if none)
   Parallel: yes/no
 ```
 
-Layer order: domain tasks first, then features, then infrastructure. Mark tasks that can run in parallel within the same layer tier (no cross-task dependency within the tier).
+Layer order: domain tasks first, then infrastructure, then features. Mark tasks that can run in parallel within the same layer tier (no cross-task dependency within the tier).
 
 ## Step 2 — Track tasks
 
 Create one task per implementation unit and register in the plan file Task Ledger:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" add-task "plans/{slug}.md" "task-1" "domain"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" add-task "plans/{slug}.md" "task-2" "small-feature"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" add-task "plans/{slug}.md" "task-2" "infrastructure"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" add-task "plans/{slug}.md" "task-3" "small-feature"
 # ... one call per task
 ```
 
@@ -63,7 +65,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" update-task "plans/{slug
 base_sha=$(git rev-parse HEAD)
 export CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md"
 ```
-Pass `CLAUDE_PLAN_FILE` via the coder prompt. Determine each task's layer from `@reference/layers.md §Layers`. Do not pass the full plan to subagents.
+Pass `CLAUDE_PLAN_FILE` via the coder prompt. Derive each task's layer from its spec path prefix per `@reference/layers.md §Naming conventions`: `domain/` → domain, `infrastructure/` → infrastructure, `features/` → small-feature or large-feature (read spec to determine size). Do NOT assign layers independently. Do not pass the full plan to subagents.
 
 ```
 Agent(

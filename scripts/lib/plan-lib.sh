@@ -555,6 +555,26 @@ cmd_record_verdict() {
   cmd_append_verdict "$plan_file" "$verdict_label"
 }
 
+cmd_record_verdict_guarded() {
+  if [ "${CLAUDE_CRITIC_SESSION:-0}" != "1" ]; then
+    local _input _agent _plan _find_rc
+    _input=$(cat)
+    _agent="unknown"
+    if command -v jq >/dev/null 2>&1; then
+      _agent=$(printf '%s' "$_input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
+    fi
+    _find_rc=0
+    _plan=$(cmd_find_active) || _find_rc=$?
+    if [ "$_find_rc" -eq 0 ]; then
+      cmd_append_note "$_plan" \
+        "[BLOCKED] protocol-violation: ${_agent} invoked outside run-critic-loop.sh context"
+    fi
+    echo "[record-verdict-guarded] BLOCKED: ${_agent} ran outside run-critic-loop.sh" >&2
+    exit 2
+  fi
+  cmd_record_verdict
+}
+
 cmd_append_review_verdict() {
   local plan_file="$1" agent="$2" verdict="$3"
   require_file "$plan_file"

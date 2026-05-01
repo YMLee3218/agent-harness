@@ -32,7 +32,7 @@ FAIL — {comma-separated list of blocking finding labels}
 <!-- category: {highest-priority category} -->
 ```
 
-A **FAIL** verdict must include a `<!-- category: X -->` marker. A FAIL that has a verdict marker but no category marker is recorded as PARSE_ERROR; on the second consecutive occurrence `[BLOCKED] parse:{agent}` is set.
+A **FAIL** verdict must include a `<!-- category: X -->` marker. A FAIL that has a verdict marker but no category marker is recorded as PARSE_ERROR; on the second consecutive occurrence `[BLOCKED] parse:{agent}` is set. Verdict calibration: false PASS → production defect (cost 10×); false FAIL → one extra iteration (cost 1×). When evidence is ambiguous, FAIL.
 
 Full iteration protocol: §Loop convergence.
 
@@ -111,7 +111,7 @@ Skill reads ## Open Questions, checks in priority order:
 
 ## Running the critic
 
-Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `plan-file.sh record-verdict` automatically when the critic agent exits — do **not** call `record-verdict` manually (doing so would double-record the run, inflating the streak and ceiling counters). For pr-review (which is not a subagent), call `append-review-verdict` directly after the pr-review skill returns.
+Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `plan-file.sh record-verdict-guarded` automatically when the critic agent exits — do **not** call `record-verdict` or `record-verdict-guarded` manually (doing so would double-record the run, inflating the streak and ceiling counters). For pr-review (which is not a subagent), call `append-review-verdict` directly after the pr-review skill returns.
 
 ### Background execution
 
@@ -121,6 +121,7 @@ After launching, end your turn immediately. The background completion notificati
 
 After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. **Exception — `run-critic-loop.sh` background runs**: the one-shot B-session runs the audit internally per §Critic one-shot iteration step 2; do **not** re-run the audit after the loop returns. This step applies to `append-review-verdict` (pr-review) and direct critic invocations only.
 
+**Script failure**: if `run-critic-loop.sh` exits with any code other than 0, 1, or 2, the script itself failed. Write `[BLOCKED] script-failure: {code}` to `## Open Questions`, output NEEDS_HUMAN, and stop. Running critics manually is not a fallback — it is a protocol violation.
 ### New milestone
 
 Before starting a critic run for a new milestone within the same phase, call:
@@ -146,12 +147,12 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" {target-phase}
 ```
 
-When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`. After `transition {destination-phase}`, additionally call `reset-milestone {destination-critic}` if a stale `[CONVERGED] {destination-phase}/{destination-critic}` marker remains from a prior milestone (e.g., rolling back to `red` requires `reset-milestone critic-test` to clear any stale `[CONVERGED] red/critic-test`).
+When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`. After `transition {destination-phase}`, additionally call `reset-milestone {destination-critic}` if a stale `[CONVERGED] {destination-phase}/{destination-critic}` marker remains from a prior milestone (e.g., rolling back to `red` requires `reset-milestone critic-test` to clear any stale `[CONVERGED] red/critic-test`). When a milestone must be reset at a non-destination phase (e.g., clearing stale `[CONVERGED] red/critic-test` while destination is `spec`): use a phase round-trip — `transition {milestone-phase}`, `reset-milestone {milestone-critic}`, `transition {destination-phase}` — because `reset-milestone` scopes to the current plan phase (see `running-integration-tests` §Step 3 for the spec-rollback example).
 
 ## §Critic one-shot iteration
 
 One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** loop — one critic run per session.
-1. `Skill("{agent}", "{prompt}")` — `SubagentStop` fires `record-verdict` automatically.
+1. `Skill("{agent}", "{prompt}")` — `SubagentStop` fires `record-verdict-guarded` automatically.
 2. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 5/6/7 hand their re-run back to the shell loop; however step 5's FAIL branch routes to step 8, which this session does execute before exiting); exit after each branching action.
 
 ## Ambiguity signaling
@@ -195,5 +196,4 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slu
 # For [BLOCKED-AMBIGUOUS] markers (clear-marker uses substring match):
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
 ```
-
 Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED]` marker).

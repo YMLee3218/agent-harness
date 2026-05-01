@@ -1,7 +1,7 @@
 ---
 name: writing-spec
 description: >
-  Write BDD spec.md (Given/When/Then scenarios) for features and domain concepts.
+  Write BDD spec.md (Given/When/Then scenarios) for features, domain concepts, and infrastructure components.
   Trigger: "write the spec", "define scenarios", "document the behaviour", after brainstorming is approved.
   References only docs/*.md and brainstorming output — never reads src/.
   Do NOT trigger automatically — only on explicit user request or when called by running-dev-cycle.
@@ -11,6 +11,7 @@ agent: spec-writer
 paths:
   - features/**
   - domain/**
+  - infrastructure/**
   - docs/**
   - plans/**
 ---
@@ -38,10 +39,16 @@ Proceed directly to Step 3.
 
 ## Step 3 — Write spec.md
 
-```
-features/{verb}-{noun}/spec.md   ← feature spec
-domain/{concept}/spec.md         ← domain spec
-```
+Read `docs/requirements/*.md` and identify ALL components implied by the feature requirements.
+Classify each component by layer using `@reference/layers.md §Layers`, then write to the path from `@reference/layers.md §Naming conventions`:
+
+| Classified as | Output path |
+|---------------|-------------|
+| Domain concept | `domain/{concept}/spec.md` |
+| Infrastructure component | `infrastructure/{concept}/spec.md` |
+| Feature (small or large) | `features/{verb}-{noun}/spec.md` |
+
+This is the only phase where domain concepts and infrastructure components are identified.
 
 Set plan file phase (skip if phase is already `spec` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`):
 ```bash

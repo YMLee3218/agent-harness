@@ -16,6 +16,7 @@ case "$1" in
   find-active)          cmd_find_active ;;
   find-latest)          cmd_find_latest ;;
   record-verdict)         cmd_record_verdict ;;
+  record-verdict-guarded)   cmd_record_verdict_guarded ;;
   record-task-completed)  cmd_record_task_completed ;;
   context)              cmd_context ;;
   gc-events)            cmd_gc_events ;;
