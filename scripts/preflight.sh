@@ -5,7 +5,7 @@
 # on failure, appends [BLOCKED] preflight: markers to ## Open Questions and exits 2.
 #
 # Required tools (single source of truth):
-#   gh CLI (authenticated)  — implementing runs gh pr create; without auth PR step fails (skipped in B-sessions: CLAUDE_CRITIC_SESSION=1)
+#   gh CLI (authenticated)  — running-dev-cycle runs gh pr create before pr-review; without auth PR step fails (skipped in B-sessions: CLAUDE_CRITIC_SESSION=1)
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
 #   context7-plugin         — critic-code and critic-spec use context7 to verify external API usage
 #   pr-review-toolkit       — implementing calls pr-review-toolkit:review-pr per feature
