@@ -16,7 +16,7 @@ export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:test_*.*:*.test.*:*.spec.*:*_spec.
 PHASE_GATE_STRICT=1
 ```
 
-When set, the phase gate blocks all writes if no active plan file exists (fail-closed). **Default is `1` (fail-closed).** Override to `0` in downstream projects that need fail-open behaviour.
+When set, the phase gate blocks `src/` and test writes if no active plan file exists (fail-closed); writes to `docs/`, `plans/`, `reference/`, and other non-source paths remain permitted (see §Phase enforcement rules). **Default is `1` (fail-closed).** Override to `0` in downstream projects that need fail-open behaviour.
 
 ```bash
 CLAUDE_PLAN_FILE=/path/to/plans/feature-slug.md
@@ -28,7 +28,7 @@ Pins the active plan file for `plan-file.sh find-active`. Highest priority overr
 CLAUDE_CRITIC_SESSION_TIMEOUT=3600
 ```
 
-Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-loop.sh`. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` exits 1 and appends `[BLOCKED] {agent}: session-timeout after {N}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` to `## Open Questions` (where `{N}` is the value of `CLAUDE_CRITIC_SESSION_TIMEOUT`).
+Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-loop.sh`. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` exits 1 and appends `[BLOCKED] {agent}: session-timeout after {N}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` to `## Open Questions` (where `{N}` is the value of `CLAUDE_CRITIC_SESSION_TIMEOUT`). Set to `0` to disable the timeout cap — `gtimeout 0` / `timeout 0` is treated as "no timeout" by GNU coreutils. When neither `gtimeout` nor `timeout` is installed, `run-critic-loop.sh` BLOCKs at start with `[BLOCKED] {agent}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap` (mirrors `stop-check.sh` no-binary handling).
 
 ```bash
 CLAUDE_CRITIC_LOOP_CEILING=5
@@ -46,7 +46,7 @@ Model for the orchestration session spawned by `run-critic-loop.sh`. Default: `o
 CLAUDE_STOP_CHECK_TIMEOUT=600
 ```
 
-Per-test-run timeout (seconds) for `scripts/stop-check.sh`. Default: `600` (10 minutes). Raise when test suites are expected to exceed 10 minutes. Set to `0` to disable the timeout cap (requires `gtimeout` or `timeout` to be absent, or use `CLAUDE_STOP_CHECK_TIMEOUT=0` when no timeout binary is available). The stop-check hook runs in the `green` and `integration` phases only (non-interactive runs: `CLAUDE_NONINTERACTIVE=1`).
+Per-test-run timeout (seconds) for `scripts/stop-check.sh`. Default: `600` (10 minutes). Raise when test suites are expected to exceed 10 minutes. Set to `0` to disable the timeout cap — `gtimeout 0` / `timeout 0` is treated as "no timeout" by GNU coreutils, and the script's no-binary fallback also runs uncapped when `_timeout=0`. The stop-check hook runs in the `green` and `integration` phases only (non-interactive runs: `CLAUDE_NONINTERACTIVE=1`).
 
 ```bash
 MAX_CONSECUTIVE_NOOP=2

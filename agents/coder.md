@@ -83,77 +83,68 @@ codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
 _codex_exit=$?
 echo "=== Codex exit: $_codex_exit ==="
 tail -200 "$_codex_log"
-rm -f "$_codex_prompt" "$_codex_log"
 ```
+
+Do not delete `$_codex_log` here — Step 4a re-reads it. Cleanup happens after Step 4a.
 
 ### Step 4 — Verify
 
-**a) Layer violation** (scan tail for: "layer violation", "forbidden import", "cannot implement without violating", "would violate", "hard stop", "STOP", "I stopped", "stopping", "aborting"):
+All checks are deterministic (single grep / git diff / test exit code). Do not interpret Codex prose.
 
-→ Abort immediately. No retry.
+**a) Layer violation** — grep the tail for the canonical self-report token Codex was instructed to emit (Step 2 hard constraints):
+
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
-  "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — layer violation: {reason} (re-decompose task)"
+if grep -qE '^layer violation:|STOP — layer violation:' <(tail -200 "$_codex_log"); then
+  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
+    "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — layer violation reported by Codex (re-decompose task)"
+  # Emit <!-- coder-status: abort --> and stop. No retry.
+fi
+rm -f "$_codex_prompt" "$_codex_log"
 ```
-Emit `<!-- coder-status: abort -->` and stop.
 
-**b) Test-file modification:**
+**b) Test-file modification** (deterministic git diff). Cover committed, uncommitted, and untracked test files — Step 4c's `git add -A` would otherwise commit uncommitted Codex test edits, bypassing the freeze:
 
 ```bash
-_test_files=$(git diff "$base_sha"..HEAD --name-only \
-  | grep -E '(^|/)tests/|_test\.|test_\.|\.test\.|\.spec\.|_spec\.' \
+_test_files=$( { git diff "$base_sha"..HEAD --name-only; \
+                 git diff HEAD --name-only; \
+                 git ls-files --others --exclude-standard; } \
+  | sort -u \
+  | grep -E '(^|/)tests/|_test\.|(^|/)test_[^/]*\.|\.test\.|\.spec\.|_spec\.' \
   | grep -v '\.spec\.md$')
 ```
 
 If `_test_files` is non-empty:
-- **Attempt 1**: restore test files, commit restoration, augment prompt, retry:
+- **Attempt 1**: restore, commit, augment prompt, retry. Untracked files (new test files Codex added) cannot be `git checkout`'d — `rm` them instead:
   ```bash
-  git checkout "$base_sha" -- $_test_files
-  git add $_test_files
+  for f in $_test_files; do
+    if git cat-file -e "$base_sha:$f" 2>/dev/null; then
+      git checkout "$base_sha" -- "$f"
+    else
+      rm -f "$f"
+    fi
+  done
+  git add -- $_test_files
   git commit -m "chore: restore test files modified by Codex"
   _codex_extra="${_codex_extra}
   RETRY: previous attempt modified test files (${_test_files}) — these are strictly read-only."
   _attempt=2
   ```
   Go back to Step 3.
-- **Attempt 2**: abort:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
-    "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — Codex modified test files after retry: {_test_files}"
-  ```
-  Emit `<!-- coder-status: abort -->` and stop.
+- **Attempt 2**: write `[BLOCKED] coder:{task-id} — Codex modified test files after retry: {_test_files}` and emit `<!-- coder-status: abort -->`.
 
 **c) Commit check:**
 
-```bash
-commit_count=$(git rev-list --count "$base_sha"..HEAD 2>/dev/null || echo 0)
-```
+If `git rev-list --count "$base_sha"..HEAD` is 0 and tests pass: `git add -A && git commit -m "{type}({scope}): {description}"`.
 
-If `commit_count == 0` and Codex's test output in the tail shows tests passing → commit: `git add -A && git commit -m "{type}({scope}): {description}"`. Proceed to **d**.
-
-**d) Run tests:**
+**d) Run tests** (deterministic exit code):
 
 ```bash
 {test command from prompt}
 ```
 
-If tests pass → Step 5.
-
-If tests fail:
-- **Attempt 1**: augment prompt with failure context, retry:
-  ```bash
-  _codex_extra="${_codex_extra}
-  RETRY: previous attempt left tests failing. Failure output:
-  {test failure summary}"
-  _attempt=2
-  ```
-  Go back to Step 3.
-- **Attempt 2**: abort:
-  ```bash
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-note \
-    "${CLAUDE_PLAN_FILE}" "[BLOCKED] coder:{task-id} — tests still failing after retry: {summary}"
-  ```
-  Emit `<!-- coder-status: abort -->` and stop.
+If exit code 0 → Step 5. Otherwise:
+- **Attempt 1**: append failure summary to `_codex_extra` and retry from Step 3.
+- **Attempt 2**: write `[BLOCKED] coder:{task-id} — tests still failing after retry: {summary}` and emit `<!-- coder-status: abort -->`.
 
 ### Step 5 — Emit status marker
 

@@ -11,7 +11,7 @@ description: >
 
 ## Scope
 
-Default test path: `tests/integration/**`. Override per project via `PHASE_GATE_TEST_GLOB` if your layout differs.
+Default test path convention: `tests/integration/**`. The actual integration test command is defined in project `CLAUDE.md` (`- Integration test:` line) and may target any directory.
 
 Invocable via `/running-integration-tests` or automatically by `running-dev-cycle`.
 

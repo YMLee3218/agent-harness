@@ -54,7 +54,7 @@ Route accordingly:
 | `brainstorm` (no `[CONVERGED]` marker) | Fall through to Step 1 — brainstorming resumes; after returning, critic-feature loop runs |
 | `spec` (spec.md does not exist) | Read `mode` from plan file frontmatter. **Feature mode** (`mode: feature`): invoke full Step 2a (writing-spec + critic-spec loop + commit). **Batch mode** (`mode: greenfield` or `--batch`): continue writing specs for remaining un-specced features in batch order before any tests. |
 | `spec` (no `[CONVERGED] spec/critic-spec`, spec.md exists) | Skip writing-spec; go directly to critic-spec loop in Step 2a |
-| `spec` (spec.md exists, `[CONVERGED] spec/critic-spec` present) | **Feature mode**: if spec.md is not yet committed (`git status --porcelain features/{verb}-{noun}/spec.md` or `domain/{concept}/spec.md` is non-empty), run `git add {spec-path} && git commit -m "feat(spec): add BDD scenarios for {name}"` first (where `{spec-path}` is the uncommitted path from the status check: `features/{verb}-{noun}/spec.md` or `domain/{concept}/spec.md`); then skip to **Step 2b**. **Batch mode**: proceed to **Step 3** (tests for all features). |
+| `spec` (spec.md exists, `[CONVERGED] spec/critic-spec` present) | **Feature mode**: if spec.md is not yet committed (`git status --porcelain features/{verb}-{noun}/spec.md`, `domain/{concept}/spec.md`, or `infrastructure/{concept}/spec.md` is non-empty), run `git add {spec-path} && git commit -m "feat(spec): add BDD scenarios for {name}"` first (where `{spec-path}` is the uncommitted path from the status check: `features/{verb}-{noun}/spec.md`, `domain/{concept}/spec.md`, or `infrastructure/{concept}/spec.md`); then skip to **Step 2b**. **Batch mode**: proceed to **Step 3** (tests for all features). |
 | `red` (mode: `feature`, no `[CONVERGED] red/critic-test`, Test Manifest non-empty) | Skip writing-tests; go directly to critic-test loop in Step 2b |
 | `red` | **Feature mode** (feature profile): If `[CONVERGED] red/critic-test` is present in `## Open Questions` → skip to **Step 2c** (implementing). Otherwise (Test Manifest empty): check `## Open Questions` for `[CONVERGED] spec/critic-spec` — if absent → transition to `spec` (`plan-file.sh transition plans/{slug}.md spec "recovery: spec critic must re-run before writing tests"`) and proceed per row above (skip writing-spec; go directly to critic-spec loop in Step 2a); if present → invoke `writing-tests`. **Batch mode** (greenfield / --batch): Resume from **Step 3** — read `## Test Manifest` in the plan file to find the first feature that does NOT yet have a `RED` or `GREEN (pre-existing)` entry; invoke `writing-tests` for that feature and continue through the remainder of the feature list. If every feature already has a Test Manifest entry AND `[CONVERGED] red/critic-test` is present, skip directly to **Step 4** (Implementation). If every feature already has a Test Manifest entry but `[CONVERGED] red/critic-test` is absent (session interrupted after test-writing but before critic-test converged), skip sub-step 1 (tests already written) and run sub-steps 2–4 for the last feature in the list, then proceed to Step 4. |
 | `implement` (tasks pending) | Re-invoke the `implementing` skill. |
@@ -116,7 +116,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{
 
 After `[CONVERGED] spec/critic-spec` is confirmed, commit the spec file:
 ```bash
-git add {spec-path}   # features/{verb}-{noun}/spec.md or domain/{concept}/spec.md — the actual path written by writing-spec
+git add {spec-path}   # features/{verb}-{noun}/spec.md, domain/{concept}/spec.md, or infrastructure/{concept}/spec.md — the actual path written by writing-spec
 git commit -m "feat(spec): add BDD scenarios for {name}"
 ```
 
@@ -163,7 +163,7 @@ For each feature:
 2. Wait until spec.md is written and plan file phase is `spec`
 3. Reset the critic-spec milestone: `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec`
 4. `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --prompt "Review spec at [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED]` written — stop; exit 2 → `[BLOCKED-CEILING]` — manual review; other exit → script failure (@reference/critics.md §Script failure).
-5. After `[CONVERGED] spec/critic-spec` is confirmed, commit: `git add {spec-path} && git commit -m "feat(spec): add BDD scenarios for {name}"` (where `{spec-path}` is the actual spec path written by `writing-spec`: `features/{verb}-{noun}/spec.md` or `domain/{concept}/spec.md`)
+5. After `[CONVERGED] spec/critic-spec` is confirmed, commit: `git add {spec-path} && git commit -m "feat(spec): add BDD scenarios for {name}"` (where `{spec-path}` is the actual spec path written by `writing-spec`: `features/{verb}-{noun}/spec.md`, `domain/{concept}/spec.md`, or `infrastructure/{concept}/spec.md`)
 
 Do not proceed to Step 3 until all features have a committed, PASS-verified spec.md.
 

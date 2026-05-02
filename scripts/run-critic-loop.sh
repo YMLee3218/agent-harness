@@ -40,6 +40,15 @@ trap '_on_interrupt' INT TERM
 TIMEOUT_CMD=$(command -v gtimeout || command -v timeout || true)
 SESSION_TIMEOUT="${CLAUDE_CRITIC_SESSION_TIMEOUT:-3600}"
 
+# Fail loudly when no timeout binary is available — silent unbounded sessions can hang
+# indefinitely. Mirrors stop-check.sh:140-144. Set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to bypass.
+if [[ -z "$TIMEOUT_CMD" ]] && [[ "$SESSION_TIMEOUT" != "0" ]]; then
+  bash "$PLAN_FILE_SH" append-note "$PLAN" \
+    "[BLOCKED] ${AGENT}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap" 2>/dev/null || true
+  echo "[BLOCKED] ${AGENT}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap" >&2
+  exit 1
+fi
+
 iter=0
 LAST_PLAN_HASH=""
 CONSECUTIVE_NOOP=0

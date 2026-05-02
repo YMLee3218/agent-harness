@@ -13,6 +13,8 @@ paths:
   - plans/**
   - features/**
   - domain/**
+  - infrastructure/**
+  - src/**
 ---
 
 # Writing Failing Tests
@@ -46,36 +48,66 @@ Scenario: {name}
 
 Proceed directly to Step 3.
 
-## Step 3 — Write failing tests
+## Step 3 — Delegate test writing to Codex
 
-Set plan file phase to `red` (skip if already in `red` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`) before writing any test files:
+Set plan file phase to `red` (skip if already in `red` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`):
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" red \
   "approved plan — writing failing tests"
 ```
 
-Work through scenarios in sequence: write each test, then move to the next.
+Build a Codex prompt that folds in the full spec, the test plan from Step 2, and hard constraints. Use the Write tool to create the prompt file:
 
-Each test must:
-- Map directly to one `Scenario`
-- Apply the correct mocking level
-- Use the name form `"should {outcome} when {condition}"`
-- Contain no implementation logic
+```
+Task: write Red-phase failing tests for every Scenario in the spec below.
 
-After writing all tests, run the test command from project CLAUDE.md.
+Spec (verbatim):
+{paste full contents of spec.md}
 
-**Expected state:** every newly written test should fail (Red phase).
+Test plan (one entry per Scenario, from Step 2):
+{paste the Step 2 plan entries}
 
-**Exception — existing implementation already satisfies a scenario:** if a test passes immediately and the scenario is already fully handled by existing code, do NOT force it to fail. Instead:
-1. Mark it `GREEN (pre-existing)` in `## Test Manifest`
-2. Note it in `## Open Questions` so the user can confirm the existing behaviour is intentional
-3. Skip the implement phase for that test — it does not need implementing
+Mocking levels per layer (verbatim from reference/layers.md §Test mocking levels):
+{paste the mocking level table}
 
-Tests that pass due to incomplete test logic (e.g. empty assertions, wrong subject) must still be rewritten to fail properly.
+Hard constraints:
+- Each test maps to exactly one Scenario.
+- Test name form: "should {outcome} when {condition}".
+- Apply the mocking level dictated by the test's layer — no exceptions.
+- No implementation logic inside tests.
+- Write tests only at the test file paths listed in the plan; do not create files elsewhere.
+- Every newly written test must FAIL when the test command runs. The only exception is a scenario already fully satisfied by existing code — in that case leave the test asserting the real behaviour and tag it GREEN-PRE-EXISTING in a trailing comment on the test.
 
-Update `## Test Manifest` with file:test_name → RED or GREEN (pre-existing) for each test.
+After writing all tests, run: {test command}
+Print the test results, then for each test file you created or modified emit one line:
+  TEST_OUTCOME: {file}::{test_name} -> RED | GREEN_PRE_EXISTING
+End with: === TEST-WRITER DONE ===
+```
 
-After all tests are written, commit the red tests:
+Run Codex; capture the tail only:
+
+```bash
+_codex_prompt=$(mktemp /tmp/test-writer-prompt-XXXXXX.txt)
+_codex_log=$(mktemp /tmp/test-writer-log-XXXXXX.txt)
+# Write the prompt above into "$_codex_prompt" with the Write tool
+codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
+_codex_exit=$?
+echo "=== Codex exit: $_codex_exit ==="
+tail -200 "$_codex_log"
+rm -f "$_codex_prompt" "$_codex_log"
+```
+
+## Step 4 — Verify and record
+
+Parse the tail for `TEST_OUTCOME:` lines. For each:
+- `RED` → record in `## Test Manifest` as `{file}::{test_name} → RED`.
+- `GREEN_PRE_EXISTING` → record as `{file}::{test_name} → GREEN (pre-existing)` and append a `## Open Questions` note so the user can confirm the existing behaviour is intentional. Skip implement for these.
+
+If the tail is missing `=== TEST-WRITER DONE ===`, retry once with `RETRY: previous run did not complete; finish all scenarios and emit the done sentinel.` appended. If the second run also fails, write `[BLOCKED] test-writer: Codex did not complete` and stop.
+
+If any test claimed `RED` actually passed (rerun the test command yourself once to confirm), retry once with the failing-test names appended and the instruction `RETRY: these tests must be rewritten to FAIL — they currently pass without implementation`. Tests that pass due to wrong subject or empty assertions must be rewritten, not relabelled.
+
+Then commit:
 ```
 git add {test files}
 git commit -m "test(red): {scenario summary}"

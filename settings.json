@@ -15,6 +15,7 @@
       "Bash(python --version)",
       "Bash(node --version)",
       "Bash(bash $CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh *)",
+      "Bash(bash $CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh *)",
       "Bash(mkdir -p *)",
       "Bash(gh auth status)",
       "Bash(gh pr view *)",

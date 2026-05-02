@@ -40,6 +40,7 @@ docs/
 plans/                  ← plan files live here
 features/               ← BDD spec files per feature (features/{verb}-{noun}/spec.md)
 domain/                 ← BDD spec files per domain concept (domain/{concept}/spec.md)
+infrastructure/         ← BDD spec files per infrastructure component (infrastructure/{concept}/spec.md)
 ```
 
 List proposed `domain/{concept}/spec.md` drafts and initial domain concept names.
@@ -52,7 +53,7 @@ List proposed `domain/{concept}/spec.md` drafts and initial domain concept names
 After approval, create the directory structure:
 
 ```bash
-mkdir -p src/features src/domain src/infrastructure tests/integration docs/requirements plans features domain
+mkdir -p src/features src/domain src/infrastructure tests/integration docs/requirements plans features domain infrastructure
 ```
 
 For each approved domain concept:

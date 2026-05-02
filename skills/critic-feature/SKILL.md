@@ -8,7 +8,7 @@ context: fork
 agent: critic-feature
 allowed-tools: [Read, Glob]
 effort: high
-paths: ["docs/**"]
+paths: ["docs/**", "features/**"]
 ---
 
 @reference/critics.md

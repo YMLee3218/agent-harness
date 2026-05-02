@@ -7,7 +7,7 @@
 # Exit 2 = block the tool call
 # Exit 0 = allow
 #
-# Fail-closed when PHASE_GATE_STRICT=1 (default): if no active plan file exists, block all writes.
+# Fail-closed when PHASE_GATE_STRICT=1 (default): if no active plan file exists, block writes to src/ and test paths (non-source paths remain permitted — see lib/active-plan.sh bootstrap_block_if_strict).
 # Fail-open when PHASE_GATE_STRICT=0: if no active plan file, allow unconditionally with a warning.
 
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"

@@ -30,6 +30,7 @@ Written by skills or hooks outside the critic convergence protocol.
 | `[BLOCKED] preflight:{tool}: {fix}` | preflight.sh | Autonomous pre-flight check failed | Fix prerequisite, then `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] integration:{test}: {reason}` | running-integration-tests | Failure category ambiguous — manual review required | Manual | Yes |
 | `[BLOCKED] {agent}: session-timeout after {N}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` | `run-critic-loop.sh` | Critic session timed out — increase `CLAUDE_CRITIC_SESSION_TIMEOUT` or re-run | Manual `plan-file.sh clear-marker` after adjusting timeout | Yes |
+| `[BLOCKED] {agent}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap` | `run-critic-loop.sh` | No `gtimeout`/`timeout` binary — install GNU coreutils or disable the cap | Manual `plan-file.sh clear-marker` after installing or disabling | Yes |
 | `[BLOCKED] {agent}: plan unchanged for {N} consecutive iterations — critic is not writing to plan file; check session logs` | `run-critic-loop.sh` | Critic session produced no verdicts — check session logs | Manual `plan-file.sh clear-marker` after debugging | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | stop-check.sh | Why Stop hook blocked the previous stop attempt | Informational; survives `gc-events` | Yes |
 
@@ -47,7 +48,7 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 
 | Marker | Section | Emitter | Effect |
 |--------|---------|---------|--------|
-| `[MILESTONE-BOUNDARY @ts] {scope}:` | `## Critic Verdicts` | `reset-milestone`, `reset-pr-review`, `clear-converged` | Breaks trailing-PASS streak; prior milestone verdicts do not count toward new streak |
+| `[MILESTONE-BOUNDARY @ts] {scope}:` | `## Critic Verdicts` | `reset-milestone`, `reset-pr-review` | Breaks trailing-PASS streak; prior milestone verdicts do not count toward new streak |
 
 ### Inline plan-file markers
 
@@ -100,9 +101,9 @@ What each command writes, clears, keeps, and discards in `## Open Questions` (un
 | `clear-marker {text}` | — | Any line in `## Open Questions` containing `{text}` | Low-level; prefer `reset-milestone` for milestone transitions |
 | `gc-events` | — | Discards: `[AUTO-DECIDED]`. Keeps all: `[BLOCKED*]`, `[STOP-BLOCKED]`, `[CONVERGED]`, `[FIRST-TURN]`, `[UNVERIFIED CLAIM]`. User-memos fallthrough preserves anything else. | `[INFO]` and unrecognized markers survive via user_memos fallthrough |
 | `record-verdict` | `[FIRST-TURN]`, `[CONVERGED]`, `[BLOCKED-CEILING]` via `_record_loop_state`; `[BLOCKED] parse:` on consecutive PARSE_ERROR; `[BLOCKED] category:` on consecutive same-category FAIL | — | Also appends verdict line to `## Critic Verdicts` |
-| `transition <plan-file> <to-phase> <reason>` | — | — | Sets phase in plan.md; callers must call `reset-milestone` explicitly if a streak reset is needed |
+| `transition <plan-file> <to-phase> <reason>` | — | — | Sets phase in the plan file; callers must call `reset-milestone` explicitly if a streak reset is needed |
 | `commit-phase <plan-file> <msg>` | — | — | Stages plan file and commits; call after `transition` |
-| `set-phase <plan-file> <phase>` | — | — | Writes phase to plan.md `## Phase` section and frontmatter |
+| `set-phase <plan-file> <phase>` | — | — | Writes phase to the plan file's `## Phase` section and frontmatter |
 | `append-review-verdict <plan-file> <agent> PASS\|FAIL` | `[FIRST-TURN]`, `[CONVERGED]`, `[BLOCKED-CEILING]` | — | Same streak/ceiling/FIRST-TURN/CONVERGED logic as `record-verdict`; no category tracking |
 | `record-stop-block <plan-file> <phase> <reason>` | `[STOP-BLOCKED @ts] phase={p} — {reason}` (→ `## Open Questions`) | — | Survives `gc-events` |
 

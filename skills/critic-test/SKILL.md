@@ -6,98 +6,87 @@ description: >
 user-invocable: false
 context: fork
 agent: critic-test
-allowed-tools: [Read, Glob, Bash]
+allowed-tools: [Bash]
 effort: high
 paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 ---
 
 @reference/critics.md
 
-Read the test files and spec.md at the paths provided. Run the test command given in the prompt.
+You orchestrate Codex to perform the review. Build the prompt, run `codex exec`, echo the tail. Do not read sources yourself.
 
-## Pre-check: test file integrity
+## Build and run the Codex prompt
 
-If git is available, run:
+Substitute placeholders from the prompt you received (`{spec_path}`, `{test_files}`, `{plan_path}`, `{test_command}`).
+
 ```bash
-git log --grep='^test(red):' --format='%H %s' -- <test file path(s) from prompt> | head -1
-```
-This finds the Red-phase commit (identified by the `test(red):` commit message prefix written by `writing-tests`). Then run:
-```bash
-git log --oneline <red-commit-sha>..HEAD -- <test file path(s) from prompt>
-```
-If this returns any commits, the test file was modified after the Red phase commit.
-If no `test(red):` commit exists for the file, fall back to:
-```bash
-git log --oneline HEAD -- <test file path(s) from prompt>
-```
-and treat the oldest commit touching the file as the Red commit.
+_codex_prompt=$(mktemp /tmp/critic-test-prompt-XXXXXX.txt)
+_codex_log=$(mktemp /tmp/critic-test-log-XXXXXX.txt)
+cat > "$_codex_prompt" <<EOF
+You are an adversarial test reviewer. Verify scenario coverage, correct mocking levels, and test integrity. Read every file you need.
 
-If **no commits at all** exist for the file (new file not yet committed, pre-commit flow):
-```
-[SKIP] test file integrity: no commit history found for {file} — cannot verify Red-phase baseline
-```
-Continue to the Checks section; do not fail on missing history alone.
+Spec: {spec_path}
+Test files: {test_files}
+Plan: {plan_path}
+Test command: {test_command}
 
-If **git is not available** in this environment:
-```
-[SKIP] test file integrity: git unavailable — cannot verify Red-phase commit
-```
-Continue to the Checks section.
+Read these reference files first — they govern your output:
+- ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md   (severity, PASS/FAIL, category priority)
+- ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md     (test mocking levels per layer)
 
-If any test file was modified after the Red phase commit, emit immediately:
+## Pre-check — test file integrity
 
-```
+If git is available:
+\`\`\`bash
+git log --grep='^test(red):' --format='%H %s' -- {test_files} | head -1
+\`\`\`
+Find the Red-phase commit. Then:
+\`\`\`bash
+git log --oneline <red-commit-sha>..HEAD -- {test_files}
+\`\`\`
+If this returns commits, the test file was modified after Red. Emit immediately:
+
 [CRITICAL] test file modified after Red phase: {file}
 
 ### Verdict
 FAIL — [CRITICAL] test file modified after Red phase: {file}
 <!-- verdict: FAIL -->
 <!-- category: TEST_INTEGRITY -->
-```
-and stop. Do not proceed to other checks.
+
+Stop. Do not run other checks.
+
+If no test(red): commit exists, take the oldest commit touching the file as the inferred Red baseline:
+\`\`\`bash
+red_sha=\$(git log --format='%H' HEAD -- {test_files} | tail -1)
+git log --oneline \${red_sha}..HEAD -- {test_files}
+\`\`\`
+If \`red_sha\` is empty (no commits exist for the file), emit \`[SKIP] test file integrity: no commit history found for {file}\` and continue. If the second command returns commits, the test file was modified after the inferred Red commit — emit the same `[CRITICAL] test file modified after Red phase` FAIL verdict above. If git is unavailable, emit \`[SKIP] test file integrity: git unavailable\` and continue.
 
 ## Checks
 
-**1. Scenario coverage**
-- Every `Scenario` has a corresponding test? (→ `[MISSING]` if not)
-- Every `Scenario Outline` row covered?
-- Failure scenarios tested, not just happy path?
+1. Scenario coverage — every Scenario has a test? Every Scenario Outline row covered? Failure scenarios tested? (→ [MISSING])
 
-**2. Mocking levels** — table: @reference/layers.md §Test mocking levels; each Violation column entry → `[FAIL]`
+2. Mocking levels — apply layers.md §Test mocking levels. Each Violation column entry is [FAIL].
 
-**3. Test quality**
-- Each test maps to exactly one `Scenario`
-- Names follow `"should {outcome} when {condition}"`
-- No implementation logic inside tests (→ `[FAIL]` if found)
+3. Test quality — each test maps to exactly one Scenario; names follow "should {outcome} when {condition}"; no implementation logic inside tests. (→ [FAIL])
 
-**4. Confirm all tests fail**
+4. Confirm all tests fail — run the test command. Every newly written test must fail.
 
-Run the test command from the prompt. Every newly written test must fail.
+   Exception: a test marked \`GREEN (pre-existing)\` in the Test Manifest is allowed to pass. For each GREEN entry, verify with git that the test file predates the Red-phase commit:
+   \`\`\`bash
+   red_commit_ts=\$(git log --grep='^test(red):' --format='%H %at' -- {test_files} | head -1 | awk '{print \$2}')
+   create_ts=\$(git log --follow --diff-filter=A --format='%at' -- "\$test_file" | tail -1)
+   \`\`\`
+   If \`create_ts >= red_commit_ts\`, emit:
+   [FAIL] category: TEST_INTEGRITY — {file}: marked GREEN (pre-existing) but was created in the Red phase commit.
 
-Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed to pass — it means existing code already satisfies the scenario.
+   If git is unavailable or the test(red): commit cannot be found, emit \`[SKIP] GREEN integrity check: {reason}\` and continue.
 
-**Independent git verification of GREEN (pre-existing) entries**: for each test file listed as `GREEN (pre-existing)` in the Test Manifest, verify using git that the file predates the current Red-phase commit:
-
-```bash
-# Find the test(red): commit for this feature (scoped to test files from prompt, matching pre-check at line 22)
-red_commit_ts=$(git log --grep='^test(red):' --format='%H %at' -- <test file path(s) from prompt> | head -1 | awk '{print $2}')
-# For each GREEN (pre-existing) file, find its creation commit timestamp
-create_ts=$(git log --follow --diff-filter=A --format='%at' -- "$test_file" | tail -1)
-# If create_ts >= red_commit_ts: the file was created in or after the Red phase — not pre-existing
-```
-
-If a file claimed as `GREEN (pre-existing)` was first committed at or after the `test(red):` commit timestamp, emit:
-```
-[FAIL] category: TEST_INTEGRITY — {file}: marked GREEN (pre-existing) but was created in the Red phase commit; existing code did not pre-exist
-```
-
-If git is unavailable or the `test(red):` commit cannot be found, emit `[SKIP] GREEN integrity check: {reason}` and continue.
-
-Flag any test that passes but is NOT marked `GREEN (pre-existing)` in the Test Manifest (→ `[FAIL]`).
+   Flag any test that passes but is NOT marked GREEN (pre-existing). (→ [FAIL])
 
 ## Output format
 
-```
+\`\`\`
 ## critic-test Review
 
 ### Coverage Gaps
@@ -105,25 +94,49 @@ Flag any test that passes but is NOT marked `GREEN (pre-existing)` in the Test M
 None: "All scenarios covered"
 
 ### Mocking Issues
-[FAIL] {test file}:{line} — {wrong pattern}: {correct pattern}
+[FAIL] {test file}:{line} — {wrong}: {correct}
 None: "All mocking levels correct"
 
 ### Failing Confirmation
 All newly written tests fail: YES / NO
 Passing tests not marked GREEN (pre-existing): {list or "none"}
 GREEN (pre-existing) tests confirmed: {list or "none"}
-GREEN integrity violations (created in Red phase): {list or "none"}
+GREEN integrity violations: {list or "none"}
+\`\`\`
+
+## Category mapping
+
+- Test file modified after Red / GREEN integrity   → TEST_INTEGRITY
+- Mocking level violation (Check 2)                 → LAYER_VIOLATION
+- Scenario coverage gap (Check 1)                   → MISSING_SCENARIO
+- Test quality (Check 3)                            → TEST_QUALITY
+
+When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
+
+## Verdict format (strict — parsed by SubagentStop hook)
+
+End your output with exactly one of these blocks. Nothing after.
+
+PASS:
+### Verdict
+PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
+
+FAIL:
+### Verdict
+FAIL — {comma-separated blocking finding labels}
+<!-- verdict: FAIL -->
+<!-- category: {one of TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY} -->
+
+A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL.
+EOF
+
+codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
+_codex_exit=$?
+echo "=== Codex critic-test exit: $_codex_exit ==="
+tail -200 "$_codex_log"
+rm -f "$_codex_prompt" "$_codex_log"
 ```
 
-Verdict & blocking rules: @reference/critics.md §Verdict format. On FAIL blocks progress to `implementing`.
-
-Category mapping (per `@reference/severity.md §Category priority`):
-
-| Check | Category |
-|-------|----------|
-| Test file modified after Red / GREEN (pre-existing) violation (Pre-check, Check 4) | `TEST_INTEGRITY` |
-| Mocking level violation (Check 2 — `layers.md §Test mocking levels`) | `LAYER_VIOLATION` |
-| Scenario coverage gap — missing test (Check 1) | `MISSING_SCENARIO` |
-| Test maps multiple scenarios / implementation logic in tests / naming (Check 3) | `TEST_QUALITY` |
-
-When multiple FAILs fire, pick the highest-priority category per `@reference/severity.md §Category priority`.
+The verdict markers in the tail are your final stdout. Do not append text after `tail -200`.

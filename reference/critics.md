@@ -119,9 +119,9 @@ Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `
 
 After launching, end your turn immediately. The background completion notification resumes execution in the next turn automatically — no Monitor, ScheduleWakeup, or polling of any kind. When the notification arrives, read `## Open Questions` for terminal markers and proceed per exit code rules. B sessions handle all fixes; do not act on output observed before the notification.
 
-After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. **Exception — `run-critic-loop.sh` background runs**: the one-shot B-session runs the audit internally per §Critic one-shot iteration step 2; do **not** re-run the audit after the loop returns. This step applies to `append-review-verdict` (pr-review) and direct critic invocations only.
+After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. The B-session for each `run-critic-loop.sh` iteration runs the audit internally — `§Critic one-shot iteration` step 2 for the four critic subagents, `pr-review-loop.md §PR-review one-shot iteration` step 3 for pr-review — so the orchestrator that called `run-critic-loop.sh` must **not** re-run the audit after the loop returns. (Direct critic invocations are not a remaining code path: the `record-verdict-guarded` SubagentStop hook at settings.json:89 rejects any critic-subagent run outside `run-critic-loop.sh`.)
 
-**Script failure**: if `run-critic-loop.sh` exits with any code other than 0, 1, or 2, the script itself failed. Write `[BLOCKED] script-failure: {code}` to `## Open Questions`, output NEEDS_HUMAN, and stop. Running critics manually is not a fallback — it is a protocol violation.
+**Script failure**: if `run-critic-loop.sh` exits with any code other than 0, 1, or 2, the script itself failed. Write `[BLOCKED] script-failure: {code}` to `## Open Questions` and stop. Running critics manually is not a fallback — it is a protocol violation.
 ### New milestone
 
 Before starting a critic run for a new milestone within the same phase, call:
