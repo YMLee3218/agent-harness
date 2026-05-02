@@ -26,6 +26,6 @@ Critic loops: all `run-critic-loop.sh` calls use `run_in_background=true` (scrip
 
 # Local overrides
 
-Project vocabulary + framework notes: create `.claude/local.md` (imported via `@local.md` above). See `examples/local.md` for the template. `.claude/local.md` is gitignored (machine-local). Shared domain rules belong in `reference/`.
+Project vocabulary + framework notes: create `.claude/local.md` (imported via `@local.md` above). See `examples/local.md` for the template. Shared domain rules belong in `reference/`.
 
 User-local settings delta (additional MCP servers, personal permissions, env vars): `.claude/settings.local.json`. Arrays merge with `.claude/settings.json` per Claude Code rules — do not duplicate entries already in `settings.json`.

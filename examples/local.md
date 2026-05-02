@@ -2,11 +2,11 @@
 INSTRUCTIONS FOR USE:
 1. Copy this file to .claude/local.md
 2. Fill in each section; delete sections that don't apply
-3. Add .claude/local.md to .gitignore (contains machine-local paths; not for version control)
 
 This file is imported at the top of .claude/CLAUDE.md via @local.md.
 It provides project-specific context: language version, framework,
 domain vocabulary, team conventions, and pointers to external systems.
+Commit it alongside the rest of the project.
 -->
 
 # Project overview
