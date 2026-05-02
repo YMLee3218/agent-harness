@@ -863,7 +863,16 @@ cmd_gc_verdicts() {
   fi
   _awk_inplace "$plan_file" '
     /^## Critic Verdicts$/ { in_section=1; print; next }
-    in_section && /^## / { in_section=0 }
+    in_section && /^## / {
+      if (n > 0) {
+        start = (last_boundary > 0) ? last_boundary : 1
+        dropped = start - 1
+        for (i = start; i <= n; i++) print lines[i]
+        if (dropped > 0)
+          print "[gc-verdicts] dropped " dropped " pre-boundary verdict lines" > "/dev/stderr"
+      }
+      in_section=0; print; next
+    }
     in_section {
       lines[++n] = $0
       if (index($0, "[MILESTONE-BOUNDARY @") > 0) last_boundary = n
@@ -871,12 +880,13 @@ cmd_gc_verdicts() {
     }
     { print }
     END {
-      if (n == 0) { exit }
-      start = (last_boundary > 0) ? last_boundary : 1
-      dropped = start - 1
-      for (i = start; i <= n; i++) print lines[i]
-      if (dropped > 0)
-        print "[gc-verdicts] dropped " dropped " pre-boundary verdict lines" > "/dev/stderr"
+      if (in_section && n > 0) {
+        start = (last_boundary > 0) ? last_boundary : 1
+        dropped = start - 1
+        for (i = start; i <= n; i++) print lines[i]
+        if (dropped > 0)
+          print "[gc-verdicts] dropped " dropped " pre-boundary verdict lines" > "/dev/stderr"
+      }
     }
   '
 }
