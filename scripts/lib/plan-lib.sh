@@ -398,8 +398,8 @@ cmd_append_audit() {
   local plan_file="$1" agent="$2" outcome="$3" summary="$4"
   require_file "$plan_file"
   case "$outcome" in
-    ACCEPT|REJECT-PASS|BLOCKED-AMBIGUOUS) ;;
-    *) die "append-audit: invalid outcome '${outcome}'. Must be ACCEPT, REJECT-PASS, or BLOCKED-AMBIGUOUS" ;;
+    ACCEPT|ACCEPT-OVERRIDE|REJECT-PASS|BLOCKED-AMBIGUOUS) ;;
+    *) die "append-audit: invalid outcome '${outcome}'. Must be ACCEPT, ACCEPT-OVERRIDE, REJECT-PASS, or BLOCKED-AMBIGUOUS" ;;
   esac
   local ts
   ts=$(_iso_timestamp)

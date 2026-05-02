@@ -25,6 +25,10 @@ _codex_log=$(mktemp /tmp/critic-test-log-XXXXXX.txt)
 cat > "$_codex_prompt" <<EOF
 You are an adversarial test reviewer. Verify scenario coverage, correct mocking levels, and test integrity. Read every file you need.
 
+Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
+[DOCS CONTRADICTION], [UNVERIFIED CLAIM]), read the exact file:line and confirm the
+text is present. If not present, drop the finding. No uncited findings.
+
 Spec: {spec_path}
 Test files: {test_files}
 Plan: {plan_path}
@@ -102,6 +106,10 @@ All newly written tests fail: YES / NO
 Passing tests not marked GREEN (pre-existing): {list or "none"}
 GREEN (pre-existing) tests confirmed: {list or "none"}
 GREEN integrity violations: {list or "none"}
+
+### Citation Summary
+(one line per blocking finding — omit if PASS)
+- {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
 \`\`\`
 
 ## Category mapping

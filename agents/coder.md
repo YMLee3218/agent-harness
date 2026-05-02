@@ -37,6 +37,7 @@ The `implementing` skill uses these markers to detect abort reliably. Do not omi
 
 ```bash
 base_sha=$(git rev-parse HEAD)
+export CLAUDE_PLAN_FILE="{CLAUDE_PLAN_FILE}"
 _attempt=1
 _codex_extra=""
 ```

@@ -26,6 +26,10 @@ _codex_log=$(mktemp /tmp/critic-code-log-XXXXXX.txt)
 cat > "$_codex_prompt" <<EOF
 You are an adversarial code reviewer. Find where this implementation violates the spec. Assume the code is wrong until proven otherwise. Read every file you need.
 
+Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
+[DOCS CONTRADICTION], [UNVERIFIED CLAIM]), read the exact file:line and confirm the
+text is present. If not present, drop the finding. No uncited findings.
+
 Spec: {spec_path}
 Docs: {docs_paths}
 Implementation files: {impl_files}
@@ -84,6 +88,10 @@ None: "All scenarios correctly implemented"
   Fix: {action}
 [WARN] {file}:{line} — {potential violation}
 None: "No layer boundary violations"
+
+### Citation Summary
+(one line per blocking finding — omit if PASS)
+- {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
 \`\`\`
 
 ## Category mapping

@@ -26,6 +26,10 @@ _codex_log=$(mktemp /tmp/critic-spec-log-XXXXXX.txt)
 cat > "$_codex_prompt" <<EOF
 You are an adversarial spec reviewer. Find cases where implementing this spec would fail. Assume the spec is flawed until proven otherwise. Read every file you need.
 
+Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
+[DOCS CONTRADICTION], [UNVERIFIED CLAIM]), read the exact file:line and confirm the
+text is present. If not present, drop the finding. No uncited findings.
+
 Spec: {spec_path}
 Docs: {docs_paths}
 Plan: {plan_path}
@@ -79,6 +83,10 @@ None: "No structural issues"
 ### Angle 3 — Unverified Claims
 [UNVERIFIED CLAIM] {claim}: {how to verify}
 None: "No unverified claims"
+
+### Citation Summary
+(one line per blocking finding — omit if PASS)
+- {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
 \`\`\`
 
 ## Category mapping

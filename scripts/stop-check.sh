@@ -18,8 +18,14 @@
 # pattern — stop_hook_active=true means we already fired once; a second block
 # would loop forever if tests keep failing.
 _payload=$(cat)
+PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 if ! command -v jq >/dev/null 2>&1; then
   echo "[STOP-BLOCKED] jq required for autonomous stop-check — install jq and re-run" >&2
+  if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
+    _phase=$(bash "$PLAN_FILE_SH" get-phase "$CLAUDE_PLAN_FILE" 2>/dev/null || echo "unknown")
+    bash "$PLAN_FILE_SH" record-stop-block "$CLAUDE_PLAN_FILE" "$_phase" \
+      "jq required for stop-check — install jq and re-run" 2>/dev/null || true
+  fi
   exit 2
 fi
 if [ -n "$_payload" ]; then
@@ -28,8 +34,6 @@ if [ -n "$_payload" ]; then
     exit 0
   fi
 fi
-
-PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 
 # Locate active plan file; CLAUDE_PLAN_FILE explicitly set but missing → skip cleanly.
 if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ ! -f "$CLAUDE_PLAN_FILE" ]; then
