@@ -99,7 +99,7 @@ exit 0 → proceed to **Step 2a** (feature-slice mode) or **Step 2** (batch mode
 
 Read `docs/requirements/{name}.md` to get the full feature list (Small Features + Large Features sections).
 
-**Skip done features.** Done = spec.md exists + critic-spec, critic-test, and critic-code each have `PASS` in `## Critic Verdicts` + all Task Ledger tasks `completed`. Start from the first undone feature.
+**Skip done features.** Done = spec.md exists + all Task Ledger tasks `completed`. Start from the first undone feature.
 
 **For each remaining feature in the list, in dependency order:**
 
