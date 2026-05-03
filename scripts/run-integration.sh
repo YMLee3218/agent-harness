@@ -44,23 +44,15 @@ attempt=0
 max_attempts=2
 
 while true; do
-  if bash -c "$INTEGRATION_CMD" 2>&1; then
+  if test_output=$(bash -c "$INTEGRATION_CMD" 2>&1); then
     bash "$PF" transition "$PLAN" done "integration tests passed"
     exit 0
   fi
 
   attempt=$((attempt + 1))
 
-  # Capture test output for categorization
-  test_output=$(bash -c "$INTEGRATION_CMD" 2>&1 || true)
   tail_output=$(printf '%s' "$test_output" | tail -50)
-
-  # Count prior run blocks in plan
-  run_count=$(awk '/^## Integration Failures$/{s=1;next} s&&/^## /{exit} s&&/^### Run /{c++} END{print c+0}' "$PLAN")
-
-  # Append failure block header
   today=$(date +%Y-%m-%d)
-  bash "$PF" append-note "$PLAN" "### Run $((run_count + 1)) — ${today}"
 
   if [[ $attempt -ge $max_attempts ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED] integration tests failed after ${max_attempts} fix attempts — manual review required"
@@ -71,7 +63,9 @@ while true; do
   run_llm "Integration test failure categorization. Plan file: $PLAN. Test output tail:
 ${tail_output}
 
-Read the plan file, then under ## Integration Failures append each failing test as:
+Read the plan file, then under ## Integration Failures (create the section if absent) append:
+### Run ${attempt} — ${today}
+Then for each failing test:
 #### {test name}
 Category: {docs conflict | spec gap | implementation bug}
 Description: {one sentence}
@@ -91,7 +85,12 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" transition "$PLAN" implement "integration failure: implementation bug"
       bash "$PF" reset-for-rollback "$PLAN" implement
       run_llm "Invoke the implementing skill to replan tasks for the integration failure. Plan: $PLAN"
-      [[ -n "$UNIT_CMD" ]] && bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      if [[ -n "$UNIT_CMD" ]]; then
+        bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      else
+        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: implementation bug requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
+        exit 1
+      fi
       ;;
     "spec gap")
       bash "$PF" transition "$PLAN" spec "integration failure: spec gap"
@@ -109,7 +108,12 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       run_critic critic-test red "Review updated tests for integration fix. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
-      [[ -n "$UNIT_CMD" ]] && bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      if [[ -n "$UNIT_CMD" ]]; then
+        bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      else
+        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: spec-gap fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
+        exit 1
+      fi
       ;;
     "docs conflict")
       bash "$PF" transition "$PLAN" spec "integration failure: docs conflict"
@@ -127,7 +131,12 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       run_critic critic-test red "Review updated tests for integration fix. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
-      [[ -n "$UNIT_CMD" ]] && bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      if [[ -n "$UNIT_CMD" ]]; then
+        bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      else
+        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: docs-conflict fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
+        exit 1
+      fi
       ;;
     *)
       bash "$PF" append-note "$PLAN" "[BLOCKED] integration: could not determine fix category — manual review required"

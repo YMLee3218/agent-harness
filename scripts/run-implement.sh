@@ -41,7 +41,8 @@ make_prompt() {
   goal=$(get_field "$id" goal); layer=$(get_field "$id" layer)
   files=$(get_field "$id" files); spec=$(get_field "$id" spec)
   failing_test=$(get_field "$id" failing_test)
-  [[ -n "$failing_test" && -f "$failing_test" ]] && code=$(cat "$failing_test")
+  failing_test_file="${failing_test%%::*}"
+  [[ -n "$failing_test_file" && -f "$failing_test_file" ]] && code=$(cat "$failing_test_file")
   cat <<EOF
 Task: ${goal}
 Target layer: ${layer}
@@ -109,7 +110,7 @@ verify_task() {
     git diff "${BASE_SHA}..HEAD" --name-only 2>/dev/null
     git diff HEAD --name-only 2>/dev/null
     git ls-files --others --exclude-standard 2>/dev/null
-  } | sort -u | grep -E '(^|/)tests/|_test\.|\.test\.|_spec\.' | grep -v '\.spec\.md$' || true)
+  } | sort -u | grep -E '(^|/)tests/|(^|/)test_|_test\.|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$' || true)
 
   if [[ -n "$test_files" ]]; then
     (cd "$wt" && for f in $test_files; do
@@ -128,6 +129,17 @@ verify_task() {
        ! grep -q 'coder-status: complete' "$retry_log" 2>/dev/null; then
       bash "$PF" update-task "$PLAN" "$id" blocked
       bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} — test files modified after retry: ${test_files}"
+      return 1
+    fi
+    # Re-check test files after retry to catch a second modification
+    test_files=$(cd "$wt" && {
+      git diff "${BASE_SHA}..HEAD" --name-only 2>/dev/null
+      git diff HEAD --name-only 2>/dev/null
+      git ls-files --others --exclude-standard 2>/dev/null
+    } | sort -u | grep -E '(^|/)tests/|(^|/)test_|_test\.|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$' || true)
+    if [[ -n "$test_files" ]]; then
+      bash "$PF" update-task "$PLAN" "$id" blocked
+      bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} — retry still modified test files: ${test_files}"
       return 1
     fi
   fi

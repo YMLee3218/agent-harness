@@ -26,7 +26,7 @@ Written by skills or hooks outside the critic convergence protocol.
 | Marker | Emitter | Effect | Clear path | Survives gc? |
 |--------|---------|--------|------------|-------------|
 | `[BLOCKED] {reason}` | Various skills | Generic stop — human action required | Manual `plan-file.sh clear-marker` after fixing | Yes |
-| `[BLOCKED] coder:{task-id} — {reason}` | implementing skill / coder agent | Coder hit unresolvable blocker or abort | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED] coder:{task-id} — {reason}` | run-implement.sh | Coder hit unresolvable blocker or abort | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] preflight:{tool}: {fix}` | preflight.sh | Autonomous pre-flight check failed | Fix prerequisite, then `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] integration:{test}: {reason}` | running-integration-tests | Failure category ambiguous — manual review required | Manual | Yes |
 | `[BLOCKED] {agent}: session-timeout after {N}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` | `run-critic-loop.sh` | Critic session timed out — increase `CLAUDE_CRITIC_SESSION_TIMEOUT` or re-run | Manual `plan-file.sh clear-marker` after adjusting timeout | Yes |
@@ -62,7 +62,13 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 
 Format and rules: `@reference/critics.md §Verdict format` (single source of truth).
 
-The `<!-- coder-status: X -->` marker (`complete` | `abort`) is written by the coder agent to signal completion or abort.
+## Coder status signals
+
+The coder agent emits a plain-text signal (not an HTML comment) to its output log:
+- `coder-status: complete` — task finished successfully
+- `coder-status: abort` — task could not be completed
+
+Detected by `run-implement.sh` via `grep -q 'coder-status: complete'`.
 
 ## Audit outcome words
 
