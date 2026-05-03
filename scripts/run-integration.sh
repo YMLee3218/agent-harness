@@ -12,8 +12,8 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
-[[ -z "$PLAN" || -z "$UNIT_CMD" || -z "$INTEGRATION_CMD" ]] && {
-  echo "Usage: run-integration.sh --plan PATH --unit-cmd CMD --integration-cmd CMD" >&2; exit 1; }
+[[ -z "$PLAN" || -z "$INTEGRATION_CMD" ]] && {
+  echo "Usage: run-integration.sh --plan PATH --integration-cmd CMD [--unit-cmd CMD]" >&2; exit 1; }
 [[ -f "$PLAN" ]] || { echo "Plan file not found: $PLAN" >&2; exit 1; }
 
 run_llm() {
@@ -22,8 +22,14 @@ run_llm() {
     claude --model opus --permission-mode auto --dangerously-skip-permissions -p "$prompt"
 }
 
-# Step 1.5 — unit test pre-check
-if ! bash -c "$UNIT_CMD" 2>&1; then
+run_critic() {
+  local agent="$1" phase="$2" prompt="$3"
+  bash "$SCRIPTS_DIR/run-critic-loop.sh" --agent "$agent" --phase "$phase" --plan "$PLAN" --prompt "$prompt"
+  return $?
+}
+
+# Step 1.5 — unit test pre-check (skipped when UNIT_CMD not configured)
+if [[ -n "$UNIT_CMD" ]] && ! bash -c "$UNIT_CMD" 2>&1; then
   bash "$PF" transition "$PLAN" implement "unit tests failing at integration entry — clearing implement-phase markers"
   bash "$PF" reset-for-rollback "$PLAN" implement
   bash "$PF" transition "$PLAN" red "unit tests failing at integration entry — fresh task planning needed"
@@ -82,10 +88,10 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
 
   case "$category" in
     "implementation bug")
-      rollback_phase=implement
-      bash "$PF" transition "$PLAN" "$rollback_phase" "integration failure: implementation bug"
-      bash "$PF" reset-for-rollback "$PLAN" "$rollback_phase"
-      run_llm "Invoke the implementing skill to fix the integration test failure. Plan: $PLAN"
+      bash "$PF" transition "$PLAN" implement "integration failure: implementation bug"
+      bash "$PF" reset-for-rollback "$PLAN" implement
+      run_llm "Invoke the implementing skill to replan tasks for the integration failure. Plan: $PLAN"
+      [[ -n "$UNIT_CMD" ]] && bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       ;;
     "spec gap")
       bash "$PF" transition "$PLAN" spec "integration failure: spec gap"
@@ -94,7 +100,16 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"
       bash "$PF" reset-milestone "$PLAN" critic-test
       bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
-      run_llm "Invoke the writing-spec skill, then writing-tests, then implementing to fix integration test failure. Plan: $PLAN"
+      run_llm "Invoke the writing-spec skill to fix the spec gap. Plan: $PLAN"
+      bash "$PF" reset-milestone "$PLAN" critic-spec
+      run_critic critic-spec spec "Review updated spec for integration fix. Plan: $PLAN."
+      bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
+      bash "$PF" reset-milestone "$PLAN" critic-test
+      run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
+      run_critic critic-test red "Review updated tests for integration fix. Plan: $PLAN. Test command: ${UNIT_CMD}."
+      bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
+      run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
+      [[ -n "$UNIT_CMD" ]] && bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       ;;
     "docs conflict")
       bash "$PF" transition "$PLAN" spec "integration failure: docs conflict"
@@ -103,7 +118,16 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"
       bash "$PF" reset-milestone "$PLAN" critic-test
       bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
-      run_llm "Invoke the writing-spec skill, then writing-tests, then implementing to fix integration test failure. Plan: $PLAN"
+      run_llm "Invoke the writing-spec skill to fix the docs conflict. Plan: $PLAN"
+      bash "$PF" reset-milestone "$PLAN" critic-spec
+      run_critic critic-spec spec "Review updated spec for integration fix. Plan: $PLAN."
+      bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
+      bash "$PF" reset-milestone "$PLAN" critic-test
+      run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
+      run_critic critic-test red "Review updated tests for integration fix. Plan: $PLAN. Test command: ${UNIT_CMD}."
+      bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
+      run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
+      [[ -n "$UNIT_CMD" ]] && bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       ;;
     *)
       bash "$PF" append-note "$PLAN" "[BLOCKED] integration: could not determine fix category — manual review required"

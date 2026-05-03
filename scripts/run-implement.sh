@@ -59,6 +59,9 @@ ${code}
 
 Test command: ${TEST_CMD}
 Spec: ${spec}
+
+When complete, emit exactly: coder-status: complete
+If unable to complete for any reason, emit: coder-status: abort
 EOF
 }
 

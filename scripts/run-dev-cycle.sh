@@ -94,7 +94,7 @@ if [[ -z "$PLAN" ]] || \
 
   bash "$PF" reset-milestone "$PLAN" critic-feature
   run_critic critic-feature brainstorm \
-    "Review docs/requirements/$(basename "$(dirname "$PLAN")").md. Original requirement: $(head -5 "$PLAN")."
+    "Review docs/requirements/$(basename "$PLAN" .md).md. Original requirement: $(head -5 "$PLAN")."
   llm_exit "critic-feature"
   current_phase="brainstorm"
 fi
@@ -104,24 +104,38 @@ SLUG=$(basename "$PLAN" .md)
 REQ_FILE=$(find "$PROJECT_DIR/docs/requirements" -name "*.md" 2>/dev/null | head -1 || echo "")
 
 get_features() {
-  [[ -f "$REQ_FILE" ]] && grep -E '^[-*] ' "$REQ_FILE" | sed 's/^[-*] *//' || echo ""
+  [[ -f "$REQ_FILE" ]] && \
+    awk '/^## Small Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] */,""); print}' "$REQ_FILE" || echo ""
 }
 
 # ── Feature-slice mode ───────────────────────────────────────────────────────
 if [[ "$MODE" == "feature" ]]; then
+
+  # integration phase re-entry: skip feature loop, go straight to integration
+  if [[ "${current_phase:-}" == "integration" ]]; then
+    [[ -n "$INTEGRATION_CMD" ]] && \
+      bash "$SCRIPTS_DIR/run-integration.sh" --plan "$PLAN" \
+        --unit-cmd "$UNIT_CMD" --integration-cmd "$INTEGRATION_CMD"
+    exit $?
+  fi
+
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
 
-    # Skip done: spec exists + all tasks completed
-    spec_path=$(find "$PROJECT_DIR" -path "*/features/*/spec.md" -o -path "*/domain/*/spec.md" -o \
-      -path "*/infrastructure/*/spec.md" 2>/dev/null | head -1 || true)
-    if [[ -f "$spec_path" ]]; then
-      task_status=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f' "$PLAN" 2>/dev/null || true)
-      [[ -n "$task_status" ]] && ! echo "$task_status" | grep -qE '\| pending|\| in_progress|\| blocked' && continue
+    # Skip done: feature-specific spec exists + no pending/in_progress/blocked tasks
+    feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
+    spec_found=0
+    for sp in "features/${feat_slug}/spec.md" "domain/${feat_slug}/spec.md" "infrastructure/${feat_slug}/spec.md"; do
+      [[ -f "$sp" ]] && spec_found=1 && break
+    done
+    if [[ $spec_found -eq 1 ]]; then
+      pending_tasks=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending\b|\| in_progress\b|\| blocked\b/' "$PLAN" 2>/dev/null || true)
+      [[ -z "$pending_tasks" ]] && continue
     fi
 
     # Step 2a — Spec
-    if [[ "$(bash "$PF" get-phase "$PLAN")" != "spec" ]] || \
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    if [[ "$phase_now" == "brainstorm" || "$phase_now" == "spec" ]] && \
        ! grep -q '\[CONVERGED\] spec/critic-spec' "$PLAN" 2>/dev/null; then
       run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
       llm_exit "writing-spec"
@@ -133,7 +147,8 @@ if [[ "$MODE" == "feature" ]]; then
     fi
 
     # Step 2b — Tests
-    if [[ "$(bash "$PF" get-phase "$PLAN")" != "red" ]] || \
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    if [[ "$phase_now" == "spec" || "$phase_now" == "red" ]] && \
        ! grep -q '\[CONVERGED\] red/critic-test' "$PLAN" 2>/dev/null; then
       run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
       llm_exit "writing-tests"
@@ -142,27 +157,59 @@ if [[ "$MODE" == "feature" ]]; then
       llm_exit "critic-test"
     fi
 
-    # Step 2c — Implement
-    run_llm "Invoke the implementing skill for feature: ${feature}. Plan: ${PLAN}." opus
-    llm_exit "implementing (Step 1)"
+    # Step 2c — Implement Step 1 (LLM task planning): only when tasks not yet defined
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null || echo 0)
+    if [[ "$phase_now" == "red" && "$has_task_defs" -eq 0 ]]; then
+      run_llm "Invoke the implementing skill for feature: ${feature}. Plan: ${PLAN}." opus
+      llm_exit "implementing (Step 1)"
+    fi
 
-    [[ -n "$UNIT_CMD" ]] && bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+    # run-implement.sh: execute pending tasks
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null || echo 0)
+    pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending\b|\| in_progress\b/' "$PLAN" 2>/dev/null || true)
+    if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && \
+          ( -n "$pending" || "$has_task_defs" -gt 0 ) ]]; then
+      if [[ -z "$UNIT_CMD" ]]; then
+        bash "$PF" append-note "$PLAN" "[BLOCKED] run-implement: unit test command not configured — add '- Test: {cmd}' to CLAUDE.md"
+        exit 1
+      fi
+      bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+    fi
 
     # Critic-code
-    bash "$PF" reset-milestone "$PLAN" critic-code
-    run_critic critic-code implement "Review changed files. Plan: ${PLAN}."
-    llm_exit "critic-code"
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    if [[ "$phase_now" == "implement" ]] && \
+       ! grep -q '\[CONVERGED\] implement/critic-code' "$PLAN" 2>/dev/null; then
+      bash "$PF" reset-milestone "$PLAN" critic-code
+      run_critic critic-code implement "Review changed files. Plan: ${PLAN}."
+      llm_exit "critic-code"
+    fi
 
-    # PR review
-    bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"
-    bash "$PF" reset-pr-review "$PLAN"
-    gh pr view 2>/dev/null || gh pr create --draft --title "feat: ${feature}"
-    pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
-    run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}." || {
-      rc=$?
-      [[ $rc -eq 0 ]] || { echo "[BLOCKED] pr-review failed" >&2; exit 1; }
-    }
-    bash "$PF" transition "$PLAN" green "pr-review converged — feature complete"
+    # PR review transition (fires once critic-code converges and phase is still implement)
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    if [[ "$phase_now" == "implement" ]]; then
+      bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"
+      bash "$PF" reset-pr-review "$PLAN"
+      gh pr view 2>/dev/null || gh pr create --draft --title "feat: ${feature}"
+    fi
+
+    # pr-review loop
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    if [[ "$phase_now" == "review" ]] && \
+       ! grep -q '\[CONVERGED\] review/pr-review' "$PLAN" 2>/dev/null; then
+      pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
+      run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}."
+      llm_exit "pr-review"
+    fi
+
+    # green transition
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    if [[ "$phase_now" == "review" ]] && \
+       grep -q '\[CONVERGED\] review/pr-review' "$PLAN" 2>/dev/null; then
+      bash "$PF" transition "$PLAN" green "pr-review converged — feature complete"
+    fi
 
   done < <(get_features)
 
@@ -193,7 +240,11 @@ else
   # Step 4 — Implement (all features together)
   run_llm "Invoke the implementing skill. Plan: ${PLAN}." opus
   llm_exit "implementing (Step 1)"
-  [[ -n "$UNIT_CMD" ]] && bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+  if [[ -z "$UNIT_CMD" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED] run-implement: unit test command not configured — add '- Test: {cmd}' to CLAUDE.md"
+    exit 1
+  fi
+  bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
 
   bash "$PF" reset-milestone "$PLAN" critic-code
   run_critic critic-code implement "Review changed files. Plan: ${PLAN}."

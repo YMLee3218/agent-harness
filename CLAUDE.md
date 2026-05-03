@@ -22,7 +22,7 @@ Plan files: `plans/{slug}.md`; commands: `scripts/plan-file.sh`; markers: `@refe
 Phase enforcement and env vars: `@reference/phase-gate-config.md`.
 Autonomous run: `CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md" claude --permission-mode auto -p "/running-dev-cycle"`.
 Pre-flight: `scripts/preflight.sh` (missing items write `[BLOCKED] preflight:` and halt the run).
-Critic loops: all `run-critic-loop.sh` calls use `run_in_background=true` (script may exceed Bash tool's 10-minute limit); after launching, end the turn immediately — the completion notification drives the next turn. Read `## Open Questions` for markers and proceed per exit code.
+Dev cycle: invoke `run-dev-cycle.sh` via `/running-dev-cycle` and `run-integration.sh` via `/running-integration-tests` — both SKILL.md wrappers use `run_in_background=true` (scripts may run for hours). After launching, end the turn immediately — the completion notification drives the next turn. Read `## Open Questions` for markers and proceed per exit code. Do not call `run-critic-loop.sh` directly; it is invoked internally by these scripts.
 
 # Local overrides
 
