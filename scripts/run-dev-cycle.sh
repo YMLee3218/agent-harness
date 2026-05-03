@@ -15,8 +15,8 @@ done
 
 # Resolve plan file if not provided
 if [[ -z "$PLAN" ]]; then
-  PLAN=$(bash "$PF" find-active 2>/dev/null || true)
-  find_rc=$?
+  find_rc=0
+  PLAN=$(bash "$PF" find-active 2>/dev/null) || find_rc=$?
   case $find_rc in
     0) ;;
     2) PLAN="" ;;
@@ -28,8 +28,8 @@ fi
 
 # Read project CLAUDE.md for test commands
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-UNIT_CMD=$(grep -m1 '^\- Test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Test: *//' || echo "")
-INTEGRATION_CMD=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Integration test: *//' || echo "")
+UNIT_CMD=$(grep -m1 '^\- Test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Test: *//;s/^`//;s/`$//' || echo "")
+INTEGRATION_CMD=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Integration test: *//;s/^`//;s/`$//' || echo "")
 
 run_llm() {
   local prompt="$1" model="${2:-opus}"
@@ -38,8 +38,10 @@ run_llm() {
 }
 
 run_critic() {
-  local agent="$1" phase="$2" prompt="$3"
-  bash "$SCRIPTS_DIR/run-critic-loop.sh" --agent "$agent" --phase "$phase" --plan "$PLAN" --prompt "$prompt"
+  local agent="$1" phase="$2" prompt="$3" iter_doc="${4:-}"
+  local args=(--agent "$agent" --phase "$phase" --plan "$PLAN" --prompt "$prompt")
+  [[ -n "$iter_doc" ]] && args+=(--iteration-doc "$iter_doc")
+  bash "$SCRIPTS_DIR/run-critic-loop.sh" "${args[@]}"
   return $?
 }
 
@@ -49,6 +51,7 @@ llm_exit() {
     0) return 0 ;;
     1) echo "[BLOCKED] ${label} failed — see ## Open Questions" >&2; exit 1 ;;
     2) echo "[BLOCKED-CEILING] ${label} — manual review required" >&2; exit 2 ;;
+    3) echo "[BLOCKED] ${label}: critic loop already running for this plan — wait for the active run to finish or remove the .critic.lock file" >&2; exit 1 ;;
     *) echo "Script failure: ${label} exited ${rc}" >&2; exit $rc ;;
   esac
 }
@@ -101,11 +104,11 @@ fi
 
 # Read feature list
 SLUG=$(basename "$PLAN" .md)
-REQ_FILE=$(find "$PROJECT_DIR/docs/requirements" -name "*.md" 2>/dev/null | head -1 || echo "")
+REQ_FILE="$PROJECT_DIR/docs/requirements/${SLUG}.md"
 
 get_features() {
   [[ -f "$REQ_FILE" ]] && \
-    awk '/^## Small Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] */,""); print}' "$REQ_FILE" || echo ""
+    awk '/^## (Small|Large) Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] */,""); print}' "$REQ_FILE" || echo ""
 }
 
 # ── Feature-slice mode ───────────────────────────────────────────────────────
@@ -133,6 +136,18 @@ if [[ "$MODE" == "feature" ]]; then
       [[ -z "$pending_tasks" ]] && continue
     fi
 
+    # Inter-feature reset: previous feature just reached green, this feature not yet started
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    if [[ $spec_found -eq 0 && "$phase_now" == "green" ]]; then
+      bash "$PF" reset-milestone "$PLAN" critic-spec
+      bash "$PF" reset-milestone "$PLAN" critic-test
+      bash "$PF" reset-milestone "$PLAN" critic-code
+      bash "$PF" reset-pr-review "$PLAN"
+      sed -i '' '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || \
+        sed -i '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || true
+      bash "$PF" transition "$PLAN" spec "starting spec phase for next feature: ${feature}"
+    fi
+
     # Step 2a — Spec
     phase_now=$(bash "$PF" get-phase "$PLAN")
     if [[ "$phase_now" == "brainstorm" || "$phase_now" == "spec" ]] && \
@@ -142,8 +157,10 @@ if [[ "$MODE" == "feature" ]]; then
       bash "$PF" reset-milestone "$PLAN" critic-spec
       run_critic critic-spec spec "Review spec for feature: ${feature}. Plan: ${PLAN}."
       llm_exit "critic-spec"
-      spec_path=$(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}' | head -1 || true)
-      [[ -n "$spec_path" ]] && git add "$spec_path" && git commit -m "feat(spec): add BDD scenarios for ${feature}"
+      while IFS= read -r spec_path; do
+        [[ -n "$spec_path" ]] && git add "$spec_path"
+      done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
+      git diff --cached --quiet || git commit -m "feat(spec): add BDD scenarios for ${feature}"
     fi
 
     # Step 2b — Tests
@@ -169,8 +186,9 @@ if [[ "$MODE" == "feature" ]]; then
     phase_now=$(bash "$PF" get-phase "$PLAN")
     has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null || echo 0)
     pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending\b|\| in_progress\b/' "$PLAN" 2>/dev/null || true)
+    any_task_in_ledger=$(awk '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/\| (pending|in_progress|completed|blocked)\b/{print;exit}' "$PLAN" 2>/dev/null || true)
     if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && \
-          ( -n "$pending" || "$has_task_defs" -gt 0 ) ]]; then
+          ( -n "$pending" || ( "$has_task_defs" -gt 0 && -z "$any_task_in_ledger" ) ) ]]; then
       if [[ -z "$UNIT_CMD" ]]; then
         bash "$PF" append-note "$PLAN" "[BLOCKED] run-implement: unit test command not configured — add '- Test: {cmd}' to CLAUDE.md"
         exit 1
@@ -200,7 +218,7 @@ if [[ "$MODE" == "feature" ]]; then
     if [[ "$phase_now" == "review" ]] && \
        ! grep -q '\[CONVERGED\] review/pr-review' "$PLAN" 2>/dev/null; then
       pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
-      run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}."
+      run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}." "@reference/pr-review-loop.md §PR-review one-shot iteration"
       llm_exit "pr-review"
     fi
 
@@ -223,8 +241,10 @@ else
     bash "$PF" reset-milestone "$PLAN" critic-spec
     run_critic critic-spec spec "Review spec for feature: ${feature}. Plan: ${PLAN}."
     llm_exit "critic-spec"
-    spec_path=$(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}' | head -1 || true)
-    [[ -n "$spec_path" ]] && git add "$spec_path" && git commit -m "feat(spec): add BDD scenarios for ${feature}"
+    while IFS= read -r spec_path; do
+      [[ -n "$spec_path" ]] && git add "$spec_path"
+    done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
+    git diff --cached --quiet || git commit -m "feat(spec): add BDD scenarios for ${feature}"
   done < <(get_features)
 
   # Step 3 — All tests
@@ -254,7 +274,7 @@ else
   bash "$PF" reset-pr-review "$PLAN"
   gh pr view 2>/dev/null || gh pr create --draft --title "feat: ${SLUG}"
   pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
-  run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}."
+  run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}." "@reference/pr-review-loop.md §PR-review one-shot iteration"
   llm_exit "pr-review"
   bash "$PF" transition "$PLAN" green "pr-review converged — batch complete"
 fi
