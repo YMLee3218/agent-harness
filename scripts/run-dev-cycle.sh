@@ -2,7 +2,7 @@
 set -euo pipefail
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PF="$SCRIPTS_DIR/plan-file.sh"
-PROFILE="feature" BATCH=0 PLAN=""
+PROFILE="feature" BATCH=0 PLAN="" _CALL_RC=0
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -33,26 +33,30 @@ INTEGRATION_CMD=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/d
 
 run_llm() {
   local prompt="$1" model="${2:-opus}"
+  _CALL_RC=0
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="${PLAN:-}" \
-    claude --model "$model" --permission-mode auto --dangerously-skip-permissions -p "$prompt"
+    claude --model "$model" --permission-mode auto --dangerously-skip-permissions -p "$prompt" || _CALL_RC=$?
 }
 
 run_critic() {
   local agent="$1" phase="$2" prompt="$3" iter_doc="${4:-}"
   local args=(--agent "$agent" --phase "$phase" --plan "$PLAN" --prompt "$prompt")
   [[ -n "$iter_doc" ]] && args+=(--iteration-doc "$iter_doc")
-  bash "$SCRIPTS_DIR/run-critic-loop.sh" "${args[@]}"
-  return $?
+  _CALL_RC=0
+  bash "$SCRIPTS_DIR/run-critic-loop.sh" "${args[@]}" || _CALL_RC=$?
 }
 
 llm_exit() {
-  local rc=$? label="$1"
+  local rc=${_CALL_RC} label="$1"
+  _CALL_RC=0
   case $rc in
     0) return 0 ;;
     1) echo "[BLOCKED] ${label} failed — see ## Open Questions" >&2; exit 1 ;;
     2) echo "[BLOCKED-CEILING] ${label} — manual review required" >&2; exit 2 ;;
     3) echo "[BLOCKED] ${label}: critic loop already running for this plan — wait for the active run to finish or remove the .critic.lock file" >&2; exit 1 ;;
-    *) echo "Script failure: ${label} exited ${rc}" >&2; exit $rc ;;
+    *) echo "Script failure: ${label} exited ${rc}" >&2
+       [[ -n "${PLAN:-}" ]] && bash "$PF" append-note "$PLAN" "[BLOCKED] script-failure:${label}: exited ${rc}" 2>/dev/null || true
+       exit $rc ;;
   esac
 }
 
@@ -108,7 +112,7 @@ REQ_FILE="$PROJECT_DIR/docs/requirements/${SLUG}.md"
 
 get_features() {
   [[ -f "$REQ_FILE" ]] && \
-    awk '/^## (Small|Large) Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] */,""); print}' "$REQ_FILE" || echo ""
+    awk '/^## (Small|Large) Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] *`/,""); sub(/`.*/,""); print}' "$REQ_FILE" || echo ""
 }
 
 # ── Feature-slice mode ───────────────────────────────────────────────────────
@@ -132,7 +136,7 @@ if [[ "$MODE" == "feature" ]]; then
       [[ -f "$sp" ]] && spec_found=1 && break
     done
     if [[ $spec_found -eq 1 ]]; then
-      pending_tasks=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending\b|\| in_progress\b|\| blocked\b/' "$PLAN" 2>/dev/null || true)
+      pending_tasks=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]|\| blocked[ |]/' "$PLAN" 2>/dev/null || true)
       [[ -z "$pending_tasks" ]] && continue
     fi
 
@@ -145,6 +149,9 @@ if [[ "$MODE" == "feature" ]]; then
       bash "$PF" reset-pr-review "$PLAN"
       sed -i '' '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || \
         sed -i '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || true
+      # Clear Task Ledger data rows so next feature's task gate fires correctly
+      awk '/^## Task Ledger$/{sec=1; print; next} sec&&/^## /{sec=0} sec&&/\| (pending|in_progress|completed|blocked)/{next} {print}' \
+        "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
       bash "$PF" transition "$PLAN" spec "starting spec phase for next feature: ${feature}"
     fi
 
@@ -185,8 +192,8 @@ if [[ "$MODE" == "feature" ]]; then
     # run-implement.sh: execute pending tasks
     phase_now=$(bash "$PF" get-phase "$PLAN")
     has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null || echo 0)
-    pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending\b|\| in_progress\b/' "$PLAN" 2>/dev/null || true)
-    any_task_in_ledger=$(awk '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/\| (pending|in_progress|completed|blocked)\b/{print;exit}' "$PLAN" 2>/dev/null || true)
+    pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]/' "$PLAN" 2>/dev/null || true)
+    any_task_in_ledger=$(awk '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/\| (pending|in_progress|completed|blocked)[ |]/{print;exit}' "$PLAN" 2>/dev/null || true)
     if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && \
           ( -n "$pending" || ( "$has_task_defs" -gt 0 && -z "$any_task_in_ledger" ) ) ]]; then
       if [[ -z "$UNIT_CMD" ]]; then
