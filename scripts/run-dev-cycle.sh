@@ -132,7 +132,7 @@ if [[ "$MODE" == "feature" ]]; then
     # Skip done: feature-specific spec exists + no pending/in_progress/blocked tasks
     feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
     spec_found=0
-    for sp in "features/${feat_slug}/spec.md" "domain/${feat_slug}/spec.md" "infrastructure/${feat_slug}/spec.md"; do
+    for sp in "${PROJECT_DIR}/features/${feat_slug}/spec.md" "${PROJECT_DIR}/domain/${feat_slug}/spec.md" "${PROJECT_DIR}/infrastructure/${feat_slug}/spec.md"; do
       [[ -f "$sp" ]] && spec_found=1 && break
     done
     if [[ $spec_found -eq 1 ]]; then
@@ -143,16 +143,21 @@ if [[ "$MODE" == "feature" ]]; then
     # Inter-feature reset: previous feature just reached green, this feature not yet started
     phase_now=$(bash "$PF" get-phase "$PLAN")
     if [[ $spec_found -eq 0 && "$phase_now" == "green" ]]; then
-      bash "$PF" reset-milestone "$PLAN" critic-spec
-      bash "$PF" reset-milestone "$PLAN" critic-test
-      bash "$PF" reset-milestone "$PLAN" critic-code
       bash "$PF" reset-pr-review "$PLAN"
       sed -i '' '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || \
         sed -i '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || true
       # Clear Task Ledger data rows so next feature's task gate fires correctly
       awk '/^## Task Ledger$/{sec=1; print; next} sec&&/^## /{sec=0} sec&&/\| (pending|in_progress|completed|blocked)/{next} {print}' \
         "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
+      # reset-milestone reads current phase to construct the scope; transition through each stale
+      # phase before its reset-milestone call so markers are cleared at the correct phase scope
+      # (critics.md: "transition must run before reset-milestone when also changing phase")
+      bash "$PF" transition "$PLAN" implement "inter-feature reset: clearing stale implement-phase markers"
+      bash "$PF" reset-milestone "$PLAN" critic-code
+      bash "$PF" transition "$PLAN" red "inter-feature reset: clearing stale red-phase markers"
+      bash "$PF" reset-milestone "$PLAN" critic-test
       bash "$PF" transition "$PLAN" spec "starting spec phase for next feature: ${feature}"
+      bash "$PF" reset-milestone "$PLAN" critic-spec
     fi
 
     # Step 2a — Spec
