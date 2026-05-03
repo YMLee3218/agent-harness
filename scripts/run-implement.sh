@@ -112,11 +112,13 @@ verify_task() {
     git ls-files --others --exclude-standard 2>/dev/null
   } | sort -u | grep -E '(^|/)tests/|(^|/)test_|_test\.|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$' || true)
 
+  local restore_count=0
   if [[ -n "$test_files" ]]; then
     (cd "$wt" && for f in $test_files; do
       if git cat-file -e "${BASE_SHA}:${f}" 2>/dev/null; then git checkout "$BASE_SHA" -- "$f"
       else rm -f "$f"; fi
     done && git add -A && git commit -m "chore: restore test files modified by Codex" 2>/dev/null || true)
+    restore_count=$(cd "$wt" && git rev-list --count "${BASE_SHA}..HEAD" 2>/dev/null || echo 0)
 
     local retry_log retry_prompt
     retry_log="$WORK_DIR/retry-log-${id}.txt"
@@ -144,10 +146,10 @@ verify_task() {
     fi
   fi
 
-  # Commit fallback if Codex didn't commit
+  # Commit fallback: restore_count is 0 (no retry) or 1 (restore commit); any new Codex commit puts count above it
   local commit_count
   commit_count=$(cd "$wt" && git rev-list --count "${BASE_SHA}..HEAD" 2>/dev/null || echo 0)
-  if [[ "$commit_count" -eq 0 ]]; then
+  if [[ "$commit_count" -le "$restore_count" ]]; then
     local goal
     goal=$(get_field "$id" goal)
     (cd "$wt" && git add -A && git commit -m "feat: ${goal}" 2>/dev/null) || {

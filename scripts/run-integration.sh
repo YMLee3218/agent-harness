@@ -76,9 +76,11 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
   blocked=$(awk '/^## Open Questions/{f=1} f&&/\[BLOCKED\] integration:/{print;exit}' "$PLAN" || true)
   if [[ -n "$blocked" ]]; then exit 1; fi
 
-  # Read all auto-categorized entries and verify they share the same category
-  all_cats=$(awk '/^## Integration Failures$/{f=1;next} f&&/^## /{exit} f&&/\[AUTO-CATEGORIZED-INTEGRATION\]/{print}' "$PLAN" \
-    | grep -oE 'docs conflict|spec gap|implementation bug' || true)
+  # Read auto-categorized entries from the CURRENT run only (### Run N section)
+  run_header="### Run ${attempt} "
+  all_cats=$(awk -v rh="$run_header" \
+    '/^## Integration Failures$/{f=1;next} f&&/^## /{exit} f&&g&&/^### /{exit} f&&index($0,rh)==1{g=1;next} f&&g&&/\[AUTO-CATEGORIZED-INTEGRATION\]/{print}' \
+    "$PLAN" | grep -oE 'docs conflict|spec gap|implementation bug' || true)
   if [[ -n "$all_cats" ]]; then
     unique_cats=$(printf '%s\n' "$all_cats" | sort -u)
     n_unique=$(printf '%s\n' "$unique_cats" | wc -l | tr -d '[:space:]')
