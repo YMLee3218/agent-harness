@@ -22,7 +22,7 @@ Plan files: `plans/{slug}.md`; commands: `scripts/plan-file.sh`; markers: `@refe
 Phase enforcement and env vars: `@reference/phase-gate-config.md`.
 Autonomous run: `CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md" claude --permission-mode auto -p "/running-dev-cycle"`.
 Pre-flight: `scripts/preflight.sh` (missing items write `[BLOCKED] preflight:` and halt the run).
-Dev cycle: invoke `run-dev-cycle.sh` via `/running-dev-cycle` and `run-integration.sh` via `/running-integration-tests` — both SKILL.md wrappers use `run_in_background=true` (scripts may run for hours). After launching, end the turn immediately — the completion notification drives the next turn. Read `## Open Questions` for markers and proceed per exit code. Do not call `run-critic-loop.sh` directly; it is invoked internally by these scripts.
+Dev cycle: invoke `run-dev-cycle.sh` via `/running-dev-cycle` and `run-integration.sh` via `/running-integration-tests` — both SKILL.md wrappers use `run_in_background=true` (scripts may run for hours). After launching, end the turn immediately — the completion notification drives the next turn. Read `## Open Questions` for markers and proceed per exit code. Do not call `run-critic-loop.sh` directly in the normal dev cycle — it is invoked internally by these scripts. Exception: recovery cascades (e.g. `@reference/phase-ops.md §DOCS CONTRADICTION cascade`) use direct `--nested` invocations.
 
 # Local overrides
 
