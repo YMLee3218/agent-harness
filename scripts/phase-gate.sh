@@ -46,6 +46,15 @@ mode_write() {
   file_path=$(extract_tool_input_path "$input")
   [ -z "$file_path" ] && exit 0
 
+  # NONINTERACTIVE + [BLOCKED-AMBIGUOUS] → block all writes
+  if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] \
+     && [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
+    if grep -qF "[BLOCKED-AMBIGUOUS]" "$CLAUDE_PLAN_FILE"; then
+      echo "BLOCKED: [BLOCKED-AMBIGUOUS] present — autonomous write prohibited; human review required" >&2
+      exit 2
+    fi
+  fi
+
   apply_phase_block "$file_path" "$phase" "phase-gate" || exit 2
 
   if [ "$phase" = "done" ] && ! is_source_path "$file_path" && ! is_test_path "$file_path"; then

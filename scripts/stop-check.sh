@@ -58,13 +58,14 @@ if grep -qF "[BLOCKED-AMBIGUOUS]" "$active_plan" 2>/dev/null; then
     _CHAT=$(python3 -c \
       "import json; print(json.load(open('$_ACCESS'))['allowFrom'][0])" 2>/dev/null || true)
     if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "$_CHAT" ]; then
+      _clear_key=$(printf '%s' "$_question" | sed 's/^\(\[BLOCKED-AMBIGUOUS\] [^:]*\):.*/\1/')
       _MSG="[BLOCKED-AMBIGUOUS] Autonomous run paused — human decision required
 
 Plan: ${_slug}
 ${_question}
 
 To resume, run in terminal:
-bash .claude/scripts/plan-file.sh clear-marker plans/${_slug}.md \"[BLOCKED-AMBIGUOUS]\""
+bash .claude/scripts/plan-file.sh clear-marker plans/${_slug}.md \"${_clear_key}\""
       curl -s -X POST \
         "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
         --data-urlencode "chat_id=${_CHAT}" \

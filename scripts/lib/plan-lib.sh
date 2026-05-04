@@ -597,6 +597,13 @@ cmd_append_review_verdict() {
 
 cmd_clear_marker() {
   local plan_file="$1" marker="$2"
+  if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ]; then
+    case "$marker" in
+      \[BLOCKED-AMBIGUOUS\]*)
+        die "clear-marker: [BLOCKED-AMBIGUOUS] cannot be cleared in autonomous mode — human confirmation required"
+        ;;
+    esac
+  fi
   require_file "$plan_file"
   _awk_inplace "$plan_file" -v marker="$marker" '
     /^## Open Questions$/ { in_section=1; print; next }
