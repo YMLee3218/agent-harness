@@ -62,7 +62,7 @@ Then write the `## Task Definitions` JSON block in the plan file:
 - `files` is an array of exact file paths to create or modify
 - `failing_test` is the path (and optionally `::test_name`) of the primary failing test for this task
 - `parallel: true` only when there is no cross-task dependency within the same layer tier
-- `depends_on` is the `id` of the task this one depends on, or `null`
+- `depends_on` is the `id` of the task this one depends on, or `null` — informational for JSON ordering only; the scheduler executes sequential tasks in JSON array order, not by this field; place dependent tasks after their dependencies in the array
 
 After writing the JSON block, stop. Do not proceed to Step 2. `run-implement.sh` handles Steps 2–3.5.
 
