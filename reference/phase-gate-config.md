@@ -60,7 +60,7 @@ Source of truth: `scripts/phase-policy.sh` (`phase_blocks_src`, `phase_blocks_te
 
 > **Note:** Phase gating applies only to `src/` and test paths. Writes to `docs/`, `plans/`, `reference/`, and other non-source paths are always permitted in every phase.
 
-`implement` is the coder subagent execution phase — source writes are permitted; test files remain frozen. Freeze is enforced by two independent hooks (`phase-gate.sh` and `pretooluse-bash.sh`); both must be adjusted together if fail-open behaviour is needed.
+`implement` is the codex execution phase (via run-implement.sh) — source writes are permitted; test files remain frozen. Freeze is enforced by two independent hooks (`phase-gate.sh` and `pretooluse-bash.sh`); both must be adjusted together if fail-open behaviour is needed.
 
 ## Hook execution order with `--permission-mode auto`
 
@@ -73,4 +73,4 @@ CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md" \
   claude --permission-mode auto -p "/running-dev-cycle"
 ```
 
-`run-critic-loop.sh` adds `--dangerously-skip-permissions` to each internal `claude` invocation so that critic sessions never block on a permission prompt. This flag is appropriate only for autonomous subagent calls inside the critic loop, where the parent session already owns the plan file lock and phase gate.
+`run-critic-loop.sh` adds `--dangerously-skip-permissions` to each internal `claude` invocation so that critic sessions never block on a permission prompt. `run-dev-cycle.sh` and `run-integration.sh` use the same flag in their `run_llm` helpers for the same reason. This flag is used for all autonomous subagent invocations in the harness — in each context the parent session already owns the plan file lock and phase gate, so permission prompts would only stall the pipeline.
