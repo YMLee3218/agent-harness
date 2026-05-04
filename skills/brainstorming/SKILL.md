@@ -119,7 +119,7 @@ Update affected `docs/*.md` (SOT) before proceeding.
 
 ### Step 3 — Write output
 
-Create `docs/requirements/{name}.md`. Apply the same git pre-check as New Feature Flow Step 3.
+If `docs/requirements/{name}.md` does not already exist, create it. Apply the same git pre-check as New Feature Flow Step 3.
 
 Set phase to `brainstorm` (skip if already in `brainstorm` — do not re-transition to the same phase):
 ```bash
