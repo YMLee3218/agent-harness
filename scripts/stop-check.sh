@@ -49,7 +49,7 @@ resolve_active_plan_and_phase active_plan phase || exit 0
 # Enforce in green and integration phases only (unit tests must pass in both).
 # All other phases — brainstorm, spec, red, implement, review, done — are excluded.
 # review is excluded: pr-review FAIL recovery phase; source modifications mid-cycle may break tests.
-# implement is excluded: coder subagents write source to satisfy failing tests.
+# implement is excluded: codex writes source to satisfy failing tests (via run-implement.sh).
 # done is excluded: see header comment — session already closed, no test run needed.
 # shellcheck source=phase-policy.sh
 source "$(dirname "$0")/phase-policy.sh"

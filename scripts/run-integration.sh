@@ -55,7 +55,7 @@ while true; do
   today=$(date +%Y-%m-%d)
 
   if [[ $attempt -ge $max_attempts ]]; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED] integration tests failed after ${max_attempts} fix attempts — manual review required"
+    bash "$PF" append-note "$PLAN" "[BLOCKED] integration tests failed after $((max_attempts - 1)) fix attempt(s) — manual review required"
     exit 1
   fi
 
@@ -104,8 +104,13 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
         bash "$PF" append-note "$PLAN" "[BLOCKED] integration: implementation bug requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
         exit 1
       fi
+      bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;
     "spec gap")
+      if [[ -z "$UNIT_CMD" ]]; then
+        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: spec-gap fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
+        exit 1
+      fi
       bash "$PF" transition "$PLAN" spec "integration failure: spec gap"
       bash "$PF" reset-for-rollback "$PLAN" spec
       bash "$PF" reset-milestone "$PLAN" critic-spec
@@ -121,14 +126,14 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       run_critic critic-test red "Review updated tests for integration fix. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
-      if [[ -n "$UNIT_CMD" ]]; then
-        bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
-      else
-        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: spec-gap fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
-        exit 1
-      fi
+      bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      bash "$PF" transition "$PLAN" integration "re-entering integration after spec gap fix"
       ;;
     "docs conflict")
+      if [[ -z "$UNIT_CMD" ]]; then
+        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: docs-conflict fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
+        exit 1
+      fi
       bash "$PF" transition "$PLAN" spec "integration failure: docs conflict"
       bash "$PF" reset-for-rollback "$PLAN" spec
       bash "$PF" reset-milestone "$PLAN" critic-spec
@@ -144,12 +149,8 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       run_critic critic-test red "Review updated tests for integration fix. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
-      if [[ -n "$UNIT_CMD" ]]; then
-        bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
-      else
-        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: docs-conflict fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
-        exit 1
-      fi
+      bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      bash "$PF" transition "$PLAN" integration "re-entering integration after docs conflict fix"
       ;;
     *)
       bash "$PF" append-note "$PLAN" "[BLOCKED] integration: could not determine fix category — manual review required"

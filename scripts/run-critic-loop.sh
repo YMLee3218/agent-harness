@@ -26,7 +26,7 @@ ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
 if [[ $NESTED -eq 0 ]]; then
   LOOP_LOCK="${PLAN}.critic.lock"
   if ! (set -C; echo $$ > "$LOOP_LOCK") 2>/dev/null; then
-    echo "=== run-critic-loop: already running for $PLAN ===" >&2; exit 2
+    echo "=== run-critic-loop: already running for $PLAN ===" >&2; exit 3
   fi
   trap 'rm -f "$LOOP_LOCK"' EXIT
 fi

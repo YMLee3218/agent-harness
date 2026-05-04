@@ -27,11 +27,14 @@ Written by skills or hooks outside the critic convergence protocol.
 |--------|---------|--------|------------|-------------|
 | `[BLOCKED] {reason}` | Various skills | Generic stop — human action required | Manual `plan-file.sh clear-marker` after fixing | Yes |
 | `[BLOCKED] coder:{task-id} — {reason}` | run-implement.sh | Coder hit unresolvable blocker or abort | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED] post-implement smoke test failed — full test suite not passing after all tiers` | run-implement.sh | Full test suite failed after all task tiers merged — check for unimplemented tests or regressions | Manual `plan-file.sh clear-marker` after fixing failing tests | Yes |
 | `[BLOCKED] preflight:{tool}: {fix}` | preflight.sh | Autonomous pre-flight check failed | Fix prerequisite, then `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] integration:{test}: {reason}` | running-integration-tests | Failure category ambiguous — manual review required | Manual | Yes |
+| `[BLOCKED] integration: mixed failure categories ({categories}) — manual review required` | run-integration.sh | Integration failures in current run span multiple root-cause categories — cannot apply a single automated fix; manual triage required | Manual `plan-file.sh clear-marker "[BLOCKED] integration: mixed"` after diagnosing root cause | Yes |
 | `[BLOCKED] {agent}: session-timeout after {N}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` | `run-critic-loop.sh` | Critic session timed out — increase `CLAUDE_CRITIC_SESSION_TIMEOUT` or re-run | Manual `plan-file.sh clear-marker` after adjusting timeout | Yes |
 | `[BLOCKED] {agent}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap` | `run-critic-loop.sh` | No `gtimeout`/`timeout` binary — install GNU coreutils or disable the cap | Manual `plan-file.sh clear-marker` after installing or disabling | Yes |
 | `[BLOCKED] {agent}: plan unchanged for {N} consecutive iterations — critic is not writing to plan file; check session logs` | `run-critic-loop.sh` | Critic session produced no verdicts — check session logs | Manual `plan-file.sh clear-marker` after debugging | Yes |
+| `[BLOCKED] protocol-violation:{agent}: invoked outside run-critic-loop.sh context` | `plan-lib.sh cmd_record_verdict_guarded` | SubagentStop hook detected a critic agent running outside `run-critic-loop.sh`; plan file flagged | Manual `plan-file.sh clear-marker "[BLOCKED] protocol-violation"` after diagnosing | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | stop-check.sh | Why Stop hook blocked the previous stop attempt | Informational; survives `gc-events` | Yes |
 
 ### Integration test markers (written to `## Integration Failures`)

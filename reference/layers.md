@@ -50,7 +50,7 @@ The following patterns produce grep hits in boundary checkers but are **not** vi
 | `features/` (large) imports a value object or enum from `domain/` for a type annotation or enum comparison only | Structural type reference, not a domain logic call; the large-feature "never domain directly" rule applies to domain logic calls, not to type imports |
 | Language-generated code (e.g., protobuf, ORM stubs) auto-importing across layers | Generated; not authored violations |
 
-These exceptions apply to both the coder agent (layer enforcement) and critic-code (Angle 2 boundary checker). When in doubt, flag as `[WARN]` rather than `[CRITICAL]`.
+These exceptions apply to both run-implement.sh / codex (layer enforcement) and critic-code (Angle 2 boundary checker). When in doubt, flag as `[WARN]` rather than `[CRITICAL]`.
 
 ## Test mocking levels
 

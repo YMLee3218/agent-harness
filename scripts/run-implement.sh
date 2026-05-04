@@ -75,6 +75,7 @@ launch_task() {
   bash "$PF" update-task "$PLAN" "$id" in_progress
   make_prompt "$id" > "$prompt"
   git worktree add "$wt" -b "$branch" 2>/dev/null
+  (cd "$wt" && git rev-parse HEAD) > "$WORK_DIR/task-base-${id}.txt"
   if [[ "$bg" == "1" ]]; then
     (cd "$wt" && codex exec --full-auto - < "$prompt") > "$log" 2>&1 &
     echo $! > "$WORK_DIR/pid-${id}.txt"
@@ -100,25 +101,25 @@ verify_task() {
   if grep -qE 'coder-status: abort|^layer violation:' "$log" 2>/dev/null || \
      ! grep -q 'coder-status: complete' "$log" 2>/dev/null; then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} aborted — $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
+    bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} — coder aborted: $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
     return 1
   fi
 
-  # Test-file modification check
+  # Test-file modification check (use per-task base SHA so tier-N+1 inherited commits are excluded)
+  local task_base restore_count=0
+  task_base=$(cat "$WORK_DIR/task-base-${id}.txt" 2>/dev/null || echo "$BASE_SHA")
   local test_files
   test_files=$(cd "$wt" && {
-    git diff "${BASE_SHA}..HEAD" --name-only 2>/dev/null
+    git diff "${task_base}..HEAD" --name-only 2>/dev/null
     git diff HEAD --name-only 2>/dev/null
     git ls-files --others --exclude-standard 2>/dev/null
   } | sort -u | grep -E '(^|/)tests/|(^|/)test_|_test\.|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$' || true)
-
-  local restore_count=0
   if [[ -n "$test_files" ]]; then
     (cd "$wt" && for f in $test_files; do
-      if git cat-file -e "${BASE_SHA}:${f}" 2>/dev/null; then git checkout "$BASE_SHA" -- "$f"
+      if git cat-file -e "${task_base}:${f}" 2>/dev/null; then git checkout "$task_base" -- "$f"
       else rm -f "$f"; fi
     done && git add -A && git commit -m "chore: restore test files modified by Codex" 2>/dev/null || true)
-    restore_count=$(cd "$wt" && git rev-list --count "${BASE_SHA}..HEAD" 2>/dev/null || echo 0)
+    restore_count=$(cd "$wt" && git rev-list --count "${task_base}..HEAD" 2>/dev/null || echo 0)
 
     local retry_log retry_prompt
     retry_log="$WORK_DIR/retry-log-${id}.txt"
@@ -135,7 +136,7 @@ verify_task() {
     fi
     # Re-check test files after retry to catch a second modification
     test_files=$(cd "$wt" && {
-      git diff "${BASE_SHA}..HEAD" --name-only 2>/dev/null
+      git diff "${task_base}..HEAD" --name-only 2>/dev/null
       git diff HEAD --name-only 2>/dev/null
       git ls-files --others --exclude-standard 2>/dev/null
     } | sort -u | grep -E '(^|/)tests/|(^|/)test_|_test\.|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$' || true)
@@ -148,7 +149,7 @@ verify_task() {
 
   # Commit fallback: restore_count is 0 (no retry) or 1 (restore commit); any new Codex commit puts count above it
   local commit_count
-  commit_count=$(cd "$wt" && git rev-list --count "${BASE_SHA}..HEAD" 2>/dev/null || echo 0)
+  commit_count=$(cd "$wt" && git rev-list --count "${task_base}..HEAD" 2>/dev/null || echo 0)
   if [[ "$commit_count" -le "$restore_count" ]]; then
     local goal
     goal=$(get_field "$id" goal)
@@ -159,8 +160,12 @@ verify_task() {
     }
   fi
 
-  # Run tests in worktree
-  if ! (cd "$wt" && bash -c "$TEST_CMD" 2>&1); then
+  # Run only the task's specific failing test — not the full suite, which would fail on other-tier
+  # tests that haven't been implemented yet (domain tasks run before feature tasks)
+  local failing_test test_file
+  failing_test=$(get_field "$id" failing_test)
+  test_file="${failing_test%%::*}"
+  if [[ -n "$test_file" ]] && ! (cd "$wt" && bash -c "$TEST_CMD $test_file" 2>&1); then
     bash "$PF" update-task "$PLAN" "$id" blocked
     bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} — tests failing after implementation"
     return 1
@@ -257,12 +262,14 @@ for tier in domain infrastructure features; do
     fi
   done
 
-  # Post-tier smoke test
-  if ! bash -c "$TEST_CMD" 2>&1; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED] post-tier smoke test failed after merging ${tier} tasks"
-    OVERALL_BLOCKED=1
-    break
-  fi
 done
+
+# Final smoke test after all tiers are merged — validates full suite passes once all layers are implemented
+if [[ $OVERALL_BLOCKED -eq 0 ]]; then
+  if ! bash -c "$TEST_CMD" 2>&1; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED] post-implement smoke test failed — full test suite not passing after all tiers"
+    OVERALL_BLOCKED=1
+  fi
+fi
 
 exit $OVERALL_BLOCKED

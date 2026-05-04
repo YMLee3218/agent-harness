@@ -2,7 +2,7 @@
 name: implementer
 description: >
   Step 1 only: read spec + failing tests, plan task list, write ## Task Definitions JSON. Do NOT proceed to Steps 2-3.5 — run-implement.sh handles those.
-  implementing 스킬과 running-dev-cycle에서만 호출. 자동 트리거 금지.
+  Called only from implementing skill and running-dev-cycle. Do not trigger automatically.
 model: opus
 effort: high
 color: yellow
