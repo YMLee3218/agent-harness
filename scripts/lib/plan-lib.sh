@@ -567,7 +567,7 @@ cmd_record_verdict_guarded() {
     _plan=$(cmd_find_active) || _find_rc=$?
     if [ "$_find_rc" -eq 0 ]; then
       cmd_append_note "$_plan" \
-        "[BLOCKED] protocol-violation: ${_agent} invoked outside run-critic-loop.sh context"
+        "[BLOCKED] protocol-violation:${_agent}: invoked outside run-critic-loop.sh context"
     fi
     echo "[record-verdict-guarded] BLOCKED: ${_agent} ran outside run-critic-loop.sh" >&2
     exit 2
@@ -724,6 +724,8 @@ cmd_context() {
 cmd_add_task() {
   local plan_file="$1" task_id="$2" layer="$3"
   require_file "$plan_file"
+  # Idempotent: skip if task already in ledger (prevents duplicate rows on recovery re-run)
+  grep -qF "| ${task_id} |" "$plan_file" 2>/dev/null && return 0
   local row="| ${task_id} | ${layer} | pending | - |"
   if grep -q "^## Task Ledger$" "$plan_file"; then
     _awk_inplace "$plan_file" -v row="$row" '
