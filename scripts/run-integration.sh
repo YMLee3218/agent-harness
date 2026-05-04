@@ -15,6 +15,8 @@ done
 [[ -z "$PLAN" || -z "$INTEGRATION_CMD" ]] && {
   echo "Usage: run-integration.sh --plan PATH --integration-cmd CMD [--unit-cmd CMD]" >&2; exit 1; }
 [[ -f "$PLAN" ]] || { echo "Plan file not found: $PLAN" >&2; exit 1; }
+# Treat unfilled placeholder (from workspace/CLAUDE.md template) as unconfigured
+[[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""
 
 run_llm() {
   local prompt="$1"

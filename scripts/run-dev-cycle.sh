@@ -30,6 +30,9 @@ fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 UNIT_CMD=$(grep -m1 '^\- Test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Test: *//;s/^`//;s/`$//' || echo "")
 INTEGRATION_CMD=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Integration test: *//;s/^`//;s/`$//' || echo "")
+# Treat unfilled placeholders (from workspace/CLAUDE.md template) as unconfigured
+[[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""
+[[ "$INTEGRATION_CMD" == _\(run* ]] && INTEGRATION_CMD=""
 
 run_llm() {
   local prompt="$1" model="${2:-opus}"
@@ -132,6 +135,11 @@ if [[ "$MODE" == "feature" ]]; then
       bash "$PF" transition "$PLAN" done "no integration test command — skipped"
     fi
     exit $?
+  fi
+
+  if [[ -z "$(get_features)" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED] run-dev-cycle: no features in ${REQ_FILE} — run /brainstorming first"
+    exit 1
   fi
 
   while IFS= read -r feature; do
@@ -258,6 +266,11 @@ if [[ "$MODE" == "feature" ]]; then
 
 # ── Batch (greenfield) mode ──────────────────────────────────────────────────
 else
+  if [[ -z "$(get_features)" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED] run-dev-cycle: no features in ${REQ_FILE} — run /brainstorming first"
+    exit 1
+  fi
+
   # Step 2 — All specs
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
