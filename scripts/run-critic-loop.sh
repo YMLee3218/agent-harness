@@ -81,6 +81,10 @@ while true; do
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
         "[BLOCKED] ${AGENT}: session-timeout after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" 2>/dev/null || true
       echo "[BLOCKED] session-timeout after ${SESSION_TIMEOUT}s" >&2; exit 1
+    else
+      bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        "[BLOCKED] ${AGENT}: script-failure: ${exit_code} — claude session exited unexpectedly; check session logs" 2>/dev/null || true
+      echo "[BLOCKED] script-failure: ${exit_code}" >&2; exit 1
     fi
   }
   CLAUDE_PID=""

@@ -22,7 +22,7 @@ One-paragraph description of what this project does and who it serves.
 
 # Shell commands
 
-- Test: `<command>`
+- Test: `<command>`  _(invoked as `{cmd} {file}` during implementation — must accept a file path as a positional arg, e.g. `pytest`, `jest`, `go test`)_
 - Lint: `<command>`
 - Build: `<command>`
 - Integration test: `<command>`
