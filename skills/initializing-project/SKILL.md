@@ -83,7 +83,7 @@ Feature: {concept name}
 - **{term}**: {definition}
 ```
 
-If docs/ already contains relevant files, read and preserve them. If docs/ is absent and the user provided no domain documentation:
+If docs/ already contains relevant files for this concept, read and preserve them. If no relevant docs/{concept}.md exists yet and the user provided no domain documentation:
 - **Interactive**: use `AskUserQuestion` — "What are the core rules and constraints for {concept}? I'll use this to create docs/{concept}.md."
 - **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): leave the Definition / Rules / Vocabulary sections with `TODO` placeholders; append `[WARN] docs/{concept}.md has placeholder content — fill in domain rules before writing-spec runs` to `## Open Questions`.
 
