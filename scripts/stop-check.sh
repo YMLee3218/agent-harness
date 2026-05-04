@@ -64,7 +64,7 @@ Plan: ${_slug}
 ${_question}
 
 To resume, run in terminal:
-bash .claude/scripts/plan-file.sh clear-marker plans/${_slug}.md \"[BLOCKED-AMBIGUOUS] {agent}\""
+bash .claude/scripts/plan-file.sh clear-marker plans/${_slug}.md \"[BLOCKED-AMBIGUOUS]\""
       curl -s -X POST \
         "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
         --data-urlencode "chat_id=${_CHAT}" \
