@@ -124,6 +124,8 @@ _bash_dest_paths() {
   printf '%s' "$c" | grep -oE '>{1,2} *[^[:space:]]+' | sed 's/^>* *//'
   printf '%s' "$c" | grep -oE '\btee +[^[:space:]]+' | sed 's/^tee *//'
   printf '%s' "$c" | grep -oE '\bcp +[^[:space:]]+ +[^[:space:]]+' | awk '{print $NF}'
+  printf '%s' "$c" | grep -oE '\bmv +[^[:space:]]+ +[^[:space:]]+' | awk '{print $NF}'
+  printf '%s' "$c" | grep -oE '\bsed +-i[^ ]*( +[^[:space:];|&]+)+' | awk '{print $NF}'
 }
 
 if [ -f "$PLAN_FILE_SH" ]; then

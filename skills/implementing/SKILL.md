@@ -12,6 +12,11 @@ agent: implementer
 paths:
   - src/**
   - tests/**
+  - plans/**
+  - features/**
+  - domain/**
+  - infrastructure/**
+  - docs/**
 ---
 
 # Implementation Workflow
