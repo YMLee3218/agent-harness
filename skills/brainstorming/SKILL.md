@@ -65,7 +65,7 @@ List each candidate as small or large. Write decomposition to plan file. Proceed
 
 ### Step 3 — Write output + create branch
 
-After decomposition, create `docs/requirements/{name}.md`:
+If `docs/requirements/{name}.md` does not already exist, create it:
 
 ```markdown
 # {Requirement Name}
