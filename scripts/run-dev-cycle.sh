@@ -95,9 +95,13 @@ if [[ -z "$PLAN" ]] || \
   PLAN=$(bash "$PF" find-active 2>/dev/null || true)
   [[ -z "$PLAN" ]] && { echo "ERROR: plan file not created by brainstorming" >&2; exit 1; }
 
-  # Insert mode into frontmatter
-  sed -i '' "s/^mode:.*$/mode: ${MODE}/" "$PLAN" 2>/dev/null || \
-    sed -i "0,/^---/{s/^---$/---\nmode: ${MODE}/}" "$PLAN" 2>/dev/null || true
+  # Insert mode into frontmatter (grep guards against sed exiting 0 on no-match)
+  if grep -q '^mode:' "$PLAN" 2>/dev/null; then
+    sed -i '' "s/^mode:.*$/mode: ${MODE}/" "$PLAN" 2>/dev/null || true
+  else
+    awk -v m="${MODE}" '/^---$/ && ++n==2 {print "mode: " m} 1' \
+      "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
+  fi
 
   bash "$PF" reset-milestone "$PLAN" critic-feature
   run_critic critic-feature brainstorm \
@@ -120,16 +124,22 @@ if [[ "$MODE" == "feature" ]]; then
 
   # integration phase re-entry: skip feature loop, go straight to integration
   if [[ "${current_phase:-}" == "integration" ]]; then
-    [[ -n "$INTEGRATION_CMD" ]] && \
+    if [[ -n "$INTEGRATION_CMD" ]]; then
       bash "$SCRIPTS_DIR/run-integration.sh" --plan "$PLAN" \
         --unit-cmd "$UNIT_CMD" --integration-cmd "$INTEGRATION_CMD"
+    else
+      echo "[SKIP] integration tests — no command found in CLAUDE.md"
+      bash "$PF" transition "$PLAN" done "no integration test command — skipped"
+    fi
     exit $?
   fi
 
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
 
-    # Skip done: feature-specific spec exists + no pending/in_progress/blocked tasks
+    # Skip done: feature-specific spec exists + no pending/in_progress/blocked tasks + phase
+    # is green or done. Phase guard prevents false-skip on resume after run-implement.sh
+    # completes but before critic-code/pr-review/green have run (phase still=implement).
     feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
     spec_found=0
     for sp in "${PROJECT_DIR}/features/${feat_slug}/spec.md" "${PROJECT_DIR}/domain/${feat_slug}/spec.md" "${PROJECT_DIR}/infrastructure/${feat_slug}/spec.md"; do
@@ -137,7 +147,10 @@ if [[ "$MODE" == "feature" ]]; then
     done
     if [[ $spec_found -eq 1 ]]; then
       pending_tasks=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]|\| blocked[ |]/' "$PLAN" 2>/dev/null || true)
-      [[ -z "$pending_tasks" ]] && continue
+      if [[ -z "$pending_tasks" ]]; then
+        skip_phase=$(bash "$PF" get-phase "$PLAN")
+        [[ "$skip_phase" == "green" || "$skip_phase" == "done" ]] && continue
+      fi
     fi
 
     # Inter-feature reset: previous feature just reached green, this feature not yet started
