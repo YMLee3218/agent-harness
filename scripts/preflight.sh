@@ -7,7 +7,7 @@
 # Required tools (single source of truth):
 #   gh CLI (authenticated)  — running-dev-cycle runs gh pr create before pr-review; without auth PR step fails (skipped in B-sessions: CLAUDE_CRITIC_SESSION=1)
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
-#   context7-plugin         — critic-code and critic-spec use context7 to verify external API usage
+#   context7-plugin         — orchestrating Claude uses context7 to resolve [UNVERIFIED CLAIM] findings from critics
 #   pr-review-toolkit       — running-dev-cycle calls pr-review-toolkit:review-pr per feature (review phase)
 #   codex                   — run-implement.sh delegates implementation via codex exec --full-auto
 #   codex-auth              — Codex requires OPENAI_API_KEY or ~/.codex/auth.json
