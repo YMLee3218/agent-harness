@@ -40,13 +40,7 @@ Proceed directly to Step 3.
 ## Step 3 — Write spec.md
 
 Read `docs/requirements/*.md` and identify ALL components implied by the feature requirements.
-Classify each component by layer using `@reference/layers.md §Layers`, then write to the path from `@reference/layers.md §Naming conventions`:
-
-| Classified as | Output path |
-|---------------|-------------|
-| Domain concept | `domain/{concept}/spec.md` |
-| Infrastructure component | `infrastructure/{concept}/spec.md` |
-| Feature (small or large) | `features/{verb}-{noun}/spec.md` |
+Classify each component by layer using `@reference/layers.md §Layers`, then write to the spec path from `@reference/layers.md §Naming conventions` (§Layer-to-spec-path mapping is canonical).
 
 This is the only phase where domain concepts and infrastructure components are identified.
 
