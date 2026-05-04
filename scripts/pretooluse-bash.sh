@@ -131,7 +131,7 @@ PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 _bash_dest_paths() {
   local c="$1"
   printf '%s' "$c" | grep -oE '>{1,2} *[^[:space:]]+' | sed 's/^>* *//'
-  printf '%s' "$c" | grep -oE '\btee +[^[:space:]]+' | sed 's/^tee *//'
+  printf '%s' "$c" | grep -oE '\btee( +[^[:space:]]+)+' | sed 's/^tee *//' | tr ' ' '\n' | grep -v '^-'
   printf '%s' "$c" | grep -oE '\bcp +[^[:space:]]+ +[^[:space:]]+' | awk '{print $NF}'
   printf '%s' "$c" | grep -oE '\bmv +[^[:space:]]+ +[^[:space:]]+' | awk '{print $NF}'
   printf '%s' "$c" | grep -oE '\bsed +-i[^ ]*( +[^[:space:];|&]+)+' | awk '{print $NF}'

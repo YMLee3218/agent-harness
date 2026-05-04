@@ -106,6 +106,8 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
         bash "$PF" append-note "$PLAN" "[BLOCKED] integration: implementation bug requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
         exit 1
       fi
+      bash "$PF" reset-milestone "$PLAN" critic-code
+      run_critic critic-code implement "Review integration bug fix implementation. Plan: $PLAN."
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;
     "spec gap")
@@ -129,6 +131,8 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      bash "$PF" reset-milestone "$PLAN" critic-code
+      run_critic critic-code implement "Review integration spec-gap fix implementation. Plan: $PLAN."
       bash "$PF" transition "$PLAN" integration "re-entering integration after spec gap fix"
       ;;
     "docs conflict")
@@ -152,6 +156,8 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+      bash "$PF" reset-milestone "$PLAN" critic-code
+      run_critic critic-code implement "Review integration docs-conflict fix implementation. Plan: $PLAN."
       bash "$PF" transition "$PLAN" integration "re-entering integration after docs conflict fix"
       ;;
     *)
