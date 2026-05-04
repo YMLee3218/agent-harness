@@ -50,7 +50,7 @@ if [[ -z "$TIMEOUT_CMD" ]] && [[ "$SESSION_TIMEOUT" != "0" ]]; then
 fi
 
 iter=0
-LAST_PLAN_HASH=""
+LAST_PLAN_HASH=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
 CONSECUTIVE_NOOP=0
 
 while true; do
