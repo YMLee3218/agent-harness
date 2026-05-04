@@ -70,7 +70,7 @@ Then for each failing test:
 Category: {docs conflict | spec gap | implementation bug}
 Description: {one sentence}
 Log [AUTO-CATEGORIZED-INTEGRATION] {test name}: {category} for each.
-If ambiguous, append [BLOCKED] integration:{test name}: cannot determine category automatically — manual review required to ## Open Questions and stop."
+If ambiguous, append [BLOCKED] integration:{test name}: cannot determine category automatically — manual review required to ## Open Questions and stop." || true
 
   # Check for blocked marker from LLM categorization
   blocked=$(awk '/^## Open Questions/{f=1} f&&/\[BLOCKED\] integration:/{print;exit}' "$PLAN" || true)
