@@ -76,7 +76,7 @@ Hard constraints:
 - Apply the mocking level dictated by the test's layer — no exceptions.
 - No implementation logic inside tests.
 - Write tests only at the test file paths listed in the plan; do not create files elsewhere.
-- Every newly written test must FAIL when the test command runs. The only exception is a scenario already fully satisfied by existing code — in that case leave the test asserting the real behaviour and tag it GREEN-PRE-EXISTING in a trailing comment on the test.
+- Every newly written test must FAIL when the test command runs. The only exception is a scenario already fully satisfied by existing code AND the test is being added to a test file that predates this Red-phase commit — in that case leave the test asserting the real behaviour and tag it GREEN-PRE-EXISTING in a trailing comment on the test. If the test file itself is newly created in the Red phase, ALL tests in it must FAIL (critic-test rejects GREEN-PRE-EXISTING in new files).
 
 After writing all tests, run: {test command}
 Print the test results, then for each test file you created or modified emit one line:
