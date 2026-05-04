@@ -115,11 +115,7 @@ claude_md_exists=0
 if [ -f "$claude_md" ]; then
   claude_md_exists=1
   _raw_test_line=$(grep -E '^\- Test: ' "$claude_md" 2>/dev/null | head -1 || true)
-  test_cmd=$(printf '%s' "$_raw_test_line" | sed "s/^- Test: \`\(.*\)\`/\1/" || true)
-  # If sed did not transform the line (no backtick wrapping), the command is not parseable
-  if [ "$test_cmd" = "$_raw_test_line" ]; then
-    test_cmd=""
-  fi
+  test_cmd=$(printf '%s' "$_raw_test_line" | sed 's/^- Test: *//;s/^`//;s/`$//' || true)
 fi
 
 # Skip if placeholder: checks both _raw_test_line (catches failed sed) and test_cmd (catches extracted placeholder).
