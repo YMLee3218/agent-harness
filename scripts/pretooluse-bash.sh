@@ -22,6 +22,15 @@ if [ -z "$cmd" ] && [ -n "$input" ]; then
   exit 2
 fi
 
+# NONINTERACTIVE + [BLOCKED-AMBIGUOUS] → block all bash
+if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] \
+   && [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
+  if grep -qF "[BLOCKED-AMBIGUOUS]" "$CLAUDE_PLAN_FILE"; then
+    echo "BLOCKED: [BLOCKED-AMBIGUOUS] present — autonomous bash prohibited; human review required" >&2
+    exit 2
+  fi
+fi
+
 # rm -rf / rm -fr
 if printf '%s' "$cmd" | grep -iqE \
   '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f([[:space:]/]|$)' \

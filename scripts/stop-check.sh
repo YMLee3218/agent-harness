@@ -46,6 +46,35 @@ BLOCKED_LABEL="stop-check"
 source "$(dirname "$0")/lib/active-plan.sh"
 resolve_active_plan_and_phase active_plan phase || exit 0
 
+# [BLOCKED-AMBIGUOUS]: send Telegram notification and allow stop
+if grep -qF "[BLOCKED-AMBIGUOUS]" "$active_plan" 2>/dev/null; then
+  _question=$(grep -F "[BLOCKED-AMBIGUOUS]" "$active_plan" | head -1)
+  _slug=$(basename "$active_plan" .md)
+  _ENV="$HOME/.claude/channels/telegram/.env"
+  _ACCESS="$HOME/.claude/channels/telegram/access.json"
+  if [ -f "$_ENV" ] && [ -f "$_ACCESS" ]; then
+    # shellcheck source=/dev/null
+    set -a; source "$_ENV"; set +a
+    _CHAT=$(python3 -c \
+      "import json; print(json.load(open('$_ACCESS'))['allowFrom'][0])" 2>/dev/null || true)
+    if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "$_CHAT" ]; then
+      _MSG="[BLOCKED-AMBIGUOUS] Autonomous run paused — human decision required
+
+Plan: ${_slug}
+${_question}
+
+To resume, run in terminal:
+bash .claude/scripts/plan-file.sh clear-marker plans/${_slug}.md \"[BLOCKED-AMBIGUOUS] {agent}\""
+      curl -s -X POST \
+        "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        --data-urlencode "chat_id=${_CHAT}" \
+        --data-urlencode "text=${_MSG}" >/dev/null 2>&1 || true
+    fi
+  fi
+  echo "[stop-check] [BLOCKED-AMBIGUOUS] detected — Telegram notified; allowing stop" >&2
+  exit 0
+fi
+
 # Enforce in green and integration phases only (unit tests must pass in both).
 # All other phases — brainstorm, spec, red, implement, review, done — are excluded.
 # review is excluded: pr-review FAIL recovery phase; source modifications mid-cycle may break tests.
