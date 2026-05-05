@@ -15,6 +15,8 @@
       "Bash(node --version)",
       "Bash(bash $CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh *)",
       "Bash(bash $CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh *)",
+      "Bash(bash $CLAUDE_PROJECT_DIR/.claude/scripts/run-dev-cycle.sh *)",
+      "Bash(bash $CLAUDE_PROJECT_DIR/.claude/scripts/run-integration.sh *)",
       "Bash(mkdir -p *)",
       "Bash(gh auth status)",
       "Bash(gh pr view *)",
@@ -28,7 +30,9 @@
       "Bash(wget *)",
       "Bash(rm *)",
       "Bash(mv *)",
-      "Bash(cp *)"
+      "Bash(cp *)",
+      "Write(**/.claude*/**)",
+      "Edit(**/.claude*/**)"
     ],
     "deny": [
       "Read(~/.ssh/**)",
@@ -51,8 +55,6 @@
       "Bash(git clean -f*)",
       "Bash(git reset --hard *)",
       "Bash(git reset --hard)",
-      "Write(**/.claude*/settings.json)",
-      "Edit(**/.claude*/settings.json)"
     ]
   },
   "statusLine": {
