@@ -565,7 +565,7 @@ cmd_record_verdict_guarded() {
   _find_rc=0
   _plan=$(cmd_find_active) || _find_rc=$?
   _lock=""
-  [ "$_find_rc" -eq 0 ] && _lock="${_plan%.md}.critic.lock"
+  [ "$_find_rc" -eq 0 ] && _lock="${_plan}.critic.lock"
   if [ -z "$_lock" ] || [ ! -f "$_lock" ]; then
     if [ "$_find_rc" -eq 0 ]; then
       cmd_append_note "$_plan" \
