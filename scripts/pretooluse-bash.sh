@@ -24,7 +24,7 @@ fi
 
 # Block Claude from clearing markers that require human judgement to resolve
 # (humans bypass this hook by running from terminal directly)
-if printf '%s' "$cmd" | grep -qE 'plan-file\.sh[[:space:]].*clear-marker'; then
+if printf '%s' "$cmd" | grep -qE 'plan-file\.sh["[:space:]].*clear-marker'; then
   if printf '%s' "$cmd" | grep -qE '\[BLOCKED-AMBIGUOUS\]|\[BLOCKED\] (protocol-violation|category:|parse:|integration:|preflight:)'; then
     echo "BLOCKED: this marker cannot be cleared by Claude — human must run plan-file.sh clear-marker directly from terminal" >&2
     exit 2
