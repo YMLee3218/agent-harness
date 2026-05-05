@@ -26,6 +26,7 @@ case "$1" in
   append-review-verdict) [ $# -eq 4 ] || die "Usage: plan-file.sh append-review-verdict <plan-file> <agent> PASS|FAIL"; cmd_append_review_verdict "$2" "$3" "$4" ;;
   record-stop-block)          [ $# -eq 4 ] || die "Usage: plan-file.sh record-stop-block <plan-file> <phase> <reason>"; cmd_record_stop_block "$2" "$3" "$4" ;;
   clear-marker)               [ $# -eq 3 ] || die "Usage: plan-file.sh clear-marker <plan-file> <marker-text>"; cmd_clear_marker "$2" "$3" ;;
+  unblock)                    [ $# -eq 2 ] || die "Usage: plan-file.sh unblock <agent>"; cmd_unblock "$2" ;;
   clear-converged)            [ $# -eq 3 ] || die "Usage: plan-file.sh clear-converged <plan-file> <agent>"; cmd_clear_converged "$2" "$3" ;;
   reset-milestone)            [ $# -eq 3 ] || die "Usage: plan-file.sh reset-milestone <plan-file> <agent>"; cmd_reset_milestone "$2" "$3" ;;
   reset-pr-review)            [ $# -eq 2 ] || die "Usage: plan-file.sh reset-pr-review <plan-file>"; cmd_reset_pr_review "$2" ;;

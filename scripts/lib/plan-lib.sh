@@ -613,6 +613,19 @@ cmd_clear_marker() {
   echo "[clear-marker] removed '$marker' from ## Open Questions in $plan_file" >&2
 }
 
+cmd_unblock() {
+  local agent="$1"
+  local plan_file
+  plan_file=$(cmd_find_active) || die "unblock: no active plan found"
+  _awk_inplace "$plan_file" -v agent="$agent" '
+    /^## Open Questions$/ { in_section=1; print; next }
+    in_section && /^## / { in_section=0 }
+    in_section && /\[BLOCKED\]/ && index($0, agent) > 0 { next }
+    { print }
+  '
+  echo "[unblock] cleared [BLOCKED] markers for '${agent}' in ${plan_file}" >&2
+}
+
 cmd_clear_converged() {
   local plan_file="$1" agent="$2"
   require_file "$plan_file"
