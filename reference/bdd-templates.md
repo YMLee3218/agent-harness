@@ -52,3 +52,14 @@ Every `Scenario Outline` Examples table must include boundaries applicable to th
 | String | empty string (`""`), max-length string |
 | Nullable / optional | `null` / `None` / absent |
 | Boolean | `true`, `false` |
+
+**Closed-enum exemption:** A column whose values form a closed enumeration
+(i.e., every valid member is explicitly listed and no arbitrary string is a
+valid input) is exempt from the String boundary rows, provided all three
+conditions hold: (1) the value set is a closed enum with every member
+enumerated, (2) values outside the enum cannot reach the system under test
+as input, and (3) the column parameterises how the test precondition is
+configured, not a string passed directly into the system under test.
+Document the exemption with a comment in the spec file (e.g.,
+`# initial_state is a closed enum whose rows enumerate the only shapes the
+loader can observe; string-input boundary rows do not apply`).
