@@ -31,18 +31,10 @@ if printf '%s' "$cmd" | grep -qE "plan-file\\.sh[\"'[:space:]].*clear-marker"; t
   fi
 fi
 
-# Block Claude from using 'unblock' to clear [BLOCKED-AMBIGUOUS] markers
+# Block Claude from using 'unblock' — human-only convenience command
 if printf '%s' "$cmd" | grep -qE "plan-file\\.sh[\"'[:space:]].*unblock[[:space:]]"; then
-  _unblock_agent=$(printf '%s' "$cmd" | grep -oE '\bunblock +[A-Za-z0-9_-]+' | awk '{print $2}')
-  if [ -n "$_unblock_agent" ]; then
-    _plan=$(bash "$(dirname "$0")/plan-file.sh" find-active 2>/dev/null || true)
-    if [ -n "$_plan" ] && [ -f "$_plan" ] && \
-       grep -qF "[BLOCKED-AMBIGUOUS]" "$_plan" 2>/dev/null && \
-       grep -F "[BLOCKED-AMBIGUOUS]" "$_plan" 2>/dev/null | grep -qF "$_unblock_agent"; then
-      echo "BLOCKED: [BLOCKED-AMBIGUOUS] for '${_unblock_agent}' requires human review — run plan-file.sh unblock from terminal" >&2
-      exit 2
-    fi
-  fi
+  echo "BLOCKED: 'unblock' is a human-only command — run plan-file.sh unblock from terminal" >&2
+  exit 2
 fi
 
 # rm -rf / rm -fr
