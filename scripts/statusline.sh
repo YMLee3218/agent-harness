@@ -21,7 +21,7 @@ MINS=$((DURATION_MS / 60000)); SECS=$(((DURATION_MS % 60000) / 1000))
 BRANCH=""
 if git rev-parse --git-dir > /dev/null 2>&1; then
   _b=$(git branch --show-current 2>/dev/null)
-  [ ${#_b} -gt 24 ] && _b="${_b:0:22}…"
+  [ ${#_b} -gt 20 ] && _b="${_b:0:18}…"
   BRANCH=" | 🌿 $_b"
 fi
 
@@ -47,8 +47,10 @@ else
     END                    { sub(/^- /, "", line); print line }
   ' "$plan_file" 2>/dev/null)
   if [ -n "$last_verdict" ]; then
-    printf '%s | last: %s\n' "$phase" "$last_verdict"
+    line3=$(printf '%s | last: %s' "$phase" "$last_verdict")
   else
-    printf '%s | no verdicts yet\n' "$phase"
+    line3=$(printf '%s | no verdicts yet' "$phase")
   fi
+  [ ${#line3} -gt 50 ] && line3="${line3:0:48}…"
+  printf '%s\n' "$line3"
 fi
