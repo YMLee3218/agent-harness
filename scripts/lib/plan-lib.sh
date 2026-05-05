@@ -620,10 +620,10 @@ cmd_unblock() {
   _awk_inplace "$plan_file" -v agent="$agent" '
     /^## Open Questions$/ { in_section=1; print; next }
     in_section && /^## / { in_section=0 }
-    in_section && /\[BLOCKED\]/ && index($0, agent) > 0 { next }
+    in_section && /\[BLOCKED/ && index($0, agent) > 0 { next }
     { print }
   '
-  echo "[unblock] cleared [BLOCKED] markers for '${agent}' in ${plan_file}" >&2
+  echo "[unblock] cleared [BLOCKED*] markers for '${agent}' in ${plan_file}" >&2
 }
 
 cmd_clear_converged() {
