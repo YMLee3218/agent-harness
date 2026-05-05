@@ -556,15 +556,17 @@ cmd_record_verdict() {
 }
 
 cmd_record_verdict_guarded() {
-  if [ "${CLAUDE_CRITIC_SESSION:-0}" != "1" ]; then
-    local _input _agent _plan _find_rc
-    _input=$(cat)
-    _agent="unknown"
-    if command -v jq >/dev/null 2>&1; then
-      _agent=$(printf '%s' "$_input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
-    fi
-    _find_rc=0
-    _plan=$(cmd_find_active) || _find_rc=$?
+  local _input _agent _plan _find_rc _lock
+  _input=$(cat)
+  _agent="unknown"
+  if command -v jq >/dev/null 2>&1; then
+    _agent=$(printf '%s' "$_input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
+  fi
+  _find_rc=0
+  _plan=$(cmd_find_active) || _find_rc=$?
+  _lock=""
+  [ "$_find_rc" -eq 0 ] && _lock="${_plan%.md}.critic.lock"
+  if [ -z "$_lock" ] || [ ! -f "$_lock" ]; then
     if [ "$_find_rc" -eq 0 ]; then
       cmd_append_note "$_plan" \
         "[BLOCKED] protocol-violation:${_agent}: invoked outside run-critic-loop.sh context"
@@ -572,7 +574,7 @@ cmd_record_verdict_guarded() {
     echo "[record-verdict-guarded] BLOCKED: ${_agent} ran outside run-critic-loop.sh" >&2
     exit 2
   fi
-  cmd_record_verdict
+  printf '%s' "$_input" | cmd_record_verdict
 }
 
 cmd_append_review_verdict() {
@@ -597,13 +599,6 @@ cmd_append_review_verdict() {
 
 cmd_clear_marker() {
   local plan_file="$1" marker="$2"
-  if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ]; then
-    case "$marker" in
-      \[BLOCKED-AMBIGUOUS\]*)
-        die "clear-marker: [BLOCKED-AMBIGUOUS] cannot be cleared in autonomous mode — human confirmation required"
-        ;;
-    esac
-  fi
   require_file "$plan_file"
   _awk_inplace "$plan_file" -v marker="$marker" '
     /^## Open Questions$/ { in_section=1; print; next }

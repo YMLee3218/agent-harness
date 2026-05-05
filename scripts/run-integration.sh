@@ -117,7 +117,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       fi
       bash "$PF" transition "$PLAN" spec "integration failure: spec gap"
       bash "$PF" reset-for-rollback "$PLAN" spec
-      CLAUDE_NONINTERACTIVE=0 bash "$PF" clear-marker "$PLAN" "[BLOCKED-AMBIGUOUS]" 2>/dev/null || true
+      bash "$PF" clear-marker "$PLAN" "[BLOCKED-AMBIGUOUS]" 2>/dev/null || true
       bash "$PF" reset-milestone "$PLAN" critic-spec
       bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"
       bash "$PF" reset-milestone "$PLAN" critic-test
@@ -143,7 +143,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       fi
       bash "$PF" transition "$PLAN" spec "integration failure: docs conflict"
       bash "$PF" reset-for-rollback "$PLAN" spec
-      CLAUDE_NONINTERACTIVE=0 bash "$PF" clear-marker "$PLAN" "[BLOCKED-AMBIGUOUS]" 2>/dev/null || true
+      bash "$PF" clear-marker "$PLAN" "[BLOCKED-AMBIGUOUS]" 2>/dev/null || true
       bash "$PF" reset-milestone "$PLAN" critic-spec
       bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"
       bash "$PF" reset-milestone "$PLAN" critic-test

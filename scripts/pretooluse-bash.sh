@@ -22,11 +22,10 @@ if [ -z "$cmd" ] && [ -n "$input" ]; then
   exit 2
 fi
 
-# NONINTERACTIVE + [BLOCKED-AMBIGUOUS] → block all bash
-if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] \
-   && [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
-  if grep -qF "[BLOCKED-AMBIGUOUS]" "$CLAUDE_PLAN_FILE"; then
-    echo "BLOCKED: [BLOCKED-AMBIGUOUS] present — autonomous bash prohibited; human review required" >&2
+# Block Claude from clearing [BLOCKED-AMBIGUOUS] markers (humans bypass this hook by running from terminal directly)
+if printf '%s' "$cmd" | grep -qE 'plan-file\.sh[[:space:]].*clear-marker'; then
+  if printf '%s' "$cmd" | grep -qF '[BLOCKED-AMBIGUOUS]'; then
+    echo "BLOCKED: [BLOCKED-AMBIGUOUS] marker cannot be cleared by Claude — human must run plan-file.sh clear-marker directly from terminal" >&2
     exit 2
   fi
 fi
