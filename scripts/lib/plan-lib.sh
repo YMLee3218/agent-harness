@@ -560,7 +560,11 @@ cmd_record_verdict_guarded() {
   _input=$(cat)
   _agent="unknown"
   if command -v jq >/dev/null 2>&1; then
-    _agent=$(printf '%s' "$_input" | jq -r '.agent_type // "unknown"' 2>/dev/null || echo "unknown")
+    _agent=$(printf '%s' "$_input" | jq -r '(.agent_type // empty) // "unknown"' 2>/dev/null || echo "unknown")
+  fi
+  # Non-critic agents are not subject to the protocol-violation guard
+  if ! _is_subagent_critic "$_agent"; then
+    exit 0
   fi
   _find_rc=0
   _plan=$(cmd_find_active) || _find_rc=$?
