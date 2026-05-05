@@ -21,7 +21,7 @@ MINS=$((DURATION_MS / 60000)); SECS=$(((DURATION_MS % 60000) / 1000))
 BRANCH=""
 if git rev-parse --git-dir > /dev/null 2>&1; then
   _b=$(git branch --show-current 2>/dev/null)
-  [ ${#_b} -gt 20 ] && _b="${_b:0:18}…"
+  [ ${#_b} -gt 24 ] && _b="${_b:0:22}…"
   BRANCH=" | 🌿 $_b"
 fi
 
