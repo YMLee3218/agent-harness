@@ -54,7 +54,7 @@
       "Bash(git push --force)",
       "Bash(git clean -f*)",
       "Bash(git reset --hard *)",
-      "Bash(git reset --hard)",
+      "Bash(git reset --hard)"
     ]
   },
   "statusLine": {
