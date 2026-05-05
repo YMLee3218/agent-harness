@@ -122,6 +122,20 @@ get_features() {
     awk '/^## (Small|Large) Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] *`/,""); sub(/`.*/,""); print}' "$REQ_FILE" || echo ""
 }
 
+find_spec_path() {
+  local slug="$1"
+  for _sp in "${PROJECT_DIR}/features/${slug}/spec.md" \
+             "${PROJECT_DIR}/domain/${slug}/spec.md" \
+             "${PROJECT_DIR}/infrastructure/${slug}/spec.md"; do
+    [[ -f "$_sp" ]] && echo "$_sp" && return
+  done
+  echo "features/${slug}/spec.md"
+}
+
+docs_paths() {
+  [[ -f "$REQ_FILE" ]] && echo "${REQ_FILE} ${PROJECT_DIR}/docs/" || echo "${PROJECT_DIR}/docs/"
+}
+
 # ── Feature-slice mode ───────────────────────────────────────────────────────
 if [[ "$MODE" == "feature" ]]; then
 
@@ -188,7 +202,7 @@ if [[ "$MODE" == "feature" ]]; then
       run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
       llm_exit "writing-spec"
       bash "$PF" reset-milestone "$PLAN" critic-spec
-      run_critic critic-spec spec "Review spec for feature: ${feature}. Plan: ${PLAN}."
+      run_critic critic-spec spec "Review spec for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}."
       llm_exit "critic-spec"
       while IFS= read -r spec_path; do
         [[ -n "$spec_path" ]] && git add "$spec_path"
@@ -203,7 +217,8 @@ if [[ "$MODE" == "feature" ]]; then
       run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
       llm_exit "writing-tests"
       bash "$PF" reset-milestone "$PLAN" critic-test
-      run_critic critic-test red "Review tests for feature: ${feature}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
+      _test_files=$(git status --porcelain 2>/dev/null | awk '{print $2}' | grep '^tests/' | tr '\n' ' ' || true)
+      run_critic critic-test red "Review tests for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Test files: ${_test_files:-tests/}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
       llm_exit "critic-test"
     fi
 
@@ -234,7 +249,7 @@ if [[ "$MODE" == "feature" ]]; then
     if [[ "$phase_now" == "implement" ]] && \
        ! grep -q '\[CONVERGED\] implement/critic-code' "$PLAN" 2>/dev/null; then
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review changed files. Plan: ${PLAN}."
+      run_critic critic-code implement "Review changed files for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}."
       llm_exit "critic-code"
     fi
 
@@ -274,10 +289,11 @@ else
   # Step 2 — All specs
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
+    feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
     run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
     llm_exit "writing-spec"
     bash "$PF" reset-milestone "$PLAN" critic-spec
-    run_critic critic-spec spec "Review spec for feature: ${feature}. Plan: ${PLAN}."
+    run_critic critic-spec spec "Review spec for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}."
     llm_exit "critic-spec"
     while IFS= read -r spec_path; do
       [[ -n "$spec_path" ]] && git add "$spec_path"
@@ -288,10 +304,12 @@ else
   # Step 3 — All tests
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
+    feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
     run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
     llm_exit "writing-tests"
     bash "$PF" reset-milestone "$PLAN" critic-test
-    run_critic critic-test red "Review tests for feature: ${feature}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
+    _test_files=$(git status --porcelain 2>/dev/null | awk '{print $2}' | grep '^tests/' | tr '\n' ' ' || true)
+    run_critic critic-test red "Review tests for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Test files: ${_test_files:-tests/}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
     llm_exit "critic-test"
   done < <(get_features)
 
@@ -305,7 +323,7 @@ else
   bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
 
   bash "$PF" reset-milestone "$PLAN" critic-code
-  run_critic critic-code implement "Review changed files. Plan: ${PLAN}."
+  run_critic critic-code implement "Review changed files. Docs: $(docs_paths). Plan: ${PLAN}."
   llm_exit "critic-code"
 
   bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"
