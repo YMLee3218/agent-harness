@@ -7,7 +7,6 @@ user-invocable: false
 context: fork
 agent: critic-feature
 allowed-tools: [Read, Glob]
-effort: high
 paths: ["docs/**", "features/**"]
 ---
 

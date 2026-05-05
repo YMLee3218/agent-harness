@@ -6,7 +6,6 @@ description: >
   Trigger: "implement", "make the tests pass", "implement phase", "go", "proceed", after critic-test returns PASS.
   Do NOT trigger when no spec or tests exist — route to brainstorming instead.
   Do NOT trigger on plan mode exit or post-plan summary commands.
-effort: high
 context: fork
 agent: implementer
 paths:

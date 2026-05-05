@@ -7,7 +7,6 @@ user-invocable: false
 context: fork
 agent: critic-test
 allowed-tools: [Bash]
-effort: high
 paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 ---
 

@@ -5,7 +5,6 @@ description: >
   Trigger: "write the tests", "write failing tests", "Red phase", "start TDD", after spec is approved.
   Never writes implementation code — all tests must fail.
   Do NOT trigger automatically — only on explicit user request or when called by running-dev-cycle.
-effort: medium
 context: fork
 agent: test-writer
 paths:

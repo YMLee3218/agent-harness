@@ -4,7 +4,6 @@ description: >
   Orchestrates Codex to write failing Red-phase tests for every Scenario in an approved spec.md.
   Invoked by writing-tests skill only.
 model: sonnet
-effort: medium
 color: blue
 ---
 

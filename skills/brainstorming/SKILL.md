@@ -6,7 +6,6 @@ description: >
   Decomposes requirements before any spec or code is written.
   Always run before writing-spec. For brand-new repos, run initializing-project first.
   Do NOT trigger automatically — only on explicit user request or when called by running-dev-cycle.
-effort: medium
 context: fork
 agent: brainstormer
 ---
