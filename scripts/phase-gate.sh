@@ -46,11 +46,11 @@ mode_write() {
   file_path=$(extract_tool_input_path "$input")
   [ -z "$file_path" ] && exit 0
 
-  # NONINTERACTIVE + [BLOCKED-AMBIGUOUS] → block all writes
-  if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] \
-     && [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
-    if grep -qF "[BLOCKED-AMBIGUOUS]" "$CLAUDE_PLAN_FILE"; then
-      echo "BLOCKED: [BLOCKED-AMBIGUOUS] present — autonomous write prohibited; human review required" >&2
+  # [BLOCKED-AMBIGUOUS] → block all writes regardless of mode
+  local _ba_plan _ba_phase
+  if resolve_with_latest_fallback _ba_plan _ba_phase 2>/dev/null; then
+    if grep -qF "[BLOCKED-AMBIGUOUS]" "$_ba_plan"; then
+      echo "BLOCKED: [BLOCKED-AMBIGUOUS] present — write prohibited; human must resolve the question and clear the marker from terminal" >&2
       exit 2
     fi
   fi
