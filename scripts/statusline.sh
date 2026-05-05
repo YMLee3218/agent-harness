@@ -19,7 +19,11 @@ BAR=$(printf "%${FILLED}s" | tr ' ' '█')$(printf "%${EMPTY}s" | tr ' ' '░')
 MINS=$((DURATION_MS / 60000)); SECS=$(((DURATION_MS % 60000) / 1000))
 
 BRANCH=""
-git rev-parse --git-dir > /dev/null 2>&1 && BRANCH=" | 🌿 $(git branch --show-current 2>/dev/null)"
+if git rev-parse --git-dir > /dev/null 2>&1; then
+  _b=$(git branch --show-current 2>/dev/null)
+  [ ${#_b} -gt 24 ] && _b="${_b:0:22}…"
+  BRANCH=" | 🌿 $_b"
+fi
 
 echo -e "${CYAN}[$MODEL]${RESET} 📁 ${DIR##*/}$BRANCH"
 COST_FMT=$(printf '$%.2f' "$COST")
