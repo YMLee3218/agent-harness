@@ -50,7 +50,9 @@
       "Bash(git push --force)",
       "Bash(git clean -f*)",
       "Bash(git reset --hard *)",
-      "Bash(git reset --hard)"
+      "Bash(git reset --hard)",
+      "Write(**/.claude*/settings.json)",
+      "Edit(**/.claude*/settings.json)"
     ]
   },
   "statusLine": {
