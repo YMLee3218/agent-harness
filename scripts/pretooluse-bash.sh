@@ -22,10 +22,11 @@ if [ -z "$cmd" ] && [ -n "$input" ]; then
   exit 2
 fi
 
-# Block Claude from clearing any [BLOCKED*] markers (humans bypass this hook by running from terminal directly)
+# Block Claude from clearing [BLOCKED-AMBIGUOUS] or [BLOCKED] protocol-violation markers
+# (humans bypass this hook by running from terminal directly)
 if printf '%s' "$cmd" | grep -qE 'plan-file\.sh[[:space:]].*clear-marker'; then
-  if printf '%s' "$cmd" | grep -qE '\[BLOCKED'; then
-    echo "BLOCKED: [BLOCKED*] markers cannot be cleared by Claude — human must run plan-file.sh clear-marker directly from terminal" >&2
+  if printf '%s' "$cmd" | grep -qE '\[BLOCKED-AMBIGUOUS\]|\[BLOCKED\] protocol-violation'; then
+    echo "BLOCKED: this marker cannot be cleared by Claude — human must run plan-file.sh clear-marker directly from terminal" >&2
     exit 2
   fi
 fi
