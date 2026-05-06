@@ -24,7 +24,7 @@ _codex_log=$(mktemp /tmp/critic-test-log-XXXXXX.txt)
 cat > "$_codex_prompt" <<EOF
 You are an adversarial test reviewer. Verify scenario coverage, correct mocking levels, and test integrity. Read every file you need.
 
-Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
+Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL], [MANIFEST-GAP],
 [DOCS CONTRADICTION], [UNVERIFIED CLAIM]), read the exact file:line and confirm the
 text is present. If not present, drop the finding. No uncited findings.
 

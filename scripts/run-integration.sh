@@ -18,6 +18,36 @@ done
 # Treat unfilled placeholder (from workspace/CLAUDE.md template) as unconfigured
 [[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""
 
+# Layer boundary context — needed for critic-code Angle 2
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+_lang=$(grep -m1 '^- Language:' "$PROJECT_DIR/.claude/local.md" 2>/dev/null \
+  | sed 's/^- Language: *//;s/ .*//' | tr '[:upper:]' '[:lower:]' \
+  | sed 's/python.*/python/;s/typescript.*/ts/;s/javascript.*/ts/;s/kotlin.*/kotlin/;s/java.*/java/;s/go.*/go/;s/rust.*/rust/;s/c#.*/cs/;s/ruby.*/rb/')
+_lang="${_lang:-python}"
+_domain_root="${PROJECT_DIR}/domain"
+[[ ! -d "$_domain_root" ]] && _domain_root="${PROJECT_DIR}/src/domain"
+_infra_root="${PROJECT_DIR}/infrastructure"
+[[ ! -d "$_infra_root" ]] && _infra_root="${PROJECT_DIR}/src/infrastructure"
+_features_root="${PROJECT_DIR}/features"
+[[ ! -d "$_features_root" ]] && _features_root="${PROJECT_DIR}/src/features"
+
+# Spec path helpers — needed for critic-spec
+_feat_slug=$(basename "$PLAN" .md)
+find_spec_path() {
+  local slug="$1"
+  for _sp in "${PROJECT_DIR}/features/${slug}/spec.md" \
+             "${PROJECT_DIR}/domain/${slug}/spec.md" \
+             "${PROJECT_DIR}/infrastructure/${slug}/spec.md"; do
+    [[ -f "$_sp" ]] && echo "$_sp" && return
+  done
+  echo "features/${slug}/spec.md"
+}
+docs_paths() {
+  [[ -f "${PROJECT_DIR}/requirements.md" ]] \
+    && echo "${PROJECT_DIR}/requirements.md ${PROJECT_DIR}/docs/" \
+    || echo "${PROJECT_DIR}/docs/"
+}
+
 run_llm() {
   local prompt="$1"
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
@@ -107,7 +137,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
         exit 1
       fi
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration bug fix implementation. Plan: $PLAN."
+      run_critic critic-code implement "Review integration bug fix implementation. Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;
     "spec gap")
@@ -123,7 +153,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
       run_llm "Invoke the writing-spec skill to fix the spec gap. Plan: $PLAN"
       bash "$PF" reset-milestone "$PLAN" critic-spec
-      run_critic critic-spec spec "Review updated spec for integration fix. Plan: $PLAN."
+      run_critic critic-spec spec "Review updated spec for integration fix. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN."
       bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
       bash "$PF" reset-milestone "$PLAN" critic-test
       run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
@@ -132,7 +162,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration spec-gap fix implementation. Plan: $PLAN."
+      run_critic critic-code implement "Review integration spec-gap fix implementation. Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after spec gap fix"
       ;;
     "docs conflict")
@@ -148,7 +178,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
       run_llm "Invoke the writing-spec skill to fix the docs conflict. Plan: $PLAN"
       bash "$PF" reset-milestone "$PLAN" critic-spec
-      run_critic critic-spec spec "Review updated spec for integration fix. Plan: $PLAN."
+      run_critic critic-spec spec "Review updated spec for integration fix. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN."
       bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
       bash "$PF" reset-milestone "$PLAN" critic-test
       run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
@@ -157,7 +187,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration docs-conflict fix implementation. Plan: $PLAN."
+      run_critic critic-code implement "Review integration docs-conflict fix implementation. Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after docs conflict fix"
       ;;
     *)

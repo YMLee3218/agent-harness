@@ -102,8 +102,13 @@ Skill reads ## Open Questions, checks in priority order:
            codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
          → re-run critic
        - direction is ambiguous → append [BLOCKED-AMBIGUOUS] {agent}: {question} + stop
-       - [DOCS CONTRADICTION] in critic output → append [BLOCKED-AMBIGUOUS] {agent}: DOCS
-         CONTRADICTION — cannot determine whether docs or code is ground truth + stop.
+       - [DOCS CONTRADICTION] in critic output → treat docs/*.md as ground truth by default;
+         fix direction is: update code (and spec if needed) to match docs.
+         Construct fix prompt accordingly and re-run critic.
+         Exception: if fixing code to match docs would itself require changing docs (i.e. docs
+         appears to reflect stale requirements), direction is genuinely ambiguous →
+         append [BLOCKED-AMBIGUOUS] {agent}: DOCS CONTRADICTION — docs may be stale,
+         cannot determine ground truth + stop.
          (The calling context must then follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade` — see [BLOCKED-AMBIGUOUS] recovery below.)
 ```
 
@@ -188,12 +193,8 @@ If none of the above apply, fix and re-run without stopping. **Autonomous mode b
 ### Clear the marker and re-run
 
 After fixing the root cause, clear the marker using the exact text that appears in `## Open Questions`. **Both commands below must be run from a human terminal** (`pretooluse-bash.sh` blocks `clear-marker` on `[BLOCKED] parse:`, `[BLOCKED] category:`, and `[BLOCKED-AMBIGUOUS]` markers — Claude cannot execute these):
-
 ```bash
-# For [BLOCKED] parse: and [BLOCKED] category: markers:
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED] {type}:{agent}"
-
-# For [BLOCKED-AMBIGUOUS] markers (clear-marker uses substring match):
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
 ```
 Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED]` marker).
