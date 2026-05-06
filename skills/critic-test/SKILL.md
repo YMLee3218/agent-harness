@@ -67,7 +67,12 @@ If \`red_sha\` is empty (no commits exist for the file), emit \`[SKIP] test file
 
 ## Checks
 
-1. Scenario coverage — every Scenario has a test? Every Scenario Outline row covered? Failure scenarios tested? (→ [MISSING])
+1. Scenario coverage — every Scenario has a test in {test_files}?
+   - If no test found in {test_files}: check ## Test Manifest in {plan_path} for a GREEN (pre-existing) entry
+     that plausibly covers this scenario (grep scenario name keywords against manifest entries).
+     - Match found → [MANIFEST-GAP]: covered by pre-existing test; fix = add to Test Manifest mapping
+     - No match → [MISSING]: no test exists; fix = write a new test
+   Every Scenario Outline row covered? Failure scenarios tested? (→ [MISSING])
 
 2. Mocking levels — apply layers.md §Test mocking levels. Each Violation column entry is [FAIL].
 
@@ -93,7 +98,8 @@ If \`red_sha\` is empty (no commits exist for the file), emit \`[SKIP] test file
 ## critic-test Review
 
 ### Coverage Gaps
-[MISSING] Scenario "{name}": no test found
+[MISSING] Scenario "{name}": no test found — new test required
+[MANIFEST-GAP] Scenario "{name}": covered by {file}::{test_name} (pre-existing) — add to Test Manifest
 None: "All scenarios covered"
 
 ### Mocking Issues
@@ -115,7 +121,8 @@ GREEN integrity violations: {list or "none"}
 
 - Test file modified after Red / GREEN integrity   → TEST_INTEGRITY
 - Mocking level violation (Check 2)                 → LAYER_VIOLATION
-- Scenario coverage gap (Check 1)                   → MISSING_SCENARIO
+- Scenario coverage gap, no test exists (Check 1)   → MISSING_SCENARIO
+- Manifest mapping missing, pre-existing test covers it (Check 1) → TEST_QUALITY
 - Test quality (Check 3)                            → TEST_QUALITY
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
