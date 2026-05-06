@@ -39,7 +39,7 @@ Use `run_in_background=true` — this script may run for minutes.
 - Step 1.5: unit test pre-check with rollback on failure
 - Phase transition to `integration` before running tests
 - Pass → `done` transition
-- Fail → LLM failure categorization (one B-session), rollback, fix skill invocation, re-run (max 2 attempts)
+- Fail → LLM failure categorization (one B-session), rollback, fix skill invocation, re-run once (blocks on second failure)
 - Blocked on ambiguous category → `[BLOCKED]` marker written to plan file
 
 After the completion notification, read `## Open Questions` for any `[BLOCKED]` markers and report to user.

@@ -238,7 +238,7 @@ if [[ "$MODE" == "feature" ]]; then
     if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && \
           ( -n "$pending" || ( "$has_task_defs" -gt 0 && -z "$any_task_in_ledger" ) ) ]]; then
       if [[ -z "$UNIT_CMD" ]]; then
-        bash "$PF" append-note "$PLAN" "[BLOCKED] run-implement: unit test command not configured — add '- Test: \`{cmd}\`' to CLAUDE.md"
+        bash "$PF" append-note "$PLAN" "[BLOCKED] run-implement: unit test command not configured — add '- Test: {cmd}' to CLAUDE.md"
         exit 1
       fi
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
