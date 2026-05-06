@@ -11,7 +11,7 @@ while [[ $# -gt 0 ]]; do
     --prompt)        PROMPT="$2";   shift 2 ;;
     --iteration-doc) ITER_DOC="$2"; shift 2 ;;
     --nested)        NESTED=1;      shift ;;
-    *) echo "Unknown argument: $1" >&2; exit 2 ;;
+    *) echo "Unknown argument: $1" >&2; exit 5 ;;
   esac
 done
 
@@ -19,7 +19,7 @@ ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
 
 [[ -z "$AGENT" || -z "$PHASE" || -z "$PLAN" || -z "$PROMPT" ]] && {
   echo "Usage: run-critic-loop.sh --agent NAME --phase PHASE --plan PATH --prompt TEXT [--iteration-doc DOC] [--nested]" >&2
-  exit 2
+  exit 5
 }
 
 # Lock file — prevent concurrent runs on the same plan (skipped for --nested calls inside B-sessions)
