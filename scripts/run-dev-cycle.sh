@@ -28,8 +28,8 @@ fi
 
 # Read project CLAUDE.md for test commands
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-UNIT_CMD=$(grep -m1 '^\- Test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Test: *//;s/^`//;s/`$//' || echo "")
-INTEGRATION_CMD=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Integration test: *//;s/^`//;s/`$//' || echo "")
+UNIT_CMD=$(grep -m1 '^\- Test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Test: *//;s/^`//;s/`.*$//' || echo "")
+INTEGRATION_CMD=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Integration test: *//;s/^`//;s/`.*$//' || echo "")
 # Treat unfilled placeholders (from workspace/CLAUDE.md template) as unconfigured
 [[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""
 [[ "$INTEGRATION_CMD" == _\(run* ]] && INTEGRATION_CMD=""
