@@ -187,7 +187,7 @@ If none of the above apply, fix and re-run without stopping. **Autonomous mode b
 
 ### Clear the marker and re-run
 
-After fixing the root cause, clear the marker using the exact text that appears in `## Open Questions`:
+After fixing the root cause, clear the marker using the exact text that appears in `## Open Questions`. **Both commands below must be run from a human terminal** (`pretooluse-bash.sh` blocks `clear-marker` on `[BLOCKED] parse:`, `[BLOCKED] category:`, and `[BLOCKED-AMBIGUOUS]` markers — Claude cannot execute these):
 
 ```bash
 # For [BLOCKED] parse: and [BLOCKED] category: markers:

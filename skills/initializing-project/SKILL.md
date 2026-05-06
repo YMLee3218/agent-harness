@@ -166,6 +166,8 @@ if [ -n "$_lang" ]; then
   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns.template" "$_lang" \
     > "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns/${_lang}.conf" \
     || { echo "[init] ERROR: failed to generate patterns conf for language '${_lang}'" >&2; exit 1; }
+else
+  echo "[init] NOTE: .claude/local.md absent or missing 'language:' field — skipping language-specific critic-code patterns; create .claude/local.md from examples/local.md and re-run /initializing-project to generate them" >&2
 fi
 ```
 
