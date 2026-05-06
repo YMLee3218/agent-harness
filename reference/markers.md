@@ -36,6 +36,7 @@ Written by skills or hooks outside the critic convergence protocol.
 | `[BLOCKED] {agent}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap` | `run-critic-loop.sh` | No `gtimeout`/`timeout` binary — install GNU coreutils or disable the cap | Manual `plan-file.sh clear-marker` after installing or disabling | Yes |
 | `[BLOCKED] {agent}: plan unchanged for {N} consecutive iterations — critic is not writing to plan file; check session logs` | `run-critic-loop.sh` | Critic session produced no verdicts — check session logs | Manual `plan-file.sh clear-marker` after debugging | Yes |
 | `[BLOCKED] protocol-violation:{agent}: invoked outside run-critic-loop.sh context` | `plan-lib.sh cmd_record_verdict_guarded` | SubagentStop hook detected a critic agent running outside `run-critic-loop.sh`; plan file flagged | Manual `plan-file.sh clear-marker "[BLOCKED] protocol-violation"` after diagnosing | Yes |
+| `[BLOCKED] {agent}: script-failure: {exit_code} — claude session exited unexpectedly; check session logs` | `run-critic-loop.sh` | Claude session exited with non-timeout non-zero code — investigate session logs | Manual `plan-file.sh clear-marker "[BLOCKED] {agent}: script-failure"` after diagnosing | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | stop-check.sh | Why Stop hook blocked the previous stop attempt | Informational; survives `gc-events` | Yes |
 
 ### Integration test markers (written to `## Integration Failures`)
