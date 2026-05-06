@@ -34,6 +34,18 @@ INTEGRATION_CMD=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/d
 [[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""
 [[ "$INTEGRATION_CMD" == _\(run* ]] && INTEGRATION_CMD=""
 
+# Layer boundary context — computed once from project layout and .claude/local.md
+_lang=$(grep -m1 '^- Language:' "$PROJECT_DIR/.claude/local.md" 2>/dev/null \
+  | sed 's/^- Language: *//;s/ .*//' | tr '[:upper:]' '[:lower:]' \
+  | sed 's/python.*/python/;s/typescript.*/ts/;s/javascript.*/ts/;s/kotlin.*/kotlin/;s/java.*/java/;s/go.*/go/;s/rust.*/rust/;s/c#.*/cs/;s/ruby.*/rb/')
+_lang="${_lang:-python}"
+_domain_root="${PROJECT_DIR}/domain"
+[[ ! -d "$_domain_root" ]] && _domain_root="${PROJECT_DIR}/src/domain"
+_infra_root="${PROJECT_DIR}/infrastructure"
+[[ ! -d "$_infra_root" ]] && _infra_root="${PROJECT_DIR}/src/infrastructure"
+_features_root="${PROJECT_DIR}/features"
+[[ ! -d "$_features_root" ]] && _features_root="${PROJECT_DIR}/src/features"
+
 run_llm() {
   local prompt="$1" model="${2:-opus}"
   _CALL_RC=0
@@ -249,7 +261,7 @@ if [[ "$MODE" == "feature" ]]; then
     if [[ "$phase_now" == "implement" ]] && \
        ! grep -q '\[CONVERGED\] implement/critic-code' "$PLAN" 2>/dev/null; then
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review changed files for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}."
+      run_critic critic-code implement "Review changed files for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       llm_exit "critic-code"
     fi
 
@@ -323,7 +335,7 @@ else
   bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
 
   bash "$PF" reset-milestone "$PLAN" critic-code
-  run_critic critic-code implement "Review changed files. Docs: $(docs_paths). Plan: ${PLAN}."
+  run_critic critic-code implement "Review changed files. Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
   llm_exit "critic-code"
 
   bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"

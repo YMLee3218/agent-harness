@@ -17,7 +17,7 @@ You orchestrate Codex to perform the review. Build the prompt, run `codex exec`,
 
 ## Build and run the Codex prompt
 
-Substitute the placeholders below from the prompt you received (`{spec_path}`, `{docs_paths}`, `{impl_files}`, `{plan_path}`, `{language}`, `{domain_root}`, `{infra_root}`, `{features_root}`).
+Substitute the placeholders below from the prompt you received (`{spec_path}`, `{docs_paths}`, `{plan_path}`, `{language}`, `{domain_root}`, `{infra_root}`, `{features_root}`).
 
 ```bash
 _codex_prompt=$(mktemp /tmp/critic-code-prompt-XXXXXX.txt)
@@ -31,7 +31,6 @@ text is present. If not present, drop the finding. No uncited findings.
 
 Spec: {spec_path}
 Docs: {docs_paths}
-Implementation files: {impl_files}
 Plan: {plan_path}
 
 Read these reference files first — they govern your output:
