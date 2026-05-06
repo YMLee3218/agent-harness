@@ -217,7 +217,7 @@ if [[ "$MODE" == "feature" ]]; then
       run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
       llm_exit "writing-tests"
       bash "$PF" reset-milestone "$PLAN" critic-test
-      _test_files=$(git status --porcelain 2>/dev/null | awk '{print $2}' | grep '^tests/' | tr '\n' ' ' || true)
+      _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
       run_critic critic-test red "Review tests for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Test files: ${_test_files:-tests/}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
       llm_exit "critic-test"
     fi
@@ -308,7 +308,7 @@ else
     run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
     llm_exit "writing-tests"
     bash "$PF" reset-milestone "$PLAN" critic-test
-    _test_files=$(git status --porcelain 2>/dev/null | awk '{print $2}' | grep '^tests/' | tr '\n' ' ' || true)
+    _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
     run_critic critic-test red "Review tests for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Test files: ${_test_files:-tests/}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
     llm_exit "critic-test"
   done < <(get_features)
