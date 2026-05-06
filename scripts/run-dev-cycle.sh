@@ -236,7 +236,7 @@ if [[ "$MODE" == "feature" ]]; then
 
     # Step 2c — Implement Step 1 (LLM task planning): only when tasks not yet defined
     phase_now=$(bash "$PF" get-phase "$PLAN")
-    has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null || echo 0)
+    has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
     if [[ "$phase_now" == "red" && "$has_task_defs" -eq 0 ]]; then
       run_llm "Invoke the implementing skill for feature: ${feature}. Plan: ${PLAN}." opus
       llm_exit "implementing (Step 1)"
@@ -244,7 +244,7 @@ if [[ "$MODE" == "feature" ]]; then
 
     # run-implement.sh: execute pending tasks
     phase_now=$(bash "$PF" get-phase "$PLAN")
-    has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null || echo 0)
+    has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
     pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]/' "$PLAN" 2>/dev/null || true)
     any_task_in_ledger=$(awk '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/\| (pending|in_progress|completed|blocked)[ |]/{print;exit}' "$PLAN" 2>/dev/null || true)
     if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && \
