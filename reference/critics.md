@@ -48,7 +48,7 @@ to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLO
 
 ## Review execution rule (subagent mandate)
 
-All phase-gate critics (`critic-feature`, `critic-spec`, `critic-test`, `critic-code`) and pr-review **must** run in isolated subagents. Generating a verdict inline in the parent context (i.e., executing review logic without spawning a subagent) is forbidden.
+All phase-gate critics (`critic-feature`, `critic-spec`, `critic-test`, `critic-code`, `critic-cross`) and pr-review **must** run in isolated subagents. Generating a verdict inline in the parent context (i.e., executing review logic without spawning a subagent) is forbidden.
 
 Normative implementations:
 
@@ -124,7 +124,7 @@ Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `
 
 After launching, end your turn immediately. The background completion notification resumes execution in the next turn automatically — no Monitor, ScheduleWakeup, or polling of any kind. When the notification arrives, read `## Open Questions` for terminal markers and proceed per exit code rules. B sessions handle all fixes; do not act on output observed before the notification.
 
-After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. The B-session for each `run-critic-loop.sh` iteration runs the audit internally — `§Critic one-shot iteration` step 2 for the four critic subagents, `pr-review-loop.md §PR-review one-shot iteration` step 3 for pr-review — so the orchestrator that called `run-critic-loop.sh` must **not** re-run the audit after the loop returns. (Direct critic invocations are not a remaining code path: the `record-verdict-guarded` SubagentStop hook at settings.json rejects any critic-subagent run outside `run-critic-loop.sh`.)
+After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. The B-session for each `run-critic-loop.sh` iteration runs the audit internally — `§Critic one-shot iteration` step 2 for the five critic subagents, `pr-review-loop.md §PR-review one-shot iteration` step 3 for pr-review — so the orchestrator that called `run-critic-loop.sh` must **not** re-run the audit after the loop returns. (Direct critic invocations are not a remaining code path: the `record-verdict-guarded` SubagentStop hook at settings.json rejects any critic-subagent run outside `run-critic-loop.sh`.)
 
 **Exit codes**: 0 = converged; 1 = blocked (non-ceiling BLOCKED marker in plan, or session timeout/NOOP); 2 = BLOCKED-CEILING; 3 = lock contention (another run already active for this plan — wait for it to finish or remove the plan's `.critic.lock` file (e.g. `plans/{slug}.md.critic.lock`)); any other code is a script failure: write `[BLOCKED] {agent}: script-failure: {code}` to `## Open Questions` and stop. Running critics manually is not a fallback — it is a protocol violation.
 ### New milestone
