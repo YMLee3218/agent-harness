@@ -31,8 +31,16 @@ _features_root="${PROJECT_DIR}/src/features"
 [[ ! -d "$_features_root" ]] && _features_root="${PROJECT_DIR}/features"
 
 # Spec path helpers — needed for critic-spec
-_feat_slug=$(basename "$PLAN" .md)
-_req_file="${PROJECT_DIR}/docs/requirements/${_feat_slug}.md"
+_plan_slug=$(basename "$PLAN" .md)
+_req_file="${PROJECT_DIR}/docs/requirements/${_plan_slug}.md"
+# Derive feature slug for find_spec_path: use first feature in req file so that
+# plans named differently from their feature slug still resolve the correct spec.
+_feat_slug="$_plan_slug"
+if [[ -f "$_req_file" ]]; then
+  _first_feat=$(awk '/^## (Small|Large) Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] *`/,""); sub(/`.*/,""); print; exit}' "$_req_file" 2>/dev/null || true)
+  [[ -n "$_first_feat" ]] && \
+    _feat_slug=$(printf '%s' "$_first_feat" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
+fi
 find_spec_path() {
   local slug="$1"
   for _sp in "${PROJECT_DIR}/features/${slug}/spec.md" \
