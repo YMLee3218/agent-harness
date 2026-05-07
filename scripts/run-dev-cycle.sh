@@ -168,6 +168,7 @@ if [[ "$MODE" == "feature" ]]; then
     exit 1
   fi
 
+  _ifr_needed=0  # set when a green-phase skip bypasses the inter-feature reset
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
 
@@ -183,13 +184,20 @@ if [[ "$MODE" == "feature" ]]; then
       pending_tasks=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]|\| blocked[ |]/' "$PLAN" 2>/dev/null || true)
       if [[ -z "$pending_tasks" ]]; then
         skip_phase=$(bash "$PF" get-phase "$PLAN")
-        [[ "$skip_phase" == "green" || "$skip_phase" == "done" ]] && continue
+        # done: all features finished — skip unconditionally
+        [[ "$skip_phase" == "done" ]] && continue
+        # green: previous feature just completed — flag that the next feature needs the
+        # inter-feature reset (bypassed here because spec already exists) then skip
+        if [[ "$skip_phase" == "green" ]]; then _ifr_needed=1; continue; fi
       fi
     fi
 
-    # Inter-feature reset: previous feature just reached green, this feature not yet started
+    # Inter-feature reset: previous feature just reached green, this feature not yet started.
+    # Also fires when _ifr_needed=1: a prior feature was skipped at green phase without running
+    # the reset (because it had a pre-existing spec), so this feature must perform the reset.
     phase_now=$(bash "$PF" get-phase "$PLAN")
-    if [[ $spec_found -eq 0 && "$phase_now" == "green" ]]; then
+    if [[ ($spec_found -eq 0 || $_ifr_needed -eq 1) && "$phase_now" == "green" ]]; then
+      _ifr_needed=0
       bash "$PF" reset-pr-review "$PLAN"
       sed -i '' '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || \
         sed -i '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || true

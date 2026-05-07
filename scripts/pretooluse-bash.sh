@@ -146,6 +146,12 @@ _bash_dest_paths() {
 if [ -f "$PLAN_FILE_SH" ]; then
   BLOCKED_LABEL="phase-gate/bash"
   if resolve_active_plan_and_phase _active_plan _current_phase; then
+    # [BLOCKED-AMBIGUOUS] → block all bash writes (consistent with phase-gate.sh)
+    if grep -qF "[BLOCKED-AMBIGUOUS]" "$_active_plan" 2>/dev/null; then
+      _ba_write=0
+      while IFS= read -r _ba_p; do [ -n "$_ba_p" ] && _ba_write=1 && break; done < <(_bash_dest_paths "$cmd")
+      [ "$_ba_write" -eq 1 ] && { echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — write prohibited; human must resolve the question and clear the marker from terminal" >&2; exit 2; }
+    fi
     while IFS= read -r _dest_p; do
       [ -z "$_dest_p" ] && continue
       apply_phase_block "$_dest_p" "$_current_phase" "phase-gate/bash" || exit 2
