@@ -2,6 +2,7 @@
 
 @reference/language.md
 @reference/anti-hallucination.md
+@reference/effort.md
 
 @local.md
 
