@@ -90,7 +90,7 @@
     ],
     "SubagentStop": [
       {
-        "matcher": "critic-spec|critic-test|critic-code|critic-feature",
+        "matcher": "critic-spec|critic-test|critic-code|critic-feature|critic-cross",
         "hooks": [
           {
             "type": "command",

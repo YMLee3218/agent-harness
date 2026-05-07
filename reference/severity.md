@@ -1,6 +1,6 @@
 # Severity Rules
 
-Imported via `@reference/critics.md` by all four critic skills.
+Imported via `@reference/critics.md` by all five critic skills.
 Defines how to map finding labels to severity levels, when to emit PASS vs FAIL, and how to choose a category when multiple findings apply.
 
 ## Severity levels
@@ -29,6 +29,7 @@ When a single FAIL contains findings from multiple categories, use the **highest
 
 ```
 LAYER_VIOLATION
+  > CROSS_FEATURE_CONTRADICTION
   > DOCS_CONTRADICTION
   > UNVERIFIED_CLAIM
   > SPEC_COMPLIANCE

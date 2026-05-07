@@ -44,9 +44,14 @@ None: "No classification issues"
 [MISSING] {description}: {suggested name} — missing failure path or reusable feature
 [WARN] {description}: domain concept or infrastructure item noted in requirements — writing-spec will classify
 None: "No missing features"
+
+### Verdict
+PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
 ```
 
-Verdict & blocking rules: @reference/critics.md §Verdict format. On FAIL blocks progress to `writing-spec`.
+End with exactly one `### Verdict` block (PASS or FAIL). Verdict & blocking rules: @reference/critics.md §Verdict format. On FAIL blocks progress to `writing-spec`.
 
 Category mapping (per `@reference/severity.md §Category priority`):
 

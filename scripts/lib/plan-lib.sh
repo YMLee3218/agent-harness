@@ -10,7 +10,7 @@ _PLAN_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_PHASE_POLICY_LOADED:-}" ]] || . "${_PLAN_LIB_DIR}/../phase-policy.sh"
 VALID_PHASES="$(list_phases)"
 
-VALID_CRITIC_AGENTS="critic-feature critic-spec critic-test critic-code pr-review"
+VALID_CRITIC_AGENTS="critic-feature critic-spec critic-test critic-code critic-cross pr-review"
 
 # ── Core helpers ──────────────────────────────────────────────────────────────
 
@@ -28,7 +28,7 @@ _validate_critic_agent() {
 # Agents whose verdicts are recorded via cmd_record_verdict (pr-review uses append-review-verdict).
 _is_subagent_critic() {
   case "${1:-}" in
-    critic-spec|critic-test|critic-code|critic-feature) return 0 ;;
+    critic-spec|critic-test|critic-code|critic-feature|critic-cross) return 0 ;;
     *) return 1 ;;
   esac
 }
