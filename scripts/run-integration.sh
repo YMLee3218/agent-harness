@@ -16,8 +16,7 @@ done
   echo "Usage: run-integration.sh --plan PATH --integration-cmd CMD [--unit-cmd CMD]" >&2; exit 1; }
 [[ -f "$PLAN" ]] || { echo "Plan file not found: $PLAN" >&2; exit 1; }
 # Treat unfilled placeholder (from workspace/CLAUDE.md template) as unconfigured
-[[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""
-
+[[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""; [[ "$INTEGRATION_CMD" == _\(run* ]] && { echo "run-integration: integration-cmd is unfilled — run /initializing-project first" >&2; exit 1; }
 # Layer boundary context — needed for critic-code Angle 2
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 _lang=$(grep -m1 '^- Language:' "$PROJECT_DIR/.claude/local.md" 2>/dev/null \
@@ -46,7 +45,6 @@ find_spec_path() {
 docs_paths() {
   [[ -f "$_req_file" ]] && echo "$_req_file ${PROJECT_DIR}/docs/" || echo "${PROJECT_DIR}/docs/"
 }
-
 run_llm() {
   local prompt="$1"
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
@@ -128,6 +126,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
     "implementation bug")
       bash "$PF" transition "$PLAN" implement "integration failure: implementation bug"
       bash "$PF" reset-for-rollback "$PLAN" implement
+      awk '/<!-- task-definitions-start -->/{s=1;next} s&&/<!-- task-definitions-end -->/{s=0;next} s{next} /^## Task Ledger$/{t=1;print;next} t&&/^## /{t=0} t&&/\| (pending|in_progress|completed|blocked)/{next} {print}' "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
       run_llm "Invoke the implementing skill to replan tasks for the integration failure. Plan: $PLAN"
       if [[ -n "$UNIT_CMD" ]]; then
         bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
@@ -136,7 +135,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
         exit 1
       fi
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration bug fix implementation. Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+      run_critic critic-code implement "Review integration bug fix implementation. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;
     "spec gap")
@@ -159,10 +158,11 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
       run_critic critic-test red "Review updated tests for integration fix. Spec: $(find_spec_path "$_feat_slug"). Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
+      awk '/<!-- task-definitions-start -->/{s=1;next} s&&/<!-- task-definitions-end -->/{s=0;next} s{next} /^## Task Ledger$/{t=1;print;next} t&&/^## /{t=0} t&&/\| (pending|in_progress|completed|blocked)/{next} {print}' "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration spec-gap fix implementation. Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+      run_critic critic-code implement "Review integration spec-gap fix implementation. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after spec gap fix"
       ;;
     "docs conflict")
@@ -185,10 +185,11 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
       run_critic critic-test red "Review updated tests for integration fix. Spec: $(find_spec_path "$_feat_slug"). Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
+      awk '/<!-- task-definitions-start -->/{s=1;next} s&&/<!-- task-definitions-end -->/{s=0;next} s{next} /^## Task Ledger$/{t=1;print;next} t&&/^## /{t=0} t&&/\| (pending|in_progress|completed|blocked)/{next} {print}' "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration docs-conflict fix implementation. Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+      run_critic critic-code implement "Review integration docs-conflict fix implementation. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after docs conflict fix"
       ;;
     *)
