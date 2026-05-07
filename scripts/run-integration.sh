@@ -150,6 +150,10 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" reset-milestone "$PLAN" critic-test
       bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
       run_llm "Invoke the writing-spec skill to fix the spec gap. Plan: $PLAN"
+      while IFS= read -r _sp; do
+        [[ -n "$_sp" ]] && git add "$_sp"
+      done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
+      git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration spec-gap fix ($(basename "$PLAN" .md))"
       bash "$PF" reset-milestone "$PLAN" critic-spec
       run_critic critic-spec spec "Review updated spec for integration fix. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN."
       bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
@@ -177,6 +181,10 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" reset-milestone "$PLAN" critic-test
       bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
       run_llm "Invoke the writing-spec skill to fix the docs conflict. Plan: $PLAN"
+      while IFS= read -r _sp; do
+        [[ -n "$_sp" ]] && git add "$_sp"
+      done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
+      git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration docs-conflict fix ($(basename "$PLAN" .md))"
       bash "$PF" reset-milestone "$PLAN" critic-spec
       run_critic critic-spec spec "Review updated spec for integration fix. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN."
       bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"

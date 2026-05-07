@@ -122,7 +122,7 @@ GREEN integrity violations: {list or "none"}
 - Test file modified after Red / GREEN integrity   → TEST_INTEGRITY
 - Mocking level violation (Check 2)                 → LAYER_VIOLATION
 - Scenario coverage gap, no test exists (Check 1)   → MISSING_SCENARIO
-- Manifest mapping missing, pre-existing test covers it (Check 1) → TEST_QUALITY
+- Manifest mapping missing, pre-existing test covers it (Check 1) → STRUCTURAL
 - Test quality (Check 3)                            → TEST_QUALITY
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
@@ -141,7 +141,7 @@ FAIL:
 ### Verdict
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
-<!-- category: {one of TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY} -->
+<!-- category: {one of TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY | STRUCTURAL} -->
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL.
 EOF
