@@ -7,6 +7,7 @@ Every verdict returned by a review subagent **must pass a parent-context ultrath
 ### Audit checklist (fixed — apply to every verdict)
 
 1. **Factual consistency** — for each FAIL finding in the Citation Summary: use the Read tool to open the cited file and verify the excerpt appears at that line. If the excerpt is absent, the finding is hallucinated. Record which citations were verified or absent.
+   For `[MISSING]` findings: additionally Read the spec file and search for the scenario's core keywords. If found in the spec, that `[MISSING]` finding is a false positive — record it as such alongside the citation check results.
 2. **Coverage gaps** — are there scenarios or boundary cases in the spec/docs that the verdict did not address?
 3. **Fix direction** — on FAIL, does the proposed fix target the root cause or is it a workaround?
 4. **False positive/negative risk** — is a PASS genuinely comprehensive, or is it a conventional rubber-stamp?
@@ -23,7 +24,7 @@ Include `ultrathink` in the audit prompt and check the five items in §Audit che
 | **ACCEPT** | Verdict is sound | Adopt verdict as-is; proceed to `@reference/critics.md §Skill branching logic` |
 | **REJECT-PASS** | Subagent returned PASS but audit found a substantive gap | Call `clear-converged` (if `[CONVERGED]` marker exists), then record audit and enter FAIL path. **Ultrathink may demote PASS→FAIL but must never promote FAIL→PASS — except via ACCEPT-OVERRIDE when Read-tool verification confirms all cited excerpts are absent from their files (see §Audit outcomes).** |
 | **BLOCKED-AMBIGUOUS** | Audit result is inconclusive | Append `[BLOCKED-AMBIGUOUS] {agent}: ultrathink audit inconclusive — {question}` to `## Open Questions` and stop |
-| **ACCEPT-OVERRIDE** | Verdict is FAIL but Read-tool verification confirms every cited excerpt is absent from its file (all findings hallucinated) | Promote FAIL→PASS; append-audit with "ACCEPT-OVERRIDE" and list each absent citation. **Only when all blocking finding citations are absent — if some are absent but not all, use BLOCKED-AMBIGUOUS instead.** |
+| **ACCEPT-OVERRIDE** | Verdict is FAIL but every blocking finding is demonstrably false: either (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If some findings are false and others are genuine, use BLOCKED-AMBIGUOUS instead. | Promote FAIL→PASS; append-audit with "ACCEPT-OVERRIDE" and list each absent citation. **Only when all blocking finding citations are absent — if some are absent but not all, use BLOCKED-AMBIGUOUS instead.** |
 
 ### Applying the audit outcome
 
