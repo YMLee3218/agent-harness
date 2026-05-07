@@ -33,6 +33,7 @@ _features_root="${PROJECT_DIR}/features"
 
 # Spec path helpers — needed for critic-spec
 _feat_slug=$(basename "$PLAN" .md)
+_req_file="${PROJECT_DIR}/docs/requirements/${_feat_slug}.md"
 find_spec_path() {
   local slug="$1"
   for _sp in "${PROJECT_DIR}/features/${slug}/spec.md" \
@@ -43,9 +44,7 @@ find_spec_path() {
   echo "features/${slug}/spec.md"
 }
 docs_paths() {
-  [[ -f "${PROJECT_DIR}/requirements.md" ]] \
-    && echo "${PROJECT_DIR}/requirements.md ${PROJECT_DIR}/docs/" \
-    || echo "${PROJECT_DIR}/docs/"
+  [[ -f "$_req_file" ]] && echo "$_req_file ${PROJECT_DIR}/docs/" || echo "${PROJECT_DIR}/docs/"
 }
 
 run_llm() {
