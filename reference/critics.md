@@ -52,14 +52,14 @@ All phase-gate critics (`critic-feature`, `critic-spec`, `critic-test`, `critic-
 
 Normative implementations:
 
-- **`critic-*` (4 variants)**: `skills/critic-*/SKILL.md` frontmatter `context: fork` + `agent: critic-*` + `agents/critic-*.md` definition.
+- **`critic-*` (5 variants)**: `skills/critic-*/SKILL.md` frontmatter `context: fork` + `agent: critic-*` + `agents/critic-*.md` definition.
 - **`pr-review-toolkit:review-pr`**: The external plugin internally orchestrates `pr-review-toolkit:code-reviewer`, `…:pr-test-analyzer`, `…:silent-failure-hunter`, `…:comment-analyzer`, and `…:type-design-analyzer` subagents, so the isolation requirement is satisfied by the plugin definition.
 
 **Prohibited**: any implementation that generates a verdict directly in the parent context without subagent isolation.
 
 ## Loop convergence
 
-Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code) and the pr-review step.
+Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step.
 
 The harness always operates in non-interactive mode — skills write `[BLOCKED]` markers to `## Open Questions` instead of prompting the user.
 

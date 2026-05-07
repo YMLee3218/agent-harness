@@ -1,11 +1,9 @@
 ---
 name: running-dev-cycle
 description: >
-  Run full dev cycle: brainstorming → writing-spec → writing-tests → implementing in order.
+  Run full dev cycle: writes specs for all features first, then tests + implements each in sequence.
   Invoke only via `/running-dev-cycle` slash command.
-  Feature-slice mode by default; use --batch flag to write all specs before any tests.
 disable-model-invocation: true
-argument-hint: "[--profile feature|greenfield] [--batch]"
 ---
 
 # Development Cycle

@@ -90,9 +90,10 @@ Canonical list: `PHASE_CONVERGENCE_MARKERS` array in `scripts/lib/plan-lib.sh` (
 | Phase | Agent | Invocation site |
 |-------|-------|-----------------|
 | `brainstorm` | `critic-feature` | `scripts/run-dev-cycle.sh` (feature brainstorm phase) |
-| `spec` | `critic-spec` | `scripts/run-dev-cycle.sh` (feature-slice Step 2a / batch Step 2) |
-| `red` | `critic-test` | `scripts/run-dev-cycle.sh` (feature-slice Step 2b / batch Step 3) |
-| `implement` | `critic-code` | `scripts/run-dev-cycle.sh` (feature-slice Step 2c / batch) |
+| `spec` | `critic-spec` | `scripts/run-dev-cycle.sh` (Phase 1: per-feature spec pre-pass) |
+| `spec` | `critic-cross` | `scripts/run-dev-cycle.sh` (Phase 2: cross-feature spec consistency review, once per plan) |
+| `red` | `critic-test` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature test/implement loop) |
+| `implement` | `critic-code` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature test/implement loop) |
 | `review` | `pr-review` | `scripts/run-dev-cycle.sh` (always called with `--phase review`; `reset-pr-review` also clears `implement/pr-review` defensively — see §Operation → markers reverse lookup) |
 
 Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase.
