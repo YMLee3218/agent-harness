@@ -39,12 +39,12 @@ _lang=$(grep -m1 '^- Language:' "$PROJECT_DIR/.claude/local.md" 2>/dev/null \
   | sed 's/^- Language: *//;s/ .*//' | tr '[:upper:]' '[:lower:]' \
   | sed 's/python.*/python/;s/typescript.*/ts/;s/javascript.*/ts/;s/kotlin.*/kotlin/;s/java.*/java/;s/go.*/go/;s/rust.*/rust/;s/c#.*/cs/;s/ruby.*/rb/')
 _lang="${_lang:-python}"
-_domain_root="${PROJECT_DIR}/domain"
-[[ ! -d "$_domain_root" ]] && _domain_root="${PROJECT_DIR}/src/domain"
-_infra_root="${PROJECT_DIR}/infrastructure"
-[[ ! -d "$_infra_root" ]] && _infra_root="${PROJECT_DIR}/src/infrastructure"
-_features_root="${PROJECT_DIR}/features"
-[[ ! -d "$_features_root" ]] && _features_root="${PROJECT_DIR}/src/features"
+_domain_root="${PROJECT_DIR}/src/domain"
+[[ ! -d "$_domain_root" ]] && _domain_root="${PROJECT_DIR}/domain"
+_infra_root="${PROJECT_DIR}/src/infrastructure"
+[[ ! -d "$_infra_root" ]] && _infra_root="${PROJECT_DIR}/infrastructure"
+_features_root="${PROJECT_DIR}/src/features"
+[[ ! -d "$_features_root" ]] && _features_root="${PROJECT_DIR}/features"
 
 run_llm() {
   local prompt="$1" model="${2:-opus}"
@@ -334,8 +334,15 @@ else
   fi
   bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
 
+  _all_specs=""
+  while IFS= read -r feature; do
+    [[ -z "$feature" ]] && continue
+    _feat_s=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
+    _sp=$(find_spec_path "$_feat_s")
+    _all_specs="${_all_specs:+$_all_specs }${_sp}"
+  done < <(get_features)
   bash "$PF" reset-milestone "$PLAN" critic-code
-  run_critic critic-code implement "Review changed files. Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+  run_critic critic-code implement "Review changed files. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
   llm_exit "critic-code"
 
   bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"

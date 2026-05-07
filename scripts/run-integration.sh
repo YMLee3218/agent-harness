@@ -24,12 +24,12 @@ _lang=$(grep -m1 '^- Language:' "$PROJECT_DIR/.claude/local.md" 2>/dev/null \
   | sed 's/^- Language: *//;s/ .*//' | tr '[:upper:]' '[:lower:]' \
   | sed 's/python.*/python/;s/typescript.*/ts/;s/javascript.*/ts/;s/kotlin.*/kotlin/;s/java.*/java/;s/go.*/go/;s/rust.*/rust/;s/c#.*/cs/;s/ruby.*/rb/')
 _lang="${_lang:-python}"
-_domain_root="${PROJECT_DIR}/domain"
-[[ ! -d "$_domain_root" ]] && _domain_root="${PROJECT_DIR}/src/domain"
-_infra_root="${PROJECT_DIR}/infrastructure"
-[[ ! -d "$_infra_root" ]] && _infra_root="${PROJECT_DIR}/src/infrastructure"
-_features_root="${PROJECT_DIR}/features"
-[[ ! -d "$_features_root" ]] && _features_root="${PROJECT_DIR}/src/features"
+_domain_root="${PROJECT_DIR}/src/domain"
+[[ ! -d "$_domain_root" ]] && _domain_root="${PROJECT_DIR}/domain"
+_infra_root="${PROJECT_DIR}/src/infrastructure"
+[[ ! -d "$_infra_root" ]] && _infra_root="${PROJECT_DIR}/infrastructure"
+_features_root="${PROJECT_DIR}/src/features"
+[[ ! -d "$_features_root" ]] && _features_root="${PROJECT_DIR}/features"
 
 # Spec path helpers — needed for critic-spec
 _feat_slug=$(basename "$PLAN" .md)
@@ -156,7 +156,8 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
       bash "$PF" reset-milestone "$PLAN" critic-test
       run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
-      run_critic critic-test red "Review updated tests for integration fix. Plan: $PLAN. Test command: ${UNIT_CMD}."
+      _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
+      run_critic critic-test red "Review updated tests for integration fix. Spec: $(find_spec_path "$_feat_slug"). Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
@@ -181,7 +182,8 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
       bash "$PF" reset-milestone "$PLAN" critic-test
       run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
-      run_critic critic-test red "Review updated tests for integration fix. Plan: $PLAN. Test command: ${UNIT_CMD}."
+      _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
+      run_critic critic-test red "Review updated tests for integration fix. Spec: $(find_spec_path "$_feat_slug"). Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
