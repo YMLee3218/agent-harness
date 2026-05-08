@@ -324,7 +324,7 @@ docs_paths() {
        grep -q '\[CONVERGED\] review/pr-review' "$PLAN" 2>/dev/null; then
       bash "$PF" transition "$PLAN" green "pr-review converged — feature complete"
       bash "$PF" append-note "$PLAN" "[IMPLEMENTED: ${feat_slug}]"
-      gh pr close --comment "Changes merged via task-by-task workflow" 2>/dev/null || true
+      gh pr close --delete-branch --comment "Changes merged via task-by-task workflow" 2>/dev/null || true
     fi
 
   done < <(get_features)
