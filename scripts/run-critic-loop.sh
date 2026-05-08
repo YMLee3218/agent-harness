@@ -63,7 +63,27 @@ CONSECUTIVE_NOOP=0
 while true; do
   marker=$(awk -v agent="$AGENT" -v phase="$PHASE" '/^## Open Questions/{f=1} f&&/\[BLOCKED-CEILING\]/{if(index($0,"[BLOCKED-CEILING] " phase "/" agent)>0)ceiling=$0;next} f&&/\[BLOCKED/{if(blocked=="")blocked=$0} f&&/\[CONVERGED\]/{if(index($0,"[CONVERGED] " phase "/" agent)>0)converged=$0} END{if(ceiling!=""){print ceiling}else if(blocked!=""){print blocked}else if(converged!=""){print converged}}' "$PLAN" 2>/dev/null || true)
   case "$marker" in
-    *CONVERGED*)       echo "CONVERGED"; exit 0 ;;
+    *CONVERGED*)
+      consecutive=$(awk -v pat="${PHASE}/${AGENT}:" '
+        /^## Critic Verdicts$/{f=1;next}
+        f&&/^## /{f=0}
+        f&&/^- /{if(index($0,pat) && !index($0,"[MILESTONE-BOUNDARY")) lines[++n]=$0}
+        END{
+          c=0
+          for(i=n;i>=1;i--){
+            if(index(lines[i],": PASS")>0) c++
+            else break
+          }
+          print c+0
+        }
+      ' "$PLAN" 2>/dev/null || echo "0")
+      if [ "${consecutive:-0}" -ge 2 ]; then
+        echo "CONVERGED"; exit 0
+      else
+        echo "[run-critic-loop] CONVERGED marker invalid (streak=${consecutive:-0}, need 2) — clearing" >&2
+        bash "$PLAN_FILE_SH" clear-marker "$PLAN" "[CONVERGED] ${PHASE}/${AGENT}" 2>/dev/null || true
+      fi
+      ;;
     *BLOCKED-CEILING*) echo "$marker";   exit 2 ;;
     *BLOCKED*)         echo "$marker";   exit 1 ;;
   esac

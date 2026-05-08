@@ -59,7 +59,7 @@ Normative implementations:
 
 ## Loop convergence
 
-Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step.
+Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. **Prohibited**: agents must never write `[CONVERGED]` directly to plan files — it is exclusively written by `plan-lib.sh _record_loop_state` via the SubagentStop hook after 2 consecutive PASSes; `run-critic-loop.sh` detects and clears any spuriously written marker before acting on it.
 
 The harness always operates in non-interactive mode — skills write `[BLOCKED]` markers to `## Open Questions` instead of prompting the user.
 

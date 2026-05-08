@@ -19,6 +19,8 @@ Managed by `scripts/lib/plan-lib.sh` and consumed by skills after each critic or
 | `[CONVERGED] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `clear-converged {agent}` | Yes |
 | `[FIRST-TURN] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
 
+> **Never write [CONVERGED] manually.** This marker is exclusively emitted by `plan-lib.sh _record_loop_state` when the SubagentStop hook fires after 2 consecutive PASSes. Writing it directly bypasses the streak check and invalidates the convergence guarantee. `run-critic-loop.sh` validates the streak on each iteration and clears any spurious marker.
+
 ### Non-loop stop markers (written to `## Open Questions`)
 
 Written by skills or hooks outside the critic convergence protocol.

@@ -278,6 +278,9 @@ cmd_find_latest() {
 
 cmd_append_note() {
   local plan_file="$1" note="$2"
+  if printf '%s' "${note:-}" | grep -qF '[CONVERGED]'; then
+    die "append-note: [CONVERGED] markers are exclusively written by _record_loop_state via the SubagentStop hook — never write manually"
+  fi
   require_file "$plan_file"
   _append_to_open_questions "$plan_file" "$note"
 }
