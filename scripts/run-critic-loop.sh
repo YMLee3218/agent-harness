@@ -22,13 +22,20 @@ ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
   exit 5
 }
 
-# Lock file — prevent concurrent runs on the same plan (skipped for --nested calls inside B-sessions)
+# Lock file — prevent concurrent runs on the same plan.
+# record-verdict-guarded requires this lock to exist when a critic subagent stops.
+LOOP_LOCK="${PLAN}.critic.lock"
 if [[ $NESTED -eq 0 ]]; then
-  LOOP_LOCK="${PLAN}.critic.lock"
   if ! (set -C; echo $$ > "$LOOP_LOCK") 2>/dev/null; then
     echo "=== run-critic-loop: already running for $PLAN ===" >&2; exit 3
   fi
   trap 'rm -f "$LOOP_LOCK"' EXIT
+else
+  # Nested: if no outer lock exists (direct recovery cascade), create it and own cleanup.
+  # If outer lock exists (called from inside a B-session), inherit it without taking ownership.
+  if (set -C; echo $$ > "$LOOP_LOCK") 2>/dev/null; then
+    trap 'rm -f "$LOOP_LOCK"' EXIT
+  fi
 fi
 
 # Signal handling — clean up subprocess on interrupt
