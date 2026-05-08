@@ -151,6 +151,11 @@ if [ -f "$PLAN_FILE_SH" ]; then
       _ba_write=0
       while IFS= read -r _ba_p; do [ -n "$_ba_p" ] && _ba_write=1 && break; done < <(_bash_dest_paths "$cmd")
       [ "$_ba_write" -eq 1 ] && { echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — write prohibited; human must resolve the question and clear the marker from terminal" >&2; exit 2; }
+      # Also block interpreter inline execution (python3 -c, perl -e, etc.) — not caught by _bash_dest_paths
+      if printf '%s' "$cmd" | grep -qE '(python3?|perl|ruby|node)[[:space:]]+-[ceE][[:space:]]'; then
+        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — interpreter inline execution prohibited; human must resolve the question and clear the marker from terminal" >&2
+        exit 2
+      fi
     fi
     while IFS= read -r _dest_p; do
       [ -z "$_dest_p" ] && continue
