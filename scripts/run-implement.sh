@@ -63,7 +63,7 @@ After the failing test passes, refactor within the code you wrote. Run tests aft
 Commit once after refactor. Format: {type}({scope}): {description}
 
 Hard constraints:
-- Do NOT modify files matching: tests/* *_test.* test_*.* *.test.* *.spec.* *_spec.*
+- Do NOT modify files matching: tests/* *_test.* test_*.* *.test.* *.spec.* *_spec.* spec.md
 - Respect layer rules for ${layer}. If layer would be violated, STOP and emit "layer violation: {reason}".
 
 Failing test: ${failing_test}

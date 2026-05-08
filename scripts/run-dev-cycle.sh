@@ -191,22 +191,25 @@ docs_paths() {
     run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
     llm_exit "writing-spec"
 
-    # Collect other existing specs for cross-context review
+    # Collect all spec files written by this writing-spec invocation (may include domain/infra specs)
+    _new_specs=$(git status --porcelain 2>/dev/null \
+      | awk '$0 ~ /spec\.md$/{print $NF}' | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+    _spec_for_critic="${_new_specs:-$(find_spec_path "$feat_slug")}"
+
+    # Collect previously committed specs for cross-context review (exclude the new specs)
     _other_specs=""
-    while IFS= read -r _feat; do
-      [[ -z "$_feat" ]] && continue
-      _feat_s=$(printf '%s' "$_feat" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
-      _sp=$(find_spec_path "$_feat_s")
-      [[ -f "$_sp" && "$_sp" != "$(find_spec_path "$feat_slug")" ]] && \
-        _other_specs="${_other_specs:+$_other_specs }${_sp}"
-    done < <(get_features)
+    while IFS= read -r _csp; do
+      [[ -z "$_csp" ]] && continue
+      printf '%s\n' $_new_specs | grep -qxF "$_csp" && continue
+      _other_specs="${_other_specs:+$_other_specs }${_csp}"
+    done < <(git ls-files '*/spec.md' 2>/dev/null)
     _cross_ctx=""
     [[ -n "$_other_specs" ]] && \
       _cross_ctx=" Also verify consistency against existing specs: ${_other_specs}."
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
     run_critic critic-spec spec \
-      "Review spec for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}.${_cross_ctx}"
+      "Review spec for feature: ${feature}. Spec: ${_spec_for_critic}. Docs: $(docs_paths). Plan: ${PLAN}.${_cross_ctx}"
     llm_exit "critic-spec"
 
     while IFS= read -r _sp_file; do
@@ -217,13 +220,14 @@ docs_paths() {
 
   # ── Phase 2: Cross-feature spec consistency review (once) ──────────────────
   if ! grep -q '\[CONVERGED\] spec/critic-cross' "$PLAN" 2>/dev/null; then
+    # Collect all spec files from all layers (feature, domain, infrastructure)
     _all_specs=""
-    while IFS= read -r _feat; do
-      [[ -z "$_feat" ]] && continue
-      _feat_s=$(printf '%s' "$_feat" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
-      _sp=$(find_spec_path "$_feat_s")
-      [[ -f "$_sp" ]] && _all_specs="${_all_specs:+$_all_specs }${_sp}"
-    done < <(get_features)
+    for _spec_dir in "${PROJECT_DIR}/features" "${PROJECT_DIR}/domain" "${PROJECT_DIR}/infrastructure"; do
+      [[ -d "$_spec_dir" ]] || continue
+      while IFS= read -r _sp; do
+        _all_specs="${_all_specs:+$_all_specs }${_sp}"
+      done < <(find "$_spec_dir" -name "spec.md" 2>/dev/null)
+    done
     if [[ -n "$_all_specs" ]]; then
       bash "$PF" reset-milestone "$PLAN" critic-cross
       run_critic critic-cross spec \
