@@ -50,6 +50,18 @@ find_spec_path() {
   done
   echo "features/${slug}/spec.md"
 }
+# Collect all spec paths (space-separated) so critics see every feature's spec in multi-feature plans.
+# Critics are constrained to the explicit file list in their prompt (reference/critics.md:9).
+_all_specs=""
+if [[ -f "$_req_file" ]]; then
+  while IFS= read -r _feat; do
+    [[ -z "$_feat" ]] && continue
+    _fslug=$(printf '%s' "$_feat" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
+    _sp=$(find_spec_path "$_fslug")
+    _all_specs="${_all_specs:+$_all_specs }${_sp}"
+  done < <(awk '/^## (Small|Large) Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] *`/,""); sub(/`.*/,""); print}' "$_req_file" 2>/dev/null || true)
+fi
+[[ -z "$_all_specs" ]] && _all_specs=$(find_spec_path "$_feat_slug")
 docs_paths() {
   [[ -f "$_req_file" ]] && echo "$_req_file ${PROJECT_DIR}/docs/" || echo "${PROJECT_DIR}/docs/"
 }
@@ -143,7 +155,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
         exit 1
       fi
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration bug fix implementation. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+      run_critic critic-code implement "Review integration bug fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;
     "spec gap")
@@ -163,18 +175,18 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
       git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration spec-gap fix ($(basename "$PLAN" .md))"
       bash "$PF" reset-milestone "$PLAN" critic-spec
-      run_critic critic-spec spec "Review updated spec for integration fix. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN."
+      run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN."
       bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
       bash "$PF" reset-milestone "$PLAN" critic-test
       run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
       _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
-      run_critic critic-test red "Review updated tests for integration fix. Spec: $(find_spec_path "$_feat_slug"). Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
+      run_critic critic-test red "Review updated tests for integration fix. Spec: ${_all_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       awk '/<!-- task-definitions-start -->/{s=1;next} s&&/<!-- task-definitions-end -->/{s=0;next} s{next} /^## Task Ledger$/{t=1;print;next} t&&/^## /{t=0} t&&/\| (pending|in_progress|completed|blocked)/{next} {print}' "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration spec-gap fix implementation. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+      run_critic critic-code implement "Review integration spec-gap fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after spec gap fix"
       ;;
     "docs conflict")
@@ -194,18 +206,18 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
       git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration docs-conflict fix ($(basename "$PLAN" .md))"
       bash "$PF" reset-milestone "$PLAN" critic-spec
-      run_critic critic-spec spec "Review updated spec for integration fix. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN."
+      run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN."
       bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
       bash "$PF" reset-milestone "$PLAN" critic-test
       run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
       _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
-      run_critic critic-test red "Review updated tests for integration fix. Spec: $(find_spec_path "$_feat_slug"). Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
+      run_critic critic-test red "Review updated tests for integration fix. Spec: ${_all_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
       awk '/<!-- task-definitions-start -->/{s=1;next} s&&/<!-- task-definitions-end -->/{s=0;next} s{next} /^## Task Ledger$/{t=1;print;next} t&&/^## /{t=0} t&&/\| (pending|in_progress|completed|blocked)/{next} {print}' "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration docs-conflict fix implementation. Spec: $(find_spec_path "$_feat_slug"). Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+      run_critic critic-code implement "Review integration docs-conflict fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after docs conflict fix"
       ;;
     *)

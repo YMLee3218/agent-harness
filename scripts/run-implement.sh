@@ -27,7 +27,18 @@ bash "$PF" commit-phase "$PLAN" "chore(phase): advance to implement — task lis
 
 BASE_SHA=$(git rev-parse HEAD)
 WORK_DIR=$(mktemp -d /tmp/run-impl-XXXXXX)
-trap 'rm -rf "$WORK_DIR"' EXIT
+_cleanup_all_worktrees() {
+  for wt_file in "$WORK_DIR"/wt-*.txt; do
+    [[ -f "$wt_file" ]] || continue
+    wt=$(cat "$wt_file")
+    id="${wt_file##*/wt-}"; id="${id%.txt}"
+    branch=$(cat "$WORK_DIR/branch-${id}.txt" 2>/dev/null || true)
+    [[ -n "$wt" ]]     && git worktree remove --force "$wt" 2>/dev/null || true
+    [[ -n "$branch" ]] && git branch -D "$branch" 2>/dev/null || true
+  done
+  rm -rf "$WORK_DIR"
+}
+trap '_cleanup_all_worktrees' EXIT
 
 # Extract a field from TASK_JSON for a given task id; arrays are space-joined
 get_field() {
@@ -257,6 +268,10 @@ for tier in domain infrastructure features; do
       bash "$PF" update-task "$PLAN" "$id" blocked
       bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} merge conflict — resolve then re-run implementing"
       git merge --abort 2>/dev/null || true
+      for _remaining in "${tier_ids[@]}"; do
+        awk -v id="$_remaining" '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&$0~id{print}' "$PLAN" \
+          | grep -q 'completed' || cleanup_wt "$_remaining" 2>/dev/null || true
+      done
       OVERALL_BLOCKED=1
       break 2
     fi

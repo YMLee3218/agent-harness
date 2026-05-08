@@ -2,12 +2,11 @@
 set -euo pipefail
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PF="$SCRIPTS_DIR/plan-file.sh"
-PROFILE="feature" BATCH=0 PLAN="" _CALL_RC=0
+PROFILE="feature" PLAN="" _CALL_RC=0
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --profile) PROFILE="$2"; shift 2 ;;
-    --batch)   BATCH=1;       shift ;;
     --plan)    PLAN="$2";     shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
@@ -91,13 +90,26 @@ if [[ -n "$PLAN" ]]; then
 
   case "$current_phase" in
     brainstorm|spec|red|implement|review|green|integration) ;;  # handled below
-    done) PLAN=""; current_phase="" ;;  # treat as fresh start
+    done)
+      _found_next=0
+      for _p in "${PROJECT_DIR}/plans/"*.md; do
+        [[ -f "$_p" && "$_p" != "$PLAN" ]] || continue
+        _p_phase=$(bash "$PF" get-phase "$_p" 2>/dev/null || echo "")
+        if [[ -n "$_p_phase" && "$_p_phase" != "done" ]]; then
+          PLAN="$_p"; current_phase="$_p_phase"; _found_next=1; break
+        fi
+      done
+      if [[ $_found_next -eq 0 ]]; then
+        echo "[DONE] All requirements complete. Run /brainstorming to start a new requirement." >&2
+        exit 0
+      fi
+      ;;
     *) echo "[BLOCKED] unrecognised plan phase: ${current_phase}" >&2; exit 1 ;;
   esac
 fi
 
 # Determine mode
-[[ "$PROFILE" == "greenfield" || $BATCH -eq 1 ]] && MODE="greenfield" || MODE="feature"
+MODE="feature"
 
 # ── Step 1: Brainstorming ────────────────────────────────────────────────────
 if [[ -z "$PLAN" ]] || \
@@ -120,7 +132,7 @@ if [[ -z "$PLAN" ]] || \
 
   bash "$PF" reset-milestone "$PLAN" critic-feature
   run_critic critic-feature brainstorm \
-    "Review docs/requirements/$(basename "$PLAN" .md).md. Original requirement: $(head -5 "$PLAN")."
+    "Review docs/requirements/$(basename "$PLAN" .md).md."
   llm_exit "critic-feature"
   current_phase="brainstorm"
 fi
@@ -149,7 +161,6 @@ docs_paths() {
 }
 
 # ── Feature-slice mode ───────────────────────────────────────────────────────
-if [[ "$MODE" == "feature" ]]; then
 
   # integration phase re-entry: skip feature loop, go straight to integration
   if [[ "${current_phase:-}" == "integration" ]]; then
@@ -168,66 +179,79 @@ if [[ "$MODE" == "feature" ]]; then
     exit 1
   fi
 
-  _ifr_needed=0  # set when a green-phase skip bypasses the inter-feature reset
+  # ── Phase 1: Spec pre-pass ─────────────────────────────────────────────────
+  # Write spec + run critic-spec for each feature (skip if spec already exists).
+  # Cross-reviews each new spec against all previously written specs.
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
-
-    # Skip done: feature-specific spec exists + no pending/in_progress/blocked tasks + phase
-    # is green or done. Phase guard prevents false-skip on resume after run-implement.sh
-    # completes but before critic-code/pr-review/green have run (phase still=implement).
     feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
-    spec_found=0
-    for sp in "${PROJECT_DIR}/features/${feat_slug}/spec.md" "${PROJECT_DIR}/domain/${feat_slug}/spec.md" "${PROJECT_DIR}/infrastructure/${feat_slug}/spec.md"; do
-      [[ -f "$sp" ]] && spec_found=1 && break
-    done
-    if [[ $spec_found -eq 1 ]]; then
-      pending_tasks=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]|\| blocked[ |]/' "$PLAN" 2>/dev/null || true)
-      if [[ -z "$pending_tasks" ]]; then
-        skip_phase=$(bash "$PF" get-phase "$PLAN")
-        # done: all features finished — skip unconditionally
-        [[ "$skip_phase" == "done" ]] && continue
-        # green: previous feature just completed — flag that the next feature needs the
-        # inter-feature reset (bypassed here because spec already exists) then skip
-        if [[ "$skip_phase" == "green" ]]; then _ifr_needed=1; continue; fi
-      fi
-    fi
+    _spec_path=$(find_spec_path "$feat_slug")
+    [[ -f "$_spec_path" ]] && continue  # already written — skip
 
-    # Inter-feature reset: previous feature just reached green, this feature not yet started.
-    # Also fires when _ifr_needed=1: a prior feature was skipped at green phase without running
-    # the reset (because it had a pre-existing spec), so this feature must perform the reset.
+    run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
+    llm_exit "writing-spec"
+
+    # Collect other existing specs for cross-context review
+    _other_specs=""
+    while IFS= read -r _feat; do
+      [[ -z "$_feat" ]] && continue
+      _feat_s=$(printf '%s' "$_feat" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
+      _sp=$(find_spec_path "$_feat_s")
+      [[ -f "$_sp" && "$_sp" != "$(find_spec_path "$feat_slug")" ]] && \
+        _other_specs="${_other_specs:+$_other_specs }${_sp}"
+    done < <(get_features)
+    _cross_ctx=""
+    [[ -n "$_other_specs" ]] && \
+      _cross_ctx=" Also verify consistency against existing specs: ${_other_specs}."
+
+    bash "$PF" reset-milestone "$PLAN" critic-spec
+    run_critic critic-spec spec \
+      "Review spec for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}.${_cross_ctx}"
+    llm_exit "critic-spec"
+
+    while IFS= read -r _sp_file; do
+      [[ -n "$_sp_file" ]] && git add "$_sp_file"
+    done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
+    git diff --cached --quiet || git commit -m "feat(spec): add BDD scenarios for ${feature}"
+  done < <(get_features)
+
+  # ── Phase 2: Cross-feature spec consistency review (once) ──────────────────
+  if ! grep -q '\[CONVERGED\] spec/critic-cross' "$PLAN" 2>/dev/null; then
+    _all_specs=""
+    while IFS= read -r _feat; do
+      [[ -z "$_feat" ]] && continue
+      _feat_s=$(printf '%s' "$_feat" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
+      _sp=$(find_spec_path "$_feat_s")
+      [[ -f "$_sp" ]] && _all_specs="${_all_specs:+$_all_specs }${_sp}"
+    done < <(get_features)
+    if [[ -n "$_all_specs" ]]; then
+      bash "$PF" reset-milestone "$PLAN" critic-cross
+      run_critic critic-cross spec \
+        "Cross-feature consistency review. All specs: ${_all_specs}. Docs: $(docs_paths). Plan: ${PLAN}."
+      llm_exit "critic-cross"
+    fi
+  fi
+
+  # ── Phase 3: Implement loop (spec phase excluded — handled in pre-pass) ─────
+  while IFS= read -r feature; do
+    [[ -z "$feature" ]] && continue
+    feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
+
+    # Skip features already fully implemented
+    grep -q "\[IMPLEMENTED: ${feat_slug}\]" "$PLAN" 2>/dev/null && continue
+
+    # Inter-feature reset: previous feature just reached green — reset implement/red phases
     phase_now=$(bash "$PF" get-phase "$PLAN")
-    if [[ ($spec_found -eq 0 || $_ifr_needed -eq 1) && "$phase_now" == "green" ]]; then
-      _ifr_needed=0
+    if [[ "$phase_now" == "green" ]]; then
       bash "$PF" reset-pr-review "$PLAN"
       sed -i '' '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || \
         sed -i '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || true
-      # Clear Task Ledger data rows so next feature's task gate fires correctly
       awk '/^## Task Ledger$/{sec=1; print; next} sec&&/^## /{sec=0} sec&&/\| (pending|in_progress|completed|blocked)/{next} {print}' \
         "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
-      # reset-milestone reads current phase to construct the scope; transition through each stale
-      # phase before its reset-milestone call so markers are cleared at the correct phase scope
-      # (critics.md: "transition must run before reset-milestone when also changing phase")
       bash "$PF" transition "$PLAN" implement "inter-feature reset: clearing stale implement-phase markers"
       bash "$PF" reset-milestone "$PLAN" critic-code
-      bash "$PF" transition "$PLAN" red "inter-feature reset: clearing stale red-phase markers"
+      bash "$PF" transition "$PLAN" red "inter-feature reset: starting tests for ${feature}"
       bash "$PF" reset-milestone "$PLAN" critic-test
-      bash "$PF" transition "$PLAN" spec "starting spec phase for next feature: ${feature}"
-      bash "$PF" reset-milestone "$PLAN" critic-spec
-    fi
-
-    # Step 2a — Spec
-    phase_now=$(bash "$PF" get-phase "$PLAN")
-    if [[ "$phase_now" == "brainstorm" || "$phase_now" == "spec" ]] && \
-       ! grep -q '\[CONVERGED\] spec/critic-spec' "$PLAN" 2>/dev/null; then
-      run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
-      llm_exit "writing-spec"
-      bash "$PF" reset-milestone "$PLAN" critic-spec
-      run_critic critic-spec spec "Review spec for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}."
-      llm_exit "critic-spec"
-      while IFS= read -r spec_path; do
-        [[ -n "$spec_path" ]] && git add "$spec_path"
-      done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
-      git diff --cached --quiet || git commit -m "feat(spec): add BDD scenarios for ${feature}"
     fi
 
     # Step 2b — Tests
@@ -290,77 +314,16 @@ if [[ "$MODE" == "feature" ]]; then
       llm_exit "pr-review"
     fi
 
-    # green transition
+    # green transition + feature completion marker + PR cleanup
     phase_now=$(bash "$PF" get-phase "$PLAN")
     if [[ "$phase_now" == "review" ]] && \
        grep -q '\[CONVERGED\] review/pr-review' "$PLAN" 2>/dev/null; then
       bash "$PF" transition "$PLAN" green "pr-review converged — feature complete"
+      bash "$PF" append-note "$PLAN" "[IMPLEMENTED: ${feat_slug}]"
+      gh pr close --comment "Changes merged via task-by-task workflow" 2>/dev/null || true
     fi
 
   done < <(get_features)
-
-# ── Batch (greenfield) mode ──────────────────────────────────────────────────
-else
-  if [[ -z "$(get_features)" ]]; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED] run-dev-cycle: no features in ${REQ_FILE} — run /brainstorming first"
-    exit 1
-  fi
-
-  # Step 2 — All specs
-  while IFS= read -r feature; do
-    [[ -z "$feature" ]] && continue
-    feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
-    run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
-    llm_exit "writing-spec"
-    bash "$PF" reset-milestone "$PLAN" critic-spec
-    run_critic critic-spec spec "Review spec for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}."
-    llm_exit "critic-spec"
-    while IFS= read -r spec_path; do
-      [[ -n "$spec_path" ]] && git add "$spec_path"
-    done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
-    git diff --cached --quiet || git commit -m "feat(spec): add BDD scenarios for ${feature}"
-  done < <(get_features)
-
-  # Step 3 — All tests
-  while IFS= read -r feature; do
-    [[ -z "$feature" ]] && continue
-    feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
-    run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
-    llm_exit "writing-tests"
-    bash "$PF" reset-milestone "$PLAN" critic-test
-    _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
-    run_critic critic-test red "Review tests for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Test files: ${_test_files:-tests/}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
-    llm_exit "critic-test"
-  done < <(get_features)
-
-  # Step 4 — Implement (all features together)
-  run_llm "Invoke the implementing skill. Plan: ${PLAN}." opus
-  llm_exit "implementing (Step 1)"
-  if [[ -z "$UNIT_CMD" ]]; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED] run-implement: unit test command not configured — add '- Test: {cmd}' to CLAUDE.md"
-    exit 1
-  fi
-  bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
-
-  _all_specs=""
-  while IFS= read -r feature; do
-    [[ -z "$feature" ]] && continue
-    _feat_s=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
-    _sp=$(find_spec_path "$_feat_s")
-    _all_specs="${_all_specs:+$_all_specs }${_sp}"
-  done < <(get_features)
-  bash "$PF" reset-milestone "$PLAN" critic-code
-  run_critic critic-code implement "Review changed files. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
-  llm_exit "critic-code"
-
-  bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"
-  bash "$PF" reset-pr-review "$PLAN"
-  gh pr view 2>/dev/null || gh pr create --draft --title "feat: ${SLUG}"
-  pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
-  run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}." "@reference/pr-review-loop.md §PR-review one-shot iteration"
-  llm_exit "pr-review"
-  bash "$PF" transition "$PLAN" green "pr-review converged — batch complete"
-fi
 
 # ── Integration Tests ────────────────────────────────────────────────────────
 if [[ -n "$INTEGRATION_CMD" ]]; then

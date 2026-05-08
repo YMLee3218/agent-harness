@@ -64,6 +64,14 @@ Compare spec against docs/*.md. If the spec contradicts documented domain knowle
 9. Domain facts: scenario asserts a domain rule, threshold, or constraint not found in docs/*.md? (→ [UNVERIFIED CLAIM])
 10. External references: scenario references a specific API, service, model, or version? Note unverified items. (→ [UNVERIFIED CLAIM])
 
+## Angle 4 — Cross-spec consistency (only if other specs provided)
+
+If the prompt includes "Also verify consistency against existing specs:":
+  Read each listed spec. For any conflict with the current spec:
+  - Quote both conflicting passages (file:line)
+  - Report [FAIL] cross-spec: {brief description}
+  Category: CROSS_FEATURE_CONTRADICTION
+
 ## Output format
 
 \`\`\`
@@ -86,6 +94,11 @@ None: "No structural issues"
 [UNVERIFIED CLAIM] {claim}: {how to verify}
 None: "No unverified claims"
 
+### Angle 4 — Cross-spec Consistency
+[FAIL] cross-spec: {brief description}
+  {spec_path}:{line}: "{excerpt}" vs {other_spec_path}:{line}: "{excerpt}"
+None: "No cross-spec conflicts"
+
 ### Citation Summary
 (one line per blocking finding — omit if PASS)
 - {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
@@ -98,6 +111,7 @@ None: "No unverified claims"
 - Unverified claim (Angle 3)                                          → UNVERIFIED_CLAIM
 - Missing scenario / boundary (Angle 1 §1–4)                          → MISSING_SCENARIO
 - Placement / BDD format (Angle 2 §5, §8)                             → STRUCTURAL
+- Cross-spec conflicts (Angle 4)                                       → CROSS_FEATURE_CONTRADICTION
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
 
@@ -115,7 +129,7 @@ FAIL:
 ### Verdict
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
-<!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL} -->
+<!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION} -->
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL.
 EOF
