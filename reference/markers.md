@@ -3,6 +3,8 @@
 Single source of truth for all machine-readable markers used in plan files.
 Includes per-marker Write/Read/Clear/gc lifecycle and operation→marker reverse lookup.
 
+> **코드 단일소스**: 어떤 마커를 Claude가 클리어할 수 없는지는 `scripts/phase-policy.sh::HUMAN_MUST_CLEAR_MARKERS` 배열이 정의한다. `pretooluse-bash.sh`가 이 배열을 직접 소비해 차단 여부를 판단한다. 새 human-must-clear 마커 추가 시 이 배열을 먼저 수정하고 아래 표를 업데이트한다.
+
 ## Bracketed plan-file markers
 
 ### Critic loop markers (written to `## Open Questions`)

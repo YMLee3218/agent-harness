@@ -27,6 +27,8 @@ ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
 LOOP_LOCK="${PLAN}.critic.lock"
 if [[ $NESTED -eq 0 ]]; then
   if ! (set -C; echo $$ > "$LOOP_LOCK") 2>/dev/null; then
+    bash "$PLAN_FILE_SH" append-note "$PLAN" \
+      "[BLOCKED] ${AGENT}: critic loop already running for this plan — wait for the active run to finish or remove $(basename "$LOOP_LOCK")" 2>/dev/null || true
     echo "=== run-critic-loop: already running for $PLAN ===" >&2; exit 3
   fi
   trap 'rm -f "$LOOP_LOCK"' EXIT
@@ -81,7 +83,8 @@ while true; do
         echo "CONVERGED"; exit 0
       else
         echo "[run-critic-loop] CONVERGED marker invalid (streak=${consecutive:-0}, need 2) — clearing" >&2
-        bash "$PLAN_FILE_SH" clear-marker "$PLAN" "[CONVERGED] ${PHASE}/${AGENT}" 2>/dev/null || true
+        bash "$PLAN_FILE_SH" clear-marker "$PLAN" "[CONVERGED] ${PHASE}/${AGENT}" 2>/dev/null \
+          || echo "[run-critic-loop] WARNING: clear-marker failed for [CONVERGED] ${PHASE}/${AGENT} — marker may persist" >&2
       fi
       ;;
     *BLOCKED-CEILING*) echo "$marker";   exit 2 ;;

@@ -127,3 +127,19 @@ apply_phase_block() {
 
   return 0
 }
+
+# Markers that require human intervention to clear.
+# Single source of truth: sourced by pretooluse-bash.sh to enforce the clear-marker block.
+# When adding a new human-must-clear marker: add an entry here, then update reference/markers.md.
+HUMAN_MUST_CLEAR_MARKERS=(
+  "BLOCKED-AMBIGUOUS"
+  "BLOCKED] protocol-violation:"
+  "BLOCKED] category:"
+  "BLOCKED] parse:"
+  "BLOCKED] integration:"
+  "BLOCKED] preflight:"
+  ": session-timeout"
+  ": script-failure"
+  ": no timeout binary"
+  ": plan unchanged"
+)

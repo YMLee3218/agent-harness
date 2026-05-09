@@ -7,6 +7,8 @@
 set -uo pipefail
 # shellcheck source=lib/active-plan.sh
 source "$(dirname "$0")/lib/active-plan.sh"
+# shellcheck source=phase-policy.sh
+source "$(dirname "$0")/phase-policy.sh"
 
 input=$(cat)
 
@@ -22,13 +24,16 @@ if [ -z "$cmd" ] && [ -n "$input" ]; then
   exit 2
 fi
 
-# Block Claude from clearing markers that require human judgement to resolve
-# (humans bypass this hook by running from terminal directly)
-if printf '%s' "$cmd" | grep -qE "plan-file\\.sh[\"'[:space:]].*clear-marker"; then
-  if printf '%s' "$cmd" | grep -qE 'BLOCKED-AMBIGUOUS|BLOCKED\] (protocol-violation|category:|parse:|integration:|preflight:)|: session-timeout|: script-failure|: no timeout binary|: plan unchanged'; then
-    echo "BLOCKED: this marker cannot be cleared by Claude — human must run plan-file.sh clear-marker directly from terminal" >&2
-    exit 2
-  fi
+# Block Claude from clearing markers that require human judgement to resolve.
+# Pattern list: HUMAN_MUST_CLEAR_MARKERS in scripts/phase-policy.sh (single source of truth).
+# Humans bypass this hook by running from terminal directly.
+if printf '%s' "$cmd" | grep -qE "(plan-file\\.sh|\\\$PLAN_FILE_SH|\\\$\{PLAN_FILE_SH\})[\"'[:space:]].*clear-marker"; then
+  for _hm in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
+    if printf '%s' "$cmd" | grep -qF "$_hm"; then
+      echo "BLOCKED: this marker cannot be cleared by Claude — human must run plan-file.sh clear-marker directly from terminal" >&2
+      exit 2
+    fi
+  done
 fi
 
 # Block Claude from using 'unblock' — human-only convenience command
@@ -130,8 +135,6 @@ if printf '%s' "$cmd" | grep -iqE \
 fi
 
 # Phase-aware bash write detection
-# shellcheck source=phase-policy.sh
-source "$(dirname "$0")/phase-policy.sh"
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 
 _bash_dest_paths() {
@@ -151,10 +154,31 @@ if [ -f "$PLAN_FILE_SH" ]; then
       _ba_write=0
       while IFS= read -r _ba_p; do [ -n "$_ba_p" ] && _ba_write=1 && break; done < <(_bash_dest_paths "$cmd")
       [ "$_ba_write" -eq 1 ] && { echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — write prohibited; human must resolve the question and clear the marker from terminal" >&2; exit 2; }
-      # Also block interpreter inline execution (python3 -c, perl -e, etc.) — not caught by _bash_dest_paths
-      if printf '%s' "$cmd" | grep -qE '(python3?|perl|ruby|node)[[:space:]]+-[ceE][[:space:]]'; then
-        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — interpreter inline execution prohibited; human must resolve the question and clear the marker from terminal" >&2
-        exit 2
+      # A) Standard inline flag: -c/-e/-E/-r (python, perl, ruby, node, php, lua, R)
+      # [^[:alpha:]] catches both `python3 -c 'code'` and `python3 -c'code'` (no space).
+      if printf '%s' "$cmd" | grep -qE \
+        '(python3?|perl|ruby|node|php|lua|R)[[:space:]]+-[ceEr][^[:alpha:]]'; then
+        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — interpreter inline execution prohibited" >&2; exit 2
+      fi
+      # B) Heredoc execution — space before << is optional in bash.
+      if printf '%s' "$cmd" | grep -qE \
+        '(python3?|perl|ruby|node|php|lua|R)[[:space:]]*(<<|<<-)'; then
+        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — interpreter heredoc execution prohibited" >&2; exit 2
+      fi
+      # C) Shell inline execution — [^[:alpha:]] catches both `-c cmd` and `-c'cmd'`.
+      if printf '%s' "$cmd" | grep -qE \
+        '(bash|sh|zsh|ksh|dash)[[:space:]]+-c[^[:alpha:]]'; then
+        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — shell inline execution prohibited" >&2; exit 2
+      fi
+      # D) File install/copy tools not caught by _bash_dest_paths (rsync, git apply, patch, unzip, install)
+      if printf '%s' "$cmd" | grep -qE \
+        '(^|[;|&[:space:]])[[:space:]]*(rsync|git[[:space:]]+apply|patch[[:space:]]|unzip[[:space:]]|install[[:space:]])'; then
+        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — file-install command prohibited" >&2; exit 2
+      fi
+      # E) tar extraction (x/X flags)
+      if printf '%s' "$cmd" | grep -qE \
+        '(^|[;|&[:space:]])[[:space:]]*tar[[:space:]]+-[[:alpha:]]*[xX]'; then
+        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — tar extraction prohibited" >&2; exit 2
       fi
     fi
     while IFS= read -r _dest_p; do
