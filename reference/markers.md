@@ -3,7 +3,7 @@
 Single source of truth for all machine-readable markers used in plan files.
 Includes per-marker Write/Read/Clear/gc lifecycle and operation→marker reverse lookup.
 
-> **코드 단일소스**: 어떤 마커를 Claude가 클리어할 수 없는지는 `scripts/phase-policy.sh::HUMAN_MUST_CLEAR_MARKERS` 배열이 정의한다. `pretooluse-bash.sh`가 이 배열을 직접 소비해 차단 여부를 판단한다. 새 human-must-clear 마커 추가 시 이 배열을 먼저 수정하고 아래 표를 업데이트한다.
+> **Single source of truth**: which markers Claude cannot clear is defined by the `HUMAN_MUST_CLEAR_MARKERS` array in `scripts/phase-policy.sh`. `pretooluse-bash.sh` consumes this array directly to decide whether to block. When adding a new human-must-clear marker, update the array first, then update the table below.
 
 ## Bracketed plan-file markers
 
@@ -18,10 +18,10 @@ Managed by `scripts/lib/plan-lib.sh` and consumed by skills after each critic or
 | `[BLOCKED] parse:{agent}: verdict marker missing (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED] parse:{agent}: FAIL without category (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | agent-scoped | Skills (parent context) | Manual `plan-file.sh clear-marker` | Yes |
-| `[CONVERGED] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `clear-converged {agent}` | Yes |
+| `[CONVERGED] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` (informational mirror only) | `plan-file.sh reset-milestone {agent}` or `clear-converged {agent}` | Yes |
 | `[FIRST-TURN] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
 
-> **Never write [CONVERGED] manually.** This marker is exclusively emitted by `plan-lib.sh _record_loop_state` when the SubagentStop hook fires after 2 consecutive PASSes. Writing it directly bypasses the streak check and invalidates the convergence guarantee. `run-critic-loop.sh` validates the streak on each iteration and clears any spurious marker.
+> **Never write [CONVERGED] manually.** The authoritative convergence state lives in `plans/{slug}.state/convergence/{phase}__{agent}.json` — written only by the SubagentStop hook via `record-verdict-guarded`. The `[CONVERGED]` marker in `## Open Questions` is an informational mirror; **the harness never reads it** for convergence decisions. Even if written manually, `is-converged` (called by `run-dev-cycle.sh` and `run-critic-loop.sh`) reads the sidecar only and will return false.
 
 ### Non-loop stop markers (written to `## Open Questions`)
 
@@ -29,18 +29,7 @@ Written by skills or hooks outside the critic convergence protocol.
 
 | Marker | Emitter | Effect | Clear path | Survives gc? |
 |--------|---------|--------|------------|-------------|
-| `[BLOCKED] {reason}` | Various skills | Generic stop — human action required | Manual `plan-file.sh clear-marker` after fixing | Yes |
-| `[BLOCKED] coder:{task-id} — {reason}` | run-implement.sh | Coder hit unresolvable blocker or abort | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] post-implement smoke test failed — full test suite not passing after all tiers` | run-implement.sh | Full test suite failed after all task tiers merged — check for unimplemented tests or regressions | Manual `plan-file.sh clear-marker` after fixing failing tests | Yes |
-| `[BLOCKED] preflight:{tool}: {fix}` | preflight.sh | Autonomous pre-flight check failed | Fix prerequisite, then `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] integration:{test}: {reason}` | running-integration-tests | Failure category ambiguous — manual review required | Manual | Yes |
-| `[BLOCKED] integration: mixed failure categories ({categories}) — manual review required` | run-integration.sh | Integration failures in current run span multiple root-cause categories — cannot apply a single automated fix; manual triage required | Manual `plan-file.sh clear-marker "[BLOCKED] integration: mixed"` after diagnosing root cause | Yes |
-| `[BLOCKED] integration tests failed after {N} fix attempt(s) — manual review required` | run-integration.sh | Retry budget exhausted after automated fix attempt(s); manual diagnosis required | Manual `plan-file.sh clear-marker "[BLOCKED] integration tests failed"` after diagnosing | Yes |
-| `[BLOCKED] {agent}: session-timeout after {N}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` | `run-critic-loop.sh` | Critic session timed out — increase `CLAUDE_CRITIC_SESSION_TIMEOUT` or re-run | Manual `plan-file.sh clear-marker` after adjusting timeout | Yes |
-| `[BLOCKED] {agent}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap` | `run-critic-loop.sh` | No `gtimeout`/`timeout` binary — install GNU coreutils or disable the cap | Manual `plan-file.sh clear-marker` after installing or disabling | Yes |
-| `[BLOCKED] {agent}: plan unchanged for {N} consecutive iterations — critic is not writing to plan file; check session logs` | `run-critic-loop.sh` | Critic session produced no verdicts — check session logs | Manual `plan-file.sh clear-marker` after debugging | Yes |
-| `[BLOCKED] protocol-violation:{agent}: invoked outside run-critic-loop.sh context` | `plan-lib.sh cmd_record_verdict_guarded` | SubagentStop hook detected a critic agent running outside `run-critic-loop.sh`; plan file flagged | Manual `plan-file.sh clear-marker "[BLOCKED] protocol-violation"` after diagnosing | Yes |
-| `[BLOCKED] {agent}: script-failure: {exit_code} — claude session exited unexpectedly; check session logs` | `run-critic-loop.sh` | Claude session exited with non-timeout non-zero code — investigate session logs | Manual `plan-file.sh clear-marker "[BLOCKED] {agent}: script-failure"` after diagnosing | Yes |
+| `[BLOCKED] {category}: {reason}` | Various harness scripts and skills | Harness stop requiring human action; category identifies source (e.g. `coder:`, `preflight:`, `integration:`, `parse:`, `protocol-violation:`, `runtime:`, `script-failure:`, `session-timeout`, `no timeout binary`, `plan unchanged`) | Manual `plan-file.sh clear-marker` after resolving — see `HUMAN_MUST_CLEAR_MARKERS` in `scripts/phase-policy.sh` for full list | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | stop-check.sh | Why Stop hook blocked the previous stop attempt | Informational; survives `gc-events` | Yes |
 
 ### Integration test markers (written to `## Integration Failures`)
@@ -65,7 +54,64 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 |--------|---------|----------------------|--------|
 | `[UNVERIFIED CLAIM]` | brainstorming skill | Yes | Provisional assumption that was not web-verified; critic-spec will flag it |
 | `[AUTO-DECIDED] {skill}/{step}: {decision}` | implementing skill | No | Architectural choice made without asking |
-| `[INFO] {message}` | Various skills | Yes (falls through to `user_memos` in `gc-events`) | Informational log entry |
+| `[INFO] {message}` | Various skills | Yes | Informational log entry |
+| `[IMPLEMENTED: {feat-slug}]` | `plan-lib.sh mark-implemented` (Ring B) | Yes | Records a completed feature slug; authoritative state is in `plans/{slug}.state/implemented.json` |
+
+## Sidecar control state
+
+All harness control state lives in `plans/{slug}.state/` — written only by harness scripts, never by agent tool calls (blocked by `settings.json` deny rules and `phase-gate.sh`).
+
+### Key sidecar files
+
+| File | Format | Written by | Read by | Lifecycle |
+|------|--------|------------|---------|-----------|
+| `convergence/{phase}__{agent}.json` | JSON | `_record_loop_state` (via SubagentStop hook) | `is-converged` (`run-dev-cycle.sh`, `run-critic-loop.sh`) | Created on first verdict; reset via `reset-milestone`/`clear-converged`; `converged=true` requires ≥2 consecutive PASSes |
+| `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `is-converged` (streak computation) | Appended per verdict; GC via `gc-sidecars` (rotates pre-milestone records, keeps 2 most recent milestone_seq values) |
+| `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse/category), `cmd_append_note` (BLOCKED mirror) | `is-blocked`/`has-blocked` (`stop-check.sh`, `run-critic-loop.sh`) | `cleared_at:null` = open; set by `clear-marker`/`unblock` |
+| `implemented.json` | JSON | `mark-implemented` | `is-implemented` (`run-dev-cycle.sh`) | Feature slugs accumulate; never cleared |
+| `.migrated_from_v2.txt` | text sentinel | `migrate-to-sidecar` | admin verification only (not read at runtime) | Presence confirms sidecar was bootstrapped from plan.md v2 markers |
+
+### Convergence JSON schema (`convergence/{phase}__{agent}.json`)
+
+```json
+{
+  "phase": "implement",
+  "agent": "critic-code",
+  "first_turn": true,
+  "streak": 2,
+  "converged": true,
+  "ceiling_blocked": false,
+  "ordinal": 2,
+  "milestone_seq": 0
+}
+```
+
+`milestone_seq` increments on every `reset-milestone` / `clear-converged` call, isolating streak history between milestones.
+
+### Blocked JSONL record schema (`blocked.jsonl`)
+
+```json
+{"ts":"2025-05-10T12:00:00Z","kind":"ceiling","agent":"critic-code","scope":"implement/critic-code","message":"exceeded 5 runs","cleared_at":null}
+```
+
+`kind` enum: `ceiling | parse | category | protocol-violation | preflight | integration | coder | ambiguous | runtime`.
+
+### Block-state queries (Ring A — agent-callable)
+
+```bash
+# Returns 0 if any uncleared block record exists; 1 if none
+bash plan-file.sh is-blocked plans/{slug}.md
+bash plan-file.sh has-blocked plans/{slug}.md          # alias
+
+# Filter by kind
+bash plan-file.sh is-blocked plans/{slug}.md integration
+bash plan-file.sh is-blocked plans/{slug}.md ceiling
+
+# Returns 0 if sidecar convergence file says converged=true; 1 otherwise
+bash plan-file.sh is-converged plans/{slug}.md implement critic-code
+```
+
+Both commands read the sidecar `blocked.jsonl` exclusively. If `blocked.jsonl` is absent (no blocks ever written), they return "not blocked". The plan.md grep fallback has been removed — run `migrate-to-sidecar` on any pre-migration plan before querying block state.
 
 ## HTML verdict envelopes
 
@@ -115,19 +161,24 @@ What each command writes, clears, keeps, and discards in `## Open Questions` (un
 | `reset-for-rollback {target-phase}` | 3× `[MILESTONE-BOUNDARY]` (→ Critic Verdicts) | 3 markers for `{new-phase}/critic-code` (via `reset-milestone`) + 3 for `implement/pr-review` + 3 for `review/pr-review` (via `reset-pr-review`) + 3 stale `review/critic-code` markers (via `_clear_convergence_markers`) | Calls `set-phase`, `reset-milestone critic-code`, `reset-pr-review`, then `_clear_convergence_markers "review/critic-code"` |
 | `clear-converged {agent}` | REJECT-PASS sentinel (→ Critic Verdicts, streak reset) | `[CONVERGED] {phase}/{agent}` | Use on REJECT-PASS audit outcome before entering FAIL path |
 | `clear-marker {text}` | — | Any line in `## Open Questions` containing `{text}` | Low-level; prefer `reset-milestone` for milestone transitions |
-| `gc-events` | — | Discards: `[AUTO-DECIDED]`. Keeps all: `[BLOCKED*]`, `[STOP-BLOCKED]`, `[CONVERGED]`, `[FIRST-TURN]`, `[UNVERIFIED CLAIM]`. User-memos fallthrough preserves anything else. | `[INFO]` and unrecognized markers survive via user_memos fallthrough |
-| `record-verdict` | `[FIRST-TURN]`, `[CONVERGED]`, `[BLOCKED-CEILING]` via `_record_loop_state`; `[BLOCKED] parse:` on consecutive PARSE_ERROR; `[BLOCKED] category:` on consecutive same-category FAIL | — | Also appends verdict line to `## Critic Verdicts` |
+| `gc-events` | — | Discards: `[AUTO-DECIDED]` and blank lines. All other `## Open Questions` content is kept. | Simplified since control state now lives in sidecar |
+| `gc-sidecars <plan-file>` | — | — | Rotates `verdicts.jsonl` (keeps 2 most recent milestone_seq values) and archives old cleared `blocked.jsonl` records; run automatically by `run-critic-loop.sh` after each iteration |
+| `record-verdict` | `[FIRST-TURN]`, `[CONVERGED]` (informational mirror), `[BLOCKED-CEILING]` via `_record_loop_state`; `[BLOCKED] parse:` on consecutive PARSE_ERROR; `[BLOCKED] category:` on consecutive same-category FAIL | — | Also writes to `plans/{slug}.state/convergence/{phase}__{agent}.json` (authoritative) and appends to `verdicts.jsonl` |
 | `transition <plan-file> <to-phase> <reason>` | — | — | Sets phase in the plan file; callers must call `reset-milestone` explicitly if a streak reset is needed |
 | `commit-phase <plan-file> <msg>` | — | — | Stages plan file and commits; call after `transition` |
 | `set-phase <plan-file> <phase>` | — | — | Writes phase to the plan file's `## Phase` section and frontmatter |
 | `append-review-verdict <plan-file> <agent> PASS\|FAIL` | `[FIRST-TURN]`, `[CONVERGED]`, `[BLOCKED-CEILING]` | — | Same streak/ceiling/FIRST-TURN/CONVERGED logic as `record-verdict`; no category tracking |
 | `record-stop-block <plan-file> <phase> <reason>` | `[STOP-BLOCKED @ts] phase={p} — {reason}` (→ `## Open Questions`) | — | Survives `gc-events` |
+| `is-blocked <plan-file> [kind]` | — | — | Ring A read-only query; returns 0 if any uncleared record exists in `blocked.jsonl` (optionally filtered by kind); if blocked.jsonl absent, returns not-blocked + stderr warning (no plan.md fallback after D5) |
+| `has-blocked <plan-file> [kind]` | — | — | Alias for `is-blocked` |
+| `is-converged <plan-file> <phase> <agent>` | — | — | Ring A read-only query; returns 0 if `convergence/{phase}__{agent}.json` has `converged=true`; reads sidecar only |
+| `is-implemented <plan-file> <feat-slug>` | — | — | Ring A read-only query; returns 0 if `implemented.json` contains `feat-slug` |
 
 ## Implementation notes
 
 - **`[INFO]`** — Falls through to `user_memos` in `gc-events`, treated like a user memo.
 
-- **`[BLOCKED] category:`** — Persists across phase rollback by design: category escalation is phase-independent per `@reference/critics.md §Consecutive same-category escalation`. Recipe at `@reference/critics.md §Resuming from a BLOCKED marker`.
+- **`[BLOCKED] category:`** — Persists across phase rollback by design: once the streak fires (two consecutive same-category FAILs within a phase+milestone boundary per `@reference/critics.md §Consecutive same-category escalation`), the marker is not cleared by a phase transition — explicit `clear-marker` is required. Recipe at `@reference/critics.md §Resuming from a BLOCKED marker`.
 
 - **`[BLOCKED] parse:`** — Persists across phase rollback by design. Recipe at `@reference/critics.md §Resuming from a BLOCKED marker`.
 

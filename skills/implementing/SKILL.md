@@ -79,5 +79,5 @@ Read `plans/{slug}.md` and check the `## Task Ledger` section. Mark any `in_prog
 | `red`, empty ledger | Step 1 (task planning) |
 | `implement` or `red`, has pending tasks | Signal caller — re-run run-implement.sh |
 | `implement` or `red`, all tasks complete | Tasks complete — signal caller |
-| any, has `blocked` task | clear `[BLOCKED] coder:` marker → `update-task … pending` → signal caller to re-run run-implement.sh |
+| any, has `blocked` task | Stop. Tell the user: "A `[BLOCKED] coder:` marker is present — clear it from a terminal with `bash .claude/scripts/plan-file.sh clear-marker plans/{slug}.md \"[BLOCKED] coder:{id}\"`; Claude cannot clear this marker (blocked by pretooluse hook)." Do not attempt to call plan-file.sh clear-marker yourself. |
 | `implement`, empty ledger (fresh-start) | Step 1 |

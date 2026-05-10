@@ -18,6 +18,7 @@
 # pattern — stop_hook_active=true means we already fired once; a second block
 # would loop forever if tests keep failing.
 _payload=$(cat)
+export CLAUDE_PLAN_CAPABILITY=harness
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 if ! command -v jq >/dev/null 2>&1; then
   echo "[STOP-BLOCKED] jq required for autonomous stop-check — install jq and re-run" >&2
@@ -85,14 +86,12 @@ fi
 source "$(dirname "$0")/phase-policy.sh"
 phase_runs_stop_check "$phase" || exit 0
 
-# F3 guard: if integration phase and a [BLOCKED] marker for integration tests is
-# already recorded in the plan file, allow the stop without re-running tests.
-# This avoids an infinite Stop-hook block loop when stop_hook_active is unavailable
-# in the Stop payload (plan-file-based self-halt, no dependency on stop_hook_active).
+# F3 guard: if integration phase and a [BLOCKED] integration marker is already recorded,
+# allow the stop without re-running tests to avoid infinite Stop-hook block loops.
+# Reads from sidecar blocked.jsonl exclusively (no plan.md fallback — run migrate-to-sidecar on pre-migration plans).
 if [ "$phase" = "integration" ]; then
-  if grep -qF "[BLOCKED] integration:" "$active_plan" 2>/dev/null \
-     || grep -qF "[BLOCKED] integration tests failed" "$active_plan" 2>/dev/null; then
-    echo "[stop-check] integration [BLOCKED] already recorded — allowing stop (plan-based self-halt)" >&2
+  if bash "$PLAN_FILE_SH" is-blocked "$active_plan" integration 2>/dev/null; then
+    echo "[stop-check] integration [BLOCKED] already recorded — allowing stop (sidecar self-halt)" >&2
     exit 0
   fi
 fi
