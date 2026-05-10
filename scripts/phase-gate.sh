@@ -46,6 +46,12 @@ mode_write() {
   file_path=$(extract_tool_input_path "$input")
   [ -z "$file_path" ] && exit 0
 
+  # Sidecar state directory is harness-exclusive — block all writes
+  if is_sidecar_path "$file_path"; then
+    echo "BLOCKED [phase-gate]: plans/{slug}.state/ is harness-exclusive — agent cannot edit control state" >&2
+    exit 2
+  fi
+
   # [BLOCKED-AMBIGUOUS] → block all writes regardless of mode
   local _ba_plan _ba_phase
   if resolve_with_latest_fallback _ba_plan _ba_phase 2>/dev/null; then

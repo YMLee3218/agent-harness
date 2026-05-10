@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CLAUDE_PLAN_CAPABILITY=harness
 
 AGENT="" PHASE="" PLAN="" PROMPT="" ITER_DOC="" NESTED=0
 PLAN_FILE_SH="$(dirname "${BASH_SOURCE[0]}")/plan-file.sh"
@@ -40,9 +41,13 @@ else
   fi
 fi
 
-# Signal handling — clean up subprocess on interrupt
-CLAUDE_PID=""
-_on_interrupt() { [[ -n "$CLAUDE_PID" ]] && kill "$CLAUDE_PID" 2>/dev/null; exit 130; }
+# Signal handling — clean up subprocess on interrupt (M6-2nd: also remove _review_out)
+CLAUDE_PID="" _review_out=""
+_on_interrupt() {
+  [[ -n "$CLAUDE_PID" ]] && kill "$CLAUDE_PID" 2>/dev/null
+  rm -f "${_review_out:-}"
+  exit 130
+}
 trap '_on_interrupt' INT TERM
 
 # Timeout command (cross-platform)
@@ -63,50 +68,78 @@ LAST_PLAN_HASH=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
 CONSECUTIVE_NOOP=0
 
 while true; do
-  marker=$(awk -v agent="$AGENT" -v phase="$PHASE" '/^## Open Questions/{f=1} f&&/\[BLOCKED-CEILING\]/{if(index($0,"[BLOCKED-CEILING] " phase "/" agent)>0)ceiling=$0;next} f&&/\[BLOCKED/{if(blocked=="")blocked=$0} f&&/\[CONVERGED\]/{if(index($0,"[CONVERGED] " phase "/" agent)>0)converged=$0} END{if(ceiling!=""){print ceiling}else if(blocked!=""){print blocked}else if(converged!=""){print converged}}' "$PLAN" 2>/dev/null || true)
-  case "$marker" in
-    *CONVERGED*)
-      consecutive=$(awk -v pat="${PHASE}/${AGENT}:" '
-        /^## Critic Verdicts$/{f=1;next}
-        f&&/^## /{f=0}
-        f&&/^- /{if(index($0,pat) && !index($0,"[MILESTONE-BOUNDARY")) lines[++n]=$0}
-        END{
-          c=0
-          for(i=n;i>=1;i--){
-            if(index(lines[i],": PASS")>0) c++
-            else break
-          }
-          print c+0
-        }
-      ' "$PLAN" 2>/dev/null || echo "0")
-      if [ "${consecutive:-0}" -ge 2 ]; then
-        echo "CONVERGED"; exit 0
-      else
-        echo "[run-critic-loop] CONVERGED marker invalid (streak=${consecutive:-0}, need 2) — clearing" >&2
-        bash "$PLAN_FILE_SH" clear-marker "$PLAN" "[CONVERGED] ${PHASE}/${AGENT}" 2>/dev/null \
-          || echo "[run-critic-loop] WARNING: clear-marker failed for [CONVERGED] ${PHASE}/${AGENT} — marker may persist" >&2
-      fi
-      ;;
-    *BLOCKED-CEILING*) echo "$marker";   exit 2 ;;
-    *BLOCKED*)         echo "$marker";   exit 1 ;;
-  esac
+  # Authoritative convergence check via sidecar — [CONVERGED] markers in plan.md are ignored
+  if bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; then
+    echo "CONVERGED"; exit 0
+  fi
 
-  [[ $NESTED -eq 0 ]] && bash "$PLAN_FILE_SH" gc-verdicts "$PLAN" 2>/dev/null || true
+  # Ceiling-blocked: check sidecar convergence file (per scope — not plan.md)
+  _sc_dir="$(dirname "$PLAN")/$(basename "$PLAN" .md).state"
+  _conv_path="${_sc_dir}/convergence/${PHASE}__${AGENT}.json"
+  if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then
+    if jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
+      echo "[BLOCKED-CEILING] ${PHASE}/${AGENT}: exceeded critic ceiling — manual review required" >&2
+      exit 2
+    fi
+  fi
+  # General blocked check: sidecar blocked.jsonl only (D5 removed plan.md fallback)
+  if bash "$PLAN_FILE_SH" is-blocked "$PLAN" 2>/dev/null; then
+    echo "[BLOCKED] active block detected — exiting critic loop" >&2
+    exit 1
+  fi
+
+  if [[ $NESTED -eq 0 ]]; then
+    bash "$PLAN_FILE_SH" gc-verdicts "$PLAN" 2>/dev/null || true
+    bash "$PLAN_FILE_SH" gc-sidecars "$PLAN" 2>/dev/null || true
+  fi
 
   iter=$((iter + 1))
   ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=$AGENT phase=$PHASE plan=$PLAN prompt: $PROMPT"
 
   CRITIC_LOOP_MODEL="${CLAUDE_CRITIC_LOOP_MODEL:-opus}"
-  if [[ -n "$TIMEOUT_CMD" ]]; then
-    CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
-      claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
+  # pr-review: capture output so the parent shell can extract the verdict marker and record it.
+  # M5-2nd: nonce prevents spoofing via doc citations. M6-2nd: _nonce/_review_out declared in outer scope for trap.
+  _nonce="" _review_out=""
+  if [[ "$AGENT" == "pr-review" ]]; then
+    _nonce=$(uuidgen 2>/dev/null || openssl rand -hex 16 2>/dev/null || printf '%s%s' "$$" "$(date +%s%N)")
+    ITER_PROMPT="${ITER_PROMPT}
+
+Output the review verdict as the final line of your response, exactly:
+<!-- review-verdict: ${_nonce} PASS -->
+or
+<!-- review-verdict: ${_nonce} FAIL -->"
+    _review_out=$(mktemp)
+    if [[ -n "$TIMEOUT_CMD" ]]; then
+      CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
+        env -u CLAUDE_PLAN_CAPABILITY "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
+          claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" \
+          > "$_review_out" 2>&1 &
+    else
+      CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
+        env -u CLAUDE_PLAN_CAPABILITY claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" \
+          > "$_review_out" 2>&1 &
+    fi
+  elif [[ -n "$TIMEOUT_CMD" ]]; then
+    CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
+      env -u CLAUDE_PLAN_CAPABILITY "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
+        claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
   else
-    CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
+    CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
+      env -u CLAUDE_PLAN_CAPABILITY claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
   fi
   CLAUDE_PID=$!
   wait "$CLAUDE_PID" || {
     exit_code=$?
     CLAUDE_PID=""
+    # M4-2nd: salvage verdict marker before cleanup so a crash/timeout after writing the marker still records it.
+    if [[ -n "${_review_out:-}" && -s "${_review_out:-}" ]] && [[ -n "${_nonce:-}" ]]; then
+      _rv_salvage=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "${_review_out}" | tail -1 | \
+                    sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
+      if [[ "$_rv_salvage" == "PASS" || "$_rv_salvage" == "FAIL" ]]; then
+        bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv_salvage" 2>/dev/null || true
+      fi
+    fi
+    rm -f "${_review_out:-}"
     if [[ $exit_code -eq 124 ]]; then
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
         "[BLOCKED] ${AGENT}: session-timeout after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" 2>/dev/null || true
@@ -118,6 +151,18 @@ while true; do
     fi
   }
   CLAUDE_PID=""
+
+  # For pr-review: echo captured output then extract nonce-anchored verdict marker and record it.
+  # M5-2nd: nonce prevents the grep from matching a doc citation of the marker format.
+  if [[ -n "$_review_out" ]]; then
+    cat "$_review_out"
+    _rv=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "$_review_out" | tail -1 | \
+          sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
+    rm -f "$_review_out"; _review_out=""
+    if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
+      bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv" 2>/dev/null || true
+    fi
+  fi
 
   # Consecutive NOOP detection — plan file unchanged across iterations
   plan_hash=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)

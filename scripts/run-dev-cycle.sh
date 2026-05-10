@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CLAUDE_PLAN_CAPABILITY=harness
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PF="$SCRIPTS_DIR/plan-file.sh"
 PROFILE="feature" PLAN="" _CALL_RC=0
@@ -49,7 +50,7 @@ run_llm() {
   local prompt="$1" model="${2:-opus}"
   _CALL_RC=0
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="${PLAN:-}" \
-    claude --model "$model" --permission-mode auto --dangerously-skip-permissions -p "$prompt" || _CALL_RC=$?
+    env -u CLAUDE_PLAN_CAPABILITY claude --model "$model" --permission-mode auto --dangerously-skip-permissions -p "$prompt" || _CALL_RC=$?
 }
 
 run_critic() {
@@ -74,19 +75,21 @@ llm_exit() {
   esac
 }
 
-# Preflight: checked by SessionStart hook; abort if markers present
+# Preflight: abort if preflight-blocked (sidecar-first, falls back to plan.md grep)
 if [[ -n "$PLAN" ]]; then
-  blocked=$(awk '/^## Open Questions/{f=1} f&&/\[BLOCKED\] preflight:/{print;exit}' "$PLAN" 2>/dev/null || true)
-  [[ -n "$blocked" ]] && { echo "$blocked" >&2; exit 1; }
+  if bash "$PF" is-blocked "$PLAN" preflight 2>/dev/null; then
+    echo "[BLOCKED] preflight marker present — resolve and re-run" >&2; exit 1
+  fi
 fi
 
 # Phase-aware routing when plan exists
 if [[ -n "$PLAN" ]]; then
   current_phase=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo "")
 
-  # Check for any BLOCKED markers before proceeding
-  blocked=$(awk '/^## Open Questions/{f=1} f&&/\[BLOCKED/{print;exit}' "$PLAN" 2>/dev/null || true)
-  [[ -n "$blocked" ]] && { echo "$blocked" >&2; exit 1; }
+  # Check for any active BLOCKED markers before proceeding (sidecar-first, falls back to plan.md grep)
+  if bash "$PF" is-blocked "$PLAN" 2>/dev/null; then
+    echo "[BLOCKED] active block marker present — resolve markers before proceeding" >&2; exit 1
+  fi
 
   case "$current_phase" in
     brainstorm|spec|red|implement|review|green|integration) ;;  # handled below
@@ -114,7 +117,7 @@ MODE="feature"
 # ── Step 1: Brainstorming ────────────────────────────────────────────────────
 if [[ -z "$PLAN" ]] || \
    { [[ -n "${current_phase:-}" ]] && [[ "$current_phase" == "brainstorm" ]] && \
-     ! grep -q '\[CONVERGED\] brainstorm/critic-feature' "$PLAN" 2>/dev/null; }; then
+     ! bash "$PF" is-converged "$PLAN" brainstorm critic-feature 2>/dev/null; }; then
 
   run_llm "Invoke the brainstorming skill." opus
   llm_exit "brainstorming"
@@ -180,16 +183,18 @@ docs_paths() {
   fi
 
   # ── Phase 1: Spec pre-pass ─────────────────────────────────────────────────
-  # Write spec + run critic-spec for each feature (skip if spec already exists).
-  # Cross-reviews each new spec against all previously written specs.
+  # Write spec + run critic-spec for each feature.
+  # Skip entirely only when spec written AND critic-spec already converged.
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
     feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
     _spec_path=$(find_spec_path "$feat_slug")
-    [[ -f "$_spec_path" ]] && continue  # already written — skip
+    [[ -f "$_spec_path" ]] && bash "$PF" is-converged "$PLAN" spec critic-spec 2>/dev/null && continue
 
-    run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
-    llm_exit "writing-spec"
+    if [[ ! -f "$_spec_path" ]]; then
+      run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
+      llm_exit "writing-spec"
+    fi
 
     # Collect all spec files written by this writing-spec invocation (may include domain/infra specs)
     _new_specs=$(git status --porcelain 2>/dev/null \
@@ -219,7 +224,7 @@ docs_paths() {
   done < <(get_features)
 
   # ── Phase 2: Cross-feature spec consistency review (once) ──────────────────
-  if ! grep -q '\[CONVERGED\] spec/critic-cross' "$PLAN" 2>/dev/null; then
+  if ! bash "$PF" is-converged "$PLAN" spec critic-cross 2>/dev/null; then
     # Collect all spec files from all layers (feature, domain, infrastructure)
     _all_specs=""
     for _spec_dir in "${PROJECT_DIR}/features" "${PROJECT_DIR}/domain" "${PROJECT_DIR}/infrastructure"; do
@@ -242,16 +247,13 @@ docs_paths() {
     feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
 
     # Skip features already fully implemented
-    grep -q "\[IMPLEMENTED: ${feat_slug}\]" "$PLAN" 2>/dev/null && continue
+    bash "$PF" is-implemented "$PLAN" "$feat_slug" 2>/dev/null && continue
 
     # Inter-feature reset: previous feature just reached green — reset implement/red phases
     phase_now=$(bash "$PF" get-phase "$PLAN")
     if [[ "$phase_now" == "green" ]]; then
       bash "$PF" reset-pr-review "$PLAN"
-      sed -i '' '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || \
-        sed -i '/<!-- task-definitions-start -->/,/<!-- task-definitions-end -->/d' "$PLAN" 2>/dev/null || true
-      awk '/^## Task Ledger$/{sec=1; print; next} sec&&/^## /{sec=0} sec&&/\| (pending|in_progress|completed|blocked)/{next} {print}' \
-        "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
+      bash "$PF" inter-feature-reset "$PLAN"
       bash "$PF" transition "$PLAN" implement "inter-feature reset: clearing stale implement-phase markers"
       bash "$PF" reset-milestone "$PLAN" critic-code
       bash "$PF" transition "$PLAN" red "inter-feature reset: starting tests for ${feature}"
@@ -261,7 +263,7 @@ docs_paths() {
     # Step 2b — Tests
     phase_now=$(bash "$PF" get-phase "$PLAN")
     if [[ "$phase_now" == "spec" || "$phase_now" == "red" ]] && \
-       ! grep -q '\[CONVERGED\] red/critic-test' "$PLAN" 2>/dev/null; then
+       ! bash "$PF" is-converged "$PLAN" red critic-test 2>/dev/null; then
       run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
       llm_exit "writing-tests"
       bash "$PF" reset-milestone "$PLAN" critic-test
@@ -295,7 +297,7 @@ docs_paths() {
     # Critic-code
     phase_now=$(bash "$PF" get-phase "$PLAN")
     if [[ "$phase_now" == "implement" ]] && \
-       ! grep -q '\[CONVERGED\] implement/critic-code' "$PLAN" 2>/dev/null; then
+       ! bash "$PF" is-converged "$PLAN" implement critic-code 2>/dev/null; then
       bash "$PF" reset-milestone "$PLAN" critic-code
       run_critic critic-code implement "Review changed files for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       llm_exit "critic-code"
@@ -312,7 +314,7 @@ docs_paths() {
     # pr-review loop
     phase_now=$(bash "$PF" get-phase "$PLAN")
     if [[ "$phase_now" == "review" ]] && \
-       ! grep -q '\[CONVERGED\] review/pr-review' "$PLAN" 2>/dev/null; then
+       ! bash "$PF" is-converged "$PLAN" review pr-review 2>/dev/null; then
       pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
       run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}." "@reference/pr-review-loop.md §PR-review one-shot iteration"
       llm_exit "pr-review"
@@ -321,9 +323,9 @@ docs_paths() {
     # green transition + feature completion marker + PR cleanup
     phase_now=$(bash "$PF" get-phase "$PLAN")
     if [[ "$phase_now" == "review" ]] && \
-       grep -q '\[CONVERGED\] review/pr-review' "$PLAN" 2>/dev/null; then
+       bash "$PF" is-converged "$PLAN" review pr-review 2>/dev/null; then
       bash "$PF" transition "$PLAN" green "pr-review converged — feature complete"
-      bash "$PF" append-note "$PLAN" "[IMPLEMENTED: ${feat_slug}]"
+      bash "$PF" mark-implemented "$PLAN" "$feat_slug"
       gh pr close --delete-branch --comment "Changes merged via task-by-task workflow" 2>/dev/null || true
     fi
 

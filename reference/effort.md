@@ -1,6 +1,6 @@
 ## Effort Policy
 
-**Cost framing**: a deferred failure costs 10× to address after the next phase boundary (per `@reference/critics.md §Verdict calibration`). Fix root causes now.
+**Cost framing**: a deferred failure costs 10× to address after the next phase boundary (per `@reference/critics.md §Verdict format`). Fix root causes now.
 
 **Root-cause obligation**: address the source of a failure, never its symptom. Forbidden:
 - Catching/suppressing an exception to hide a failing expression

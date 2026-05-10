@@ -54,7 +54,11 @@
       "Bash(git push --force)",
       "Bash(git clean -f*)",
       "Bash(git reset --hard *)",
-      "Bash(git reset --hard)"
+      "Bash(git reset --hard)",
+      "Write(**/plans/*.state/**)",
+      "Edit(**/plans/*.state/**)",
+      "MultiEdit(**/plans/*.state/**)",
+      "NotebookEdit(**/plans/*.state/**)"
     ]
   },
   "statusLine": {
@@ -70,7 +74,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -94,7 +98,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-verdict-guarded"
+            "command": "CLAUDE_PLAN_CAPABILITY=harness bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-verdict-guarded"
           }
         ]
       }
@@ -104,7 +108,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-task-completed"
+            "command": "CLAUDE_PLAN_CAPABILITY=harness bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" record-task-completed"
           }
         ]
       }
@@ -122,7 +126,7 @@
           },
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" gc-events",
+            "command": "CLAUDE_PLAN_CAPABILITY=harness bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" gc-events",
             "async": true
           }
         ]

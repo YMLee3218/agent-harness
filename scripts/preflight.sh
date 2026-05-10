@@ -20,6 +20,7 @@
 
 [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] || exit 0
 
+export CLAUDE_PLAN_CAPABILITY=harness
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 BLOCKED_LABEL="preflight"
 # shellcheck source=lib/active-plan.sh

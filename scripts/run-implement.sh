@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CLAUDE_PLAN_CAPABILITY=harness
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PF="$SCRIPTS_DIR/plan-file.sh"
 PLAN="" TEST_CMD=""
@@ -88,10 +89,10 @@ launch_task() {
   git worktree add "$wt" -b "$branch" 2>/dev/null
   (cd "$wt" && git rev-parse HEAD) > "$WORK_DIR/task-base-${id}.txt"
   if [[ "$bg" == "1" ]]; then
-    (cd "$wt" && codex exec --full-auto - < "$prompt") > "$log" 2>&1 &
+    (cd "$wt" && env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$prompt") > "$log" 2>&1 &
     echo $! > "$WORK_DIR/pid-${id}.txt"
   else
-    (cd "$wt" && codex exec --full-auto - < "$prompt") > "$log" 2>&1 || true
+    (cd "$wt" && env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$prompt") > "$log" 2>&1 || true
   fi
 }
 
@@ -137,7 +138,7 @@ verify_task() {
     retry_prompt="$WORK_DIR/retry-prompt-${id}.txt"
     make_prompt "$id" > "$retry_prompt"
     printf '\nRETRY: previous attempt modified test files (%s) — strictly read-only.\n' "$test_files" >> "$retry_prompt"
-    (cd "$wt" && codex exec --full-auto - < "$retry_prompt") > "$retry_log" 2>&1 || true
+    (cd "$wt" && env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$retry_prompt") > "$retry_log" 2>&1 || true
 
     if grep -qE 'coder-status: abort|^layer violation:' "$retry_log" 2>/dev/null || \
        ! grep -q 'coder-status: complete' "$retry_log" 2>/dev/null; then

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CLAUDE_PLAN_CAPABILITY=harness
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PF="$SCRIPTS_DIR/plan-file.sh"
 PLAN="" UNIT_CMD="" INTEGRATION_CMD=""
@@ -68,7 +69,14 @@ docs_paths() {
 run_llm() {
   local prompt="$1"
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
-    claude --model opus --permission-mode auto --dangerously-skip-permissions -p "$prompt"
+    env -u CLAUDE_PLAN_CAPABILITY claude --model opus --permission-mode auto --dangerously-skip-permissions -p "$prompt"
+}
+# H5-2nd: capture variant for categorizer — parent reads nonce-anchored stdout, not plan.md awk
+run_llm_capture() {
+  local prompt="$1" outfile="$2"
+  CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
+    env -u CLAUDE_PLAN_CAPABILITY claude --model opus --permission-mode auto --dangerously-skip-permissions -p "$prompt" \
+    > "$outfile" 2>&1 || true
 }
 
 run_critic() {
@@ -104,12 +112,15 @@ while true; do
   today=$(date +%Y-%m-%d)
 
   if [[ $attempt -ge $max_attempts ]]; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED] integration tests failed after $((max_attempts - 1)) fix attempt(s) — manual review required"
+    bash "$PF" append-note "$PLAN" "[BLOCKED] integration: tests failed after $((max_attempts - 1)) fix attempt(s) — manual review required"
     exit 1
   fi
 
-  # Invoke LLM to categorize failure and write fix into plan
-  run_llm "Integration test failure categorization. Plan file: $PLAN. Test output tail:
+  # H5-2nd: categorizer uses nonce-anchored stdout marker — parent never reads [AUTO-CATEGORIZED-INTEGRATION] from plan.md.
+  # The LLM still writes narrative to plan.md for human readability; control flow reads from captured stdout only.
+  _cat_nonce=$(uuidgen 2>/dev/null || openssl rand -hex 8 2>/dev/null || printf '%s%s' "$$" "$(date +%s%N)")
+  _cat_out=$(mktemp)
+  run_llm_capture "Integration test failure categorization. Plan file: $PLAN. Test output tail:
 ${tail_output}
 
 Read the plan file, then under ## Integration Failures (create the section if absent) append:
@@ -119,34 +130,39 @@ Then for each failing test:
 Category: {docs conflict | spec gap | implementation bug}
 Description: {one sentence}
 Log [AUTO-CATEGORIZED-INTEGRATION] {test name}: {category} for each.
-If ambiguous, append [BLOCKED] integration:{test name}: cannot determine category automatically — manual review required to ## Open Questions and stop." || true
+If the categories across all failing tests are mixed (not all the same), append [BLOCKED] integration: mixed failure categories — manual review required to ## Open Questions and stop.
+If ambiguous for any individual test, append [BLOCKED] integration:{test name}: cannot determine category automatically — manual review required to ## Open Questions and stop.
 
-  # Check for blocked marker from LLM categorization
-  blocked=$(awk '/^## Open Questions/{f=1} f&&/\[BLOCKED\] integration:/{print;exit}' "$PLAN" || true)
-  if [[ -n "$blocked" ]]; then exit 1; fi
+After completing the above, output as the very last line of your response exactly one of:
+<!-- integration-result: ${_cat_nonce} docs conflict -->
+<!-- integration-result: ${_cat_nonce} spec gap -->
+<!-- integration-result: ${_cat_nonce} implementation bug -->
+<!-- integration-result: ${_cat_nonce} blocked -->" "$_cat_out"
+  cat "$_cat_out"
 
-  # Read auto-categorized entries from the CURRENT run only (### Run N section)
-  run_header="### Run ${attempt} "
-  all_cats=$(awk -v rh="$run_header" \
-    '/^## Integration Failures$/{f=1;next} f&&/^## /{exit} f&&g&&/^### /{exit} f&&index($0,rh)==1{g=1;next} f&&g&&/\[AUTO-CATEGORIZED-INTEGRATION\]/{print}' \
-    "$PLAN" | grep -oE 'docs conflict|spec gap|implementation bug' || true)
-  if [[ -n "$all_cats" ]]; then
-    unique_cats=$(printf '%s\n' "$all_cats" | sort -u)
-    n_unique=$(printf '%s\n' "$unique_cats" | wc -l | tr -d '[:space:]')
-    if [[ "$n_unique" -gt 1 ]]; then
-      bash "$PF" append-note "$PLAN" "[BLOCKED] integration: mixed failure categories ($(printf '%s\n' "$unique_cats" | tr '\n' '/')) — manual review required"
-      exit 1
-    fi
-    category="$unique_cats"
-  else
-    category=""
+  # Extract category from nonce-anchored stdout (H5-2nd: no plan.md awk for control flow)
+  _cat_marker=$(grep -o "<!-- integration-result: ${_cat_nonce} [a-z ]* -->" "$_cat_out" | tail -1 | \
+                sed "s|<!-- integration-result: ${_cat_nonce} ||; s| -->||" | tr -d '\n' || true)
+  rm -f "$_cat_out"
+
+  if [[ "$_cat_marker" == "blocked" || -z "$_cat_marker" ]]; then
+    [[ -z "$_cat_marker" ]] && bash "$PF" append-note "$PLAN" \
+      "[BLOCKED] integration: categorizer produced no result marker — re-run or review manually" 2>/dev/null || true
+    exit 1
+  fi
+
+  # Validate single canonical category
+  category="$_cat_marker"
+  if [[ "$category" != "docs conflict" && "$category" != "spec gap" && "$category" != "implementation bug" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED] integration: categorizer returned unrecognised category '${category}' — manual review required"
+    exit 1
   fi
 
   case "$category" in
     "implementation bug")
       bash "$PF" transition "$PLAN" implement "integration failure: implementation bug"
       bash "$PF" reset-for-rollback "$PLAN" implement
-      awk '/<!-- task-definitions-start -->/{s=1;next} s&&/<!-- task-definitions-end -->/{s=0;next} s{next} /^## Task Ledger$/{t=1;print;next} t&&/^## /{t=0} t&&/\| (pending|in_progress|completed|blocked)/{next} {print}' "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
+      bash "$PF" inter-feature-reset "$PLAN"
       run_llm "Invoke the implementing skill to replan tasks for the integration failure. Plan: $PLAN"
       if [[ -n "$UNIT_CMD" ]]; then
         bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
@@ -182,7 +198,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
       run_critic critic-test red "Review updated tests for integration fix. Spec: ${_all_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
-      awk '/<!-- task-definitions-start -->/{s=1;next} s&&/<!-- task-definitions-end -->/{s=0;next} s{next} /^## Task Ledger$/{t=1;print;next} t&&/^## /{t=0} t&&/\| (pending|in_progress|completed|blocked)/{next} {print}' "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
+      bash "$PF" inter-feature-reset "$PLAN"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       bash "$PF" reset-milestone "$PLAN" critic-code
@@ -213,7 +229,7 @@ If ambiguous, append [BLOCKED] integration:{test name}: cannot determine categor
       _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
       run_critic critic-test red "Review updated tests for integration fix. Spec: ${_all_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
       bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
-      awk '/<!-- task-definitions-start -->/{s=1;next} s&&/<!-- task-definitions-end -->/{s=0;next} s{next} /^## Task Ledger$/{t=1;print;next} t&&/^## /{t=0} t&&/\| (pending|in_progress|completed|blocked)/{next} {print}' "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
+      bash "$PF" inter-feature-reset "$PLAN"
       run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
       bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       bash "$PF" reset-milestone "$PLAN" critic-code
