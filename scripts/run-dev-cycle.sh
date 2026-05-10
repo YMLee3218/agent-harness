@@ -75,7 +75,7 @@ llm_exit() {
   esac
 }
 
-# Preflight: abort if preflight-blocked (sidecar-first, falls back to plan.md grep)
+# Preflight: abort if preflight-blocked (sidecar only — run migrate-to-sidecar on pre-migration plans)
 if [[ -n "$PLAN" ]]; then
   if bash "$PF" is-blocked "$PLAN" preflight 2>/dev/null; then
     echo "[BLOCKED] preflight marker present — resolve and re-run" >&2; exit 1
@@ -86,7 +86,7 @@ fi
 if [[ -n "$PLAN" ]]; then
   current_phase=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo "")
 
-  # Check for any active BLOCKED markers before proceeding (sidecar-first, falls back to plan.md grep)
+  # Check for any active BLOCKED markers before proceeding (sidecar only — run migrate-to-sidecar on pre-migration plans)
   if bash "$PF" is-blocked "$PLAN" 2>/dev/null; then
     echo "[BLOCKED] active block marker present — resolve markers before proceeding" >&2; exit 1
   fi
@@ -189,7 +189,7 @@ docs_paths() {
     [[ -z "$feature" ]] && continue
     feat_slug=$(printf '%s' "$feature" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
     _spec_path=$(find_spec_path "$feat_slug")
-    [[ -f "$_spec_path" ]] && bash "$PF" is-converged "$PLAN" spec critic-spec 2>/dev/null && continue
+    [[ -f "$_spec_path" ]] && git ls-files --error-unmatch "$_spec_path" 2>/dev/null && bash "$PF" is-converged "$PLAN" spec critic-spec 2>/dev/null && continue
 
     if [[ ! -f "$_spec_path" ]]; then
       run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus

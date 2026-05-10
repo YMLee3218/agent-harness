@@ -18,7 +18,7 @@ Read the requirements document at the path provided.
 
 **1. Small vs large classification**
 - Small feature: calls domain and/or infrastructure directly? Single responsibility?
-- Large feature: composes only small features? Calls domain directly? (→ `[FAIL]`)
+- Large feature: calls domain directly? (→ `[FAIL]`) Composes a peer large feature that is not a self-contained sub-pipeline reused across multiple business flows? (→ `[FAIL]`)
 
 **2. Requirements scope**
 - Does the requirements doc contain only user-facing features?
