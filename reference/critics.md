@@ -59,7 +59,7 @@ Normative implementations:
 
 ## Loop convergence
 
-Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. **Prohibited**: agents must never write `[CONVERGED]` directly to plan files. Convergence state is stored exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — written only by the SubagentStop hook via `record-verdict-guarded` after 2 consecutive PASSes. The `[CONVERGED]` marker in `## Open Questions` is an informational mirror only; `run-dev-cycle.sh` and `run-critic-loop.sh` read `is-converged` (which reads the sidecar) rather than scanning plan.md. Manually writing `[CONVERGED]` to a plan file has no effect on harness decisions.
+Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. **Prohibited**: agents must never write `[CONVERGED]` directly to plan files. Convergence state is stored exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state` (called via the SubagentStop hook for the five critics, or via `append-review-verdict` for pr-review); `converged=true` is set after 2 consecutive PASSes. The `[CONVERGED]` marker in `## Open Questions` is an informational mirror only; `run-dev-cycle.sh` and `run-critic-loop.sh` read `is-converged` (which reads the sidecar) rather than scanning plan.md. Manually writing `[CONVERGED]` to a plan file has no effect on harness decisions.
 
 The harness always operates in non-interactive mode — skills write `[BLOCKED]` markers to `## Open Questions` instead of prompting the user.
 

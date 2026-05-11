@@ -2,6 +2,8 @@
 set -euo pipefail
 export CLAUDE_PLAN_CAPABILITY=harness
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# D1: issue launcher token before spawning Claude subprocess
+. "$SCRIPTS_DIR/lib/launcher-token.sh" && launcher_token_issue 2>/dev/null || true
 PF="$SCRIPTS_DIR/plan-file.sh"
 PLAN="" UNIT_CMD="" INTEGRATION_CMD=""
 
@@ -16,85 +18,48 @@ done
 [[ -z "$PLAN" || -z "$INTEGRATION_CMD" ]] && {
   echo "Usage: run-integration.sh --plan PATH --integration-cmd CMD [--unit-cmd CMD]" >&2; exit 1; }
 [[ -f "$PLAN" ]] || { echo "Plan file not found: $PLAN" >&2; exit 1; }
-# Treat unfilled placeholder (from workspace/CLAUDE.md template) as unconfigured
-[[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""; [[ "$INTEGRATION_CMD" == _\(run* ]] && { echo "run-integration: integration-cmd is unfilled — run /initializing-project first" >&2; exit 1; }
-# Layer boundary context — needed for critic-code Angle 2
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-_lang=$(grep -m1 '^- Language:' "$PROJECT_DIR/.claude/local.md" 2>/dev/null \
-  | sed 's/^- Language: *//;s/ .*//' | tr '[:upper:]' '[:lower:]' \
-  | sed 's/python.*/python/;s/typescript.*/ts/;s/javascript.*/ts/;s/kotlin.*/kotlin/;s/java.*/java/;s/go.*/go/;s/rust.*/rust/;s/c#.*/cs/;s/ruby.*/rb/')
-_lang="${_lang:-python}"
-_domain_root="${PROJECT_DIR}/src/domain"
-[[ ! -d "$_domain_root" ]] && _domain_root="${PROJECT_DIR}/domain"
-_infra_root="${PROJECT_DIR}/src/infrastructure"
-[[ ! -d "$_infra_root" ]] && _infra_root="${PROJECT_DIR}/infrastructure"
-_features_root="${PROJECT_DIR}/src/features"
-[[ ! -d "$_features_root" ]] && _features_root="${PROJECT_DIR}/features"
+[[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""
+[[ "$INTEGRATION_CMD" == _\(run* ]] && { echo "run-integration: integration-cmd is unfilled — run /initializing-project first" >&2; exit 1; }
 
-# Spec path helpers — needed for critic-spec
+# shellcheck source=lib/run-context.sh
+source "$SCRIPTS_DIR/lib/run-context.sh"
+setup_run_context
+
+# shellcheck source=lib/integration-helpers.sh
+source "$SCRIPTS_DIR/lib/integration-helpers.sh"
+
 _plan_slug=$(basename "$PLAN" .md)
 _req_file="${PROJECT_DIR}/docs/requirements/${_plan_slug}.md"
-# Derive feature slug for find_spec_path: use first feature in req file so that
-# plans named differently from their feature slug still resolve the correct spec.
 _feat_slug="$_plan_slug"
 if [[ -f "$_req_file" ]]; then
-  _first_feat=$(awk '/^## (Small|Large) Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] *`/,""); sub(/`.*/,""); print; exit}' "$_req_file" 2>/dev/null || true)
-  [[ -n "$_first_feat" ]] && \
-    _feat_slug=$(printf '%s' "$_first_feat" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
+  _first_feat=$(_features_block "$_req_file" | head -1)
+  [[ -n "$_first_feat" ]] && _feat_slug=$(_slugify_feature "$_first_feat")
 fi
-find_spec_path() {
-  local slug="$1"
-  for _sp in "${PROJECT_DIR}/features/${slug}/spec.md" \
-             "${PROJECT_DIR}/domain/${slug}/spec.md" \
-             "${PROJECT_DIR}/infrastructure/${slug}/spec.md"; do
-    [[ -f "$_sp" ]] && echo "$_sp" && return
-  done
-  echo "features/${slug}/spec.md"
-}
-# Collect all spec paths (space-separated) so critics see every feature's spec in multi-feature plans.
-# Critics are constrained to the explicit file list in their prompt (reference/critics.md:9).
+
 _all_specs=""
 if [[ -f "$_req_file" ]]; then
   while IFS= read -r _feat; do
     [[ -z "$_feat" ]] && continue
-    _fslug=$(printf '%s' "$_feat" | tr '[:upper:] ' '[:lower:]-' | tr -dc 'a-z0-9-')
+    _fslug=$(_slugify_feature "$_feat")
     _sp=$(find_spec_path "$_fslug")
     _all_specs="${_all_specs:+$_all_specs }${_sp}"
-  done < <(awk '/^## (Small|Large) Features/{f=1;next} /^## /{f=0} f&&/^[-*] /{sub(/^[-*] *`/,""); sub(/`.*/,""); print}' "$_req_file" 2>/dev/null || true)
+  done < <(_features_block "$_req_file")
 fi
 [[ -z "$_all_specs" ]] && _all_specs=$(find_spec_path "$_feat_slug")
-docs_paths() {
-  [[ -f "$_req_file" ]] && echo "$_req_file ${PROJECT_DIR}/docs/" || echo "${PROJECT_DIR}/docs/"
-}
-run_llm() {
-  local prompt="$1"
-  CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
-    env -u CLAUDE_PLAN_CAPABILITY claude --model opus --permission-mode auto --dangerously-skip-permissions -p "$prompt"
-}
-# H5-2nd: capture variant for categorizer — parent reads nonce-anchored stdout, not plan.md awk
-run_llm_capture() {
-  local prompt="$1" outfile="$2"
-  CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
-    env -u CLAUDE_PLAN_CAPABILITY claude --model opus --permission-mode auto --dangerously-skip-permissions -p "$prompt" \
-    > "$outfile" 2>&1 || true
-}
 
-run_critic() {
-  local agent="$1" phase="$2" prompt="$3"
-  bash "$SCRIPTS_DIR/run-critic-loop.sh" --agent "$agent" --phase "$phase" --plan "$PLAN" --prompt "$prompt"
-  return $?
-}
-
-# Step 1.5 — unit test pre-check (skipped when UNIT_CMD not configured)
-if [[ -n "$UNIT_CMD" ]] && ! bash -c "$UNIT_CMD" 2>&1; then
+# _validate_integration_preconditions — run unit tests before integration; block on failure.
+_validate_integration_preconditions() {
+  [[ -z "$UNIT_CMD" ]] && return 0
+  bash -c "$UNIT_CMD" 2>&1 && return 0
   bash "$PF" transition "$PLAN" implement "unit tests failing at integration entry — clearing implement-phase markers"
   bash "$PF" reset-for-rollback "$PLAN" implement
   bash "$PF" transition "$PLAN" red "unit tests failing at integration entry — fresh task planning needed"
   bash "$PF" reset-milestone "$PLAN" critic-test
   bash "$PF" append-note "$PLAN" "[BLOCKED] unit tests failing before integration tests — resolve via /implementing before re-running"
   exit 1
-fi
+}
 
+_validate_integration_preconditions
 bash "$PF" transition "$PLAN" integration "starting integration test run"
 
 attempt=0
@@ -107,7 +72,6 @@ while true; do
   fi
 
   attempt=$((attempt + 1))
-
   tail_output=$(printf '%s' "$test_output" | tail -50)
   today=$(date +%Y-%m-%d)
 
@@ -116,8 +80,7 @@ while true; do
     exit 1
   fi
 
-  # H5-2nd: categorizer uses nonce-anchored stdout marker — parent never reads [AUTO-CATEGORIZED-INTEGRATION] from plan.md.
-  # The LLM still writes narrative to plan.md for human readability; control flow reads from captured stdout only.
+  # categorizer uses nonce-anchored stdout marker
   _cat_nonce=$(uuidgen 2>/dev/null || openssl rand -hex 8 2>/dev/null || printf '%s%s' "$$" "$(date +%s%N)")
   _cat_out=$(mktemp)
   run_llm_capture "Integration test failure categorization. Plan file: $PLAN. Test output tail:
@@ -140,7 +103,6 @@ After completing the above, output as the very last line of your response exactl
 <!-- integration-result: ${_cat_nonce} blocked -->" "$_cat_out"
   cat "$_cat_out"
 
-  # Extract category from nonce-anchored stdout (H5-2nd: no plan.md awk for control flow)
   _cat_marker=$(grep -o "<!-- integration-result: ${_cat_nonce} [a-z ]* -->" "$_cat_out" | tail -1 | \
                 sed "s|<!-- integration-result: ${_cat_nonce} ||; s| -->||" | tr -d '\n' || true)
   rm -f "$_cat_out"
@@ -151,7 +113,6 @@ After completing the above, output as the very last line of your response exactl
     exit 1
   fi
 
-  # Validate single canonical category
   category="$_cat_marker"
   if [[ "$category" != "docs conflict" && "$category" != "spec gap" && "$category" != "implementation bug" ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED] integration: categorizer returned unrecognised category '${category}' — manual review required"
@@ -171,70 +132,15 @@ After completing the above, output as the very last line of your response exactl
         exit 1
       fi
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration bug fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+      run_critic critic-code implement "Review integration bug fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;
-    "spec gap")
+    "spec gap"|"docs conflict")
       if [[ -z "$UNIT_CMD" ]]; then
-        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: spec-gap fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
+        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: ${category}-fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
         exit 1
       fi
-      bash "$PF" transition "$PLAN" spec "integration failure: spec gap"
-      bash "$PF" reset-for-rollback "$PLAN" spec
-      bash "$PF" reset-milestone "$PLAN" critic-spec
-      bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"
-      bash "$PF" reset-milestone "$PLAN" critic-test
-      bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
-      run_llm "Invoke the writing-spec skill to fix the spec gap. Plan: $PLAN"
-      while IFS= read -r _sp; do
-        [[ -n "$_sp" ]] && git add "$_sp"
-      done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
-      git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration spec-gap fix ($(basename "$PLAN" .md))"
-      bash "$PF" reset-milestone "$PLAN" critic-spec
-      run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN."
-      bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
-      bash "$PF" reset-milestone "$PLAN" critic-test
-      run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
-      _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
-      run_critic critic-test red "Review updated tests for integration fix. Spec: ${_all_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
-      bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
-      bash "$PF" inter-feature-reset "$PLAN"
-      run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
-      bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
-      bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration spec-gap fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
-      bash "$PF" transition "$PLAN" integration "re-entering integration after spec gap fix"
-      ;;
-    "docs conflict")
-      if [[ -z "$UNIT_CMD" ]]; then
-        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: docs-conflict fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
-        exit 1
-      fi
-      bash "$PF" transition "$PLAN" spec "integration failure: docs conflict"
-      bash "$PF" reset-for-rollback "$PLAN" spec
-      bash "$PF" reset-milestone "$PLAN" critic-spec
-      bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"
-      bash "$PF" reset-milestone "$PLAN" critic-test
-      bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
-      run_llm "Invoke the writing-spec skill to fix the docs conflict. Plan: $PLAN"
-      while IFS= read -r _sp; do
-        [[ -n "$_sp" ]] && git add "$_sp"
-      done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
-      git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration docs-conflict fix ($(basename "$PLAN" .md))"
-      bash "$PF" reset-milestone "$PLAN" critic-spec
-      run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN."
-      bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
-      bash "$PF" reset-milestone "$PLAN" critic-test
-      run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
-      _test_files=$(git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true)
-      run_critic critic-test red "Review updated tests for integration fix. Spec: ${_all_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
-      bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
-      bash "$PF" inter-feature-reset "$PLAN"
-      run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
-      bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
-      bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration docs-conflict fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
-      bash "$PF" transition "$PLAN" integration "re-entering integration after docs conflict fix"
+      _handle_spec_phase_rollback "$category"
       ;;
     *)
       bash "$PF" append-note "$PLAN" "[BLOCKED] integration: could not determine fix category — manual review required"

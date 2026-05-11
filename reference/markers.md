@@ -21,7 +21,7 @@ Managed by `scripts/lib/plan-lib.sh` and consumed by skills after each critic or
 | `[CONVERGED] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` (informational mirror only) | `plan-file.sh reset-milestone {agent}` or `clear-converged {agent}` | Yes |
 | `[FIRST-TURN] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
 
-> **Never write [CONVERGED] manually.** The authoritative convergence state lives in `plans/{slug}.state/convergence/{phase}__{agent}.json` — written only by the SubagentStop hook via `record-verdict-guarded`. The `[CONVERGED]` marker in `## Open Questions` is an informational mirror; **the harness never reads it** for convergence decisions. Even if written manually, `is-converged` (called by `run-dev-cycle.sh` and `run-critic-loop.sh`) reads the sidecar only and will return false.
+> **Never write [CONVERGED] manually.** The authoritative convergence state lives in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state` (via the SubagentStop hook for the five critics, or via `append-review-verdict` for pr-review). The `[CONVERGED]` marker in `## Open Questions` is an informational mirror; **the harness never reads it** for convergence decisions. Even if written manually, `is-converged` (called by `run-dev-cycle.sh` and `run-critic-loop.sh`) reads the sidecar only and will return false.
 
 ### Non-loop stop markers (written to `## Open Questions`)
 

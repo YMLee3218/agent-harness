@@ -17,6 +17,7 @@
 #
 # Exit 2 = block the session (missing prerequisites)
 # Exit 0 = allow
+set -euo pipefail
 
 [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] || exit 0
 

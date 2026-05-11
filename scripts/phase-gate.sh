@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Phase-gate hook — enforces plan-file phase rules via PreToolUse hooks.
 #
 # Usage:
@@ -26,40 +27,69 @@ get_active_phase() {
   echo "$_phase"
 }
 
-mode_write() {
-  local input
-  input=$(cat)
-
-  require_jq_or_block "phase-gate" "${PHASE_GATE_STRICT:-1}" || { echo "[phase-gate] warning: jq not found; write allowed (strict mode off)" >&2; exit 0; }
-
-  local phase
-  GATE_FAIL_REASON="none"
-  if ! phase=$(get_active_phase); then
-    local file_path_early
-    file_path_early=$(extract_tool_input_path "$input")
-    bootstrap_block_if_strict "$file_path_early" || exit 2
-    echo "[phase-gate] no active plan file; bootstrap write allowed for '$file_path_early'. Run /brainstorming to enable full phase gating." >&2
-    exit 0
+# _guard_ring_c INPUT — blocks writes to CLAUDE.md (Ring C) unless capability=human.
+_guard_ring_c() {
+  local _input="$1"
+  [[ -z "${CLAUDE_PROJECT_DIR:-}" ]] && return 0
+  local _claudemd _file _cm_canon _file_canon
+  _claudemd="${CLAUDE_PROJECT_DIR}/CLAUDE.md"
+  _file=$(extract_tool_input_path "$_input")
+  [[ -z "$_file" ]] && return 0
+  _cm_canon=$(_canon_path "$_claudemd" 2>/dev/null) || _cm_canon="$_claudemd"
+  _file_canon=$(_canon_path "$_file" 2>/dev/null) || _file_canon="$_file"
+  if [[ "$_file_canon" == "$_cm_canon" ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
+    echo "BLOCKED [phase-gate]: CLAUDE.md is Ring C — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2
+    exit 2
   fi
+}
 
-  local file_path
-  file_path=$(extract_tool_input_path "$input")
-  [ -z "$file_path" ] && exit 0
+# _guard_no_plan INPUT — handles the no-active-plan path; exits (allow or block).
+_guard_no_plan() {
+  local _input="$1"
+  local _fp; _fp=$(extract_tool_input_path "$_input")
+  bootstrap_block_if_strict "$_fp" || exit 2
+  echo "[phase-gate] no active plan file; bootstrap write allowed for '$_fp'. Run /brainstorming to enable full phase gating." >&2
+  exit 0
+}
 
-  # Sidecar state directory is harness-exclusive — block all writes
-  if is_sidecar_path "$file_path"; then
+# _guard_sidecar FILE_PATH — blocks writes to sidecar state directories.
+_guard_sidecar() {
+  local _fp="$1"
+  if is_sidecar_path "$_fp"; then
     echo "BLOCKED [phase-gate]: plans/{slug}.state/ is harness-exclusive — agent cannot edit control state" >&2
     exit 2
   fi
+}
 
-  # [BLOCKED-AMBIGUOUS] → block all writes regardless of mode
-  local _ba_plan _ba_phase
-  if resolve_with_latest_fallback _ba_plan _ba_phase 2>/dev/null; then
-    if grep -qF "[BLOCKED-AMBIGUOUS]" "$_ba_plan"; then
+# _guard_ambiguous — blocks all writes when [BLOCKED-AMBIGUOUS] is present in the active plan.
+_guard_ambiguous() {
+  local _plan _phase
+  if resolve_with_latest_fallback _plan _phase 2>/dev/null; then
+    if grep -qF "[BLOCKED-AMBIGUOUS]" "$_plan"; then
       echo "BLOCKED: [BLOCKED-AMBIGUOUS] present — write prohibited; human must resolve the question and clear the marker from terminal" >&2
       exit 2
     fi
   fi
+}
+
+mode_write() {
+  local input; input=$(cat)
+
+  require_jq_or_block "phase-gate" "${PHASE_GATE_STRICT:-1}" || { echo "[phase-gate] warning: jq not found; write allowed (strict mode off)" >&2; exit 0; }
+
+  _guard_ring_c "$input"
+
+  local phase
+  GATE_FAIL_REASON="none"
+  if ! phase=$(get_active_phase); then
+    _guard_no_plan "$input"
+  fi
+
+  local file_path; file_path=$(extract_tool_input_path "$input")
+  [ -z "$file_path" ] && exit 0
+
+  _guard_sidecar "$file_path"
+  _guard_ambiguous
 
   apply_phase_block "$file_path" "$phase" "phase-gate" || exit 2
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Shared helpers: stdin-JSON hook utilities (merged from hook-common.sh) and
-# active-plan resolution. Source this file; do not execute directly.
+set -euo pipefail
+# Shared helpers: stdin-JSON hook utilities and active-plan resolution.
+# Source this file; do not execute directly.
 #
 # Callers must set PLAN_FILE_SH before sourcing this file (required by plan-resolution functions).
 # Optional: set BLOCKED_LABEL to a context string for error messages (default: "active-plan").
 #
-# Hook utilities (formerly hook-common.sh):
+# Hook utilities:
 #   require_jq_or_block <label> [strict]          — exits 2 (strict) or warns when jq absent
 #   extract_tool_input_path <json>                — prints file_path or notebook_path
 #   extract_tool_input_command <json>             — prints .tool_input.command
@@ -18,7 +19,7 @@
 [[ -n "${_ACTIVE_PLAN_LOADED:-}" ]] && return 0
 _ACTIVE_PLAN_LOADED=1
 
-# ── Hook utilities (merged from hook-common.sh) ───────────────────────────────
+# ── Hook utilities ───────────────────────────────────────────────────────────
 
 # require_jq_or_block <label> [strict=1]
 #   strict=1 → exit 2 with "BLOCKED [label]: jq is required but not found"
@@ -34,19 +35,18 @@ require_jq_or_block() {
   return 1
 }
 
+# extract_tool_input_field <field> <json> → prints .tool_input[field] (empty if absent)
+extract_tool_input_field() {
+  printf '%s' "$2" | jq -r --arg f "$1" '.tool_input[$f] // empty' 2>/dev/null
+}
+
 # extract_tool_input_path <json>   → prints file_path or notebook_path (empty if absent)
 extract_tool_input_path() {
   printf '%s' "$1" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null
 }
 
 # extract_tool_input_command <json> → prints .tool_input.command (empty if absent)
-extract_tool_input_command() {
-  printf '%s' "$1" | jq -r '.tool_input.command // empty' 2>/dev/null
-}
-
-_iso_timestamp() {
-  date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%S"
-}
+extract_tool_input_command() { extract_tool_input_field command "$1"; }
 
 # ── Plan-resolution functions ─────────────────────────────────────────────────
 
@@ -65,7 +65,7 @@ die_with_reason() {
 # Shared implementation. latest_fallback=1: try find-latest when find-active finds nothing.
 # latest_fallback=0: return 1 immediately when find-active finds nothing.
 _resolve_plan_core() {
-  local _pv="$1" _phv="$2" _fallback="$3" _plan _rc _phase
+  local _pv="$1" _phv="$2" _with_latest_fallback="$3" _plan _rc _phase
   if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
     _plan="$CLAUDE_PLAN_FILE"
   else
@@ -73,7 +73,7 @@ _resolve_plan_core() {
     _rc=$?
     die_with_reason "$_rc"
     if [ $_rc -ne 0 ]; then
-      if [ "$_fallback" = "1" ]; then
+      if [ "$_with_latest_fallback" = "1" ]; then
         # Fallback: try find-latest (best-effort for status display or no-plan bootstrap)
         _plan=$(bash "$PLAN_FILE_SH" find-latest 2>/dev/null) || {
           printf -v "$_pv" '%s' ''
@@ -128,4 +128,37 @@ bootstrap_block_if_strict() {
     return 2
   fi
   return 0
+}
+
+# ── Path helpers ──────────────────────────────────────────────────────────────
+
+# _canon_path PATH → resolves symlinks; returns canonical absolute path.
+# Tries realpath, readlink -f, then python3 for macOS without GNU coreutils.
+_canon_path() {
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -- "$1" 2>/dev/null
+  elif readlink -f /dev/null >/dev/null 2>&1; then
+    readlink -f -- "$1" 2>/dev/null
+  else
+    python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$1" 2>/dev/null
+  fi
+}
+
+# _is_safe_transcript_path PATH → prints canonical path and returns 0 if path resolves inside
+# CLAUDE_PROJECT_DIR or ~/.claude/projects/. Returns 1 (no output) if unsafe or unresolvable.
+# Callers must use the printed canonical path for all subsequent file opens (TOCTOU prevention).
+_is_safe_transcript_path() {
+  local _p="$1"
+  [[ -z "$_p" ]] && return 1
+  local canon home_canon proj_canon
+  canon=$(_canon_path "$_p") || return 1
+  [[ -z "$canon" ]] && return 1
+  home_canon=$(_canon_path "${HOME}/.claude/projects") || home_canon="${HOME}/.claude/projects"
+  case "$canon" in "${home_canon}/"*) printf '%s' "$canon"; return 0 ;; esac
+  local _proj_dir="${CLAUDE_PROJECT_DIR:-}"
+  if [[ -n "$_proj_dir" ]]; then
+    proj_canon=$(_canon_path "$_proj_dir") || proj_canon="$_proj_dir"
+    [[ -n "$proj_canon" ]] && case "$canon" in "${proj_canon}/"*) printf '%s' "$canon"; return 0 ;; esac
+  fi
+  return 1
 }

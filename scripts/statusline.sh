@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 input=$(cat)
 
 MODEL=$(echo "$input" | jq -r '.model.display_name // "Claude"')

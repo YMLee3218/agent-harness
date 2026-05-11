@@ -4,11 +4,114 @@
 # Exit 2 = blocked; exit 0 = allowed.
 #
 # NOTE: This is a *mistake-prevention* gate, not a security boundary.
-set -uo pipefail
+# bash quote-removal/backslash-escape can defeat any text-pattern match here.
+# Real enforcement requires process isolation (uid separation) or seccomp.
+# See plan: launcher-token (deferred — scope requires launcher-token isolation).
+set -euo pipefail
 # shellcheck source=lib/active-plan.sh
 source "$(dirname "$0")/lib/active-plan.sh"
 # shellcheck source=phase-policy.sh
 source "$(dirname "$0")/phase-policy.sh"
+# shellcheck source=pretooluse-blocks.sh
+source "$(dirname "$0")/pretooluse-blocks.sh"
+# shellcheck source=pretooluse-write-guards.sh
+source "$(dirname "$0")/pretooluse-write-guards.sh"
+# D5: bash AST tokenizer for redirect target analysis
+source "$(dirname "$0")/lib/bash-parser.sh" 2>/dev/null || true
+
+block_awk_redirect_src_tests() {
+  local cmd="$1"
+  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])([[:space:]]*)awk[[:space:]]'; then
+    if printf '%s' "$cmd" | grep -iqE 'print[[:space:]]*>{1,2}[[:space:]]*"?([^"[:space:]]*/)?src/' \
+      || printf '%s' "$cmd" | grep -iqE 'print[[:space:]]*>{1,2}[[:space:]]*"?([^"[:space:]]*/)?tests/' \
+      || printf '%s' "$cmd" | grep -iqE 'printf[[:space:]]+[^>]*>{1,2}[[:space:]]*"?([^"[:space:]]*/)?src/' \
+      || printf '%s' "$cmd" | grep -iqE 'printf[[:space:]]+[^>]*>{1,2}[[:space:]]*"?([^"[:space:]]*/)?tests/'; then
+      echo "BLOCKED: awk internal redirect to src/ or tests/ detected — use Write/Edit tool instead" >&2
+      exit 2
+    fi
+  fi
+}
+
+_RING_C_FILES='CLAUDE\.md|reference/(markers|critics|phase-gate-config|layers)\.md'
+# _ring_c_target CMD → returns 0 (match) if CMD contains a write vector targeting a Ring C file.
+_ring_c_target() {
+  local _cmd="$1"
+  # Destination-side pattern: optional relative/absolute prefix + Ring C filename.
+  local _target_pat="(\./|\.\./|/)?(${_RING_C_FILES})\b"
+  # Write-vector patterns (target-side detection): redirect, tee, dd, sed -i, truncate, mv, cp.
+  if printf '%s' "$_cmd" | grep -oE '>{1,2} *[^[:space:]]+' | sed 's/^>* *//' | tr -d '"'"'" \
+      | grep -qE "$_target_pat"; then return 0; fi
+  if printf '%s' "$_cmd" | grep -oE '\btee( +[^[:space:]]+)+' | sed 's/^tee *//' | tr ' ' '\n' \
+      | grep -qE "$_target_pat"; then return 0; fi
+  if printf '%s' "$_cmd" | grep -oE '\bdd\b[^|]*\bof=[^[:space:]]+' | sed 's/.*of=//' \
+      | grep -qE "$_target_pat"; then return 0; fi
+  if printf '%s' "$_cmd" | grep -oE '\bsed +-i[^ ]*( +[^[:space:];|&]+)+' | awk '{print $NF}' \
+      | grep -qE "$_target_pat"; then return 0; fi
+  if printf '%s' "$_cmd" | grep -iqE "truncate[[:space:]]+[^|;]*(${_RING_C_FILES})"; then return 0; fi
+  # mv/cp destination check (last non-flag arg)
+  local _cpmv _dest
+  while IFS= read -r _cpmv; do
+    [[ -n "$_cpmv" ]] || continue
+    _dest=$(_extract_cp_mv_dest "$_cpmv")
+    printf '%s' "$_dest" | grep -qE "$_target_pat" && return 0
+  done < <(printf '%s' "$_cmd" | grep -oE '(^|[;|&[:space:]])(cp|mv)([[:space:]]+(-[[:alpha:]]+|--[a-zA-Z-]+=?[^[:space:];|&]*|[^[:space:];|&]+))+' || true)
+  # printf redirect (printf '...' > CLAUDE.md)
+  if printf '%s' "$_cmd" | grep -qE "printf[[:space:]]+[^|;]*>[[:space:]]*(${_RING_C_FILES})\b"; then return 0; fi
+  # interpreter -c with open(...,'w') targeting Ring C files
+  if printf '%s' "$_cmd" | grep -qE "(python[23]?|perl|ruby|node)[[:space:]]+-[ceE][^|;]*(open|write)[^|;]*(${_RING_C_FILES})"; then return 0; fi
+  # ed or silent vim targeting Ring C files
+  if printf '%s' "$_cmd" | grep -qE "(^|[;|&[:space:]])[[:space:]]*(ed|vim?[[:space:]]+(-e[[:space:]]|-s[[:space:]]))[^|;]*(${_RING_C_FILES})\b"; then return 0; fi
+  # awk internal redirect (awk '...' > CLAUDE.md)
+  if printf '%s' "$_cmd" | grep -qE "awk[[:space:]]+[^|;]*>[[:space:]]*(${_RING_C_FILES})\b"; then return 0; fi
+  return 1
+}
+
+block_ring_c_bash_writes() {
+  local cmd="$1"
+  [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
+  if _ring_c_target "$cmd"; then
+    echo "ERROR: [phase-gate] Ring C file (CLAUDE.md / reference policy docs) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2
+    exit 2
+  fi
+}
+
+block_new_exec_vectors() {
+  local cmd="$1"
+  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*socat[[:space:]]+[^|]*EXEC'; then
+    echo "BLOCKED: socat EXEC — remote shell execution vector not permitted" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(nc|ncat)[[:space:]]+[^|]*-e[[:space:]]'; then
+    echo "BLOCKED: nc/ncat -e — pipe-to-shell vector not permitted" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE 'mkfifo' && \
+     printf '%s' "$cmd" | grep -iqE '(bash|sh|zsh)[[:space:]]*<'; then
+    echo "BLOCKED: mkfifo with shell redirection — pipe-to-shell vector not permitted" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE '(perl|ruby|php|node|deno)[[:space:]]+.*-(e|r)[[:space:]].*base64' && \
+     printf '%s' "$cmd" | grep -iqE '\|[[:space:]]*(bash|sh|eval|source)'; then
+    echo "BLOCKED: interpreter base64-decode pipe-to-shell — security policy denies this vector" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE 'osascript[[:space:]]+-e[[:space:]]+["\x27].*do[[:space:]]+shell[[:space:]]+script'; then
+    echo "BLOCKED: osascript do shell script — macOS shell execution vector not permitted" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE '(gunzip|bzcat|zstdcat|lz4cat|xzcat|gzcat|uncompress)[[:space:]]+[^|]*\|[[:space:]]*(bash|sh|eval|source|\.)'; then
+    echo "BLOCKED: compressed-stream pipe-to-shell — security policy denies pipe-to-shell vectors" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE '(expect|gdb)[[:space:]]+.*-c[[:space:]].*shell' || \
+     printf '%s' "$cmd" | grep -iqE '(expect|gdb)[[:space:]].*spawn[[:space:]]+(bash|sh)'; then
+    echo "BLOCKED: expect/gdb shell spawn — execution vector not permitted" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE 'vim[[:space:]].*-c[[:space:]].*![^!]' && \
+     printf '%s' "$cmd" | grep -iqE 'vim[[:space:]].*-c[[:space:]]q'; then
+    echo "BLOCKED: vim -c !cmd shell execution — not permitted" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE 'awk[[:space:]].*BEGIN[[:space:]]*\{[[:space:]]*system[[:space:]]*\('; then
+    echo "BLOCKED: awk BEGIN{system(...)} — shell execution vector not permitted" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*script[[:space:]]+-[a-z]*q[a-z]*c[[:space:]]+["\x27]?(bash|sh|zsh)'; then
+    echo "BLOCKED: script -qc shell — execution vector not permitted" >&2; exit 2
+  fi
+}
 
 input=$(cat)
 
@@ -24,213 +127,33 @@ if [ -z "$cmd" ] && [ -n "$input" ]; then
   exit 2
 fi
 
-# Block CLAUDE_PLAN_CAPABILITY= spoofing — only harness scripts may set this env var.
-# Covers: VAR=val, read -r VAR, printf -v VAR, export VAR, declare/typeset/local/readonly VAR (all assignment forms).
-if printf '%s' "$cmd" | grep -qE 'CLAUDE_PLAN_CAPABILITY[[:space:]]*=' || \
-   printf '%s' "$cmd" | grep -qE 'read[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+CLAUDE_PLAN_CAPABILITY' || \
-   printf '%s' "$cmd" | grep -qE 'printf[[:space:]]+-v[[:space:]]+CLAUDE_PLAN_CAPABILITY' || \
-   printf '%s' "$cmd" | grep -qE 'export[[:space:]]+CLAUDE_PLAN_CAPABILITY([[:space:]]|$)' || \
-   printf '%s' "$cmd" | grep -qE '(declare|typeset|local|readonly)[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?CLAUDE_PLAN_CAPABILITY([[:space:]]|=|$)'; then
-  echo "BLOCKED: CLAUDE_PLAN_CAPABILITY assignment in agent Bash command — capability spoofing is not permitted" >&2
-  exit 2
-fi
-# Coarse literal block — catches indirect assignment via variable indirection
-# (e.g. V=CLAUDE_PLAN_CAPABILITY; export "$V=harness"). Bypasses via eval+string-concat
-# or split-turn source (which produce no literal) require P1 PPID chain validation.
-if printf '%s' "$cmd" | grep -qF 'CLAUDE_PLAN_CAPABILITY'; then
-  echo "BLOCKED: command references CLAUDE_PLAN_CAPABILITY — agents must not name this capability" >&2
-  exit 2
-fi
+# ── Static blocking rules ─────────────────────────────────────────────────────
+block_ring_c_bash_writes "$cmd"
+block_capability_spoofing "$cmd"
+block_env_injection "$cmd"
+block_human_marker_commands "$cmd"
+block_destructive_rm "$cmd"
+block_destructive_truncate "$cmd"
+block_disk_commands "$cmd"
+block_git_clean "$cmd"
+block_git_sidecar_writes "$cmd"
+block_ln_sidecar "$cmd"
+block_rm_sidecar "$cmd"
+block_awk_inplace_sidecar "$cmd"
+block_write_tools_sidecar "$cmd"
+block_interpreter_sidecar "$cmd"
+block_sql_ddl "$cmd"
+block_git_amend "$cmd"
+block_git_hooks_bypass "$cmd"
+block_pipe_to_shell "$cmd"
+block_world_writable_chmod "$cmd"
+block_eval_source "$cmd"
+block_awk_redirect_src_tests "$cmd"
+block_new_exec_vectors "$cmd"
+block_new_destructive_patterns "$cmd"
 
-# Block BASH_ENV/ENV/PROMPT_COMMAND assignment — these env vars source arbitrary files on shell startup.
-if printf '%s' "$cmd" | grep -qE '(BASH_ENV|^ENV|[[:space:]]ENV|PROMPT_COMMAND)[[:space:]]*='; then
-  echo "BLOCKED: BASH_ENV/ENV/PROMPT_COMMAND assignment — these source files before commands run" >&2
-  exit 2
-fi
-
-# Block Claude from clearing markers that require human judgement to resolve.
-# Pattern list: HUMAN_MUST_CLEAR_MARKERS in scripts/phase-policy.sh (single source of truth).
-# Humans bypass this hook by running from terminal directly.
-if printf '%s' "$cmd" | grep -qE "(plan-file\\.sh|\\\$PLAN_FILE_SH|\\\$\{PLAN_FILE_SH\})[\"'[:space:]].*clear-marker"; then
-  for _hm in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
-    if printf '%s' "$cmd" | grep -qF "$_hm"; then
-      echo "BLOCKED: this marker cannot be cleared by Claude — human must run plan-file.sh clear-marker directly from terminal" >&2
-      exit 2
-    fi
-  done
-fi
-
-# Block Claude from using 'unblock' — human-only convenience command
-if printf '%s' "$cmd" | grep -qE "plan-file\\.sh[\"'[:space:]].*unblock[[:space:]]"; then
-  echo "BLOCKED: 'unblock' is a human-only command — run plan-file.sh unblock from terminal" >&2
-  exit 2
-fi
-
-# rm -rf / rm -fr
-if printf '%s' "$cmd" | grep -iqE \
-  '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f([[:space:]/]|$)' \
-  || printf '%s' "$cmd" | grep -iqE \
-  '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*f[a-zA-Z]*r([[:space:]/]|$)'; then
-  echo "BLOCKED: destructive rm detected" >&2
-  exit 2
-fi
-
-# dd disk write, mkfs, raw device write
-if printf '%s' "$cmd" | grep -iqE \
-  '(^|[;|&[:space:]])[[:space:]]*dd[[:space:]]+if=' \
-  || printf '%s' "$cmd" | grep -iqE \
-  '(^|[;|&[:space:]])[[:space:]]*mkfs[[:space:]./]' \
-  || printf '%s' "$cmd" | grep -iqE \
-  '>[[:space:]]*/dev/[sh]d[a-z]'; then
-  echo "BLOCKED: destructive disk command detected" >&2
-  exit 2
-fi
-
-# git clean -f
-if printf '%s' "$cmd" | grep -iqE \
-  'git[[:space:]]+clean[[:space:]]+-[a-zA-Z]*f'; then
-  echo "BLOCKED: git clean -f detected" >&2
-  exit 2
-fi
-
-# git checkout/restore/apply targeting plans/*.state (sidecar write)
-if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+(checkout|restore|apply)[[:space:]]' && \
-   printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]'"'"'"]*\.state'; then
-  echo "BLOCKED: git write operation targeting plans/*.state/ — sidecar is harness-exclusive" >&2
-  exit 2
-fi
-
-# ln / ln -s targeting plans/*.state (symlink redirect attack — C1-5th)
-if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*ln[[:space:]]'; then
-  if printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]'"'"'"]*\.state'; then
-    echo "BLOCKED: ln operation targeting plans/*.state/ — symlink redirect attacks are not permitted" >&2
-    exit 2
-  fi
-fi
-
-# rm targeting plans/*.state or the critic loop lock file alongside plan files
-if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]'; then
-  if printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]'"'"'"]*\.state'; then
-    echo "BLOCKED: rm targeting plans/*.state/ — sidecar is harness-exclusive" >&2
-    exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]'"'"'"]*\.critic\.lock'; then
-    echo "BLOCKED: rm targeting plans/*.critic.lock — critic loop lock is harness-exclusive" >&2
-    exit 2
-  fi
-fi
-
-# awk -i inplace targeting plans/*.state
-if printf '%s' "$cmd" | grep -iqE 'awk[[:space:]]+-i[[:space:]]*(inplace|in-place)' && \
-   printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]'"'"'"]*\.state'; then
-  echo "BLOCKED: awk -i inplace targeting plans/*.state/ — sidecar is harness-exclusive" >&2
-  exit 2
-fi
-
-# rsync/install/patch/unzip/tar targeting plans/*.state (unconditional — not just under BLOCKED-AMBIGUOUS)
-if printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]'"'"'"]*\.state'; then
-  if printf '%s' "$cmd" | grep -iqE \
-    '(^|[;|&[:space:]])[[:space:]]*(rsync[[:space:]]|install[[:space:]]|patch[[:space:]]|unzip[[:space:]]|tar[[:space:]]+-[[:alpha:]]*[xX])'; then
-    echo "BLOCKED: write tool targeting plans/*.state/ — sidecar is harness-exclusive" >&2
-    exit 2
-  fi
-fi
-
-# Interpreter inline execution or redirect targeting plans/*.state
-if printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]'"'"'"]*\.state/'; then
-  if printf '%s' "$cmd" | grep -qE \
-    '(python3?|perl|ruby|node|php|lua|R)[[:space:]]+-[ceEr][^[:alpha:]]|>{1,2}[[:space:]]*[^[:space:]]*plans/[^[:space:]'"'"'"]*\.state/'; then
-    echo "BLOCKED: write operation targeting plans/*.state/ — sidecar is harness-exclusive" >&2
-    exit 2
-  fi
-fi
-
-# SQL DDL: DROP/TRUNCATE TABLE|DATABASE|SCHEMA
-if printf '%s' "$cmd" | grep -iqE \
-  '(^|[[:space:]])(DROP|TRUNCATE)[[:space:]]+(TABLE|DATABASE|SCHEMA)([[:space:]]|$)'; then
-  echo "BLOCKED: destructive SQL DDL detected" >&2
-  exit 2
-fi
-
-# git commit --amend: block if HEAD is already pushed
-if printf '%s' "$cmd" | grep -iqE \
-  'git[[:space:]]+commit[[:space:]]+.*--amend'; then
-  if git branch -r --contains HEAD 2>/dev/null | grep -q .; then
-    echo "BLOCKED: git commit --amend on a commit already pushed to remote. Create a new commit instead to avoid requiring force-push." >&2
-    exit 2
-  fi
-  echo "WARNING: git commit --amend detected — commit is not yet pushed (safe to amend)" >&2
-fi
-
-# git -c core.hooksPath bypass
-if printf '%s' "$cmd" | grep -iqE \
-  'git[[:space:]]+-c[[:space:]]+[^=]*[Hh]ooks[Pp]ath'; then
-  echo "BLOCKED: git -c hooksPath override detected (hook bypass attempt)" >&2
-  exit 2
-fi
-
-# Pipe-to-shell
-if printf '%s' "$cmd" | grep -iqE \
-  '\|[[:space:]]*(ba)?sh([[:space:]]+-[[:alpha:]]+)*([[:space:]]|$)'; then
-  echo "BLOCKED: pipe-to-shell detected" >&2
-  exit 2
-fi
-
-# chmod world-writable
-if printf '%s' "$cmd" | grep -iqE \
-  'chmod[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?[0-7]{2,3}[2367]([[:space:]]|$)' \
-  || printf '%s' "$cmd" | grep -iqE \
-  'chmod[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?(o|a)\+[rwx]*w'; then
-  echo "BLOCKED: world-writable chmod detected" >&2
-  exit 2
-fi
-
-# eval / source with command substitution
-if printf '%s' "$cmd" | grep -iqE \
-  '(^|[;|&[:space:]])[[:space:]]*eval[[:space:]]+[^[:space:]]*\$\(' \
-  || printf '%s' "$cmd" | grep -iqE \
-  '(^|[;|&[:space:]])[[:space:]]*source[[:space:]]+<\('; then
-  echo "BLOCKED: eval/source with command substitution detected" >&2
-  exit 2
-fi
-
-# awk internal redirect to src/ or tests/
-if printf '%s' "$cmd" | grep -iqE \
-  '(^|[;|&[:space:]])([[:space:]]*)awk[[:space:]]'; then
-  if printf '%s' "$cmd" | grep -iqE \
-    'print[[:space:]]*>{1,2}[[:space:]]*"?([^"[:space:]]*/)?src/' \
-    || printf '%s' "$cmd" | grep -iqE \
-    'print[[:space:]]*>{1,2}[[:space:]]*"?([^"[:space:]]*/)?tests/' \
-    || printf '%s' "$cmd" | grep -iqE \
-    'printf[[:space:]]+[^>]*>{1,2}[[:space:]]*"?([^"[:space:]]*/)?src/' \
-    || printf '%s' "$cmd" | grep -iqE \
-    'printf[[:space:]]+[^>]*>{1,2}[[:space:]]*"?([^"[:space:]]*/)?tests/'; then
-    echo "BLOCKED: awk internal redirect to src/ or tests/ detected — use Write/Edit tool instead" >&2
-    exit 2
-  fi
-fi
-
-# Phase-aware bash write detection
+# ── Phase-aware bash write detection ─────────────────────────────────────────
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
-
-_bash_dest_paths() {
-  local c="$1"
-  printf '%s' "$c" | grep -oE '>{1,2} *[^[:space:]]+' | sed 's/^>* *//'
-  printf '%s' "$c" | grep -oE '\btee( +[^[:space:]]+)+' | sed 's/^tee *//' | tr ' ' '\n' | grep -v '^-'
-  printf '%s' "$c" | grep -oE '\bcp +[^[:space:]]+ +[^[:space:]]+' | awk '{print $NF}'
-  printf '%s' "$c" | grep -oE '\bmv +[^[:space:]]+ +[^[:space:]]+' | awk '{print $NF}'
-  printf '%s' "$c" | grep -oE '\bsed +-i[^ ]*( +[^[:space:];|&]+)+' | awk '{print $NF}'
-  printf '%s' "$c" | grep -oE '\bdd\b[^|]*\bof=[^[:space:]]+' | grep -oE '\bof=[^[:space:]]+' | sed 's/^of=//'
-  # Best-effort: extract write-target paths from interpreter inline execution for phase enforcement.
-  # Covers: python3 -c "open('path','w')", node -e "fs.writeFileSync('path',...)",
-  #         ruby -e "File.open('path','w')", perl -e "open(FH,'>','path')"
-  # Sidecar paths are caught independently by the full-command-text patterns above (lines 109-115).
-  if printf '%s' "$c" | grep -qE '(python3?|perl|ruby|node|php|lua|R)[[:space:]]+-[ceEr][^[:alpha:]]'; then
-    printf '%s' "$c" | \
-      grep -oE "(open|write|writeFileSync|appendFileSync|createWriteStream|write_text)\(['\"][^'\"]+['\"]" | \
-      grep -oE "['\"][^'\"]+['\"]" | tr -d "'\""
-  fi
-}
 
 if [ -f "$PLAN_FILE_SH" ]; then
   BLOCKED_LABEL="phase-gate/bash"
@@ -240,32 +163,11 @@ if [ -f "$PLAN_FILE_SH" ]; then
       _ba_write=0
       while IFS= read -r _ba_p; do [ -n "$_ba_p" ] && _ba_write=1 && break; done < <(_bash_dest_paths "$cmd")
       [ "$_ba_write" -eq 1 ] && { echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — write prohibited; human must resolve the question and clear the marker from terminal" >&2; exit 2; }
-      # A) Standard inline flag: -c/-e/-E/-r (python, perl, ruby, node, php, lua, R)
-      # [^[:alpha:]] catches both `python3 -c 'code'` and `python3 -c'code'` (no space).
-      if printf '%s' "$cmd" | grep -qE \
-        '(python3?|perl|ruby|node|php|lua|R)[[:space:]]+-[ceEr][^[:alpha:]]'; then
-        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — interpreter inline execution prohibited" >&2; exit 2
-      fi
-      # B) Heredoc execution — space before << is optional in bash.
-      if printf '%s' "$cmd" | grep -qE \
-        '(python3?|perl|ruby|node|php|lua|R)[[:space:]]*(<<|<<-)'; then
-        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — interpreter heredoc execution prohibited" >&2; exit 2
-      fi
-      # C) Shell inline execution — [^[:alpha:]] catches both `-c cmd` and `-c'cmd'`.
-      if printf '%s' "$cmd" | grep -qE \
-        '(bash|sh|zsh|ksh|dash)[[:space:]]+-c[^[:alpha:]]'; then
-        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — shell inline execution prohibited" >&2; exit 2
-      fi
-      # D) File install/copy tools not caught by _bash_dest_paths (rsync, git apply, patch, unzip, install)
-      if printf '%s' "$cmd" | grep -qE \
-        '(^|[;|&[:space:]])[[:space:]]*(rsync|git[[:space:]]+apply|patch[[:space:]]|unzip[[:space:]]|install[[:space:]])'; then
-        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — file-install command prohibited" >&2; exit 2
-      fi
-      # E) tar extraction (x/X flags)
-      if printf '%s' "$cmd" | grep -qE \
-        '(^|[;|&[:space:]])[[:space:]]*tar[[:space:]]+-[[:alpha:]]*[xX]'; then
-        echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — tar extraction prohibited" >&2; exit 2
-      fi
+      block_ambiguous_interpreter_inline "$cmd"
+      block_ambiguous_interpreter_heredoc "$cmd"
+      block_ambiguous_shell_inline "$cmd"
+      block_ambiguous_file_install "$cmd"
+      block_ambiguous_tar_extract "$cmd"
     fi
     while IFS= read -r _dest_p; do
       [ -z "$_dest_p" ] && continue

@@ -4,13 +4,21 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/plan-lib.sh"
+. "$SCRIPT_DIR/lib/plan-loop-state.sh"
+. "$SCRIPT_DIR/lib/plan-cmd-state.sh"
+. "$SCRIPT_DIR/lib/plan-cmd-notes.sh"
+. "$SCRIPT_DIR/lib/plan-cmd-verdicts.sh"
+. "$SCRIPT_DIR/lib/plan-cmd-record-verdict.sh"
+. "$SCRIPT_DIR/lib/plan-cmd-markers.sh"
+. "$SCRIPT_DIR/lib/plan-cmd-tasks-gc.sh"
+. "$SCRIPT_DIR/lib/plan-cmd-sidecar.sh"
 
 [ $# -ge 1 ] || die "Usage: plan-file.sh <command> [args...]"
 
 # Capability ring gate
 case "$1" in
   # Ring A — agent-callable: read-only or narrative-safe
-  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|has-blocked|is-blocked|is-implemented) ;;
+  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|is-blocked|has-blocked|is-implemented) ;;
 
   # Ring B — harness or human: state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
@@ -24,14 +32,14 @@ case "$1" in
     require_capability "$1" C ;;
 
   *)
-    die "[$1] is not registered in any capability ring — add to Ring A/B/C in plan-file.sh:11-25" ;;
+    die "[$1] is not registered in any capability ring — add to Ring A/B/C in the case block above" ;;
 esac
 
 case "$1" in
   init)                 [ $# -ge 2 ] || die "Usage: plan-file.sh init <plan-file> [mode]"; cmd_init "$2" "${3:-}" ;;
   get-phase)            [ $# -eq 2 ] || die "Usage: plan-file.sh get-phase <plan-file>"; cmd_get_phase "$2" ;;
   set-phase)            [ $# -eq 3 ] || die "Usage: plan-file.sh set-phase <plan-file> <phase>"; cmd_set_phase "$2" "$3" ;;
-  append-audit)         [ $# -eq 5 ] || die "Usage: plan-file.sh append-audit <plan-file> <agent> <ACCEPT|ACCEPT-OVERRIDE|REJECT-PASS|BLOCKED-AMBIGUOUS> <summary>"; cmd_append_audit "$2" "$3" "$4" "$5" ;;
+  append-audit)         [ $# -eq 5 ] || die "Usage: plan-file.sh append-audit <plan-file> <agent> <ACCEPT|ACCEPT-OVERRIDE|REJECT-PASS> <summary>"; cmd_append_audit "$2" "$3" "$4" "$5" ;;
   append-note)          [ $# -eq 3 ] || die "Usage: plan-file.sh append-note <plan-file> <note>"; cmd_append_note "$2" "$3" ;;
   find-active)          cmd_find_active ;;
   find-latest)          cmd_find_latest ;;
@@ -51,15 +59,14 @@ case "$1" in
   clear-converged)      [ $# -eq 3 ] || die "Usage: plan-file.sh clear-converged <plan-file> <agent>"; cmd_clear_converged "$2" "$3" ;;
   reset-milestone)      [ $# -eq 3 ] || die "Usage: plan-file.sh reset-milestone <plan-file> <agent>"; cmd_reset_milestone "$2" "$3" ;;
   reset-pr-review)      [ $# -eq 2 ] || die "Usage: plan-file.sh reset-pr-review <plan-file>"; cmd_reset_pr_review "$2" ;;
-  reset-for-rollback)   [ $# -eq 3 ] || die "Usage: plan-file.sh reset-for-rollback <plan-file> <target-phase>"; cmd_reset_for_rollback "$2" "$3" ;;
+  reset-for-rollback)   [ $# -eq 3 ] || die "Usage: plan-file.sh reset-for-rollback <plan-file> <target-phase>"; cmd_reset_phase_state "$2" "$3" ;;
   transition)           [ $# -eq 4 ] || die "Usage: plan-file.sh transition <plan-file> <to-phase> <reason>"; cmd_transition "$2" "$3" "$4" ;;
   commit-phase)         [ $# -eq 3 ] || die "Usage: plan-file.sh commit-phase <plan-file> <commit-message>"; cmd_commit_phase "$2" "$3" ;;
   tier-safe)            [ $# -ge 3 ] || die "Usage: plan-file.sh tier-safe <plan-file> <task-id>..."; cmd_tier_safe "$2" "${@:3}" ;;
   is-converged)         [ $# -eq 4 ] || die "Usage: plan-file.sh is-converged <plan-file> <phase> <agent>"; cmd_is_converged "$2" "$3" "$4" ;;
   is-implemented)       [ $# -eq 3 ] || die "Usage: plan-file.sh is-implemented <plan-file> <feat-slug>"; cmd_is_implemented "$2" "$3" ;;
   mark-implemented)     [ $# -eq 3 ] || die "Usage: plan-file.sh mark-implemented <plan-file> <feat-slug>"; cmd_mark_implemented "$2" "$3" ;;
-  has-blocked)          [ $# -ge 2 ] || die "Usage: plan-file.sh has-blocked <plan-file> [kind]"; cmd_has_blocked "$2" "${3:-}" ;;
-  is-blocked)           [ $# -ge 2 ] || die "Usage: plan-file.sh is-blocked <plan-file> [kind]"; cmd_is_blocked "$2" "${3:-}" ;;
+  is-blocked|has-blocked) [ $# -ge 2 ] || die "Usage: plan-file.sh is-blocked <plan-file> [kind]"; cmd_is_blocked "$2" "${3:-}" ;;
   inter-feature-reset)  [ $# -eq 2 ] || die "Usage: plan-file.sh inter-feature-reset <plan-file>"; cmd_inter_feature_reset "$2" ;;
   migrate-to-sidecar)   [ $# -eq 2 ] || die "Usage: plan-file.sh migrate-to-sidecar <plan-file>"; cmd_migrate_to_sidecar "$2" ;;
   *) die "Unknown command: $1" ;;

@@ -41,7 +41,7 @@ else
   fi
 fi
 
-# Signal handling — clean up subprocess on interrupt (M6-2nd: also remove _review_out)
+# Signal handling — clean up subprocess on interrupt (also removes _review_out)
 CLAUDE_PID="" _review_out=""
 _on_interrupt() {
   [[ -n "$CLAUDE_PID" ]] && kill "$CLAUDE_PID" 2>/dev/null
@@ -74,8 +74,12 @@ while true; do
   fi
 
   # Ceiling-blocked: check sidecar convergence file (per scope — not plan.md)
-  _sc_dir="$(dirname "$PLAN")/$(basename "$PLAN" .md).state"
-  _conv_path="${_sc_dir}/convergence/${PHASE}__${AGENT}.json"
+  source "$(dirname "${BASH_SOURCE[0]}")/lib/sidecar.sh" 2>/dev/null || true
+  local _conv_path
+  _conv_path=$(sc_conv_path "$PLAN" "$PHASE" "$AGENT" 2>/dev/null) || {
+    echo "[run-critic-loop] ERROR: sc_conv_path failed — CLAUDE_PROJECT_DIR may be unset" >&2
+    exit 1
+  }
   if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then
     if jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
       echo "[BLOCKED-CEILING] ${PHASE}/${AGENT}: exceeded critic ceiling — manual review required" >&2
@@ -97,41 +101,33 @@ while true; do
   ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=$AGENT phase=$PHASE plan=$PLAN prompt: $PROMPT"
 
   CRITIC_LOOP_MODEL="${CLAUDE_CRITIC_LOOP_MODEL:-opus}"
-  # pr-review: capture output so the parent shell can extract the verdict marker and record it.
-  # M5-2nd: nonce prevents spoofing via doc citations. M6-2nd: _nonce/_review_out declared in outer scope for trap.
+  # pr-review: capture output to extract the nonce-anchored verdict marker and record it.
   _nonce="" _review_out=""
   if [[ "$AGENT" == "pr-review" ]]; then
     _nonce=$(uuidgen 2>/dev/null || openssl rand -hex 16 2>/dev/null || printf '%s%s' "$$" "$(date +%s%N)")
     ITER_PROMPT="${ITER_PROMPT}
 
-Output the review verdict as the final line of your response, exactly:
+Output the review verdict marker before running the ultrathink audit, exactly:
 <!-- review-verdict: ${_nonce} PASS -->
 or
 <!-- review-verdict: ${_nonce} FAIL -->"
     _review_out=$(mktemp)
-    if [[ -n "$TIMEOUT_CMD" ]]; then
-      CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
-        env -u CLAUDE_PLAN_CAPABILITY "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
-          claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" \
-          > "$_review_out" 2>&1 &
-    else
-      CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
-        env -u CLAUDE_PLAN_CAPABILITY claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" \
-          > "$_review_out" 2>&1 &
-    fi
-  elif [[ -n "$TIMEOUT_CMD" ]]; then
+  fi
+  _cmd=()
+  [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
+  _cmd+=(claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT")
+  if [[ -n "$_review_out" ]]; then
     CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
-      env -u CLAUDE_PLAN_CAPABILITY "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
-        claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
+      env -u CLAUDE_PLAN_CAPABILITY "${_cmd[@]}" > "$_review_out" 2>&1 &
   else
     CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
-      env -u CLAUDE_PLAN_CAPABILITY claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT" &
+      env -u CLAUDE_PLAN_CAPABILITY "${_cmd[@]}" &
   fi
   CLAUDE_PID=$!
   wait "$CLAUDE_PID" || {
     exit_code=$?
     CLAUDE_PID=""
-    # M4-2nd: salvage verdict marker before cleanup so a crash/timeout after writing the marker still records it.
+    # salvage verdict marker before cleanup so a crash/timeout after writing the marker still records it.
     if [[ -n "${_review_out:-}" && -s "${_review_out:-}" ]] && [[ -n "${_nonce:-}" ]]; then
       _rv_salvage=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "${_review_out}" | tail -1 | \
                     sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
@@ -153,7 +149,7 @@ or
   CLAUDE_PID=""
 
   # For pr-review: echo captured output then extract nonce-anchored verdict marker and record it.
-  # M5-2nd: nonce prevents the grep from matching a doc citation of the marker format.
+  # nonce prevents the grep from matching a doc citation of the marker format.
   if [[ -n "$_review_out" ]]; then
     cat "$_review_out"
     _rv=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "$_review_out" | tail -1 | \

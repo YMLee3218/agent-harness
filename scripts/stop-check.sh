@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 # Stop hook: verify unit tests pass before an autonomous run completes.
-#
 # Active when CLAUDE_NONINTERACTIVE=1 and the active plan phase is green or integration.
-# In interactive mode (CLAUDE_NONINTERACTIVE unset/0), exits 0 immediately to avoid
-# running tests after every response.
-#
+# In interactive mode (CLAUDE_NONINTERACTIVE unset/0), exits 0 immediately.
 # Phase coverage: green and integration only — see phase_runs_stop_check in phase-policy.sh.
 # done is excluded: session already closed, no test run needed.
-#
 # Exit codes: 0=allow stop, 2=block stop (stderr fed back to Claude as context),
 # 1/other=non-blocking error. Always use exit 2 (never exit 1) to prevent stop.
+set -euo pipefail
 
 [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] || exit 0
 
@@ -43,6 +40,20 @@ if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ ! -f "$CLAUDE_PLAN_FILE" ]; then
 fi
 
 BLOCKED_LABEL="stop-check"
+
+# strict env parser — top-level so it can be tested independently.
+# Never source .env as bash (prevents RCE via embedded commands).
+_parse_env_file() {
+  while IFS='=' read -r _ek _ev; do
+    [[ "$_ek" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "$_ek" ]] && continue
+    [[ "$_ek" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
+    _ev="${_ev%\"}"; _ev="${_ev#\"}"
+    _ev="${_ev%\'}"; _ev="${_ev#\'}"
+    export "$_ek=$_ev"
+  done < "$1"
+}
+
 # shellcheck source=lib/active-plan.sh
 source "$(dirname "$0")/lib/active-plan.sh"
 resolve_active_plan_and_phase active_plan phase || exit 0
@@ -54,10 +65,19 @@ if grep -qF "[BLOCKED-AMBIGUOUS]" "$active_plan" 2>/dev/null; then
   _ENV="$HOME/.claude/channels/telegram/.env"
   _ACCESS="$HOME/.claude/channels/telegram/access.json"
   if [ -f "$_ENV" ] && [ -f "$_ACCESS" ]; then
-    # shellcheck source=/dev/null
-    set -a; source "$_ENV"; set +a
-    _CHAT=$(python3 -c \
-      "import json; print(json.load(open('$_ACCESS'))['allowFrom'][0])" 2>/dev/null || true)
+    _parse_env_file "$_ENV"
+    # validate TELEGRAM_BOT_TOKEN shape before using in URL (prevents URL injection)
+    if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
+      if ! [[ "$TELEGRAM_BOT_TOKEN" =~ ^[0-9]+:[A-Za-z0-9_-]{20,50}$ ]]; then
+        echo "[stop-check] WARNING: TELEGRAM_BOT_TOKEN has invalid shape — skipping Telegram notification" >&2
+        unset TELEGRAM_BOT_TOKEN
+      fi
+    fi
+    _CHAT=$(jq -r '.allowFrom[0] // ""' "$_ACCESS" 2>/dev/null || true)
+    # validate _CHAT is a numeric chat ID
+    if [ -n "${_CHAT:-}" ]; then
+      [[ "$_CHAT" =~ ^-?[0-9]+$ ]] || { echo "[stop-check] WARNING: invalid chat_id shape — skipping Telegram" >&2; _CHAT=""; }
+    fi
     if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "$_CHAT" ]; then
       _clear_key=$(printf '%s' "$_question" | sed 's/^\(\[BLOCKED-AMBIGUOUS\] [^:]*\):.*/\1/')
       _MSG="[BLOCKED-AMBIGUOUS] Autonomous run paused — human decision required
@@ -86,7 +106,7 @@ fi
 source "$(dirname "$0")/phase-policy.sh"
 phase_runs_stop_check "$phase" || exit 0
 
-# F3 guard: if integration phase and a [BLOCKED] integration marker is already recorded,
+# if integration phase and a [BLOCKED] integration marker is already recorded,
 # allow the stop without re-running tests to avoid infinite Stop-hook block loops.
 # Reads from sidecar blocked.jsonl exclusively (no plan.md fallback — run migrate-to-sidecar on pre-migration plans).
 if [ "$phase" = "integration" ]; then
@@ -122,7 +142,7 @@ fi
 # {word} pattern avoids false positives from legitimate brace usage like pytest --deselect 'tests/{foo}'.
 if printf '%s' "$_raw_test_line" | grep -q "initializing-project" \
    || printf '%s' "$test_cmd" | grep -q "initializing-project" \
-   || printf '%s' "$test_cmd" | grep -qE '\{[a-z0-9_-]+\}' \
+   || printf '%s' "$test_cmd" | grep -qE '\{[A-Za-z0-9_-]+\}' \
    || printf '%s' "$test_cmd" | grep -qE '<[a-z0-9_-]+>'; then
   if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] && [ "$claude_md_exists" -eq 1 ]; then
     bash "$PLAN_FILE_SH" record-stop-block "$active_plan" "$phase" \
