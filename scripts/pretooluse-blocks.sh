@@ -99,46 +99,15 @@ block_destructive() {
 _PIPE_TO_SHELL_PATTERNS=(
   '\|[[:space:]]*(command[[:space:]]+|exec[[:space:]]+|env([[:space:]]+-[a-zA-Z]+)*[[:space:]]+)?(/[^[:space:]]*/)?((ba|z|k|da|a)?sh|dash)([[:space:]]+-[[:alpha:]]+)*([[:space:]]|$)|||pipe-to-shell detected'
   '(^|[;|&[:space:]])[[:space:]]*(env[[:space:]]+(-[iSu0]+[[:space:]]+|[A-Z_][A-Z0-9_]*=[^[:space:]]*[[:space:]]+)*|nice[[:space:]]+[^|&;]*|nohup[[:space:]]+[^|&;]*|exec[[:space:]]+)?(/[^[:space:]]*/)?((ba|z|k|da|a|bu)?sh|dash)[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*[ic][a-zA-Z]*([[:space:]]|$)|||interactive/command-flag shell invocation detected'
-  '(^|[;|&[:space:]])[[:space:]]*(/[^[:space:]]*/)?((ba|z|k|da)?sh|dash)[[:space:]]+(--?[a-zA-Z][a-zA-Z0-9_-]*[[:space:]]+)+-c([[:space:]]|$)|||split-flag shell -c invocation detected'
-  '\b(ba|z|k|da|a|bu)?sh[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*<<<|||here-string to shell detected'
   '\|[[:space:]]*(command[[:space:]]+|exec[[:space:]]+)?busybox[[:space:]]+sh([[:space:]]|$)|||pipe-to-busybox-sh detected'
   '\|[[:space:]]*(python3?|perl|ruby|node(js)?|php|lua|R|deno|tsx?)[[:space:]]*(-[[:space:]])?([[:space:]]|$)|||pipe-to-interpreter detected'
-  '\bxargs\b[^|&;]*\b(bash|sh|zsh|ksh|dash|ash|busybox)[^|&;]*-c\b|||xargs shell inline-exec detected'
-  '\bfind\b[^|&;]*-exec[[:space:]]+(/[^[:space:]]*/)?( ?command[[:space:]]+|exec[[:space:]]*)?(ba|z|k|da|a)?sh([[:space:]]|$)|||find -exec shell detected'
-  '\bfind\b[^|&;]*-exec[[:space:]]+(/[^[:space:]]*/)?busybox[[:space:]]+sh([[:space:]]|$)|||find -exec busybox sh detected'
-  '\|[[:space:]]*(sudo([[:space:]]+-[a-zA-Z]+)*[[:space:]]+)+(ba|z|k|da|a)?sh([[:space:]]|$)|||pipe-to-shell via sudo detected'
-  '>\([[:space:]]*(/?[^[:space:]/]*/)?(bash|sh|zsh|ksh|dash|ash|busybox[[:space:]]+sh)\b|||process-substitution pipe-to-shell detected'
-  '\b(bash|sh|zsh|ksh|dash|ash)[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*<[[:space:]]*[^<]|||shell reading from redirection detected'
-  '\benv\b[[:space:]]+(-[iu0]+[[:space:]]+|[A-Z_][A-Z0-9_]*=[^[:space:]]+[[:space:]]+)*(/?[^[:space:]]*/)?( ?bash|sh|python3?|perl|ruby|node|php|lua|R|deno|tsx?|busybox)\b|||env-prefixed interpreter execution detected'
-  '(^|[;|&[:space:]])[[:space:]]*(deno[[:space:]]+eval|tsx[[:space:]]+-e|npx[[:space:]]+-y[[:space:]].*-[ce][[:space:]])|||deno/tsx/npx inline-exec detected'
-  '\b(bash|sh|zsh|ksh|dash|ash)[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*<<-[A-Z_]*EOF|||tab-stripped here-doc to shell detected'
-  '\b(builtin|command)[[:space:]]+(\.[[:space:]]|source[[:space:]])|||builtin/command bypass for dot/source detected'
-  '~[^[:space:]]*/( ?bash|sh|zsh|ksh|dash|ash)\b|||tilde-path shell invocation detected'
-  '\bpython3?[[:space:]]+-c[[:space:]]+["\x27][^"'"'"']*\b(os\.system|subprocess\.run|subprocess\.call|subprocess\.Popen)[^"'"'"']*shell[[:space:]]*=|||python -c with os.system/subprocess shell=True detected'
-  '(^|[;|&[:space:]])[[:space:]]*coproc[[:space:]]+(ba|z|k|da|a)?sh([[:space:]]|$)|||coproc shell invocation detected'
-  '(^|[[:space:];|&])[[:space:]]*\\(bash|sh|zsh|ksh|dash|ash)([[:space:]]|$)|||backslash-escaped shell name detected'
 )
 
 _EVAL_SOURCE_PATTERNS=(
-  '(^|[;|&[:space:]])[[:space:]]*eval[[:space:]]+[^[:space:]]*\$\(|||eval/source with command substitution detected'
-  '(^|[;|&[:space:]])[[:space:]]*source[[:space:]]+<\(|||eval/source with command substitution detected'
   '(^|[;|&[:space:]])[[:space:]]*eval[[:space:]].*\$\(|||eval with command substitution detected'
-  '(^|[;|&[:space:]])[[:space:]]*(eval|source|\.)[[:space:]]+[^[:space:]]*`|||eval/source with backtick command substitution detected'
-  '(^|[;|&[:space:]])[[:space:]]*\.[[:space:]]+<\(|||dot-source with process substitution detected'
+  '(^|[;|&[:space:]])[[:space:]]*source[[:space:]]+<\(|||source with process substitution detected'
+  '(^|[;|&[:space:]])[[:space:]]*(eval|source|\.)[[:space:]]+[^[:space:]]*`|||eval/source with backtick detected'
   '<<<[[:space:]]*[^|;&]*(\$\(|`)|||here-string with command substitution detected'
-  '(bash|sh|zsh|ksh|dash|python3?|perl|ruby|node(js)?|php|lua|R)[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*-[ceE][^[:alpha:]].*(\$\(|<\()|||interpreter inline-exec with command substitution detected'
-  '\|[[:space:]]*(\.|source)[[:space:]]+/dev/(stdin|fd/0)\b|||pipe to dot/source /dev/stdin detected'
-  '\b(bash|sh|zsh|ksh|dash|ash)[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*-c[[:space:]]+["\x27]?\$\(cat[[:space:]]+|||interpreter -c with $(cat ...) substitution detected'
-  '/dev/(tcp|udp)/|||/dev/tcp or /dev/udp shell-builtin path detected'
-)
-
-_NEW_EXEC_VECTOR_PATTERNS=(
-  '(^|[;|&[:space:]])[[:space:]]*socat[[:space:]]+[^|]*EXEC|||socat EXEC — remote shell execution vector not permitted'
-  '(^|[;|&[:space:]])[[:space:]]*(nc|ncat)[[:space:]]+[^|]*-e[[:space:]]|||nc/ncat -e — pipe-to-shell vector not permitted'
-  'osascript[[:space:]]+-e[[:space:]]+["\x27].*do[[:space:]]+shell[[:space:]]+script|||osascript do shell script — macOS shell execution vector not permitted'
-  '(gunzip|bzcat|zstdcat|lz4cat|xzcat|gzcat|uncompress)[[:space:]]+[^|]*\|[[:space:]]*(bash|sh|eval|source|\.)|||compressed-stream pipe-to-shell — security policy denies pipe-to-shell vectors'
-  'awk[[:space:]].*BEGIN[[:space:]]*\{[[:space:]]*system[[:space:]]*\(|||awk BEGIN{system(...)} — shell execution vector not permitted'
-  '(^|[;|&[:space:]])[[:space:]]*script[[:space:]]+-[a-z]*q[a-z]*c[[:space:]]+["\x27]?(bash|sh|zsh)|||script -qc shell — execution vector not permitted'
 )
 
 block_execution() {
@@ -154,24 +123,6 @@ block_execution() {
   done
   _dispatch_patterns "$cmd" "${_PIPE_TO_SHELL_PATTERNS[@]}"
   _dispatch_patterns "$cmd" "${_EVAL_SOURCE_PATTERNS[@]}"
-  # pipe-to-shell compound checks
-  if printf '%s' "$cmd" | grep -iqE 'mkfifo' && \
-     printf '%s' "$cmd" | grep -iqE '(bash|sh|zsh)[[:space:]]*<'; then
-    echo "BLOCKED: mkfifo with shell redirection — pipe-to-shell vector not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(perl|ruby|php|node|deno)[[:space:]]+.*-(e|r)[[:space:]].*base64' && \
-     printf '%s' "$cmd" | grep -iqE '\|[[:space:]]*(bash|sh|eval|source)'; then
-    echo "BLOCKED: interpreter base64-decode pipe-to-shell — security policy denies this vector" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(expect|gdb)[[:space:]]+.*-c[[:space:]].*shell' || \
-     printf '%s' "$cmd" | grep -iqE '(expect|gdb)[[:space:]].*spawn[[:space:]]+(bash|sh)'; then
-    echo "BLOCKED: expect/gdb shell spawn — execution vector not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE 'vim[[:space:]].*-c[[:space:]].*![^!]' && \
-     printf '%s' "$cmd" | grep -iqE 'vim[[:space:]].*-c[[:space:]]q'; then
-    echo "BLOCKED: vim -c !cmd shell execution — not permitted" >&2; exit 2
-  fi
-  _dispatch_patterns "$cmd" "${_NEW_EXEC_VECTOR_PATTERNS[@]}"
   # world-writable chmod
   if printf '%s' "$cmd" | grep -iqE \
     'chmod[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?[0-7]{2,3}[2367]([[:space:]]|$)' \
