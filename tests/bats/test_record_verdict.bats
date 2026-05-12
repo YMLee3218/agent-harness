@@ -227,7 +227,7 @@ teardown() {
 
 # ── T2/C2: corrupt jsonl rc=2 is NOT silently dropped ─────────────────────────
 
-@test "T2/C2: corrupt verdicts.jsonl causes rc=2 from _check_consecutive_and_block — verdict label gets [NOT-PERSISTED:CORRUPT-CHECK]" {
+@test "T2/C2: corrupt verdicts.jsonl causes rc=2 from _check_consecutive_and_block — verdict label gets [BLOCKED] kind=corrupt-check" {
   local state_dir="$PLAN_DIR/test-feature.state"
   mkdir -p "$state_dir/convergence"
   local ts; ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -255,8 +255,7 @@ teardown() {
   ' 2>&1
   # Must exit 1 (blocked or corrupt), NOT 0 (which would mean normal PASS recorded)
   [[ "$output" == *"rc=1"* ]]
-  # T10a: plan.md must have exact [NOT-PERSISTED:CORRUPT-CHECK] label (weak OR fallback removed)
-  grep -q '\[NOT-PERSISTED:CORRUPT-CHECK\]' "$PLAN_FILE"
+  grep -q '\[BLOCKED\] kind=corrupt-check' "$PLAN_FILE"
 }
 
 # ── T9/L4: PARSE_ERROR ceiling rc=1 gets [BLOCKED-CEILING] prefix ─────────────
@@ -332,9 +331,9 @@ teardown() {
   [ "$parse_error_count" -le 1 ]
 }
 
-# ── T-H2: rc=3 streak failure → [NOT-PERSISTED:STREAK] prefix ────────────────
+# ── T-H2: rc=3 streak failure → [BLOCKED] kind=streak prefix ────────────────
 
-@test "T-H2: rc=3 (streak compute fail) appends [NOT-PERSISTED:STREAK] to plan.md" {
+@test "T-H2: rc=3 (streak compute fail) appends [BLOCKED] kind=streak to plan.md" {
   local state_dir="$PLAN_DIR/test-feature.state"
   mkdir -p "$state_dir/convergence"
   # Corrupt verdicts.jsonl so _compute_streak fails (rc=3)
@@ -358,7 +357,7 @@ teardown() {
     echo "rc=$?"
   ' 2>&1
   [[ "$output" == *"rc=1"* ]]
-  grep -q '\[NOT-PERSISTED:STREAK\]' "$PLAN_FILE"
+  grep -q '\[BLOCKED\] kind=streak' "$PLAN_FILE"
 }
 
 # ── T-H3: rc=4 (write fail) → plan.md not updated ────────────────────────────

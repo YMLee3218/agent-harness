@@ -286,9 +286,9 @@ _dispatch_rls_rc() {
     1) echo "[record-verdict] BLOCKED-CEILING: ${_label}" >&2
        cmd_append_verdict "$_plan" "${MARK_BLOCKED_CEILING} ${_label}" ;;
     2) echo "[record-verdict] BLOCKED-CORRUPT: ordinal compute failed — ${_label} not persisted" >&2
-       cmd_append_verdict "$_plan" "${MARK_NOT_PERSISTED_CORRUPT} ${_label}" ;;
+       cmd_append_verdict "$_plan" "[BLOCKED] kind=corrupt ${_label}" ;;
     3) echo "[record-verdict] BLOCKED-STREAK: streak compute failed — ${_label} not persisted" >&2
-       cmd_append_verdict "$_plan" "${MARK_NOT_PERSISTED_STREAK} ${_label}" ;;
+       cmd_append_verdict "$_plan" "[BLOCKED] kind=streak ${_label}" ;;
     4) echo "[record-verdict] BLOCKED-WRITE: verdicts.jsonl append failed — plan.md NOT updated" >&2 ;;
     *) echo "[record-verdict] _record_loop_state rc=${_rc} — ${_label} not persisted" >&2
        cmd_append_verdict "$_plan" "$_label" ;;
@@ -398,7 +398,7 @@ _handle_parse_error() {
     0) : ;;
     1) echo "[record-verdict] ${retry_msg}" >&2
        cmd_append_verdict "$plan_file" "${current_phase}/${agent}: PARSE_ERROR" ;;
-    2) cmd_append_verdict "$plan_file" "${MARK_NOT_PERSISTED_CORRUPT_CHECK} ${current_phase}/${agent}: PARSE_ERROR" ;;
+    2) cmd_append_verdict "$plan_file" "[BLOCKED] kind=corrupt-check ${current_phase}/${agent}: PARSE_ERROR" ;;
     *) echo "[record-verdict] _check_consecutive_and_block rc=${_ccb_parse_rc} unknown" >&2; exit 1 ;;
   esac
   exit 1
@@ -507,7 +507,7 @@ _persist_verdict() {
     case $_ccb_rc in
       0) cmd_append_verdict "$_plan" "$_label"; exit 1 ;;
       1) : ;;
-      2) cmd_append_verdict "$_plan" "${MARK_NOT_PERSISTED_CORRUPT_CHECK} ${_label}"; exit 1 ;;
+      2) cmd_append_verdict "$_plan" "[BLOCKED] kind=corrupt-check ${_label}"; exit 1 ;;
       *) echo "[record-verdict] _check_consecutive_and_block rc=${_ccb_rc} unknown" >&2; exit 1 ;;
     esac
   fi

@@ -36,7 +36,7 @@ _validated_ceiling() {
 
 # _get_run_ordinal PLAN VERDICTS PHASE AGENT MS → prints next ordinal (lenient: skips corrupt lines)
 # PARSE_ERROR verdicts also consume an ordinal slot — repeated parse errors accelerate ceiling.
-# Returns 2 on jq failure (propagates to caller's rc=2 MARK_NOT_PERSISTED_CORRUPT branch).
+# Returns 2 on jq failure (propagates to caller's rc=2 [BLOCKED] kind=corrupt branch).
 _get_run_ordinal() {
   local plan_file="$1" verdicts_path="$2" current_phase="$3" agent="$4" ms="$5"
   local prior_ordinal=0

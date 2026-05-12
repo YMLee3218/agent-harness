@@ -12,9 +12,6 @@ SC_VERDICTS_ARCHIVE="verdicts-archive.jsonl"
 SC_BLOCKED_ARCHIVE="blocked-archive.jsonl"
 MARK_BLOCKED="[BLOCKED]"
 MARK_BLOCKED_CEILING="[BLOCKED-CEILING]"
-MARK_NOT_PERSISTED_CORRUPT="[NOT-PERSISTED:CORRUPT]"
-MARK_NOT_PERSISTED_CORRUPT_CHECK="[NOT-PERSISTED:CORRUPT-CHECK]"
-MARK_NOT_PERSISTED_STREAK="[NOT-PERSISTED:STREAK]"
 
 # Defined here so sidecar helpers can use it without active-plan.sh dependency.
 # active-plan.sh re-exports the same function if loaded first; both definitions are identical.
