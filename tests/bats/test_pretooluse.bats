@@ -102,9 +102,27 @@ run_hook() {
   [ "$status" -ne 0 ]
 }
 
+@test "destructive: sudo cp /dev/null to file is blocked" {
+  cd "$WS_DIR"
+  run run_hook "sudo cp /dev/null /tmp/important"
+  [ "$status" -ne 0 ]
+}
+
 @test "destructive: find -exec rm is blocked" {
   cd "$WS_DIR"
   run run_hook "find . -exec rm {} \;"
+  [ "$status" -ne 0 ]
+}
+
+@test "destructive: find -exec sudo rm is blocked" {
+  cd "$WS_DIR"
+  run run_hook "find . -exec sudo rm {} \;"
+  [ "$status" -ne 0 ]
+}
+
+@test "destructive: dd if=/dev/null of=file is blocked" {
+  cd "$WS_DIR"
+  run run_hook "dd if=/dev/null of=/tmp/target"
   [ "$status" -ne 0 ]
 }
 

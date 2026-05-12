@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse Bash hook — all blocking rules in 8 categories.
+# PreToolUse Bash hook — all blocking rules in 7 categories.
 # Each function receives the command string as $1 and calls exit 2 on match.
 # Source this file; do not execute directly.
 #
@@ -18,7 +18,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/pretooluse-target-blocks-lib.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/hook-dispatch.sh" 2>/dev/null || true
 
 # ── 1. block_destructive ──────────────────────────────────────────────────────
-# Combines: rm, truncate/clobber, disk, git-clean, git-amend, git-hooks-bypass
+# Combines: rm, truncate/clobber, disk, git-clean, git-amend, cp-clobber, find-exec-rm
 block_destructive() {
   local cmd="$1"
   # rm -rf variants
@@ -85,7 +85,7 @@ block_destructive() {
 }
 
 # ── 2. block_execution ────────────────────────────────────────────────────────
-# Combines: pipe-to-shell, eval/source, new-exec-vectors, world-writable-chmod, awk-redirect-src-tests
+# Combines: pipe-to-shell, eval/source, world-writable-chmod, awk-redirect-src-tests
 _PIPE_TO_SHELL_PATTERNS=(
   '\|[[:space:]]*(command[[:space:]]+|exec[[:space:]]+|env([[:space:]]+-[a-zA-Z]+)*[[:space:]]+)?(/[^[:space:]]*/)?((ba|z|k|da|a)?sh|dash)([[:space:]]+-[[:alpha:]]+)*([[:space:]]|$)|||pipe-to-shell detected'
   '(^|[;|&[:space:]])[[:space:]]*(env[[:space:]]+(-[iSu0]+[[:space:]]+|[A-Z_][A-Z0-9_]*=[^[:space:]]*[[:space:]]+)*|nice[[:space:]]+[^|&;]*|nohup[[:space:]]+[^|&;]*|exec[[:space:]]+)?(/[^[:space:]]*/)?((ba|z|k|da|a|bu)?sh|dash)[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-[a-zA-Z]*[ic][a-zA-Z]*([[:space:]]|$)|||interactive/command-flag shell invocation detected'
