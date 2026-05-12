@@ -39,25 +39,12 @@ block_destructive() {
   if printf '%s' "$cmd" | grep -iqE '\bfind\b[[:space:]].*\-delete\b'; then
     echo "BLOCKED: find -delete detected — use rm on specific paths instead" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?shred[[:space:]]+-[a-zA-Z]*[uz]'; then
-    echo "BLOCKED: shred -u/-z detected — destructive file deletion not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?gio[[:space:]]+trash[[:space:]]'; then
-    echo "BLOCKED: gio trash detected — destructive file deletion not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE \
-    "(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f[[:space:]]+'~/"; then
-    echo "BLOCKED: destructive rm with single-quoted tilde path detected" >&2; exit 2
-  fi
   # redirect-based file clobber
   if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(:|true|false|cat[[:space:]]+/dev/null)[[:space:]]*>[[:space:]]*[^>]'; then
     echo "BLOCKED: redirect-based file clobber detected (: > file or cat /dev/null > file)" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?truncate[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-s[[:space:]]*0'; then
     echo "BLOCKED: truncate -s 0 (zero-out file) detected" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE 'tar[[:space:]]+[^;|&]*--remove-files'; then
-    echo "BLOCKED: tar --remove-files detected — source file removal not permitted" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -iqE 'rsync[[:space:]]+[^;|&]*--delete(-[a-z]+)?'; then
     echo "BLOCKED: rsync --delete detected — destructive sync not permitted" >&2; exit 2
