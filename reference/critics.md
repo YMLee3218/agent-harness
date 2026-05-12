@@ -59,7 +59,7 @@ Normative implementations:
 
 ## Loop convergence
 
-Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. **Prohibited**: agents must never write `[CONVERGED]` directly to plan files. Convergence state is stored exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state` (called via the SubagentStop hook for the five critics, or via `append-review-verdict` for pr-review); `converged=true` is set after 2 consecutive PASSes. The `[CONVERGED]` marker in `## Open Questions` is an informational mirror only; `run-dev-cycle.sh` and `run-critic-loop.sh` read `is-converged` (which reads the sidecar) rather than scanning plan.md. Manually writing `[CONVERGED]` to a plan file has no effect on harness decisions.
+Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. Convergence state is stored exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state` (called via the SubagentStop hook for the five critics, or via `append-review-verdict` for pr-review); `converged=true` is set after 2 consecutive PASSes. Query convergence via `plan-file.sh is-converged <plan> <phase> <agent>` (exit 0 = converged). No plan.md marker mirrors this state.
 
 The harness always operates in non-interactive mode — skills write `[BLOCKED]` markers to `## Open Questions` instead of prompting the user.
 
@@ -67,13 +67,13 @@ The loop terminates on **2 consecutive PASSes** (convergence), not on a single P
 
 `plan-file.sh record-verdict` automatically writes markers to `## Open Questions`. For pr-review, `run-critic-loop.sh` extracts the nonce-anchored `<!-- review-verdict: {nonce} PASS|FAIL -->` from the session's stdout and calls `append-review-verdict` on the parent side (which has harness capability). The skill reads these markers after each run and branches accordingly.
 
-### Convergence markers in ## Open Questions
+### Convergence signals
 
-Definitions: `@reference/markers.md §Critic loop markers` and `@reference/markers.md §Phase-scoped convergence markers`. Policy: §Skill branching logic below.
+Markers: `@reference/markers.md §Critic loop markers` and `@reference/markers.md §Phase-scoped convergence markers`. Convergence is detected via `plan-file.sh is-converged` (sidecar). Policy: §Skill branching logic below.
 
 #### pr-review asymmetry
 
-pr-review omits category/parse tracking — failures are categorised by the skill (see `@reference/pr-review-loop.md`). Apply §Skill branching logic steps 1 → 4–5 → 7 → 8 only. Steps 2, 3, and 6 are omitted: step 2 (`[BLOCKED-AMBIGUOUS]` stop) because pre-existing markers are caught by the orchestrating skill's Step 0 check before pr-review is reached, and any marker written during the fix chain causes an immediate `stop` that exits the B-session before step 4 is re-entered — same out-of-band handling as step 3; step 3 (`[BLOCKED]` check) because any `[BLOCKED]` markers would have halted the orchestrating skill's Step 0 check before pr-review is reached; step 6 (PARSE_ERROR retry) because pr-review records its verdict via `run-critic-loop.sh`'s nonce-anchored stdout extraction (not a PARSE_ERROR-producing path).
+pr-review omits category/parse tracking — failures are categorised by the skill (see `@reference/pr-review-loop.md`). Apply §Skill branching logic steps 1 → 4–5 → 7 → 8 only. Steps 2, 3, and 6 are omitted: step 2 (`[BLOCKED-AMBIGUOUS]` stop) because pre-existing markers are caught by the orchestrating skill's Step 0 check before pr-review is reached, and any marker written during the fix chain causes an immediate `stop` that exits the B-session before step 4 is re-entered — same out-of-band handling as step 3; step 3 (`[BLOCKED]` check) because any `[BLOCKED]` markers would have halted the orchestrating skill's Step 0 check before pr-review is reached; step 6 (PARSE_ERROR retry) because pr-review records its verdict via `run-critic-loop.sh`'s nonce-anchored stdout extraction (not a PARSE_ERROR-producing path). For step 4, use `plan-file.sh is-converged` to check sidecar instead of reading plan.md.
 
 **Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
 
@@ -83,12 +83,12 @@ Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOC
 
 ```
 After critic/review run → script records verdict + emits markers
-Skill reads ## Open Questions, checks in priority order:
+Skill reads ## Open Questions and queries sidecar, checks in priority order:
 
   1. [BLOCKED-CEILING] {phase}/{agent}  → stop (manual review)
   2. [BLOCKED-AMBIGUOUS] {agent}        → stop (human decision required)
   3. [BLOCKED] {any text}               → stop (read reason; fix root cause; clear marker; retry)
-  4. [CONVERGED] {phase}/{agent}        → proceed to next step
+  4. is-converged exits 0               → proceed to next step
   5. [FIRST-TURN] {phase}/{agent}       → re-run automatically
                                           **Only when latest verdict is PASS.**
                                           If latest verdict is FAIL, skip to step 8.
@@ -148,7 +148,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" {target-phase}
 ```
 
-When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`. After `transition {destination-phase}`, additionally call `reset-milestone {destination-critic}` if a stale `[CONVERGED] {destination-phase}/{destination-critic}` marker remains from a prior milestone (e.g., rolling back to `red` requires `reset-milestone critic-test` to clear any stale `[CONVERGED] red/critic-test`). When a milestone must be reset at a non-destination phase (e.g., clearing stale `[CONVERGED] red/critic-test` while destination is `spec`): use a phase round-trip — `transition {milestone-phase}`, `reset-milestone {milestone-critic}`, `transition {destination-phase}` — because `reset-milestone` scopes to the current plan phase (implemented by `run-integration.sh`'s spec-gap recovery path).
+When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`. After `transition {destination-phase}`, additionally call `reset-milestone {destination-critic}` if a prior milestone's sidecar streak needs resetting (e.g., rolling back to `red` may require `reset-milestone critic-test` to isolate the new streak). When a milestone must be reset at a non-destination phase (e.g., resetting `red/critic-test` while destination is `spec`): use a phase round-trip — `transition {milestone-phase}`, `reset-milestone {milestone-critic}`, `transition {destination-phase}` — because `reset-milestone` scopes to the current plan phase (implemented by `run-integration.sh`'s spec-gap recovery path).
 
 ## §Critic one-shot iteration
 

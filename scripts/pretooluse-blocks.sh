@@ -180,7 +180,7 @@ block_sidecar_writes() {
 }
 
 # ── 4. block_capability ───────────────────────────────────────────────────────
-# Combines: capability-spoofing, env-injection, human-marker-commands
+# Combines: capability-spoofing, env-injection, unblock-command
 
 block_capability() {
   local cmd="$1"
@@ -207,15 +207,6 @@ block_capability() {
       '(^|[[:space:];|&])[[:space:]]*(GIT_SSH_COMMAND|GIT_EXTERNAL_DIFF|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|LESSOPEN|LESSCLOSE|ELECTRON_RUN_AS_NODE)[[:space:]]*=[^=]'; then
       echo "BLOCKED: git/pager execution-vector env var detected — use CLAUDE_PLAN_CAPABILITY=human to override" >&2; exit 2
     fi
-  fi
-  # human-marker-commands
-  if printf '%s' "$cmd" | grep -qE "(plan-file\\.sh|\\\$PLAN_FILE_SH|\\\$\{PLAN_FILE_SH\})[\"'[:space:]].*clear-marker"; then
-    local _hm
-    for _hm in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
-      if printf '%s' "$cmd" | grep -qF "$_hm"; then
-        echo "BLOCKED: this marker cannot be cleared by Claude — human must run plan-file.sh clear-marker directly from terminal" >&2; exit 2
-      fi
-    done
   fi
   if printf '%s' "$cmd" | grep -qE "plan-file\\.sh[\"'[:space:]].*unblock[[:space:]]"; then
     echo "BLOCKED: 'unblock' is a human-only command — run plan-file.sh unblock from terminal" >&2; exit 2

@@ -177,7 +177,6 @@ _record_loop_state_body() {
     echo "[record-loop-state] FIRST-TURN: ${scope} first real verdict" >&2
   fi
   if [[ "$new_converged" == "true" ]] && [[ "$was_converged" != "true" ]]; then
-    _append_to_open_questions "$plan_file" "[CONVERGED] ${scope}"
     echo "[record-loop-state] CONVERGED: ${scope} with ${streak} consecutive PASSes" >&2
   fi
 }

@@ -189,7 +189,7 @@ cmd_append_note() {
   local plan_file="$1" note="$2"
   if [[ "${CLAUDE_PLAN_CAPABILITY:-agent}" != "harness" && "${CLAUDE_PLAN_CAPABILITY:-agent}" != "human" ]]; then
     if printf '%s' "${note:-}" | grep -qE '\[[A-Z][A-Z0-9_:-]*\]'; then
-      die "append-note: control marker tokens (e.g. [BLOCKED], [CONVERGED], [IMPLEMENTED: x]) are reserved for the harness — use free-form text for notes in ## Open Questions"
+      die "append-note: control marker tokens (e.g. [BLOCKED], [IMPLEMENTED: x]) are reserved for the harness — use free-form text for notes in ## Open Questions"
     fi
   fi
   require_file "$plan_file"
@@ -239,7 +239,7 @@ cmd_context() {
   local blocked_items other_items questions
   blocked_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && (/\[BLOCKED/ || /\[STOP-BLOCKED/){print}' \
     "$plan_file" 2>/dev/null | head -3 | tr '\n' '|' | sed 's/|$//' || true)
-  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[CONVERGED/ && !/\[FIRST-TURN/ && !/\[AUTO-DECIDED/{print}' \
+  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[FIRST-TURN/ && !/\[AUTO-DECIDED/{print}' \
     "$plan_file" 2>/dev/null | head -2 | tr '\n' '|' | sed 's/|$//' || true)
 
   if [ -n "$blocked_items" ] && [ -n "$other_items" ]; then
@@ -554,7 +554,6 @@ cmd_record_verdict_guarded() {
 
 PHASE_CONVERGENCE_MARKERS=(
   "BLOCKED-CEILING"
-  "CONVERGED"
   "FIRST-TURN"
 )
 
@@ -669,13 +668,12 @@ cmd_clear_converged() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "clear-converged")
   local scope; scope=$(_scope_of "$current_phase" "$agent")
-  cmd_clear_marker "$plan_file" "[CONVERGED] ${scope}"
   local ts
   ts=$(_iso_timestamp)
   _append_to_critic_verdicts "$plan_file" \
     "${ts} ${scope}: REJECT-PASS (audit-override — streak reset)"
   _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
-  echo "[clear-converged] cleared [CONVERGED] and reset streak for ${scope}" >&2
+  echo "[clear-converged] reset streak for ${scope}" >&2
 }
 
 cmd_reset_milestone() {

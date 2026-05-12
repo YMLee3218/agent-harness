@@ -68,7 +68,7 @@ LAST_PLAN_HASH=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
 CONSECUTIVE_NOOP=0
 
 while true; do
-  # Authoritative convergence check via sidecar — [CONVERGED] markers in plan.md are ignored
+  # Convergence check via sidecar (authoritative source)
   if bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; then
     echo "CONVERGED"; exit 0
   fi

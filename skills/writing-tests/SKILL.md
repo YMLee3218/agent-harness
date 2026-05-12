@@ -24,8 +24,8 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 
 Phase entry:
 - Phase `spec`: proceed normally.
-- Phase `red` + `[CONVERGED] spec/critic-spec` in `## Open Questions`: skip to Step 2 (no transition needed).
-- Phase `red` without `[CONVERGED] spec/critic-spec`, or any other phase: `[BLOCKED] writing-tests entered from unexpected phase {phase} — critic-spec convergence required; re-run writing-spec`.
+- Phase `red` + `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "plans/{slug}.md" spec critic-spec` exits 0: skip to Step 2 (no transition needed).
+- Phase `red` without spec/critic-spec converged, or any other phase: `[BLOCKED] writing-tests entered from unexpected phase {phase} — critic-spec convergence required; re-run writing-spec`.
 
 - `Read` the project `CLAUDE.md` to extract the test command
 - `Read` the target `spec.md` in full

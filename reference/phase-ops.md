@@ -17,7 +17,7 @@ Calling skill specifies `{target-phase}` and `{critic-name}`.
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" {target-phase} \
      "{one sentence reason}"
    ```
-3. Reset the `{critic-name}` milestone (`transition` already ran `set-phase`, so `reset-milestone` reads the correct rollback phase when clearing the stale `[CONVERGED] {target-phase}/{critic-name}` marker):
+3. Reset the `{critic-name}` milestone (`transition` already ran `set-phase`, so `reset-milestone` reads the correct rollback phase when clearing stale convergence markers for `{target-phase}/{critic-name}`):
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {critic-name}
    ```
@@ -104,4 +104,4 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slu
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
   "docs contradiction fixed — resuming pr-review"
 ```
-→ re-run `Skill("pr-review-toolkit:review-pr")` → output nonce-anchored verdict marker per `@reference/pr-review-loop.md §PR-review one-shot iteration` step 2 → run `@reference/ultrathink.md §Ultrathink verdict audit` → branch per `@reference/critics.md §pr-review asymmetry` ([CONVERGED]: return to calling context; FAIL: re-categorize above and apply the appropriate fix chain again)
+→ re-run `Skill("pr-review-toolkit:review-pr")` → output nonce-anchored verdict marker per `@reference/pr-review-loop.md §PR-review one-shot iteration` step 2 → run `@reference/ultrathink.md §Ultrathink verdict audit` → branch per `@reference/critics.md §pr-review asymmetry` (converged: return to calling context; FAIL: re-categorize above and apply the appropriate fix chain again)
