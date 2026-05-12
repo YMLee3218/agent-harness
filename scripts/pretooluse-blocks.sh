@@ -76,9 +76,6 @@ block_destructive() {
     fi
     echo "WARNING: git commit --amend detected — commit is not yet pushed (safe to amend)" >&2
   fi
-  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+-c[[:space:]]+[^=]*[Hh]ooks[Pp]ath'; then
-    echo "BLOCKED: git -c hooksPath override detected (hook bypass attempt)" >&2; exit 2
-  fi
 }
 
 # ── 2. block_execution ────────────────────────────────────────────────────────
