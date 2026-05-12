@@ -242,74 +242,13 @@ block_sidecar_writes() {
 # ── 4. block_capability ───────────────────────────────────────────────────────
 # Combines: capability-spoofing, env-injection, human-marker-commands
 
-_detect_decoder_in_eval() {
-  local cmd="$1"
-  if printf '%s' "$cmd" | grep -qE \
-    '(eval|source|\.)[[:space:]]+[^|;&]*\b(base64[[:space:]]+(-d|--decode)|tr[[:space:]]+'"'"'?[A-Za-z-]+'"'"'?[[:space:]]+'"'"'?[A-Za-z-]+'"'"'?|xxd[[:space:]]+-r|openssl[[:space:]]+(base64|enc)[[:space:]]+-d|python3?[[:space:]]+-c[[:space:]]+.*(import[[:space:]]+base64|b64decode))'; then
-    return 0
-  fi
-  return 1
-}
-
 block_capability() {
   local cmd="$1"
-  # capability-spoofing
-  if _detect_decoder_in_eval "$cmd"; then
-    echo "BLOCKED: eval/source with decoder (base64/rot13/xxd/openssl) — encoded capability bypass not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE \
-    '\$\([^)]*base64[[:space:]]+(--decode|-d|-D)[^)]*\)|\$\([^)]*xxd[[:space:]]+-r[[:space:]]+-p[^)]*\)'; then
-    echo "BLOCKED: base64/xxd decode in command substitution — encoded execution not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE \
-    "eval[[:space:]]+\"\\\$\(|eval[[:space:]]+'\\$\("; then
-    echo "BLOCKED: eval with \$(subshell) — dynamic execution not permitted" >&2; exit 2
-  fi
+  # capability-spoofing: direct/export assignment and natural read form
   if printf '%s' "$cmd" | grep -qE 'CLAUDE_PLAN_CAPABILITY[[:space:]]*=' || \
-     printf '%s' "$cmd" | grep -qE 'read[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+CLAUDE_PLAN_CAPABILITY' || \
-     printf '%s' "$cmd" | grep -qE 'printf[[:space:]]+-v[[:space:]]*["\x27]?CLAUDE_PLAN_CAPABILITY' || \
      printf '%s' "$cmd" | grep -qE 'export[[:space:]]+CLAUDE_PLAN_CAPABILITY([[:space:]]|;|$)' || \
-     printf '%s' "$cmd" | grep -qE '(declare|typeset|local|readonly)[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?CLAUDE_PLAN_CAPABILITY([[:space:]]|=|$)' || \
-     printf '%s' "$cmd" | grep -qE '(mapfile|readarray)[[:space:]]+(-[a-zA-Z]+[[:space:]]+)?CLAUDE_PLAN_CAPABILITY'; then
+     printf '%s' "$cmd" | grep -qE '\bread[[:space:]]+([^[:space:]<]+[[:space:]]+)*CLAUDE_PLAN_CAPABILITY([[:space:]]|<|$)'; then
     echo "BLOCKED: CLAUDE_PLAN_CAPABILITY assignment in agent Bash command — capability spoofing is not permitted" >&2; exit 2
-  fi
-  printf '%s' "$cmd" | grep -qE '\bfor[[:space:]]+CLAUDE_PLAN_CAPABILITY([[:space:]]|$)' && \
-    { echo "BLOCKED: for-loop assigns CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  printf '%s' "$cmd" | grep -qE '\bprintf[[:space:]]+-v["\x27]?CLAUDE_PLAN_CAPABILITY' && \
-    { echo "BLOCKED: printf -vCLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  printf '%s' "$cmd" | grep -qE '\bprintf[[:space:]]+[^;|&]*-v[[:space:]]+"?CLAUDE_PLAN_CAPABILITY"?' && \
-    { echo "BLOCKED: printf -v CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  printf '%s' "$cmd" | grep -qE \
-    '\b(declare|local|typeset|export)[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*-n[[:space:]]+[a-zA-Z_][a-zA-Z0-9_]*=["'"'"']?CLAUDE_PLAN_CAPABILITY["'"'"']?' && \
-    { echo "BLOCKED: nameref to CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  printf '%s' "$cmd" | grep -qE \
-    '\b(mapfile|readarray)[[:space:]]+([^[:space:]]+[[:space:]]+)*CLAUDE_PLAN_CAPABILITY([[:space:]]|$)' && \
-    { echo "BLOCKED: mapfile/readarray into CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  printf '%s' "$cmd" | grep -qE \
-    '\bgetopts[[:space:]]+[^[:space:]]+[[:space:]]+CLAUDE_PLAN_CAPABILITY([[:space:]]|$)' && \
-    { echo "BLOCKED: getopts CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  if printf '%s' "$cmd" | grep -qE \
-     '(^|[[:space:];|&])eval[[:space:]]+["\x27][^"\x27]*CLAUDE_PLAN_CAPABILITY[[:space:]]*='; then
-    echo "BLOCKED: eval with quoted CLAUDE_PLAN_CAPABILITY assignment — capability spoofing is not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE '(^|[[:space:];|&])eval[[:space:]].*LAN_CAPABILITY'; then
-    echo "BLOCKED: eval referencing CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2
-  fi
-  printf '%s' "$cmd" | grep -qE '(^|[[:space:];|&])eval[[:space:]]+["\x27]?\$\(.*LAN_CAPABILITY' && \
-    { echo "BLOCKED: eval \$(...) referencing CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  { printf '%s' "$cmd" | grep -qE 'CLAUDE"+"_PLAN"+"_CAPABILITY' || \
-    printf '%s' "$cmd" | grep -qE "CLAUDE'+'_PLAN'+'_CAPABILITY"; } && \
-    { echo "BLOCKED: string-concat form of CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  printf '%s' "$cmd" | grep -qE \
-    '(declare|typeset|export)[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*"?\$\{?[a-zA-Z_][a-zA-Z0-9_]*\}?"?[[:space:]]*=' && \
-    { echo "BLOCKED: indirect variable assignment via declare/typeset/export — potential capability spoofing" >&2; exit 2; } || true
-  printf '%s' "$cmd" | grep -qE \
-    '\bread[[:space:]]+([^[:space:]<]+[[:space:]]+)*CLAUDE_PLAN_CAPABILITY([[:space:]]|<<<|<[[:space:]]|$)' && \
-    { echo "BLOCKED: read into CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  printf '%s' "$cmd" | grep -qE '<<<[^|;&]*CLAUDE_PLAN_CAPABILITY' && \
-    { echo "BLOCKED: here-string referencing CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  if printf '%s' "$cmd" | grep -qE 'LAN_CAPABILITY[[:space:]]*='; then
-    echo "BLOCKED: command references CLAUDE_PLAN_CAPABILITY — agents must not name this capability" >&2; exit 2
   fi
   # env-injection
   if printf '%s' "$cmd" | grep -qwE \

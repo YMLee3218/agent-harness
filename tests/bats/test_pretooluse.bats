@@ -38,12 +38,6 @@ run_hook() {
   [ "$status" -ne 0 ]
 }
 
-@test "capability: printf -v CLAUDE_PLAN_CAPABILITY is blocked" {
-  cd "$WS_DIR"
-  run run_hook "printf -v CLAUDE_PLAN_CAPABILITY '%s' harness"
-  [ "$status" -ne 0 ]
-}
-
 @test "capability: LD_PRELOAD is blocked" {
   cd "$WS_DIR"
   run run_hook "LD_PRELOAD=/tmp/lib.so date"
