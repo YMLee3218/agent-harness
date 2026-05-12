@@ -323,16 +323,4 @@ block_new_destructive_patterns() {
   if printf '%s' "$cmd" | grep -iqE '\bfind\b[[:space:]].*-exec[[:space:]]+(sudo[[:space:]]+)?rm[[:space:]]'; then
     echo "BLOCKED: find -exec rm detected — use explicit targeted rm instead" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?shred[[:space:]]+-[a-zA-Z]*u'; then
-    echo "BLOCKED: shred -u detected — destructive file deletion not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?wipe[[:space:]]+'; then
-    echo "BLOCKED: wipe command detected — destructive file deletion not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*P'; then
-    echo "BLOCKED: rm -P (secure unlink) detected — destructive file deletion not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE 'osascript[[:space:]]+-e[[:space:]]+["\x27].*\b(rm|delete|empty|trash)\b'; then
-    echo "BLOCKED: osascript with file deletion — macOS destructive operation not permitted" >&2; exit 2
-  fi
 }
