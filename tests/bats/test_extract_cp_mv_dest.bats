@@ -5,7 +5,7 @@ SCRIPTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)/scripts"
 
 _dest() {
   bash -c '
-    source '"$SCRIPTS_DIR"'/pretooluse-write-guards.sh
+    source '"$SCRIPTS_DIR"'/pretooluse-blocks.sh
     _extract_cp_mv_dest "$1"
   ' -- "$1"
 }
@@ -54,7 +54,7 @@ _dest() {
 
 @test "T3: M2 regression: cp -t plans/x.state/ is recognised as sidecar dest" {
   run bash -c '
-    source '"$SCRIPTS_DIR"'/pretooluse-write-guards.sh
+    source '"$SCRIPTS_DIR"'/pretooluse-blocks.sh
     _extract_cp_mv_dest "cp -t plans/0001.state/ src/file"
   '
   [ "$status" -eq 0 ]
@@ -64,7 +64,7 @@ _dest() {
 @test "M2 regression: cp -t=DIR src is blocked by write-guard" {
   run bash -c '
     cd "$(dirname '"$SCRIPTS_DIR"')"
-    source '"$SCRIPTS_DIR"'/pretooluse-write-guards.sh
+    source '"$SCRIPTS_DIR"'/pretooluse-blocks.sh
     _extract_cp_mv_dest "cp -t=plans/0001.state/ src/file"
   '
   [ "$status" -eq 0 ]
