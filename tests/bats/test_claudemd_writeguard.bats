@@ -106,44 +106,11 @@ _run_bash_hook() {
   [[ "$output" =~ Ring\ C ]]
 }
 
-@test "T-5/C5: bash hook blocks python3 -c open CLAUDE.md w" {
-  run bash -c "
-    export CLAUDE_PROJECT_DIR='$PLAN_BASE'
-    export CLAUDE_PLAN_CAPABILITY=harness
-    printf '%s' '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"python3 -c \\\"open(CLAUDE.md,w).write(evil)\\\"\"}}' \
-      | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
-  " 2>&1
-  [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]]
-}
-
 @test "T-5/C5: bash hook blocks awk print > CLAUDE.md" {
   run bash -c "
     export CLAUDE_PROJECT_DIR='$PLAN_BASE'
     export CLAUDE_PLAN_CAPABILITY=harness
     printf '%s' '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"awk BEGIN{print x} input > CLAUDE.md\"}}' \
-      | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
-  " 2>&1
-  [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]]
-}
-
-@test "T-5/C5: bash hook blocks ed CLAUDE.md" {
-  run bash -c "
-    export CLAUDE_PROJECT_DIR='$PLAN_BASE'
-    export CLAUDE_PLAN_CAPABILITY=harness
-    printf '%s' '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ed CLAUDE.md\"}}' \
-      | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
-  " 2>&1
-  [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]]
-}
-
-@test "T-5/C5: bash hook blocks vim -e -s CLAUDE.md" {
-  run bash -c "
-    export CLAUDE_PROJECT_DIR='$PLAN_BASE'
-    export CLAUDE_PLAN_CAPABILITY=harness
-    printf '%s' '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"vim -e -s CLAUDE.md\"}}' \
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]

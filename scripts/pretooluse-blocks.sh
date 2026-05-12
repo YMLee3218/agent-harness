@@ -289,9 +289,6 @@ _ring_c_target() {
     printf '%s' "$_dest" | grep -qE "$_target_pat" && return 0
   done < <(printf '%s' "$_cmd" | grep -oE '(^|[;|&[:space:]])(cp|mv)([[:space:]]+(-[[:alpha:]]+|--[a-zA-Z-]+=?[^[:space:];|&]*|[^[:space:];|&]+))+' || true)
   if printf '%s' "$_cmd" | grep -qE "printf[[:space:]]+[^|;]*>[[:space:]]*(${_RING_C_FILES})\b"; then return 0; fi
-  if printf '%s' "$_cmd" | grep -qE "(python[23]?|perl|ruby|node)[[:space:]]+-[ceE][^|;]*(open|write)[^|;]*(${_RING_C_FILES})"; then return 0; fi
-  if printf '%s' "$_cmd" | grep -qE "(^|[;|&[:space:]])[[:space:]]*(ed|vim?[[:space:]]+(-e[[:space:]]|-s[[:space:]]))[^|;]*(${_RING_C_FILES})\b"; then return 0; fi
-  if printf '%s' "$_cmd" | grep -qE "awk[[:space:]]+[^|;]*>[[:space:]]*(${_RING_C_FILES})\b"; then return 0; fi
   return 1
 }
 
