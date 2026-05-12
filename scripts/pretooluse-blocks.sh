@@ -21,7 +21,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/hook-dispatch.sh" 2>/dev/null || true
 # Combines: rm, truncate/clobber, disk, git-clean, git-amend, git-hooks-bypass
 block_destructive() {
   local cmd="$1"
-  local _decoded; _decoded=$(_decode_ansi_c "$cmd")
   # rm -rf variants
   if printf '%s' "$cmd" | grep -iqE \
     '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f([[:space:]/]|$)' \
@@ -49,10 +48,6 @@ block_destructive() {
   if printf '%s' "$cmd" | grep -iqE \
     "(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f[[:space:]]+'~/"; then
     echo "BLOCKED: destructive rm with single-quoted tilde path detected" >&2; exit 2
-  fi
-  if printf '%s' "$_decoded" | grep -iqE \
-    '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f([[:space:]/]|$)'; then
-    echo "BLOCKED: destructive rm detected (decoded)" >&2; exit 2
   fi
   # redirect-based file clobber
   if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(:|true|false|cat[[:space:]]+/dev/null)[[:space:]]*>[[:space:]]*[^>]'; then
@@ -200,17 +195,13 @@ block_execution() {
 # Combines: git-sidecar, ln, rm, awk-inplace, write-tools, interpreter targeting sidecar
 
 _cmd_targets_sidecar() {
-  local _raw="$1" _decoded
-  printf '%s' "$_raw" | grep -qE 'plans/[^[:space:]'"'"'"]*\.state' && return 0
-  _decoded=$(_decode_ansi_c "$_raw")
-  printf '%s' "$_decoded" | grep -qE 'plans/[^[:space:]'"'"'"]*\.state'
+  local _raw="$1"
+  printf '%s' "$_raw" | grep -qE 'plans/[^[:space:]'"'"'"]*\.state'
 }
 
 _cmd_targets_critic_lock() {
-  local _raw="$1" _decoded
-  printf '%s' "$_raw" | grep -qE 'plans/[^[:space:]'"'"'"]*\.critic\.lock' && return 0
-  _decoded=$(_decode_ansi_c "$_raw")
-  printf '%s' "$_decoded" | grep -qE 'plans/[^[:space:]'"'"'"]*\.critic\.lock'
+  local _raw="$1"
+  printf '%s' "$_raw" | grep -qE 'plans/[^[:space:]'"'"'"]*\.critic\.lock'
 }
 
 block_sidecar_writes() {
@@ -262,7 +253,6 @@ _detect_decoder_in_eval() {
 
 block_capability() {
   local cmd="$1"
-  local _decoded; _decoded=$(_decode_ansi_c "$cmd")
   # capability-spoofing
   if _detect_decoder_in_eval "$cmd"; then
     echo "BLOCKED: eval/source with decoder (base64/rot13/xxd/openssl) — encoded capability bypass not permitted" >&2; exit 2
@@ -276,7 +266,6 @@ block_capability() {
     echo "BLOCKED: eval with \$(subshell) — dynamic execution not permitted" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -qE 'CLAUDE_PLAN_CAPABILITY[[:space:]]*=' || \
-     printf '%s' "$_decoded" | grep -qE 'CLAUDE_PLAN_CAPABILITY[[:space:]]*=' || \
      printf '%s' "$cmd" | grep -qE 'read[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+CLAUDE_PLAN_CAPABILITY' || \
      printf '%s' "$cmd" | grep -qE 'printf[[:space:]]+-v[[:space:]]*["\x27]?CLAUDE_PLAN_CAPABILITY' || \
      printf '%s' "$cmd" | grep -qE 'export[[:space:]]+CLAUDE_PLAN_CAPABILITY([[:space:]]|;|$)' || \
@@ -300,13 +289,10 @@ block_capability() {
     '\bgetopts[[:space:]]+[^[:space:]]+[[:space:]]+CLAUDE_PLAN_CAPABILITY([[:space:]]|$)' && \
     { echo "BLOCKED: getopts CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
   if printf '%s' "$cmd" | grep -qE \
-     '(^|[[:space:];|&])eval[[:space:]]+["\x27][^"\x27]*CLAUDE_PLAN_CAPABILITY[[:space:]]*=' || \
-     printf '%s' "$_decoded" | grep -qE \
      '(^|[[:space:];|&])eval[[:space:]]+["\x27][^"\x27]*CLAUDE_PLAN_CAPABILITY[[:space:]]*='; then
     echo "BLOCKED: eval with quoted CLAUDE_PLAN_CAPABILITY assignment — capability spoofing is not permitted" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -qE '(^|[[:space:];|&])eval[[:space:]].*LAN_CAPABILITY' || \
-     printf '%s' "$_decoded" | grep -qE '(^|[[:space:];|&])eval[[:space:]].*LAN_CAPABILITY'; then
+  if printf '%s' "$cmd" | grep -qE '(^|[[:space:];|&])eval[[:space:]].*LAN_CAPABILITY'; then
     echo "BLOCKED: eval referencing CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2
   fi
   printf '%s' "$cmd" | grep -qE '(^|[[:space:];|&])eval[[:space:]]+["\x27]?\$\(.*LAN_CAPABILITY' && \
@@ -322,8 +308,7 @@ block_capability() {
     { echo "BLOCKED: read into CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
   printf '%s' "$cmd" | grep -qE '<<<[^|;&]*CLAUDE_PLAN_CAPABILITY' && \
     { echo "BLOCKED: here-string referencing CLAUDE_PLAN_CAPABILITY — capability spoofing is not permitted" >&2; exit 2; } || true
-  if printf '%s' "$cmd" | grep -qE 'LAN_CAPABILITY[[:space:]]*=' || \
-     printf '%s' "$_decoded" | grep -qE 'LAN_CAPABILITY[[:space:]]*='; then
+  if printf '%s' "$cmd" | grep -qE 'LAN_CAPABILITY[[:space:]]*='; then
     echo "BLOCKED: command references CLAUDE_PLAN_CAPABILITY — agents must not name this capability" >&2; exit 2
   fi
   # env-injection

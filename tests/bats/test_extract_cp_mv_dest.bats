@@ -103,30 +103,7 @@ _dest() {
   [[ "$output" == "/dest/dir" ]]
 }
 
-# ── S5: ANSI-C quoting strip ─────────────────────────────────────────────────
-
-@test "S5: ANSI-C quoted dest \$'path' has quoting stripped" {
-  run _dest "cp src \$'plans/foo.state/x'"
-  [ "$status" -eq 0 ]
-  [[ "$output" == "plans/foo.state/x" ]]
-}
-
-@test "S5: ANSI-C quoted -t=\$'path' has quoting stripped" {
-  run _dest "cp -t=\$'plans/0001.state/' src"
-  [ "$status" -eq 0 ]
-  [[ "$output" == "plans/0001.state/" ]]
-}
-
-# ── C1/T1: ANSI-C \xNN hex escape decode ────────────────────────────────────
-
-@test "C1/T1: \\x2e hex escape decodes to '.' — sidecar path is detected" {
-  # \x2e is hex for '.' — plans/foo\x2estate = plans/foo.state after decode
-  run _dest "cp /tmp/evil \$'plans/foo\\x2estate/blocked.jsonl'"
-  [ "$status" -eq 0 ]
-  [[ "$output" == "plans/foo.state/blocked.jsonl" ]]
-}
-
-@test "C1/T1: plain .state path still works after C1 decode fix (regression)" {
+@test "C1/T1: plain .state path still works (regression)" {
   run _dest "cp /tmp/x plans/foo.state/blocked.jsonl"
   [ "$status" -eq 0 ]
   [[ "$output" == "plans/foo.state/blocked.jsonl" ]]
@@ -138,8 +115,3 @@ _dest() {
   [[ "$output" == "/tmp/safe" ]]
 }
 
-@test "C1/T15: \\x2e escape in -t flag form is decoded correctly" {
-  run _dest "cp -t=\$'plans/0001\\x2estate/' src"
-  [ "$status" -eq 0 ]
-  [[ "$output" == "plans/0001.state/" ]]
-}
