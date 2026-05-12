@@ -43,17 +43,22 @@ BLOCKED_LABEL="stop-check"
 
 # strict env parser — top-level so it can be tested independently.
 # Never source .env as bash (prevents RCE via embedded commands).
+# Handles values containing '=' and files without trailing newline.
 _parse_env_file() {
-  while IFS='=' read -r _ek _ev; do
-    [[ "$_ek" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "$_ek" ]] && continue
-    [[ "$_ek" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
-    _ev="${_ev%\"}"; _ev="${_ev#\"}"
-    _ev="${_ev%\'}"; _ev="${_ev#\'}"
-    export "$_ek=$_ev"
+  while IFS= read -r _pef_line || [ -n "$_pef_line" ]; do
+    [[ "$_pef_line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "$_pef_line" ]] && continue
+    _pef_ek="${_pef_line%%=*}"
+    _pef_ev="${_pef_line#*=}"
+    [[ "$_pef_ek" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
+    _pef_ev="${_pef_ev%\"}"; _pef_ev="${_pef_ev#\"}"
+    _pef_ev="${_pef_ev%\'}"; _pef_ev="${_pef_ev#\'}"
+    export "$_pef_ek=$_pef_ev"
   done < "$1"
 }
 
+# shellcheck source=lib/telegram-notify.sh
+source "$(dirname "$0")/lib/telegram-notify.sh"
 # shellcheck source=lib/active-plan.sh
 source "$(dirname "$0")/lib/active-plan.sh"
 resolve_active_plan_and_phase active_plan phase || exit 0
@@ -62,37 +67,9 @@ resolve_active_plan_and_phase active_plan phase || exit 0
 if grep -qF "[BLOCKED-AMBIGUOUS]" "$active_plan" 2>/dev/null; then
   _question=$(grep -F "[BLOCKED-AMBIGUOUS]" "$active_plan" | head -1)
   _slug=$(basename "$active_plan" .md)
-  _ENV="$HOME/.claude/channels/telegram/.env"
-  _ACCESS="$HOME/.claude/channels/telegram/access.json"
-  if [ -f "$_ENV" ] && [ -f "$_ACCESS" ]; then
-    _parse_env_file "$_ENV"
-    # validate TELEGRAM_BOT_TOKEN shape before using in URL (prevents URL injection)
-    if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
-      if ! [[ "$TELEGRAM_BOT_TOKEN" =~ ^[0-9]+:[A-Za-z0-9_-]{20,50}$ ]]; then
-        echo "[stop-check] WARNING: TELEGRAM_BOT_TOKEN has invalid shape — skipping Telegram notification" >&2
-        unset TELEGRAM_BOT_TOKEN
-      fi
-    fi
-    _CHAT=$(jq -r '.allowFrom[0] // ""' "$_ACCESS" 2>/dev/null || true)
-    # validate _CHAT is a numeric chat ID
-    if [ -n "${_CHAT:-}" ]; then
-      [[ "$_CHAT" =~ ^-?[0-9]+$ ]] || { echo "[stop-check] WARNING: invalid chat_id shape — skipping Telegram" >&2; _CHAT=""; }
-    fi
-    if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "$_CHAT" ]; then
-      _clear_key=$(printf '%s' "$_question" | sed 's/^\(\[BLOCKED-AMBIGUOUS\] [^:]*\):.*/\1/')
-      _MSG="[BLOCKED-AMBIGUOUS] Autonomous run paused — human decision required
-
-Plan: ${_slug}
-${_question}
-
-To resume, run in terminal:
-bash .claude/scripts/plan-file.sh clear-marker plans/${_slug}.md \"${_clear_key}\""
-      curl -s -X POST \
-        "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-        --data-urlencode "chat_id=${_CHAT}" \
-        --data-urlencode "text=${_MSG}" >/dev/null 2>&1 || true
-    fi
-  fi
+  telegram_send_blocked_ambiguous "$_slug" "$_question" \
+    "$HOME/.claude/channels/telegram/.env" \
+    "$HOME/.claude/channels/telegram/access.json" 2>/dev/null || true
   echo "[stop-check] [BLOCKED-AMBIGUOUS] detected — Telegram notified; allowing stop" >&2
   exit 0
 fi

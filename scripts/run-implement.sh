@@ -20,6 +20,8 @@ TASK_JSON=$(awk '/<!-- task-definitions-start -->/{f=1;next} /<!-- task-definiti
 
 # shellcheck source=lib/implement-helpers.sh
 source "$SCRIPTS_DIR/lib/implement-helpers.sh"
+# DATA delimiter wrapping for prompt injection prevention
+source "$SCRIPTS_DIR/lib/prompt-builder.sh" 2>/dev/null || true
 
 while IFS=$'\t' read -r id layer _; do
   bash "$PF" add-task "$PLAN" "$id" "$layer" 2>/dev/null || true

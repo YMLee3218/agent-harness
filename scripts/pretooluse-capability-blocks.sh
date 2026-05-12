@@ -116,6 +116,12 @@ block_env_injection() {
       echo "BLOCKED: interpreter environment injection variable detected (PATH/PYTHONSTARTUP/etc) — use CLAUDE_PLAN_CAPABILITY=human to override" >&2
       exit 2
     fi
+    # block git child-execution vectors and pager/preprocessor execution vectors
+    if printf '%s' "$cmd" | grep -qE \
+      '(^|[[:space:];|&])[[:space:]]*(GIT_SSH_COMMAND|GIT_EXTERNAL_DIFF|GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM|LESSOPEN|LESSCLOSE|MANOPT|LD_BIND_NOW|DYLD_FORCE_FLAT_NAMESPACE|ELECTRON_RUN_AS_NODE)[[:space:]]*=[^=]'; then
+      echo "BLOCKED: git/pager execution-vector env var detected — use CLAUDE_PLAN_CAPABILITY=human to override" >&2
+      exit 2
+    fi
   fi
 }
 

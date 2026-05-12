@@ -16,8 +16,8 @@ source "$(dirname "$0")/phase-policy.sh"
 source "$(dirname "$0")/pretooluse-blocks.sh"
 # shellcheck source=pretooluse-write-guards.sh
 source "$(dirname "$0")/pretooluse-write-guards.sh"
-# D5: bash AST tokenizer for redirect target analysis
-source "$(dirname "$0")/lib/bash-parser.sh" 2>/dev/null || true
+# shared pattern-dispatch helper
+source "$(dirname "$0")/lib/hook-dispatch.sh" 2>/dev/null || true
 
 block_awk_redirect_src_tests() {
   local cmd="$1"
@@ -33,6 +33,19 @@ block_awk_redirect_src_tests() {
 }
 
 _RING_C_FILES='CLAUDE\.md|reference/(markers|critics|phase-gate-config|layers)\.md'
+# _paths_in_workspace — stdin filter: passes through relative paths and absolute paths
+# within CLAUDE_PROJECT_DIR; drops absolute paths outside the workspace.
+_paths_in_workspace() {
+  local _p
+  while IFS= read -r _p; do
+    [[ -z "$_p" ]] && continue
+    if [[ "$_p" == /* ]] && [[ -n "${CLAUDE_PROJECT_DIR:-}" ]] && \
+       [[ "$_p" != "${CLAUDE_PROJECT_DIR}/"* ]]; then
+      continue
+    fi
+    printf '%s\n' "$_p"
+  done
+}
 # _ring_c_target CMD → returns 0 (match) if CMD contains a write vector targeting a Ring C file.
 _ring_c_target() {
   local _cmd="$1"
@@ -40,19 +53,24 @@ _ring_c_target() {
   local _target_pat="(\./|\.\./|/)?(${_RING_C_FILES})\b"
   # Write-vector patterns (target-side detection): redirect, tee, dd, sed -i, truncate, mv, cp.
   if printf '%s' "$_cmd" | grep -oE '>{1,2} *[^[:space:]]+' | sed 's/^>* *//' | tr -d '"'"'" \
-      | grep -qE "$_target_pat"; then return 0; fi
+      | _paths_in_workspace | grep -qE "$_target_pat"; then return 0; fi
   if printf '%s' "$_cmd" | grep -oE '\btee( +[^[:space:]]+)+' | sed 's/^tee *//' | tr ' ' '\n' \
-      | grep -qE "$_target_pat"; then return 0; fi
+      | _paths_in_workspace | grep -qE "$_target_pat"; then return 0; fi
   if printf '%s' "$_cmd" | grep -oE '\bdd\b[^|]*\bof=[^[:space:]]+' | sed 's/.*of=//' \
-      | grep -qE "$_target_pat"; then return 0; fi
+      | _paths_in_workspace | grep -qE "$_target_pat"; then return 0; fi
   if printf '%s' "$_cmd" | grep -oE '\bsed +-i[^ ]*( +[^[:space:];|&]+)+' | awk '{print $NF}' \
-      | grep -qE "$_target_pat"; then return 0; fi
+      | _paths_in_workspace | grep -qE "$_target_pat"; then return 0; fi
   if printf '%s' "$_cmd" | grep -iqE "truncate[[:space:]]+[^|;]*(${_RING_C_FILES})"; then return 0; fi
   # mv/cp destination check (last non-flag arg)
   local _cpmv _dest
   while IFS= read -r _cpmv; do
     [[ -n "$_cpmv" ]] || continue
     _dest=$(_extract_cp_mv_dest "$_cpmv")
+    # Skip absolute destinations outside the workspace
+    if [[ "$_dest" == /* ]] && [[ -n "${CLAUDE_PROJECT_DIR:-}" ]] && \
+       [[ "$_dest" != "${CLAUDE_PROJECT_DIR}/"* ]]; then
+      continue
+    fi
     printf '%s' "$_dest" | grep -qE "$_target_pat" && return 0
   done < <(printf '%s' "$_cmd" | grep -oE '(^|[;|&[:space:]])(cp|mv)([[:space:]]+(-[[:alpha:]]+|--[a-zA-Z-]+=?[^[:space:];|&]*|[^[:space:];|&]+))+' || true)
   # printf redirect (printf '...' > CLAUDE.md)
@@ -70,19 +88,25 @@ block_ring_c_bash_writes() {
   local cmd="$1"
   [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
   if _ring_c_target "$cmd"; then
-    echo "ERROR: [phase-gate] Ring C file (CLAUDE.md / reference policy docs) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2
+    echo "BLOCKED [phase-gate]: Ring C file (CLAUDE.md / reference policy docs) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2
     exit 2
   fi
 }
 
+# Table-driven patterns for block_new_exec_vectors: "regex|||message" pairs.
+_NEW_EXEC_VECTOR_PATTERNS=(
+  '(^|[;|&[:space:]])[[:space:]]*socat[[:space:]]+[^|]*EXEC|||socat EXEC — remote shell execution vector not permitted'
+  '(^|[;|&[:space:]])[[:space:]]*(nc|ncat)[[:space:]]+[^|]*-e[[:space:]]|||nc/ncat -e — pipe-to-shell vector not permitted'
+  'osascript[[:space:]]+-e[[:space:]]+["\x27].*do[[:space:]]+shell[[:space:]]+script|||osascript do shell script — macOS shell execution vector not permitted'
+  '(gunzip|bzcat|zstdcat|lz4cat|xzcat|gzcat|uncompress)[[:space:]]+[^|]*\|[[:space:]]*(bash|sh|eval|source|\.)|||compressed-stream pipe-to-shell — security policy denies pipe-to-shell vectors'
+  'awk[[:space:]].*BEGIN[[:space:]]*\{[[:space:]]*system[[:space:]]*\(|||awk BEGIN{system(...)} — shell execution vector not permitted'
+  '(^|[;|&[:space:]])[[:space:]]*script[[:space:]]+-[a-z]*q[a-z]*c[[:space:]]+["\x27]?(bash|sh|zsh)|||script -qc shell — execution vector not permitted'
+)
+
 block_new_exec_vectors() {
   local cmd="$1"
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*socat[[:space:]]+[^|]*EXEC'; then
-    echo "BLOCKED: socat EXEC — remote shell execution vector not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(nc|ncat)[[:space:]]+[^|]*-e[[:space:]]'; then
-    echo "BLOCKED: nc/ncat -e — pipe-to-shell vector not permitted" >&2; exit 2
-  fi
+  _dispatch_patterns "$cmd" "${_NEW_EXEC_VECTOR_PATTERNS[@]}"
+  # compound checks (require two pattern matches)
   if printf '%s' "$cmd" | grep -iqE 'mkfifo' && \
      printf '%s' "$cmd" | grep -iqE '(bash|sh|zsh)[[:space:]]*<'; then
     echo "BLOCKED: mkfifo with shell redirection — pipe-to-shell vector not permitted" >&2; exit 2
@@ -91,12 +115,6 @@ block_new_exec_vectors() {
      printf '%s' "$cmd" | grep -iqE '\|[[:space:]]*(bash|sh|eval|source)'; then
     echo "BLOCKED: interpreter base64-decode pipe-to-shell — security policy denies this vector" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -iqE 'osascript[[:space:]]+-e[[:space:]]+["\x27].*do[[:space:]]+shell[[:space:]]+script'; then
-    echo "BLOCKED: osascript do shell script — macOS shell execution vector not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(gunzip|bzcat|zstdcat|lz4cat|xzcat|gzcat|uncompress)[[:space:]]+[^|]*\|[[:space:]]*(bash|sh|eval|source|\.)'; then
-    echo "BLOCKED: compressed-stream pipe-to-shell — security policy denies pipe-to-shell vectors" >&2; exit 2
-  fi
   if printf '%s' "$cmd" | grep -iqE '(expect|gdb)[[:space:]]+.*-c[[:space:]].*shell' || \
      printf '%s' "$cmd" | grep -iqE '(expect|gdb)[[:space:]].*spawn[[:space:]]+(bash|sh)'; then
     echo "BLOCKED: expect/gdb shell spawn — execution vector not permitted" >&2; exit 2
@@ -104,12 +122,6 @@ block_new_exec_vectors() {
   if printf '%s' "$cmd" | grep -iqE 'vim[[:space:]].*-c[[:space:]].*![^!]' && \
      printf '%s' "$cmd" | grep -iqE 'vim[[:space:]].*-c[[:space:]]q'; then
     echo "BLOCKED: vim -c !cmd shell execution — not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE 'awk[[:space:]].*BEGIN[[:space:]]*\{[[:space:]]*system[[:space:]]*\('; then
-    echo "BLOCKED: awk BEGIN{system(...)} — shell execution vector not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*script[[:space:]]+-[a-z]*q[a-z]*c[[:space:]]+["\x27]?(bash|sh|zsh)'; then
-    echo "BLOCKED: script -qc shell — execution vector not permitted" >&2; exit 2
   fi
 }
 

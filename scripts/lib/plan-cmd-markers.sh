@@ -6,7 +6,7 @@ set -euo pipefail
 _PLAN_CMD_MARKERS_LOADED=1
 
 _PLAN_CMD_MARKERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[[ -n "${_PLAN_LOOP_STATE_LOADED:-}" ]] || . "$_PLAN_CMD_MARKERS_DIR/plan-loop-state.sh"
+[[ -n "${_PLAN_LOOP_HELPERS_LOADED:-}" ]] || . "$_PLAN_CMD_MARKERS_DIR/plan-loop-helpers.sh"
 [[ -n "${_PLAN_CMD_STATE_LOADED:-}" ]] || . "$_PLAN_CMD_MARKERS_DIR/plan-cmd-state.sh"
 
 PHASE_CONVERGENCE_MARKERS=(

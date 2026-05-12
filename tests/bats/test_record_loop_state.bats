@@ -21,7 +21,7 @@ _load_libs() {
     source "%s/lib/sidecar.sh"
     export PLAN_FILE_SH="%s/plan-file.sh"
     source "%s/lib/plan-lib.sh"
-    source "%s/lib/plan-loop-state.sh"
+    source "%s/lib/plan-loop-helpers.sh"
   ' "$PLAN_BASE" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR"
@@ -211,5 +211,5 @@ _load_libs() {
   " 2>&1
   chmod 644 "$vpath" 2>/dev/null || true
   # With unreadable file, jq should fail → rc=2
-  [[ "$output" == *"rc=2"* ]] || [[ "$output" == *"rc=1"* ]]
+  [[ "$output" == *"rc=2"* ]]
 }

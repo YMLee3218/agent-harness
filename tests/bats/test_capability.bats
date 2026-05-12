@@ -71,5 +71,5 @@ SCRIPTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)/scripts"
   # comm_before/comm_after variables are gone and args_before/args_after are used.
   run grep '_args_before\|_args_after' "$SCRIPTS_DIR/capability.sh"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"_args_before"* ]] || [[ "$output" == *"_args_after"* ]]
+  [[ "$output" == *"_args_before"* ]]
 }

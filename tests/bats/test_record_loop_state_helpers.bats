@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# T8: Unit tests for 11th-cycle R3 split helpers in plan-loop-state.sh.
+# T8: Unit tests for 11th-cycle R3 split helpers in plan-loop-helpers.sh.
 
 load setup
 
@@ -22,7 +22,7 @@ _load_libs() {
     source "%s/lib/sidecar.sh"
     export PLAN_FILE_SH="%s/plan-file.sh"
     source "%s/lib/plan-lib.sh"
-    source "%s/lib/plan-loop-state.sh"
+    source "%s/lib/plan-loop-helpers.sh"
   ' "$PLAN_BASE" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR"

@@ -58,12 +58,26 @@ _extract_cp_mv_dest() {
 }
 
 # _bash_dest_paths CMD — extracts write-destination paths from a bash command string.
+# uses bash_get_redirect_targets (bash-parser.sh) when available; falls back to grep extraction.
 _bash_dest_paths() {
   local c="$1" _raw_path _decoded
-  while IFS= read -r _raw_path; do
-    _decoded=$(_decode_ansi_c "$_raw_path")
-    printf '%s\n' "$_decoded"
-  done < <(printf '%s' "$c" | grep -oE '>{1,2} *[^[:space:]]+' | sed 's/^>* *//' | tr -d '"'"'" || true)
+  # prefer bash-parser tokenizer for redirect target extraction (more accurate for quoted paths)
+  local _use_parser=0
+  if declare -F bash_get_redirect_targets >/dev/null 2>&1; then
+    _use_parser=1
+    while IFS= read -r _raw_path; do
+      [[ -z "$_raw_path" ]] && continue
+      _decoded=$(_decode_ansi_c "$_raw_path")
+      printf '%s\n' "$_decoded"
+    done < <(bash_get_redirect_targets "$c" 2>/dev/null || true)
+  fi
+  if [[ "$_use_parser" -eq 0 ]]; then
+    # fallback: grep-based extraction (parser unavailable)
+    while IFS= read -r _raw_path; do
+      _decoded=$(_decode_ansi_c "$_raw_path")
+      printf '%s\n' "$_decoded"
+    done < <(printf '%s' "$c" | grep -oE '>{1,2} *[^[:space:]]+' | sed 's/^>* *//' | tr -d '"'"'" || true)
+  fi
   while IFS= read -r _raw_path; do
     [[ "$_raw_path" == -* ]] && continue
     _decoded=$(_decode_ansi_c "$_raw_path")
@@ -80,10 +94,13 @@ _bash_dest_paths() {
     _decoded=$(_decode_ansi_c "$_raw_path")
     printf '%s\n' "$_decoded"
   done < <(printf '%s' "$c" | grep -oE '\bsed +-i[^ ]*( +[^[:space:];|&]+)+' | awk '{print $NF}' || true)
-  while IFS= read -r _raw_path; do
-    _decoded=$(_decode_ansi_c "$_raw_path")
-    printf '%s\n' "$_decoded"
-  done < <(printf '%s' "$c" | grep -oE '\bdd\b[^|]*\bof=[^[:space:]]+' | grep -oE '\bof=[^[:space:]]+' | sed 's/^of=//' || true)
+  # skip grep-based dd of= extraction when parser already covered it via DD_OF_TARGET tokens
+  if [[ "$_use_parser" -eq 0 ]]; then
+    while IFS= read -r _raw_path; do
+      _decoded=$(_decode_ansi_c "$_raw_path")
+      printf '%s\n' "$_decoded"
+    done < <(printf '%s' "$c" | grep -oE '\bdd\b[^|]*\bof=[^[:space:]]+' | grep -oE '\bof=[^[:space:]]+' | sed 's/^of=//' || true)
+  fi
   if printf '%s' "$c" | grep -qE '(python3?|perl|ruby|node|php|lua|R)[[:space:]]+-[ceEr][^[:alpha:]]'; then
     printf '%s' "$c" | \
       grep -oE "(open|write|writeFileSync|appendFileSync|createWriteStream|write_text)\(['\"][^'\"]+['\"]" | \

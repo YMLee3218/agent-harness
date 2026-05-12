@@ -32,6 +32,16 @@ Written by skills or hooks outside the critic convergence protocol.
 | `[BLOCKED] {category}: {reason}` | Various harness scripts and skills | Harness stop requiring human action; category identifies source (e.g. `coder:`, `preflight:`, `integration:`, `parse:`, `protocol-violation:`, `runtime:`, `script-failure:`, `session-timeout`, `no timeout binary`, `plan unchanged`) | Manual `plan-file.sh clear-marker` after resolving — see `HUMAN_MUST_CLEAR_MARKERS` in `scripts/phase-policy.sh` for full list | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | stop-check.sh | Why Stop hook blocked the previous stop attempt | Informational; survives `gc-events` | Yes |
 
+### NOT-PERSISTED sidecar markers (written to `## Open Questions` as verdict prefix)
+
+These prefix markers are written by `cmd_append_verdict` in `scripts/lib/sidecar.sh` when a record cannot be safely persisted to the sidecar. They are never written to the sidecar itself (by definition). They signal data integrity conditions to operators.
+
+| Marker constant | Value | Written when | Clear path |
+|----------------|-------|-------------|------------|
+| `MARK_NOT_PERSISTED_CORRUPT` | `[NOT-PERSISTED:CORRUPT]` | sidecar JSON is corrupted and cannot be updated | Manual sidecar repair + `plan-file.sh clear-marker` |
+| `MARK_NOT_PERSISTED_CORRUPT_CHECK` | `[NOT-PERSISTED:CORRUPT-CHECK]` | consecutive parse errors detected while sidecar check is also failing | Manual sidecar repair + `plan-file.sh clear-marker` |
+| `MARK_NOT_PERSISTED_STREAK` | `[NOT-PERSISTED:STREAK]` | streak computation failed due to corrupt/missing sidecar data | Manual sidecar repair + `plan-file.sh clear-marker` |
+
 ### Integration test markers (written to `## Integration Failures`)
 
 Written by `running-integration-tests`; do not interact with the critic convergence protocol.

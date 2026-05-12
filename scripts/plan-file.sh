@@ -4,7 +4,7 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/plan-lib.sh"
-. "$SCRIPT_DIR/lib/plan-loop-state.sh"
+. "$SCRIPT_DIR/lib/plan-loop-helpers.sh"
 . "$SCRIPT_DIR/lib/plan-cmd-state.sh"
 . "$SCRIPT_DIR/lib/plan-cmd-notes.sh"
 . "$SCRIPT_DIR/lib/plan-cmd-verdicts.sh"

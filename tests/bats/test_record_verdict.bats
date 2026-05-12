@@ -20,7 +20,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -40,7 +40,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -59,7 +59,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -80,7 +80,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -101,7 +101,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -132,7 +132,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -154,7 +154,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -175,7 +175,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -208,7 +208,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -237,7 +237,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -274,7 +274,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -312,7 +312,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -348,7 +348,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -387,7 +387,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -418,7 +418,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -450,7 +450,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -471,7 +471,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
@@ -496,7 +496,7 @@ _load_rv_libs() {
     source "%s/lib/sidecar.sh"
     export PLAN_FILE_SH="%s/plan-file.sh"
     source "%s/lib/plan-lib.sh"
-    source "%s/lib/plan-loop-state.sh"
+    source "%s/lib/plan-loop-helpers.sh"
     source "%s/lib/plan-cmd-state.sh"
     source "%s/lib/plan-cmd-notes.sh"
     source "%s/lib/plan-cmd-verdicts.sh"
@@ -517,7 +517,7 @@ _load_rv_libs() {
     source '$SCRIPTS_DIR/lib/sidecar.sh'
     export PLAN_FILE_SH='$SCRIPTS_DIR/plan-file.sh'
     source '$SCRIPTS_DIR/lib/plan-lib.sh'
-    source '$SCRIPTS_DIR/lib/plan-loop-state.sh'
+    source '$SCRIPTS_DIR/lib/plan-loop-helpers.sh'
     source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
     source '$SCRIPTS_DIR/lib/plan-cmd-notes.sh'
     source '$SCRIPTS_DIR/lib/plan-cmd-verdicts.sh'
@@ -537,7 +537,7 @@ _load_rv_libs() {
     source '$SCRIPTS_DIR/lib/sidecar.sh'
     export PLAN_FILE_SH='$SCRIPTS_DIR/plan-file.sh'
     source '$SCRIPTS_DIR/lib/plan-lib.sh'
-    source '$SCRIPTS_DIR/lib/plan-loop-state.sh'
+    source '$SCRIPTS_DIR/lib/plan-loop-helpers.sh'
     source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
     source '$SCRIPTS_DIR/lib/plan-cmd-notes.sh'
     source '$SCRIPTS_DIR/lib/plan-cmd-verdicts.sh'
@@ -558,7 +558,7 @@ _load_rv_libs() {
     source '$SCRIPTS_DIR/lib/sidecar.sh'
     export PLAN_FILE_SH='$SCRIPTS_DIR/plan-file.sh'
     source '$SCRIPTS_DIR/lib/plan-lib.sh'
-    source '$SCRIPTS_DIR/lib/plan-loop-state.sh'
+    source '$SCRIPTS_DIR/lib/plan-loop-helpers.sh'
     source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
     source '$SCRIPTS_DIR/lib/plan-cmd-notes.sh'
     source '$SCRIPTS_DIR/lib/plan-cmd-verdicts.sh'

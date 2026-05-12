@@ -34,7 +34,7 @@ _load_libs() {
     cmd_init '$valid_plan'
     echo rc=\$?
   " 2>&1
-  [[ "$status" -eq 0 ]] || [[ "$output" == *"rc=0"* ]]
+  [ "$status" -eq 0 ]
 }
 
 @test "T-3: cmd_init rejects slug with single quote" {
@@ -45,7 +45,7 @@ _load_libs() {
     cmd_init '$bad_plan'
     echo rc=\$?
   " 2>&1
-  [[ "$output" == *"rc=1"* ]] || [[ "$output" == *"illegal characters"* ]] || [[ "$status" -ne 0 ]]
+  [ "$status" -ne 0 ]
 }
 
 @test "T-3: cmd_init rejects slug with newline (via basename)" {
@@ -68,7 +68,7 @@ _load_libs() {
     cmd_init '$bad_plan'
     echo rc=\$?
   " 2>&1
-  [[ "$output" == *"rc=1"* ]] || [[ "$output" == *"illegal characters"* ]] || [[ "$status" -ne 0 ]]
+  [[ "$output" == *"illegal characters"* ]]
 }
 
 @test "T-3: cmd_init rejects slug starting with hyphen" {
@@ -79,7 +79,7 @@ _load_libs() {
     cmd_init '$bad_plan'
     echo rc=\$?
   " 2>&1
-  [[ "$output" == *"rc=1"* ]] || [[ "$output" == *"illegal characters"* ]] || [[ "$status" -ne 0 ]]
+  [[ "$output" == *"illegal characters"* ]]
 }
 
 @test "T-3: cmd_init rejects slug longer than 64 chars" {
@@ -92,5 +92,5 @@ _load_libs() {
     cmd_init '$bad_plan'
     echo rc=\$?
   " 2>&1
-  [[ "$output" == *"rc=1"* ]] || [[ "$output" == *"illegal characters"* ]] || [[ "$status" -ne 0 ]]
+  [[ "$output" == *"illegal characters"* ]]
 }

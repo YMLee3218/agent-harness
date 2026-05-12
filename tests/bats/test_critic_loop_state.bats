@@ -41,7 +41,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"

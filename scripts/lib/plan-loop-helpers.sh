@@ -2,8 +2,8 @@
 # Sidecar convergence loop-state helpers.
 # Source this file; do not execute directly.
 set -euo pipefail
-[[ -n "${_PLAN_LOOP_STATE_LOADED:-}" ]] && return 0
-_PLAN_LOOP_STATE_LOADED=1
+[[ -n "${_PLAN_LOOP_HELPERS_LOADED:-}" ]] && return 0
+_PLAN_LOOP_HELPERS_LOADED=1
 
 _PLAN_LOOP_STATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_PLAN_LIB_LOADED:-}" ]] || . "$_PLAN_LOOP_STATE_DIR/plan-lib.sh"

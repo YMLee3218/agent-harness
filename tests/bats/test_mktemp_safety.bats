@@ -27,7 +27,7 @@ SH
     echo rc=\$?
   " 2>&1
   [[ "$output" == *"rc=1"* ]]
-  [[ "$output" == *"ERROR"* ]] || [[ "$output" == *"empty"* ]]
+  [[ "$output" == *"ERROR"* ]]
 }
 
 @test "T-1/C1: _sc_mktemp creates file with non-empty path" {
@@ -51,7 +51,7 @@ SH
     echo rc=\$?
   " 2>&1
   _cwd_after=$(ls -1 "$PLAN_BASE"/ 2>/dev/null | wc -l)
-  [[ "$output" == *"rc=1"* ]] || [[ "$output" == *"ERROR"* ]]
+  [[ "$output" == *"ERROR"* ]]
   [ "$_cwd_after" -le "$_cwd_before" ]
 }
 
@@ -67,5 +67,5 @@ SH
   " 2>&1
   _after=$(ls -la "$PLAN_BASE"/ 2>/dev/null | grep -cE '^\.[A-Za-z0-9]{6}' || true)
   [ "$_after" -le "$_before" ]
-  [[ "$output" == *"rc=2"* ]] || [[ "$output" == *"rc=1"* ]] || [[ "$output" == *"FATAL"* ]]
+  [[ "$output" == *"FATAL"* ]]
 }

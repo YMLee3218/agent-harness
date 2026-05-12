@@ -19,19 +19,23 @@ teardown() {
 }
 
 @test "T-19/H11: cmd_find_latest returns newest plan by mtime" {
-  mkdir -p "$PLAN_BASE/plans"
-  echo '---' > "$PLAN_BASE/plans/old-plan.md"
-  sleep 0.1
-  echo '---' > "$PLAN_BASE/plans/new-plan.md"
+  local _tmp
+  _tmp=$(mktemp -d)
+  mkdir -p "$_tmp/plans"
+  echo '---' > "$_tmp/plans/old-plan.md"
+  touch -t 202001010000 "$_tmp/plans/old-plan.md"
+  echo '---' > "$_tmp/plans/new-plan.md"
+  touch -t 202001020000 "$_tmp/plans/new-plan.md"
   run bash -c "
-    export CLAUDE_PROJECT_DIR='$PLAN_BASE'
+    export CLAUDE_PROJECT_DIR='$_tmp'
     source '$SCRIPTS_DIR/lib/plan-cmd-state.sh' 2>/dev/null || \
       source '$SCRIPTS_DIR/lib/sidecar.sh' 2>/dev/null
     source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
     cmd_find_latest 2>&1
   " 2>&1
+  rm -rf "$_tmp"
   # Should return new-plan.md, not old-plan.md
-  [[ "$output" == *"new-plan.md"* ]] || [[ "$output" == *"plans/"* ]]
+  [[ "$output" == *"new-plan.md"* ]]
 }
 
 @test "T-19/H11: cmd_find_latest returns rc=2 when plans/ empty" {
@@ -50,5 +54,5 @@ teardown() {
     echo rc=\$?
   " 2>&1
   rm -rf "$_empty_base"
-  [[ "$output" == *"rc=2"* ]] || [ "$status" -eq 2 ]
+  [[ "$output" == *"rc=2"* ]]
 }

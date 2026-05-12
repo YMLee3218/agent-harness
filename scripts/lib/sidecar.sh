@@ -51,11 +51,13 @@ sc_dir() {
   echo "$(dirname "$_real")/$(basename "$_real" .md).state"
 }
 
-# _sc_mktemp PATH — mktemp wrapper; refuses empty PATH to prevent CWD stray files.
-# Uses ${TMPDIR:-/tmp} fallback only when a real path cannot be determined.
+# _sc_mktemp PATH — mktemp wrapper; refuses empty, relative, or dot PATH to prevent CWD stray files.
+# Requires an absolute path (starting with /) to prevent stray temp file creation.
 _sc_mktemp() {
   local _p="$1"
   [[ -n "$_p" ]] || { echo "ERROR: _sc_mktemp: empty mktemp template — refusing to create temp file in CWD" >&2; return 1; }
+  [[ "$_p" == "." || "$_p" == ".." ]] && { echo "ERROR: _sc_mktemp: '.' or '..' path not allowed" >&2; return 1; }
+  [[ "$_p" == /* ]] || { echo "ERROR: _sc_mktemp: non-absolute path not allowed: ${_p}" >&2; return 1; }
   mktemp "${_p}.XXXXXX"
 }
 
@@ -98,75 +100,9 @@ sc_ensure_dir() {
   fi
 }
 
-# _with_lock lock stack: LIFO, depth via ${#_SC_LOCK_STACK[@]}, cleanup reads array (no path interpolation).
-# Outer caller traps saved at depth 0; restored when stack empties.
-declare -a _SC_LOCK_STACK=()
-_SC_LOCK_CLEANED=0
-_SC_LOCK_OUTER_INT=''
-_SC_LOCK_OUTER_TERM=''
-_SC_LOCK_OUTER_EXIT=''
-_SC_LOCK_OUTER_INIT=0
-
-# _sc_lock_cleanup — removes all lockdirs from stack; sets _SC_LOCK_CLEANED=1 for signal-return detection.
-_sc_lock_cleanup() {
-  local _i _d
-  _d=${#_SC_LOCK_STACK[@]}
-  for ((_i = _d - 1; _i >= 0; _i--)); do
-    rmdir "${_SC_LOCK_STACK[$_i]}" 2>/dev/null || true
-    unset "_SC_LOCK_STACK[$_i]"
-  done
-  _SC_LOCK_STACK=()
-  _SC_LOCK_CLEANED=1
-}
-
-_sc_lock_restore_traps() {
-  trap - INT TERM EXIT
-  [ -n "$_SC_LOCK_OUTER_INT" ]  && eval "$_SC_LOCK_OUTER_INT"
-  [ -n "$_SC_LOCK_OUTER_TERM" ] && eval "$_SC_LOCK_OUTER_TERM"
-  [ -n "$_SC_LOCK_OUTER_EXIT" ] && eval "$_SC_LOCK_OUTER_EXIT"
-  _SC_LOCK_OUTER_INIT=0
-}
-
-# _with_lock LOCK_BASE_PATH BODY_FN [ARGS...] — atomic mkdir-based lock; runs BODY_FN while held.
-# mkdir is atomic and does not follow existing symlinks — eliminates the TOCTOU window.
-# Symlink guard: refuses if lockdir path is already a symlink (fail-closed).
-# Trap guard: uses stack array instead of path interpolation — no single-quote injection possible.
-# Depth is derived from ${#_SC_LOCK_STACK[@]} — no separate counter that can go negative.
-_with_lock() {
-  local _lockdir="${1}.lockdir"; shift
-  [ -L "$_lockdir" ] && { echo "ERROR: _with_lock: lockdir is symlink — refusing: ${_lockdir}" >&2; return 1; }
-  local _s; _s=$(date +%s)
-  while ! mkdir "$_lockdir" 2>/dev/null; do
-    [ $(( $(date +%s) - _s )) -ge 30 ] && { echo "ERROR: _with_lock: timeout 30s on ${_lockdir}" >&2; return 1; }
-    sleep 0.1
-  done
-  # Only save caller traps at depth 0; _SC_LOCK_OUTER_INIT guards against re-capture on nested entry.
-  if [[ "${#_SC_LOCK_STACK[@]}" -eq 0 ]] && [[ "$_SC_LOCK_OUTER_INIT" -eq 0 ]]; then
-    _SC_LOCK_OUTER_INT=$(trap -p INT 2>/dev/null)
-    _SC_LOCK_OUTER_TERM=$(trap -p TERM 2>/dev/null)
-    _SC_LOCK_OUTER_EXIT=$(trap -p EXIT 2>/dev/null)
-    _SC_LOCK_OUTER_INIT=1
-    trap '_sc_lock_cleanup' INT TERM EXIT  # no path interpolation: reads stack array
-  fi
-  _SC_LOCK_STACK+=("$_lockdir")
-  _SC_LOCK_CLEANED=0
-  local _rc=0
-  "$@" || _rc=$?
-  # Guard: if a non-exit signal fired _sc_lock_cleanup, restore traps and return.
-  if [[ "${_SC_LOCK_CLEANED:-0}" -eq 1 ]]; then
-    _SC_LOCK_CLEANED=0
-    if [[ "${#_SC_LOCK_STACK[@]}" -eq 0 ]]; then
-      _sc_lock_restore_traps
-    fi
-    return $_rc
-  fi
-  rmdir "$_lockdir" 2>/dev/null || true
-  unset '_SC_LOCK_STACK[-1]'
-  if [[ "${#_SC_LOCK_STACK[@]}" -eq 0 ]]; then
-    _sc_lock_restore_traps
-  fi
-  return $_rc
-}
+# Lock primitives sourced from sc-lock.sh
+_SC_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_SC_LIB_DIR}/sc-lock.sh"
 
 sc_read_json() {
   local path="$1"
@@ -187,36 +123,8 @@ sc_update_json() {
   _with_lock "${_path}.lock" mv "$_tmp" "${_path}" || { rm -f "$_tmp"; return 1; }
 }
 
-# sc_append_jsonl PATH RECORD_JSON — append one JSON line (_with_lock-protected)
-_sc_append_line() { printf '%s\n' "$1" >> "$2"; }
-sc_append_jsonl() {
-  _with_lock "${1}.lock" _sc_append_line "$2" "$1" || {
-    echo "[sidecar] sc_append_jsonl failed for ${1}" >&2; return 1
-  }
-}
-
-# sc_append_jsonl_unlocked PATH RECORD_JSON — append without locking (caller holds lock)
-sc_append_jsonl_unlocked() {
-  printf '%s\n' "$2" >> "$1"
-}
-
-# _sc_rewrite_jsonl JSONL_PATH JQ_FILTER LOG_TAG [JQ_ARGS...] — rewrite JSONL atomically via _with_lock+tmp+mv.
-_sc_rewrite_jsonl_locked() {
-  local _bpath="$1" _tmp="$2" _jq_filter="$3"; shift 3
-  jq -c "$@" "$_jq_filter" "$_bpath" > "$_tmp" && mv "$_tmp" "$_bpath" || { rm -f "$_tmp"; return 1; }
-}
-_sc_rewrite_jsonl() {
-  local _bpath="$1" _jq_filter="$2" _log_tag="$3"; shift 3
-  [[ -f "$_bpath" ]] || return 0
-  local _tmp _rc=0
-  _tmp=$(_sc_mktemp "$_bpath") || return 1
-  _with_lock "${_bpath}.lock" _sc_rewrite_jsonl_locked "$_bpath" "$_tmp" "$_jq_filter" "$@" || _rc=$?
-  if [[ $_rc -ne 0 ]]; then
-    rm -f "$_tmp" 2>/dev/null || true
-    echo "[${_log_tag}] ERROR: failed to rewrite ${_bpath} — aborting to prevent state divergence" >&2
-    return 1
-  fi
-}
+# JSONL helpers sourced from sc-jsonl.sh
+source "${_SC_LIB_DIR}/sc-jsonl.sh"
 
 # sc_make_conv_state PHASE AGENT [FT STREAK CONV CB ORD MS]
 # Builds a convergence JSON object. All keys emitted in canonical order.

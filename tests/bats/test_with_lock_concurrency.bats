@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# R11: _with_lock concurrency — two children competing for same lock must both run body.
+# _with_lock concurrency — two children competing for same lock must both run body.
 
 load setup
 
@@ -18,6 +18,35 @@ _load_sidecar() {
 export CLAUDE_PROJECT_DIR='$PLAN_BASE'
 source '$SCRIPTS_DIR/lib/sidecar.sh'
 SH
+}
+
+@test "R11: 100-run stress — all workers complete body exactly once" {
+  local _counter_file="$PLAN_BASE/stress_counter"
+  printf '0' > "$_counter_file"
+  local _lock_base="$PLAN_BASE/stress_lock"
+  local _pids=()
+
+  for _i in $(seq 1 100); do
+    bash -c "
+      export CLAUDE_PROJECT_DIR='$PLAN_BASE'
+      source '$SCRIPTS_DIR/lib/sidecar.sh'
+      _incr() {
+        local v
+        v=\$(cat '$_counter_file')
+        printf '%s' \"\$(( v + 1 ))\" > '$_counter_file'
+      }
+      _with_lock '$_lock_base' _incr
+    " &
+    _pids+=($!)
+  done
+
+  for _pid in "${_pids[@]}"; do
+    wait "$_pid" || true
+  done
+
+  local _result
+  _result=$(cat "$_counter_file")
+  [ "$_result" -eq 100 ]
 }
 
 @test "R11: two concurrent _with_lock callers both complete body" {

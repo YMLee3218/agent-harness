@@ -24,7 +24,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-markers.sh
     cmd_clear_marker "'"$PLAN_FILE"'" "BLOCKED] pars"
@@ -40,7 +40,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-markers.sh
     cmd_clear_marker "'"$PLAN_FILE"'" "[BLOCKED] parse:critic-code:"
@@ -84,7 +84,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-markers.sh
     CLAUDE_PLAN_CAPABILITY=human cmd_clear_marker "'"$PLAN_FILE"'" "[BLOCKED] parse:critic-code:"
@@ -102,7 +102,7 @@ teardown() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
     source '"$SCRIPTS_DIR"'/lib/plan-cmd-markers.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"

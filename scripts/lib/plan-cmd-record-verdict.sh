@@ -77,6 +77,46 @@ _resolve_output() {
   printf '%s' "$out"
 }
 
+# _resolve_plan_for_verdict AGENT → sets plan_file, current_phase; exits 0 on skip, returns 0 on success.
+_resolve_plan_for_verdict() {
+  local _agent="$1" _find_rc=0
+  plan_file=$(cmd_find_active) || _find_rc=$?
+  if [ "$_find_rc" -ne 0 ]; then
+    case "$_find_rc" in
+      2) echo "[record-verdict] no active plan file — verdict for ${_agent} dropped" >&2 ;;
+      3) echo "[record-verdict] ambiguous: multiple active plan files — pin CLAUDE_PLAN_FILE for ${_agent}" >&2 ;;
+      4) echo "[record-verdict] unreadable plan phase — verdict for ${_agent} dropped" >&2 ;;
+      *) echo "[record-verdict] cmd_find_active failed (exit ${_find_rc}) — verdict for ${_agent} dropped" >&2 ;;
+    esac
+    exit 0
+  fi
+  current_phase=$(_require_phase "$plan_file" "record-verdict") || exit $?
+}
+
+# _extract_or_handle_missing_verdict OUTPUT INPUT PLAN PHASE AGENT → sets verdict, category; exits on error.
+_extract_or_handle_missing_verdict() {
+  local _output="$1" _input="$2" _plan="$3" _phase="$4" _agent="$5" _pvm_out
+  _pvm_out=$(_parse_verdict_message "$_output")
+  IFS='|' read -r verdict category <<< "$_pvm_out"
+  if [ -z "$verdict" ]; then
+    printf '%s' "$_output" | grep -qE 'Verdict:\s*(PASS|FAIL)|\*\*Verdict:\s*(PASS|FAIL)\*\*' && {
+      echo "[record-verdict] textual-verdict-only transcript for ${_agent} — skipping" >&2; exit 0; }
+    printf '%s' "$_output" | grep -qE '### Verdict|<!-- verdict:' || {
+      echo "[record-verdict] no verdict section in transcript for ${_agent} — skipping" >&2; exit 0; }
+    local _keys; _keys=$(printf '%s' "$_input" | jq -r 'keys | join(", ")' 2>/dev/null || echo "unknown")
+    _handle_parse_error "$_plan" "$_phase" "$_agent" \
+      "missing verdict marker from ${_agent} (payload keys: ${_keys})" \
+      "verdict marker missing (two consecutive parse errors) — check agent output format before retrying" \
+      "first PARSE_ERROR for ${_agent} — will retry automatically"
+  fi
+  [ "$verdict" = "FAIL" ] && [ -z "$category" ] && \
+    _handle_parse_error "$_plan" "$_phase" "$_agent" \
+      "FAIL without category from ${_agent} — treating as PARSE_ERROR" \
+      "FAIL without category (two consecutive parse errors) — check agent output format" \
+      "first FAIL-without-category for ${_agent} — will retry automatically"
+  return 0
+}
+
 # _resolve_verdict_payload INPUT → sets plan_file, agent_name, current_phase, verdict, category
 # Exits 0 (silent skip), 1 (parse error handled), or returns normally with vars populated.
 _resolve_verdict_payload() {
@@ -84,48 +124,20 @@ _resolve_verdict_payload() {
   agent_name=$(printf '%s' "$_input" | jq -r '.agent_type // "unknown"' 2>/dev/null) || {
     echo "[record-verdict] WARN: jq parse failed on input — agent_type unknown, verdict may be dropped" >&2
     agent_name="unknown"
-    local _pf_jq _rc_jq=0
-    _pf_jq=$(cmd_find_active 2>/dev/null) || _rc_jq=$?
-    [ "$_rc_jq" -eq 0 ] && [ -n "$_pf_jq" ] && \
-      _record_blocked_runtime "$_pf_jq" "harness" "transcript-parse-failure" \
+    local _plan_file_fallback _rc_fallback=0
+    _plan_file_fallback=$(cmd_find_active 2>/dev/null) || _rc_fallback=$?
+    [ "$_rc_fallback" -eq 0 ] && [ -n "$_plan_file_fallback" ] && \
+      _record_blocked_runtime "$_plan_file_fallback" "harness" "transcript-parse-failure" \
         "jq failed to extract agent_type" 2>/dev/null || true
   }
   _is_subagent_critic "$agent_name" || exit 0
-  local _agent_transcript _transcript _find_rc=0
+  local _agent_transcript _transcript
   _agent_transcript=$(printf '%s' "$_input" | jq -r '.agent_transcript_path // empty' 2>/dev/null || true)
   _transcript=$(printf '%s' "$_input" | jq -r '.transcript_path // empty' 2>/dev/null || true)
-  plan_file=$(cmd_find_active) || _find_rc=$?
-  if [ "$_find_rc" -ne 0 ]; then
-    case "$_find_rc" in
-      2) echo "[record-verdict] no active plan file — verdict for ${agent_name} dropped" >&2 ;;
-      3) echo "[record-verdict] ambiguous: multiple active plan files — pin CLAUDE_PLAN_FILE for ${agent_name}" >&2 ;;
-      4) echo "[record-verdict] unreadable plan phase — verdict for ${agent_name} dropped" >&2 ;;
-      *) echo "[record-verdict] cmd_find_active failed (exit ${_find_rc}) — verdict for ${agent_name} dropped" >&2 ;;
-    esac
-    exit 0
-  fi
-  current_phase=$(_require_phase "$plan_file" "record-verdict") || exit $?
-  local _output _pvm_out
+  _resolve_plan_for_verdict "$agent_name"
+  local _output
   _output=$(_resolve_output "$_input" "$_agent_transcript" "$_transcript")
-  _pvm_out=$(_parse_verdict_message "$_output")
-  IFS='|' read -r verdict category <<< "$_pvm_out"
-  if [ -z "$verdict" ]; then
-    printf '%s' "$_output" | grep -qE 'Verdict:\s*(PASS|FAIL)|\*\*Verdict:\s*(PASS|FAIL)\*\*' && {
-      echo "[record-verdict] textual-verdict-only transcript for ${agent_name} — skipping" >&2; exit 0; }
-    printf '%s' "$_output" | grep -qE '### Verdict|<!-- verdict:' || {
-      echo "[record-verdict] no verdict section in transcript for ${agent_name} — skipping" >&2; exit 0; }
-    local _keys; _keys=$(printf '%s' "$_input" | jq -r 'keys | join(", ")' 2>/dev/null || echo "unknown")
-    _handle_parse_error "$plan_file" "$current_phase" "$agent_name" \
-      "missing verdict marker from ${agent_name} (payload keys: ${_keys})" \
-      "verdict marker missing (two consecutive parse errors) — check agent output format before retrying" \
-      "first PARSE_ERROR for ${agent_name} — will retry automatically"
-  fi
-  [ "$verdict" = "FAIL" ] && [ -z "$category" ] && \
-    _handle_parse_error "$plan_file" "$current_phase" "$agent_name" \
-      "FAIL without category from ${agent_name} — treating as PARSE_ERROR" \
-      "FAIL without category (two consecutive parse errors) — check agent output format" \
-      "first FAIL-without-category for ${agent_name} — will retry automatically"
-  return 0
+  _extract_or_handle_missing_verdict "$_output" "$_input" "$plan_file" "$current_phase" "$agent_name"
 }
 
 # _persist_verdict PLAN PHASE AGENT VERDICT CATEGORY → writes loop state + appends to plan.md

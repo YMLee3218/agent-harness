@@ -7,11 +7,6 @@ _CAPABILITY_LOADED=1
 
 declare -F die >/dev/null 2>&1 || die() { echo "ERROR: $*" >&2; exit 1; }
 
-# D1: launcher token check — primary gate before ps-based check.
-# Source launcher-token.sh if available; silently skip if not (backwards compat).
-_LT_SH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/launcher-token.sh"
-[[ -f "$_LT_SH" ]] && . "$_LT_SH" 2>/dev/null || true
-
 # _check_parent_env PID → returns 0 if the process has CLAUDE_PLAN_CAPABILITY=harness in its environment.
 # checks the parent process's environment rather than argv to prevent argv-injection bypass.
 _check_parent_env() {
@@ -109,13 +104,9 @@ require_capability() {
     [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
     die "[$cmd] is human-only — set CLAUDE_PLAN_CAPABILITY=human in the calling shell"
   fi
-  # D1: launcher token is the preferred primary gate.
-  if declare -F launcher_token_verify >/dev/null 2>&1 && launcher_token_verify 2>/dev/null; then
-    [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "harness" ]] && return 0
-  fi
-  # Ring B fallback: env-var AND PPID chain
-  if [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "harness" ]] && _ppid_chain_is_harness; then
-    return 0
+  # Ring B: require CLAUDE_PLAN_CAPABILITY=harness AND PPID chain
+  if [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "harness" ]]; then
+    _ppid_chain_is_harness && return 0
   fi
   die "[$cmd] requires CLAUDE_PLAN_CAPABILITY=harness"
 }

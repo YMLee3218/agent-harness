@@ -6,7 +6,7 @@ set -euo pipefail
 # Callers must set PLAN_FILE_SH before sourcing this file (required by plan-resolution functions).
 # Optional: set BLOCKED_LABEL to a context string for error messages (default: "active-plan").
 #
-# Hook utilities:
+# Hook utilities (sourced from hook-utils.sh):
 #   require_jq_or_block <label> [strict]          — exits 2 (strict) or warns when jq absent
 #   extract_tool_input_path <json>                — prints file_path or notebook_path
 #   extract_tool_input_command <json>             — prints .tool_input.command
@@ -16,37 +16,16 @@ set -euo pipefail
 #   resolve_active_plan_and_phase <pvar> <phvar>  — sets plan path + phase; returns 1 if none found
 #   resolve_with_latest_fallback  <pvar> <phvar>  — like above but falls back to find-latest
 #   bootstrap_block_if_strict <path>              — returns 2+BLOCKED when STRICT=1 and path is src/test
+#
+# Path helpers (sourced from path-canon.sh):
+#   _canon_path PATH                              — canonical absolute path (resolves symlinks)
+#   _is_safe_transcript_path PATH                 — validates path is inside project/home dir
 [[ -n "${_ACTIVE_PLAN_LOADED:-}" ]] && return 0
 _ACTIVE_PLAN_LOADED=1
 
-# ── Hook utilities ───────────────────────────────────────────────────────────
-
-# require_jq_or_block <label> [strict=1]
-#   strict=1 → exit 2 with "BLOCKED [label]: jq is required but not found"
-#   strict=0 → return 1 with advisory message; caller decides
-require_jq_or_block() {
-  local label="$1" strict="${2:-1}"
-  command -v jq >/dev/null 2>&1 && return 0
-  if [ "$strict" = "1" ]; then
-    echo "BLOCKED [$label]: jq is required but not found" >&2
-    exit 2
-  fi
-  echo "[$label] warning: jq not found" >&2
-  return 1
-}
-
-# extract_tool_input_field <field> <json> → prints .tool_input[field] (empty if absent)
-extract_tool_input_field() {
-  printf '%s' "$2" | jq -r --arg f "$1" '.tool_input[$f] // empty' 2>/dev/null
-}
-
-# extract_tool_input_path <json>   → prints file_path or notebook_path (empty if absent)
-extract_tool_input_path() {
-  printf '%s' "$1" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null
-}
-
-# extract_tool_input_command <json> → prints .tool_input.command (empty if absent)
-extract_tool_input_command() { extract_tool_input_field command "$1"; }
+# ── Hook utilities (sourced from hook-utils.sh) ──────────────────────────────
+_AP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${_AP_DIR}/hook-utils.sh"
 
 # ── Plan-resolution functions ─────────────────────────────────────────────────
 
@@ -130,35 +109,5 @@ bootstrap_block_if_strict() {
   return 0
 }
 
-# ── Path helpers ──────────────────────────────────────────────────────────────
-
-# _canon_path PATH → resolves symlinks; returns canonical absolute path.
-# Tries realpath, readlink -f, then python3 for macOS without GNU coreutils.
-_canon_path() {
-  if command -v realpath >/dev/null 2>&1; then
-    realpath -- "$1" 2>/dev/null
-  elif readlink -f /dev/null >/dev/null 2>&1; then
-    readlink -f -- "$1" 2>/dev/null
-  else
-    python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$1" 2>/dev/null
-  fi
-}
-
-# _is_safe_transcript_path PATH → prints canonical path and returns 0 if path resolves inside
-# CLAUDE_PROJECT_DIR or ~/.claude/projects/. Returns 1 (no output) if unsafe or unresolvable.
-# Callers must use the printed canonical path for all subsequent file opens (TOCTOU prevention).
-_is_safe_transcript_path() {
-  local _p="$1"
-  [[ -z "$_p" ]] && return 1
-  local canon home_canon proj_canon
-  canon=$(_canon_path "$_p") || return 1
-  [[ -z "$canon" ]] && return 1
-  home_canon=$(_canon_path "${HOME}/.claude/projects") || home_canon="${HOME}/.claude/projects"
-  case "$canon" in "${home_canon}/"*) printf '%s' "$canon"; return 0 ;; esac
-  local _proj_dir="${CLAUDE_PROJECT_DIR:-}"
-  if [[ -n "$_proj_dir" ]]; then
-    proj_canon=$(_canon_path "$_proj_dir") || proj_canon="$_proj_dir"
-    [[ -n "$proj_canon" ]] && case "$canon" in "${proj_canon}/"*) printf '%s' "$canon"; return 0 ;; esac
-  fi
-  return 1
-}
+# ── Path helpers (sourced from path-canon.sh) ─────────────────────────────────
+source "${_AP_DIR}/path-canon.sh"

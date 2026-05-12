@@ -46,7 +46,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ ERROR.*CLAUDE\.md ]] || [[ "$output" =~ Ring\ C ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "C5: bash hook blocks tee CLAUDE.md (harness)" {
@@ -57,7 +57,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ ERROR.*CLAUDE\.md ]] || [[ "$output" =~ Ring\ C ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "C5: bash hook blocks sed -i CLAUDE.md (harness)" {
@@ -68,7 +68,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ ERROR.*CLAUDE\.md ]] || [[ "$output" =~ Ring\ C ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "C5: bash hook blocks cat > CLAUDE.md (harness)" {
@@ -79,7 +79,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ ERROR.*CLAUDE\.md ]] || [[ "$output" =~ Ring\ C ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "C5: bash hook blocks mv x CLAUDE.md (harness)" {
@@ -90,7 +90,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ ERROR.*CLAUDE\.md ]] || [[ "$output" =~ Ring\ C ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 # ── New bypass vectors (T-5) ──────────────────────────────────────────────────
@@ -103,7 +103,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]] || [[ "$output" =~ CLAUDE\.md ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "T-5/C5: bash hook blocks python3 -c open CLAUDE.md w" {
@@ -114,7 +114,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]] || [[ "$output" =~ CLAUDE\.md ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "T-5/C5: bash hook blocks awk print > CLAUDE.md" {
@@ -125,7 +125,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]] || [[ "$output" =~ CLAUDE\.md ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "T-5/C5: bash hook blocks ed CLAUDE.md" {
@@ -136,7 +136,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]] || [[ "$output" =~ CLAUDE\.md ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "T-5/C5: bash hook blocks vim -e -s CLAUDE.md" {
@@ -147,7 +147,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]] || [[ "$output" =~ CLAUDE\.md ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "T-5/C5: bash hook blocks relative path ../CLAUDE.md write" {
@@ -158,7 +158,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]] || [[ "$output" =~ CLAUDE\.md ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 @test "T-5/C5: bash hook blocks write to reference/markers.md" {
@@ -169,7 +169,7 @@ _run_bash_hook() {
       | bash '$SCRIPTS_DIR/pretooluse-bash.sh'
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" =~ Ring\ C ]] || [[ "$output" =~ markers\.md ]] || [[ "$output" =~ CLAUDE\.md ]]
+  [[ "$output" =~ Ring\ C ]]
 }
 
 # ── Allowed operations ────────────────────────────────────────────────────────
@@ -220,7 +220,7 @@ _phase_gate_write_input() {
     printf '%s' '$input' | bash '$SCRIPTS_DIR/phase-gate.sh' write
   " 2>&1
   [ "$status" -eq 2 ]
-  [[ "$output" == *"Ring C"* ]] || [[ "$output" == *"CLAUDE.md"* ]]
+  [[ "$output" == *"Ring C"* ]]
 }
 
 @test "C5: phase-gate allows human Write to CLAUDE.md" {

@@ -9,6 +9,7 @@ _PLAN_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_ACTIVE_PLAN_LOADED:-}" ]] || . "$_PLAN_LIB_DIR/active-plan.sh"
 [[ -n "${_PHASE_POLICY_LOADED:-}" ]] || . "${_PLAN_LIB_DIR}/../phase-policy.sh"
 [[ -n "${_SIDECAR_LOADED:-}" ]] || . "$_PLAN_LIB_DIR/sidecar.sh"
+[[ -n "${_BLOCKED_RECORD_LOADED:-}" ]] || . "$_PLAN_LIB_DIR/blocked-record.sh"
 VALID_PHASES="$(list_phases)"
 
 VALID_CRITIC_AGENTS="critic-feature critic-spec critic-test critic-code critic-cross pr-review"
@@ -107,69 +108,12 @@ _awk_replace_phase_body() {
 
 # ── Blocked-record helpers ───────────────────────────────────────────────────
 
-# _record_blocked PLAN KIND AGENT SCOPE MSG [NOLCK]
-# Appends to blocked.jsonl. NOLCK=1 skips locking (use only inside a lock body).
-# Strips all [BLOCKED*] markers from msg to prevent cmd_unblock false-match injection.
-_record_blocked() {
-  local _plan="$1" _kind="$2" _agent="$3" _scope="$4" _msg="$5" _nolck="${6:-}"
-  local _bpath _ts _safe_msg _rec
-  [[ -z "$_nolck" ]] && { sc_ensure_dir "$_plan" || return 1; }
-  _bpath=$(sc_path "$_plan" "$SC_BLOCKED") || return 1
-  _ts=$(_iso_timestamp)
-  _safe_msg=$(printf '%s' "$_msg" | sed 's/\[BLOCKED[A-Z0-9_:-]*\][[:space:]]*//')
-  _rec=$(jq -nc --arg ts "$_ts" --arg kind "$_kind" --arg agent "$_agent" \
-    --arg scope "$_scope" --arg msg "$_safe_msg" \
-    '{ts:$ts,kind:$kind,agent:$agent,scope:$scope,message:$msg,cleared_at:null}')
-  [[ -z "$_nolck" ]] && sc_append_jsonl "$_bpath" "$_rec" || sc_append_jsonl_unlocked "$_bpath" "$_rec"
-}
 # _record_blocked_runtime PLAN_FILE AGENT SCOPE MESSAGE
 # Appends to blocked.jsonl (kind=runtime) AND open questions simultaneously.
 _record_blocked_runtime() {
   local _plan="$1" _agent="$2" _scope="$3" _msg="$4"
   _record_blocked "$_plan" "runtime" "$_agent" "$_scope" "$_msg" 2>/dev/null || true
   _append_to_open_questions "$_plan" "${MARK_BLOCKED} ${_scope}:${_agent}: ${_msg}"
-}
-
-# ── JSONL rotation ───────────────────────────────────────────────────────────
-
-# _sc_rotate_jsonl SRC ARCHIVE KEEP_FILTER ARCHIVE_FILTER LOG_TAG [JQ_ARGS...]
-# Archive is written atomically: both keep and archive jq outputs succeed BEFORE either file is modified.
-_sc_rotate_jsonl_body() {
-  local _src="$1" _archive="$2" _keep_filter="$3" _archive_filter="$4" _tmp="$5" _atmp="$6"; shift 6
-  if ! jq -c "$@" "$_keep_filter" "$_src" 2>/dev/null > "$_tmp"; then
-    rm -f "$_tmp" "$_atmp"; return 1
-  fi
-  if ! jq -c "$@" "$_archive_filter" "$_src" 2>/dev/null > "$_atmp"; then
-    rm -f "$_tmp" "$_atmp"; return 1
-  fi
-  # Commit order: replace source FIRST, then append to archive.
-  # If interrupted after mv, source is clean — duplicates on next rotation are impossible.
-  # Archive may miss records (acceptable); source consistency is the stronger invariant.
-  if ! mv "$_tmp" "$_src"; then
-    rm -f "$_tmp" "$_atmp"; return 1
-  fi
-  cat "$_atmp" >> "$_archive" || true
-  rm -f "$_atmp"
-}
-_sc_rotate_jsonl() {
-  local _src="$1" _archive="$2" _keep_filter="$3" _archive_filter="$4" _log_tag="$5"
-  shift 5
-  local _tmp _atmp _rc=0
-  _tmp=$(_sc_mktemp "$_src") || return 1
-  _atmp=$(_sc_mktemp "${_src}.arch") || { rm -f "$_tmp"; return 1; }
-  _with_lock "${_src}.lock" _sc_rotate_jsonl_body \
-    "$_src" "$_archive" "$_keep_filter" "$_archive_filter" "$_tmp" "$_atmp" "$@" || _rc=$?
-  if [[ $_rc -ne 0 ]]; then
-    rm -f "$_tmp" "$_atmp" 2>/dev/null || true
-    echo "[${_log_tag}] WARNING: rotation of ${_src} failed — skipping" >&2
-    local _plan
-    _plan="$(dirname "$(dirname "$_src")")/$(basename "$(dirname "$_src")" .state).md"
-    _record_blocked "$_plan" "runtime" "harness" "gc-sidecars" \
-      "rotation of $(basename "$_src") failed — manual gc-sidecars run required" 2>/dev/null || true
-    return 1
-  fi
-  rm -f "$_tmp" "$_atmp" 2>/dev/null || true
-  return 0
 }
 
 # ── Convergence compute helpers ───────────────────────────────────────────────
@@ -189,4 +133,3 @@ _jq_compute_or_fail() {
   [[ $_rc -ne 0 ]] && return 1
   printf '%s' "${_out:-}"
 }
-

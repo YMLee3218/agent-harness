@@ -8,8 +8,10 @@ _PRETOOLUSE_WRITE_GUARDS_LOADED=1
 
 # shellcheck source=pretooluse-ambiguous-blocks.sh
 source "$(dirname "${BASH_SOURCE[0]}")/pretooluse-ambiguous-blocks.sh"
-# D2: hook input AST normalization helper
+# hook input AST normalization helper
 source "$(dirname "${BASH_SOURCE[0]}")/lib/hook-input.sh" 2>/dev/null || true
+# shared pattern-dispatch helper (may already be loaded via pretooluse-bash.sh)
+source "$(dirname "${BASH_SOURCE[0]}")/lib/hook-dispatch.sh" 2>/dev/null || true
 
 block_git_amend() {
   local cmd="$1"
@@ -58,17 +60,16 @@ _PIPE_TO_SHELL_PATTERNS=(
   '(^|[[:space:];|&])[[:space:]]*\\(bash|sh|zsh|ksh|dash|ash)([[:space:]]|$)|||backslash-escaped shell name detected'
 )
 
-_dispatch_patterns() {
-  local cmd="$1" entry pat msg
-  for entry in "${@:2}"; do
-    pat="${entry%|||*}"; msg="${entry##*|||}"
-    if printf '%s' "$cmd" | grep -iqE "$pat"; then
-      echo "BLOCKED: ${msg}" >&2; exit 2
+block_pipe_to_shell() {
+  # static integrity check — each pattern entry must contain exactly one '|||' separator
+  local _entry _sep_count
+  for _entry in "${_PIPE_TO_SHELL_PATTERNS[@]}"; do
+    _sep_count=$(printf '%s' "$_entry" | grep -oF '|||' | wc -l | tr -d '[:space:]')
+    if [[ "$_sep_count" -ne 1 ]]; then
+      echo "BUG: _PIPE_TO_SHELL_PATTERNS entry has ${_sep_count} '|||' separators (expected 1): ${_entry}" >&2
+      exit 1
     fi
   done
-}
-
-block_pipe_to_shell() {
   _dispatch_patterns "$1" "${_PIPE_TO_SHELL_PATTERNS[@]}"
 }
 
@@ -83,53 +84,22 @@ block_world_writable_chmod() {
   fi
 }
 
+# Table-driven patterns for block_eval_source: "regex|||message" pairs.
+_EVAL_SOURCE_PATTERNS=(
+  '(^|[;|&[:space:]])[[:space:]]*eval[[:space:]]+[^[:space:]]*\$\(|||eval/source with command substitution detected'
+  '(^|[;|&[:space:]])[[:space:]]*source[[:space:]]+<\(|||eval/source with command substitution detected'
+  '(^|[;|&[:space:]])[[:space:]]*eval[[:space:]].*\$\(|||eval with command substitution detected'
+  '(^|[;|&[:space:]])[[:space:]]*(eval|source|\.)[[:space:]]+[^[:space:]]*`|||eval/source with backtick command substitution detected'
+  '(^|[;|&[:space:]])[[:space:]]*\.[[:space:]]+<\(|||dot-source with process substitution detected'
+  '<<<[[:space:]]*[^|;&]*(\$\(|`)|||here-string with command substitution detected'
+  '(bash|sh|zsh|ksh|dash|python3?|perl|ruby|node(js)?|php|lua|R)[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*-[ceE][^[:alpha:]].*(\$\(|<\()|||interpreter inline-exec with command substitution detected'
+  '\|[[:space:]]*(\.|source)[[:space:]]+/dev/(stdin|fd/0)\b|||pipe to dot/source /dev/stdin detected'
+  '\b(bash|sh|zsh|ksh|dash|ash)[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*-c[[:space:]]+["\x27]?\$\(cat[[:space:]]+|||interpreter -c with $(cat ...) substitution detected'
+  '/dev/(tcp|udp)/|||/dev/tcp or /dev/udp shell-builtin path detected'
+)
+
 block_eval_source() {
-  local cmd="$1"
-  if printf '%s' "$cmd" | grep -iqE \
-    '(^|[;|&[:space:]])[[:space:]]*eval[[:space:]]+[^[:space:]]*\$\(' \
-    || printf '%s' "$cmd" | grep -iqE \
-    '(^|[;|&[:space:]])[[:space:]]*source[[:space:]]+<\('; then
-    echo "BLOCKED: eval/source with command substitution detected" >&2
-    exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE \
-    '(^|[;|&[:space:]])[[:space:]]*eval[[:space:]].*\$\('; then
-    echo "BLOCKED: eval with command substitution detected" >&2
-    exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE \
-    '(^|[;|&[:space:]])[[:space:]]*(eval|source|\\.)[[:space:]]+[^[:space:]]*`'; then
-    echo "BLOCKED: eval/source with backtick command substitution detected" >&2
-    exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE \
-    '(^|[;|&[:space:]])[[:space:]]*\.[[:space:]]+<\('; then
-    echo "BLOCKED: dot-source with process substitution detected" >&2
-    exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '<<<[[:space:]]*[^|;&]*(\$\(|`)'; then
-    echo "BLOCKED: here-string with command substitution detected" >&2
-    exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE \
-    '(bash|sh|zsh|ksh|dash|python3?|perl|ruby|node(js)?|php|lua|R)[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*-[ceE][^[:alpha:]].*(\$\(|<\()'; then
-    echo "BLOCKED: interpreter inline-exec with command substitution detected" >&2
-    exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE \
-    '\|[[:space:]]*(\.|source)[[:space:]]+/dev/(stdin|fd/0)\b'; then
-    echo "BLOCKED: pipe to dot/source /dev/stdin detected" >&2
-    exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE \
-    '\b(bash|sh|zsh|ksh|dash|ash)[[:space:]]+(-[a-zA-Z][^[:space:]]*[[:space:]]+)*-c[[:space:]]+["\x27]?\$\(cat[[:space:]]+'; then
-    echo "BLOCKED: interpreter -c with \$(cat ...) substitution detected" >&2
-    exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE '/dev/(tcp|udp)/'; then
-    echo "BLOCKED: /dev/tcp or /dev/udp shell-builtin path detected" >&2
-    exit 2
-  fi
+  _dispatch_patterns "$1" "${_EVAL_SOURCE_PATTERNS[@]}"
 }
 
 # shellcheck source=lib/pretooluse-target-blocks-lib.sh

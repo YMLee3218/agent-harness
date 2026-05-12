@@ -2,8 +2,6 @@
 set -euo pipefail
 export CLAUDE_PLAN_CAPABILITY=harness
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# D1: issue launcher token before spawning Claude subprocess
-. "$SCRIPTS_DIR/lib/launcher-token.sh" && launcher_token_issue 2>/dev/null || true
 PF="$SCRIPTS_DIR/plan-file.sh"
 PROFILE="feature" PLAN="" _CALL_RC=0
 
