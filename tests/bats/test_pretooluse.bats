@@ -50,6 +50,12 @@ run_hook() {
   [ "$status" -eq 0 ]
 }
 
+@test "capability: CLAUDE_PLAN_CAPABILITY= direct assignment is blocked" {
+  cd "$WS_DIR"
+  run run_hook "CLAUDE_PLAN_CAPABILITY=human bash -c true"
+  [ "$status" -ne 0 ]
+}
+
 # ── 3. block_execution ────────────────────────────────────────────────────────
 
 @test "execution: pipe to ruby - is blocked" {
