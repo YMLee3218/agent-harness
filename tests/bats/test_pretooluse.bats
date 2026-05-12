@@ -125,6 +125,24 @@ run_hook() {
   [ "$status" -ne 0 ]
 }
 
+@test "ring_c: redirect to reference/effort.md is blocked" {
+  cd "$WS_DIR"
+  run run_hook "echo evil > reference/effort.md"
+  [ "$status" -ne 0 ]
+}
+
+@test "ring_c: redirect to reference/anti-hallucination.md is blocked" {
+  cd "$WS_DIR"
+  run run_hook "echo evil > reference/anti-hallucination.md"
+  [ "$status" -ne 0 ]
+}
+
+@test "ring_c: redirect to reference/language.md is blocked" {
+  cd "$WS_DIR"
+  run run_hook "echo evil > reference/language.md"
+  [ "$status" -ne 0 ]
+}
+
 # ── 7. block_sql_ddl ─────────────────────────────────────────────────────────
 
 @test "sql_ddl: DROP TABLE is blocked" {
