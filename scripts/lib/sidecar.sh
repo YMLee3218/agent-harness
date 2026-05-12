@@ -8,7 +8,6 @@ _SIDECAR_LOADED=1
 SC_VERDICTS="verdicts.jsonl"
 SC_BLOCKED="blocked.jsonl"
 SC_IMPLEMENTED="implemented.json"
-# use consistent hyphen spelling for archive constants across all callers
 SC_VERDICTS_ARCHIVE="verdicts-archive.jsonl"
 SC_BLOCKED_ARCHIVE="blocked-archive.jsonl"
 MARK_BLOCKED="[BLOCKED]"
@@ -100,9 +99,76 @@ sc_ensure_dir() {
   fi
 }
 
-# Lock primitives sourced from sc-lock.sh
-_SC_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${_SC_LIB_DIR}/sc-lock.sh"
+# ── Lock primitives (inlined from sc-lock.sh) ─────────────────────────────────
+# _with_lock lock stack: LIFO, depth via ${#_SC_LOCK_STACK[@]}, cleanup reads array (no path interpolation).
+# Outer caller traps saved at depth 0; restored when stack empties.
+declare -a _SC_LOCK_STACK=()
+_SC_LOCK_CLEANED=0
+_SC_LOCK_OUTER_INT=''
+_SC_LOCK_OUTER_TERM=''
+_SC_LOCK_OUTER_EXIT=''
+_SC_LOCK_OUTER_INIT=0
+
+# _sc_lock_cleanup — removes all lockdirs from stack; sets _SC_LOCK_CLEANED=1 for signal-return detection.
+_sc_lock_cleanup() {
+  local _i _d
+  _d=${#_SC_LOCK_STACK[@]}
+  for ((_i = _d - 1; _i >= 0; _i--)); do
+    rmdir "${_SC_LOCK_STACK[$_i]}" 2>/dev/null || true
+    unset "_SC_LOCK_STACK[$_i]"
+  done
+  _SC_LOCK_STACK=()
+  _SC_LOCK_CLEANED=1
+}
+
+_sc_lock_restore_traps() {
+  trap - INT TERM EXIT
+  [ -n "$_SC_LOCK_OUTER_INT" ]  && eval "$_SC_LOCK_OUTER_INT"
+  [ -n "$_SC_LOCK_OUTER_TERM" ] && eval "$_SC_LOCK_OUTER_TERM"
+  [ -n "$_SC_LOCK_OUTER_EXIT" ] && eval "$_SC_LOCK_OUTER_EXIT"
+  _SC_LOCK_OUTER_INIT=0
+}
+
+# _with_lock LOCK_BASE_PATH BODY_FN [ARGS...] — atomic mkdir-based lock; runs BODY_FN while held.
+# mkdir is atomic and does not follow existing symlinks — eliminates the TOCTOU window.
+# Symlink guard: refuses if lockdir path is already a symlink (fail-closed).
+# Trap guard: uses stack array instead of path interpolation — no single-quote injection possible.
+# Depth is derived from ${#_SC_LOCK_STACK[@]} — no separate counter that can go negative.
+_with_lock() {
+  local _lockdir="${1}.lockdir"; shift
+  [ -L "$_lockdir" ] && { echo "ERROR: _with_lock: lockdir is symlink — refusing: ${_lockdir}" >&2; return 1; }
+  local _s; _s=$(date +%s)
+  while ! mkdir "$_lockdir" 2>/dev/null; do
+    [ $(( $(date +%s) - _s )) -ge 30 ] && { echo "ERROR: _with_lock: timeout 30s on ${_lockdir}" >&2; return 1; }
+    sleep 0.1
+  done
+  # Only save caller traps at depth 0; _SC_LOCK_OUTER_INIT guards against re-capture on nested entry.
+  if [[ "${#_SC_LOCK_STACK[@]}" -eq 0 ]] && [[ "$_SC_LOCK_OUTER_INIT" -eq 0 ]]; then
+    _SC_LOCK_OUTER_INT=$(trap -p INT 2>/dev/null)
+    _SC_LOCK_OUTER_TERM=$(trap -p TERM 2>/dev/null)
+    _SC_LOCK_OUTER_EXIT=$(trap -p EXIT 2>/dev/null)
+    _SC_LOCK_OUTER_INIT=1
+    trap '_sc_lock_cleanup' INT TERM EXIT  # no path interpolation: reads stack array
+  fi
+  _SC_LOCK_STACK+=("$_lockdir")
+  _SC_LOCK_CLEANED=0
+  local _rc=0
+  "$@" || _rc=$?
+  # Guard: if a non-exit signal fired _sc_lock_cleanup, restore traps and return.
+  if [[ "${_SC_LOCK_CLEANED:-0}" -eq 1 ]]; then
+    _SC_LOCK_CLEANED=0
+    if [[ "${#_SC_LOCK_STACK[@]}" -eq 0 ]]; then
+      _sc_lock_restore_traps
+    fi
+    return $_rc
+  fi
+  rmdir "$_lockdir" 2>/dev/null || true
+  unset '_SC_LOCK_STACK[-1]'
+  if [[ "${#_SC_LOCK_STACK[@]}" -eq 0 ]]; then
+    _sc_lock_restore_traps
+  fi
+  return $_rc
+}
 
 sc_read_json() {
   local path="$1"
@@ -123,8 +189,88 @@ sc_update_json() {
   _with_lock "${_path}.lock" mv "$_tmp" "${_path}" || { rm -f "$_tmp"; return 1; }
 }
 
-# JSONL helpers sourced from sc-jsonl.sh
-source "${_SC_LIB_DIR}/sc-jsonl.sh"
+# ── JSONL helpers (inlined from sc-jsonl.sh) ──────────────────────────────────
+# sc_append_jsonl PATH RECORD_JSON — append one JSON line (_with_lock-protected)
+_sc_append_line() { printf '%s\n' "$1" >> "$2"; }
+sc_append_jsonl() {
+  _with_lock "${1}.lock" _sc_append_line "$2" "$1" || {
+    echo "[sidecar] sc_append_jsonl failed for ${1}" >&2; return 1
+  }
+}
+
+# sc_append_jsonl_unlocked PATH RECORD_JSON — append without locking (caller holds lock)
+sc_append_jsonl_unlocked() {
+  printf '%s\n' "$2" >> "$1"
+}
+
+# _sc_rewrite_jsonl JSONL_PATH JQ_FILTER LOG_TAG [JQ_ARGS...] — rewrite JSONL atomically via _with_lock+tmp+mv.
+_sc_rewrite_jsonl_locked() {
+  local _bpath="$1" _tmp="$2" _jq_filter="$3"; shift 3
+  jq -c "$@" "$_jq_filter" "$_bpath" > "$_tmp" && mv "$_tmp" "$_bpath" || { rm -f "$_tmp"; return 1; }
+}
+_sc_rewrite_jsonl() {
+  local _bpath="$1" _jq_filter="$2" _log_tag="$3"; shift 3
+  [[ -f "$_bpath" ]] || return 0
+  local _tmp _rc=0
+  _tmp=$(_sc_mktemp "$_bpath") || return 1
+  _with_lock "${_bpath}.lock" _sc_rewrite_jsonl_locked "$_bpath" "$_tmp" "$_jq_filter" "$@" || _rc=$?
+  if [[ $_rc -ne 0 ]]; then
+    rm -f "$_tmp" 2>/dev/null || true
+    echo "[${_log_tag}] ERROR: failed to rewrite ${_bpath} — aborting to prevent state divergence" >&2
+    return 1
+  fi
+}
+
+# _sc_rotate_jsonl SRC ARCHIVE KEEP_FILTER ARCHIVE_FILTER LOG_TAG [JQ_ARGS...]
+# Archive is written atomically: both keep and archive jq outputs succeed BEFORE either file is modified.
+_sc_rotate_jsonl_body() {
+  local _src="$1" _archive="$2" _keep_filter="$3" _archive_filter="$4" _tmp="$5" _atmp="$6"; shift 6
+  if ! jq -c "$@" "$_keep_filter" "$_src" 2>/dev/null > "$_tmp"; then
+    rm -f "$_tmp" "$_atmp"; return 1
+  fi
+  if ! jq -c "$@" "$_archive_filter" "$_src" 2>/dev/null > "$_atmp"; then
+    rm -f "$_tmp" "$_atmp"; return 1
+  fi
+  # Commit order: replace source FIRST, then append to archive atomically (cp+cat+mv).
+  # If interrupted after mv, source is clean — duplicates on next rotation are impossible.
+  # Archive append uses cp+cat+mv so a SIGINT mid-write doesn't corrupt the existing archive.
+  if ! mv "$_tmp" "$_src"; then
+    rm -f "$_tmp" "$_atmp"; return 1
+  fi
+  if [[ -f "$_archive" ]]; then
+    local _archmp
+    _archmp=$(_sc_mktemp "$_archive") || { rm -f "$_atmp"; return 1; }
+    if ! cp "$_archive" "$_archmp" || ! cat "$_atmp" >> "$_archmp"; then
+      rm -f "$_atmp" "$_archmp"; return 1
+    fi
+    mv "$_archmp" "$_archive" || { rm -f "$_atmp" "$_archmp"; return 1; }
+  else
+    mv "$_atmp" "$_archive" || { rm -f "$_atmp"; return 1; }
+    _atmp=""
+  fi
+  [[ -n "${_atmp:-}" ]] && rm -f "$_atmp"
+  return 0
+}
+_sc_rotate_jsonl() {
+  local _src="$1" _archive="$2" _keep_filter="$3" _archive_filter="$4" _log_tag="$5"
+  shift 5
+  local _tmp _atmp _rc=0
+  _tmp=$(_sc_mktemp "$_src") || return 1
+  _atmp=$(_sc_mktemp "${_src}.arch") || { rm -f "$_tmp"; return 1; }
+  _with_lock "${_src}.lock" _sc_rotate_jsonl_body \
+    "$_src" "$_archive" "$_keep_filter" "$_archive_filter" "$_tmp" "$_atmp" "$@" || _rc=$?
+  if [[ $_rc -ne 0 ]]; then
+    rm -f "$_tmp" "$_atmp" 2>/dev/null || true
+    echo "[${_log_tag}] WARNING: rotation of ${_src} failed — skipping" >&2
+    local _plan
+    _plan="$(dirname "$(dirname "$_src")")/$(basename "$(dirname "$_src")" .state).md"
+    _record_blocked "$_plan" "runtime" "harness" "gc-sidecars" \
+      "rotation of $(basename "$_src") failed — manual gc-sidecars run required" 2>/dev/null || true
+    return 1
+  fi
+  rm -f "$_tmp" "$_atmp" 2>/dev/null || true
+  return 0
+}
 
 # sc_make_conv_state PHASE AGENT [FT STREAK CONV CB ORD MS]
 # Builds a convergence JSON object. All keys emitted in canonical order.
