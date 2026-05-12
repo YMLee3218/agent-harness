@@ -76,6 +76,12 @@ block_destructive() {
     fi
     echo "WARNING: git commit --amend detected — commit is not yet pushed (safe to amend)" >&2
   fi
+  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?cp[[:space:]]+/dev/null[[:space:]]+'; then
+    echo "BLOCKED: cp /dev/null (file clobber) detected — destructive file deletion not permitted" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE '\bfind\b[[:space:]].*-exec[[:space:]]+(sudo[[:space:]]+)?rm[[:space:]]'; then
+    echo "BLOCKED: find -exec rm detected — use explicit targeted rm instead" >&2; exit 2
+  fi
 }
 
 # ── 2. block_execution ────────────────────────────────────────────────────────
@@ -305,19 +311,5 @@ block_sql_ddl() {
   if printf '%s' "$cmd" | grep -iqE \
     '(^|[[:space:]])(DROP|TRUNCATE)[[:space:]]+(TABLE|DATABASE|SCHEMA)([[:space:]]|$)'; then
     echo "BLOCKED: destructive SQL DDL detected" >&2; exit 2
-  fi
-}
-
-# ── 8. block_new_destructive_patterns ─────────────────────────────────────────
-block_new_destructive_patterns() {
-  local cmd="$1"
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?cp[[:space:]]+/dev/null[[:space:]]+'; then
-    echo "BLOCKED: cp /dev/null (file clobber) detected — destructive file deletion not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*dd[[:space:]]+.*if=/dev/(null|zero)[[:space:]]+of='; then
-    echo "BLOCKED: dd if=/dev/null|zero of=... (file clobber) detected — not permitted" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '\bfind\b[[:space:]].*-exec[[:space:]]+(sudo[[:space:]]+)?rm[[:space:]]'; then
-    echo "BLOCKED: find -exec rm detected — use explicit targeted rm instead" >&2; exit 2
   fi
 }

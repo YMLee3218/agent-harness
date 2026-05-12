@@ -96,6 +96,18 @@ run_hook() {
   [ "$status" -ne 0 ]
 }
 
+@test "destructive: cp /dev/null to file is blocked" {
+  cd "$WS_DIR"
+  run run_hook "cp /dev/null /tmp/important"
+  [ "$status" -ne 0 ]
+}
+
+@test "destructive: find -exec rm is blocked" {
+  cd "$WS_DIR"
+  run run_hook "find . -exec rm {} \;"
+  [ "$status" -ne 0 ]
+}
+
 # ── 5. block_ambiguous ────────────────────────────────────────────────────────
 # Only active when [BLOCKED-AMBIGUOUS] marker present in plan — covered by test_capability.bats
 
@@ -127,10 +139,3 @@ run_hook() {
   [ "$status" -ne 0 ]
 }
 
-# ── 8. block_new_destructive_patterns ────────────────────────────────────────
-
-@test "new_destructive: cp /dev/null to file is blocked" {
-  cd "$WS_DIR"
-  run run_hook "cp /dev/null /tmp/important"
-  [ "$status" -ne 0 ]
-}

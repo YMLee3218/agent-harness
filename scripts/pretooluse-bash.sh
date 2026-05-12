@@ -28,14 +28,13 @@ if [ -z "$cmd" ] && [ -n "$input" ]; then
   exit 2
 fi
 
-# ── Static blocking rules (8 categories) ─────────────────────────────────────
+# ── Static blocking rules (7 categories) ─────────────────────────────────────
 block_ring_c "$cmd"
 block_capability "$cmd"
 block_destructive "$cmd"
 block_execution "$cmd"
 block_sidecar_writes "$cmd"
 block_sql_ddl "$cmd"
-block_new_destructive_patterns "$cmd"
 
 # ── Phase-aware bash write detection ─────────────────────────────────────────
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
