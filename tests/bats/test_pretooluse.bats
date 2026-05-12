@@ -143,6 +143,30 @@ run_hook() {
   [ "$status" -ne 0 ]
 }
 
+@test "ring_c: redirect to reference/severity.md is blocked" {
+  cd "$WS_DIR"
+  run run_hook "echo evil > reference/severity.md"
+  [ "$status" -ne 0 ]
+}
+
+@test "ring_c: redirect to reference/phase-ops.md is blocked" {
+  cd "$WS_DIR"
+  run run_hook "echo evil > reference/phase-ops.md"
+  [ "$status" -ne 0 ]
+}
+
+@test "ring_c: redirect to reference/ultrathink.md is blocked" {
+  cd "$WS_DIR"
+  run run_hook "echo evil > reference/ultrathink.md"
+  [ "$status" -ne 0 ]
+}
+
+@test "ring_c: redirect to reference/pr-review-loop.md is blocked" {
+  cd "$WS_DIR"
+  run run_hook "echo evil > reference/pr-review-loop.md"
+  [ "$status" -ne 0 ]
+}
+
 # ── 7. block_sql_ddl ─────────────────────────────────────────────────────────
 
 @test "sql_ddl: DROP TABLE is blocked" {

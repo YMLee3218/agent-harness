@@ -252,7 +252,7 @@ block_ambiguous() {
 # ── 6. block_ring_c ───────────────────────────────────────────────────────────
 # Protects CLAUDE.md and reference policy docs from bash write vectors
 
-_RING_C_FILES='CLAUDE\.md|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language)\.md'
+_RING_C_FILES='CLAUDE\.md|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop)\.md'
 
 _paths_in_workspace() {
   local _p
