@@ -9,10 +9,10 @@ SCRIPTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)/scripts"
   [[ -z "$dups" ]]
 }
 
-@test "F29: cmd_append_note not defined in plan-cmd-state.sh (F2 regression)" {
-  # F2 removed the duplicate definition; canonical lives in plan-cmd-notes.sh only.
-  run grep -c '^cmd_append_note()' "$SCRIPTS_DIR/lib/plan-cmd-state.sh"
-  [ "$status" -eq 1 ]
+@test "F29: cmd_append_note has exactly one definition in plan-cmd.sh" {
+  run grep -c '^cmd_append_note()' "$SCRIPTS_DIR/lib/plan-cmd.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" -eq 1 ]]
 }
 
 @test "F29: all cmd_* called in dispatcher are defined in lib/" {
@@ -45,19 +45,20 @@ SCRIPTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)/scripts"
   [[ "$output" == *"_record_blocked_runtime"* ]]
 }
 
-@test "F27: _require_phase is defined in plan-cmd-state.sh and takes 2 params" {
-  run grep -c '^_require_phase()' "$SCRIPTS_DIR/lib/plan-cmd-state.sh"
+@test "F27: _require_phase is defined in plan-cmd.sh" {
+  run grep -c '^_require_phase()' "$SCRIPTS_DIR/lib/plan-cmd.sh"
   [ "$status" -eq 0 ]
   [[ "$output" -ge 1 ]]
 }
 
-@test "F27: cmd_append_review_verdict is defined in plan-cmd-verdicts.sh (moved from record-verdict)" {
-  run grep -c '^cmd_append_review_verdict()' "$SCRIPTS_DIR/lib/plan-cmd-verdicts.sh"
+@test "F27: cmd_append_review_verdict is defined in plan-cmd.sh" {
+  run grep -c '^cmd_append_review_verdict()' "$SCRIPTS_DIR/lib/plan-cmd.sh"
   [ "$status" -eq 0 ]
   [[ "$output" -ge 1 ]]
 }
 
-@test "F27: cmd_append_review_verdict is NOT defined in plan-cmd-record-verdict.sh" {
-  run grep -c '^cmd_append_review_verdict()' "$SCRIPTS_DIR/lib/plan-cmd-record-verdict.sh"
-  [ "$status" -eq 1 ]
+@test "F27: plan-cmd.sh has exactly one definition of cmd_append_review_verdict" {
+  run grep -c '^cmd_append_review_verdict()' "$SCRIPTS_DIR/lib/plan-cmd.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" -eq 1 ]]
 }

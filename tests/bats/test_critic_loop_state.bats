@@ -42,8 +42,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     result=0
     _check_consecutive_and_block "'"$PLAN_FILE"'" "implement" "critic-code" \

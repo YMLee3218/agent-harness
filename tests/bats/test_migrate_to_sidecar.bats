@@ -21,8 +21,7 @@ _run_migrate() {
     export PLAN_FILE_SH='$SCRIPTS_DIR/plan-file.sh'
     source '$SCRIPTS_DIR/lib/plan-lib.sh'
     source '$SCRIPTS_DIR/lib/plan-loop-helpers.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-sidecar.sh'
+    source '$SCRIPTS_DIR/lib/plan-cmd.sh'
     CLAUDE_PLAN_CAPABILITY=harness cmd_migrate_to_sidecar '$PLAN_FILE'
   " 2>&1
 }
@@ -60,8 +59,7 @@ _run_migrate() {
     export PLAN_FILE_SH='$SCRIPTS_DIR/plan-file.sh'
     source '$SCRIPTS_DIR/lib/plan-lib.sh'
     source '$SCRIPTS_DIR/lib/plan-loop-helpers.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-sidecar.sh'
+    source '$SCRIPTS_DIR/lib/plan-cmd.sh'
     CLAUDE_PLAN_CAPABILITY=harness cmd_migrate_to_sidecar '$PLAN_FILE'
   " 2>&1
   [ "$status" -ne 0 ]

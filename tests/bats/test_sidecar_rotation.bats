@@ -54,7 +54,8 @@ SCRIPT
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-sidecar.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     cmd_gc_sidecars "'"$PLAN_FILE"'"
     echo "ok"
   ' 2>&1
@@ -102,7 +103,8 @@ SCRIPT
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-sidecar.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     cmd_gc_sidecars "'"$PLAN_FILE"'"
     echo "ok"
   ' 2>&1

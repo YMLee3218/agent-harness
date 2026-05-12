@@ -21,10 +21,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     printf '"'"'{"agent_type":"general-purpose","last_assistant_message":""}'"'"' | cmd_record_verdict
     echo "rc=$?"
@@ -41,10 +38,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: PASS -->"}'"'"' | cmd_record_verdict
@@ -60,10 +54,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
@@ -81,10 +72,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
@@ -102,10 +90,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     unset CLAUDE_PLAN_FILE
     set +e
     printf '"'"'{"agent_type":"critic-code","last_assistant_message":""}'"'"' | cmd_record_verdict
@@ -133,10 +118,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_CRITIC_LOOP_CEILING=5
     set +e
@@ -155,10 +137,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     sc_ensure_dir '"'"''"$PLAN_FILE"''"'"'
     printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: PASS -->"}'"'"' | cmd_record_verdict 2>&1
@@ -176,10 +155,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
@@ -209,10 +185,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
@@ -238,10 +211,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
@@ -275,10 +245,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
@@ -313,10 +280,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     export CLAUDE_CRITIC_LOOP_CEILING=5
@@ -349,10 +313,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
@@ -388,10 +349,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
@@ -419,10 +377,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     # Override sc_append_jsonl to simulate write failure
@@ -451,10 +406,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!--  verdict:  PASS  -->"}'"'"' \
@@ -472,10 +424,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-notes.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-verdicts.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-record-verdict.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!--verdict:PASS-->"}'"'"' \
@@ -497,10 +446,7 @@ _load_rv_libs() {
     export PLAN_FILE_SH="%s/plan-file.sh"
     source "%s/lib/plan-lib.sh"
     source "%s/lib/plan-loop-helpers.sh"
-    source "%s/lib/plan-cmd-state.sh"
-    source "%s/lib/plan-cmd-notes.sh"
-    source "%s/lib/plan-cmd-verdicts.sh"
-    source "%s/lib/plan-cmd-record-verdict.sh"
+    source "%s/lib/plan-cmd.sh"
     export CLAUDE_PLAN_FILE="%s"
   ' "$PLAN_BASE" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
@@ -518,10 +464,7 @@ _load_rv_libs() {
     export PLAN_FILE_SH='$SCRIPTS_DIR/plan-file.sh'
     source '$SCRIPTS_DIR/lib/plan-lib.sh'
     source '$SCRIPTS_DIR/lib/plan-loop-helpers.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-notes.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-verdicts.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-record-verdict.sh'
+    source '$SCRIPTS_DIR/lib/plan-cmd.sh'
     _is_safe_transcript_path '${HOME}/.claude/projects/foo/../../etc/passwd' && echo ALLOWED || echo BLOCKED
   " 2>&1
   [[ "$output" == *"BLOCKED"* ]]
@@ -538,10 +481,7 @@ _load_rv_libs() {
     export PLAN_FILE_SH='$SCRIPTS_DIR/plan-file.sh'
     source '$SCRIPTS_DIR/lib/plan-lib.sh'
     source '$SCRIPTS_DIR/lib/plan-loop-helpers.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-notes.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-verdicts.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-record-verdict.sh'
+    source '$SCRIPTS_DIR/lib/plan-cmd.sh'
     _is_safe_transcript_path '$evil_link' && echo ALLOWED || echo BLOCKED
   " 2>&1
   [[ "$output" == *"BLOCKED"* ]]
@@ -559,10 +499,7 @@ _load_rv_libs() {
     export PLAN_FILE_SH='$SCRIPTS_DIR/plan-file.sh'
     source '$SCRIPTS_DIR/lib/plan-lib.sh'
     source '$SCRIPTS_DIR/lib/plan-loop-helpers.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-notes.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-verdicts.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-record-verdict.sh'
+    source '$SCRIPTS_DIR/lib/plan-cmd.sh'
     _is_safe_transcript_path '$safe_path' && echo ALLOWED || echo BLOCKED
   " 2>&1
   [[ "$output" == *"ALLOWED"* ]]

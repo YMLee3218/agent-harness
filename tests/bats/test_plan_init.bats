@@ -21,7 +21,7 @@ _load_libs() {
     source "%s/lib/sidecar.sh"
     export PLAN_FILE_SH="%s/plan-file.sh"
     source "%s/lib/plan-lib.sh"
-    source "%s/lib/plan-cmd-state.sh"
+    source "%s/lib/plan-cmd.sh"
   ' "$PLAN_BASE" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR"

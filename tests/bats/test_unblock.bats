@@ -23,14 +23,11 @@ _load_libs() {
     export PLAN_FILE_SH="%s/plan-file.sh"
     source "%s/lib/plan-lib.sh"
     source "%s/lib/plan-loop-helpers.sh"
-    source "%s/lib/plan-cmd-state.sh"
-    source "%s/lib/plan-cmd-notes.sh"
-    source "%s/lib/plan-cmd-verdicts.sh"
-    source "%s/lib/plan-cmd-markers.sh"
+    source "%s/lib/plan-cmd.sh"
   ' "$PLAN_BASE" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
-    "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR"
+    "$SCRIPTS_DIR"
 }
 
 @test "T7/L5: cmd_unblock preserves BLOCKED-AMBIGUOUS lines for the named agent" {

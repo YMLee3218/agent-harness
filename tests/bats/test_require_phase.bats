@@ -19,7 +19,7 @@ _load_state_lib() {
   source "$SCRIPTS_DIR/lib/sidecar.sh"
   export PLAN_FILE_SH="$SCRIPTS_DIR/plan-file.sh"
   source "$SCRIPTS_DIR/lib/plan-lib.sh"
-  source "$SCRIPTS_DIR/lib/plan-cmd-state.sh"
+  source "$SCRIPTS_DIR/lib/plan-cmd.sh"
 }
 
 @test "T1: _require_phase returns current phase for a valid plan" {
@@ -30,7 +30,7 @@ _load_state_lib() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     _require_phase "'"$PLAN_FILE"'" "test-label"
   ' 2>&1
   [ "$status" -eq 0 ]
@@ -46,7 +46,7 @@ _load_state_lib() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     _require_phase "'"$PLAN_FILE"'" "test-label"
   ' 2>&1
   [ "$status" -ne 0 ]
@@ -61,7 +61,7 @@ _load_state_lib() {
     source '"$SCRIPTS_DIR"'/lib/sidecar.sh
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     _require_phase "'"$PLAN_DIR"'/nonexistent.md" "test-label"
   ' 2>&1
   [ "$status" -ne 0 ]

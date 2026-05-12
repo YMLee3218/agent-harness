@@ -21,13 +21,9 @@ _load_rv_libs() {
     source "%s/lib/sidecar.sh"
     export PLAN_FILE_SH="%s/plan-file.sh"
     source "%s/lib/plan-lib.sh"
-    source "%s/lib/plan-cmd-state.sh"
+    source "%s/lib/plan-cmd.sh"
     source "%s/lib/plan-loop-helpers.sh"
-    source "%s/lib/plan-cmd-verdicts.sh"
-    source "%s/lib/plan-cmd-notes.sh"
-    source "%s/lib/plan-cmd-record-verdict.sh"
   ' "$PLAN_BASE" \
-    "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
     "$SCRIPTS_DIR"

@@ -25,8 +25,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-markers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     cmd_clear_marker "'"$PLAN_FILE"'" "BLOCKED] pars"
   ' </dev/null 2>&1
   [ "$status" -eq 0 ]
@@ -41,8 +40,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-markers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     cmd_clear_marker "'"$PLAN_FILE"'" "[BLOCKED] parse:critic-code:"
   ' </dev/null 2>&1
   [ "$status" -ne 0 ]
@@ -85,8 +83,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-markers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     CLAUDE_PLAN_CAPABILITY=human cmd_clear_marker "'"$PLAN_FILE"'" "[BLOCKED] parse:critic-code:"
   ' 2>/dev/null || true
   grep -q 'BLOCKED-AMBIGUOUS.*something ambiguous' "$PLAN_FILE"
@@ -103,8 +100,7 @@ teardown() {
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-markers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     CLAUDE_PLAN_CAPABILITY=human cmd_unblock critic-code
   ' 2>/dev/null || true

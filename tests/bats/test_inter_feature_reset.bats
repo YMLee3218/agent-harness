@@ -28,8 +28,7 @@ EOF
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-sidecar.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     CLAUDE_PLAN_CAPABILITY=harness cmd_inter_feature_reset "'"$PLAN_FILE"'"
   ' 2>/dev/null
@@ -55,8 +54,7 @@ EOF
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-sidecar.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     CLAUDE_PLAN_CAPABILITY=harness cmd_inter_feature_reset "'"$PLAN_FILE"'"
   ' 2>/dev/null
@@ -80,8 +78,7 @@ EOF
     export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
     source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
     source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-state.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd-sidecar.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     CLAUDE_PLAN_CAPABILITY=harness cmd_inter_feature_reset "'"$PLAN_FILE"'"
   ' 2>/dev/null

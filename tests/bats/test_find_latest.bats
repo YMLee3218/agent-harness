@@ -15,7 +15,7 @@ teardown() {
 
 @test "T-19/H11: _find_latest_by_mtime uses find, not ls -t command" {
   # Must not use ls -t as a command (not as a comment)
-  ! grep -nE '^\s*[^#].*\bls\s+-t\b' "$SCRIPTS_DIR/lib/plan-cmd-state.sh"
+  ! grep -nE '^\s*[^#].*\bls\s+-t\b' "$SCRIPTS_DIR/lib/plan-cmd.sh"
 }
 
 @test "T-19/H11: cmd_find_latest returns newest plan by mtime" {
@@ -28,9 +28,9 @@ teardown() {
   touch -t 202001020000 "$_tmp/plans/new-plan.md"
   run bash -c "
     export CLAUDE_PROJECT_DIR='$_tmp'
-    source '$SCRIPTS_DIR/lib/plan-cmd-state.sh' 2>/dev/null || \
+    source '$SCRIPTS_DIR/lib/plan-cmd.sh' 2>/dev/null || \
       source '$SCRIPTS_DIR/lib/sidecar.sh' 2>/dev/null
-    source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
+    source '$SCRIPTS_DIR/lib/plan-cmd.sh'
     cmd_find_latest 2>&1
   " 2>&1
   rm -rf "$_tmp"
@@ -48,7 +48,7 @@ teardown() {
     source '$SCRIPTS_DIR/lib/active-plan.sh'
     source '$SCRIPTS_DIR/phase-policy.sh'
     source '$SCRIPTS_DIR/lib/plan-lib.sh'
-    source '$SCRIPTS_DIR/lib/plan-cmd-state.sh'
+    source '$SCRIPTS_DIR/lib/plan-cmd.sh'
     set +e
     cmd_find_latest
     echo rc=\$?
