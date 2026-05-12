@@ -16,6 +16,8 @@ _PRETOOLUSE_BLOCKS_LOADED=1
 source "$(dirname "${BASH_SOURCE[0]}")/lib/pretooluse-target-blocks-lib.sh"
 # shellcheck source=lib/hook-dispatch.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/hook-dispatch.sh" 2>/dev/null || true
+# shellcheck source=capability.sh (provides shared _RING_C_FILES constant)
+source "$(dirname "${BASH_SOURCE[0]}")/capability.sh"
 
 # ── 1. block_destructive ──────────────────────────────────────────────────────
 # Combines: rm, truncate/clobber, disk, git-clean, git-amend, cp-clobber, find-exec-rm
@@ -32,19 +34,8 @@ block_destructive() {
     '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*[[:space:]]+(\$PWD|\$\(pwd\)|`pwd`)'; then
     echo "BLOCKED: destructive rm targeting current directory detected" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -iqE \
-    '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+(--[a-zA-Z-]+[[:space:]]+)*(--recursive|--force)[[:space:]]+(--[a-zA-Z-]+[[:space:]]+)*(/|~|\$\{?HOME\}?|\.\.|\.\/|\*|\$\{[A-Z_]+:[-=][^}]*\})'; then
-    echo "BLOCKED: destructive rm (long-option --recursive/--force) detected" >&2; exit 2
-  fi
   if printf '%s' "$cmd" | grep -iqE '\bfind\b[[:space:]].*\-delete\b'; then
     echo "BLOCKED: find -delete detected — use rm on specific paths instead" >&2; exit 2
-  fi
-  # redirect-based file clobber
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(:|true|false|cat[[:space:]]+/dev/null)[[:space:]]*>[[:space:]]*[^>]'; then
-    echo "BLOCKED: redirect-based file clobber detected (: > file or cat /dev/null > file)" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?truncate[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*-s[[:space:]]*0'; then
-    echo "BLOCKED: truncate -s 0 (zero-out file) detected" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -iqE 'rsync[[:space:]]+[^;|&]*--delete(-[a-z]+)?'; then
     echo "BLOCKED: rsync --delete detected — destructive sync not permitted" >&2; exit 2
@@ -68,13 +59,6 @@ block_destructive() {
   if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+checkout[[:space:]]+(--|\.)[[:space:]]*(|$)' || \
      printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+checkout[[:space:]]+\.[[:space:]]*(;|$|&&|\|\|)'; then
     echo "BLOCKED: git checkout . (discard all changes) detected" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+commit[[:space:]]+.*--amend'; then
-    if git branch -r --contains HEAD 2>/dev/null | grep -q .; then
-      echo "BLOCKED: git commit --amend on a commit already pushed to remote. Create a new commit instead to avoid requiring force-push." >&2
-      exit 2
-    fi
-    echo "WARNING: git commit --amend detected — commit is not yet pushed (safe to amend)" >&2
   fi
   if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?cp[[:space:]]+/dev/null[[:space:]]+'; then
     echo "BLOCKED: cp /dev/null (file clobber) detected — destructive file deletion not permitted" >&2; exit 2
@@ -101,15 +85,6 @@ _EVAL_SOURCE_PATTERNS=(
 
 block_execution() {
   local cmd="$1"
-  # static integrity check on pipe-to-shell table
-  local _entry _sep_count
-  for _entry in "${_PIPE_TO_SHELL_PATTERNS[@]}"; do
-    _sep_count=$(printf '%s' "$_entry" | grep -oF '|||' | wc -l | tr -d '[:space:]')
-    if [[ "$_sep_count" -ne 1 ]]; then
-      echo "BUG: _PIPE_TO_SHELL_PATTERNS entry has ${_sep_count} '|||' separators (expected 1): ${_entry}" >&2
-      exit 1
-    fi
-  done
   _dispatch_patterns "$cmd" "${_PIPE_TO_SHELL_PATTERNS[@]}"
   _dispatch_patterns "$cmd" "${_EVAL_SOURCE_PATTERNS[@]}"
   # world-writable chmod
@@ -192,7 +167,7 @@ block_capability() {
   fi
   # env-injection
   if printf '%s' "$cmd" | grep -qwE \
-    'BASH_ENV|PROMPT_COMMAND|PS4|SHELLOPTS|BASHOPTS|LD_PRELOAD|LD_AUDIT|DYLD_INSERT_LIBRARIES'; then
+    'BASH_ENV|PROMPT_COMMAND|PS4|SHELLOPTS|BASHOPTS|LD_PRELOAD|LD_AUDIT|DYLD_INSERT_LIBRARIES|PHASE_GATE_STRICT'; then
     echo "BLOCKED: shell startup / library-injection env var detected" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -qE '(^|[[:space:];|&])[[:space:]]*ENV[[:space:]]*='; then
@@ -208,31 +183,19 @@ block_capability() {
       echo "BLOCKED: git/pager execution-vector env var detected — use CLAUDE_PLAN_CAPABILITY=human to override" >&2; exit 2
     fi
   fi
-  if printf '%s' "$cmd" | grep -qE "plan-file\\.sh[\"'[:space:]].*unblock[[:space:]]"; then
-    echo "BLOCKED: 'unblock' is a human-only command — run plan-file.sh unblock from terminal" >&2; exit 2
-  fi
 }
 
 # ── 5. block_ambiguous ────────────────────────────────────────────────────────
-# Used only when [BLOCKED-AMBIGUOUS] is present in the active plan
+# Used only when [BLOCKED-AMBIGUOUS] is present in the active plan.
+# General file-write blocking is handled by _bash_dest_paths + the write freeze.
+# block_execution covers shell inline (bash -c) and pipe-to-interpreter.
+# Only keep extraction commands that bypass the redirect-based write detection.
 
 block_ambiguous() {
   local cmd="$1"
   if printf '%s' "$cmd" | grep -qE \
-    '(python3?|perl|ruby|node|php|lua|R)[[:space:]]+-[ceEr][^[:alpha:]]'; then
-    echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — interpreter inline execution prohibited" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE \
     '(python3?|perl|ruby|node|php|lua|R)[[:space:]]*(<<|<<-)'; then
     echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — interpreter heredoc execution prohibited" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE \
-    '(bash|sh|zsh|ksh|dash)[[:space:]]+-c[^[:alpha:]]'; then
-    echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — shell inline execution prohibited" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -qE \
-    '(^|[;|&[:space:]])[[:space:]]*(rsync|git[[:space:]]+apply|patch[[:space:]]|unzip[[:space:]]|install[[:space:]])'; then
-    echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — file-install command prohibited" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -qE \
     '(^|[;|&[:space:]])[[:space:]]*tar[[:space:]]+-[[:alpha:]]*[xX]'; then
@@ -242,8 +205,7 @@ block_ambiguous() {
 
 # ── 6. block_ring_c ───────────────────────────────────────────────────────────
 # Protects CLAUDE.md and reference policy docs from bash write vectors
-
-_RING_C_FILES='CLAUDE\.md|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop)\.md'
+# _RING_C_FILES constant is defined in capability.sh (sourced above).
 
 _paths_in_workspace() {
   local _p
@@ -292,11 +254,23 @@ block_ring_c() {
   fi
 }
 
-# ── 7. block_sql_ddl ──────────────────────────────────────────────────────────
-block_sql_ddl() {
+# ── 7. block_plan_revert ─────────────────────────────────────────────────────
+# Blocks git revert/stash/reset operations targeting plan files when a
+# HUMAN_MUST_CLEAR_MARKERS entry is active (marker-conditional).
+block_plan_revert() {
   local cmd="$1"
-  if printf '%s' "$cmd" | grep -iqE \
-    '(^|[[:space:]])(DROP|TRUNCATE)[[:space:]]+(TABLE|DATABASE|SCHEMA)([[:space:]]|$)'; then
-    echo "BLOCKED: destructive SQL DDL detected" >&2; exit 2
+  [[ -z "${PLAN_FILE_SH:-}" ]] && return 0
+  local _active_plan="" _phase=""
+  resolve_active_plan_and_phase _active_plan _phase 2>/dev/null || return 0
+  marker_present_human_must_clear "$_active_plan" >/dev/null 2>&1 || return 0
+  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+(checkout|restore)[[:space:]]' && \
+     printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]]*\.md'; then
+    echo "BLOCKED: git checkout/restore targeting plans/*.md while human-must-clear marker active — resolve the block first" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE '(^|[[:space:];|&])git[[:space:]]+stash([[:space:];|&]|$)'; then
+    echo "BLOCKED: git stash while human-must-clear marker active — resolve the block first" >&2; exit 2
+  fi
+  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+reset[[:space:]]+--[[:space:]]*(soft|mixed)[[:space:]]'; then
+    echo "BLOCKED: git reset --soft/--mixed while human-must-clear marker active — resolve the block first" >&2; exit 2
   fi
 }

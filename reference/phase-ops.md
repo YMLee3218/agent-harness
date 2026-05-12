@@ -58,7 +58,7 @@ When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
 
 First, clear the `[BLOCKED-AMBIGUOUS]` marker that triggered this cascade — `run-critic-loop.sh` exits 1 on any `[BLOCKED` match, so leaving it in place blocks every sub-run below.
 
-**Run from a human terminal** (Claude cannot execute this step — `pretooluse-bash.sh` blocks `clear-marker` on `[BLOCKED-AMBIGUOUS]` markers):
+**Run from a human terminal** (Claude cannot execute this step — Ring C in `plan-file.sh` blocks `clear-marker`):
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
 ```

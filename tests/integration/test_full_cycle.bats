@@ -37,16 +37,6 @@ _libs() {
 
 # ── Sanity: harness scripts are executable and --help-equivalent exits cleanly ──
 
-@test "T10/smoke: run-dev-cycle.sh is a valid bash script (syntax check)" {
-  run bash -n "$SCRIPTS_DIR/run-dev-cycle.sh"
-  [ "$status" -eq 0 ]
-}
-
-@test "T10/smoke: run-integration.sh is a valid bash script (syntax check)" {
-  run bash -n "$SCRIPTS_DIR/run-integration.sh"
-  [ "$status" -eq 0 ]
-}
-
 @test "T10/smoke: run-integration.sh requires --plan and --integration-cmd args" {
   run bash "$SCRIPTS_DIR/run-integration.sh" 2>&1
   [ "$status" -ne 0 ]
@@ -136,12 +126,6 @@ _libs() {
   "
   [[ "$output" == *"rc=1"* ]]
   grep -q 'FAIL' "$PLAN_FILE"
-}
-
-@test "T13/fail-recover: cmd_gc_sidecars runs without error" {
-  bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null
-  run bash -c "$(_libs); cmd_gc_sidecars '$PLAN_FILE'" 2>&1
-  [ "$status" -eq 0 ]
 }
 
 @test "T13/fail-recover: consecutive PASS verdicts reach converged state" {

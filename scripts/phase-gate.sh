@@ -17,6 +17,8 @@ BLOCKED_LABEL="phase-gate"
 source "$(dirname "$0")/phase-policy.sh"
 # shellcheck source=lib/active-plan.sh
 source "$(dirname "$0")/lib/active-plan.sh"
+# shellcheck source=capability.sh (provides shared _RING_C_FILES constant)
+source "$(dirname "$0")/capability.sh"
 
 get_active_phase() {
   local _plan _phase
@@ -27,18 +29,25 @@ get_active_phase() {
   echo "$_phase"
 }
 
-# _guard_ring_c INPUT — blocks writes to CLAUDE.md (Ring C) unless capability=human.
+# _guard_ring_c INPUT — blocks writes to Ring C files unless capability=human.
+# _RING_C_FILES constant is defined in capability.sh (sourced above).
 _guard_ring_c() {
   local _input="$1"
   [[ -z "${CLAUDE_PROJECT_DIR:-}" ]] && return 0
-  local _claudemd _file _cm_canon _file_canon
-  _claudemd="${CLAUDE_PROJECT_DIR}/CLAUDE.md"
+  [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
+  local _file
   _file=$(extract_tool_input_path "$_input")
   [[ -z "$_file" ]] && return 0
-  _cm_canon=$(_canon_path "$_claudemd" 2>/dev/null) || _cm_canon="$_claudemd"
-  _file_canon=$(_canon_path "$_file" 2>/dev/null) || _file_canon="$_file"
-  if [[ "$_file_canon" == "$_cm_canon" ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
-    echo "BLOCKED [phase-gate]: CLAUDE.md is Ring C — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2
+  local _proj _file_norm _rel
+  _proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _proj="${CLAUDE_PROJECT_DIR}"
+  _file_norm=$(_canon_path "$_file" 2>/dev/null) || _file_norm="$_file"
+  # Try canonical prefix strip first; fall back to raw paths to handle
+  # symlinks in /tmp (e.g. macOS /tmp → /private/tmp) when target doesn't exist.
+  _rel="${_file_norm#${_proj}/}"
+  [[ "$_rel" == "$_file_norm" ]] && _rel="${_file#${CLAUDE_PROJECT_DIR}/}"
+  [[ "$_rel" == "$_file" ]] && return 0
+  if printf '%s' "$_rel" | grep -qE "^(${_RING_C_FILES})$"; then
+    echo "BLOCKED [phase-gate]: Ring C file ($(basename "$_file")) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2
     exit 2
   fi
 }
@@ -48,7 +57,6 @@ _guard_no_plan() {
   local _input="$1"
   local _fp; _fp=$(extract_tool_input_path "$_input")
   bootstrap_block_if_strict "$_fp" || exit 2
-  echo "[phase-gate] no active plan file; bootstrap write allowed for '$_fp'. Run /brainstorming to enable full phase gating." >&2
   exit 0
 }
 
@@ -61,12 +69,12 @@ _guard_sidecar() {
   fi
 }
 
-# _guard_ambiguous — blocks all writes when [BLOCKED-AMBIGUOUS] is present in the active plan.
-_guard_ambiguous() {
-  local _plan _phase
+# _guard_human_must_clear — blocks all writes when any HUMAN_MUST_CLEAR_MARKERS entry is present.
+_guard_human_must_clear() {
+  local _plan _phase _found
   if resolve_with_latest_fallback _plan _phase 2>/dev/null; then
-    if grep -qF "[BLOCKED-AMBIGUOUS]" "$_plan"; then
-      echo "BLOCKED: [BLOCKED-AMBIGUOUS] present — write prohibited; human must resolve the question and clear the marker from terminal" >&2
+    if _found=$(marker_present_human_must_clear "$_plan"); then
+      echo "BLOCKED: [$_found] present — write prohibited; human must resolve and clear the marker from terminal" >&2
       exit 2
     fi
   fi
@@ -89,14 +97,9 @@ mode_write() {
   [ -z "$file_path" ] && exit 0
 
   _guard_sidecar "$file_path"
-  _guard_ambiguous
+  _guard_human_must_clear
 
   apply_phase_block "$file_path" "$phase" "phase-gate" || exit 2
-
-  if [ "$phase" = "done" ] && ! is_source_path "$file_path" && ! is_test_path "$file_path"; then
-    echo "[phase-gate] warning: most recent plan is 'done' but '$file_path' is not a source/test file — allowing. To start a new feature, run /brainstorming." >&2
-    exit 0
-  fi
 
   exit 0
 }

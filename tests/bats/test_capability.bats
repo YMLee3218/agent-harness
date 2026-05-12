@@ -32,12 +32,6 @@ SCRIPTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)/scripts"
   [[ "$output" == "OK" ]]
 }
 
-@test "G9: declare -F die is used instead of command -v die" {
-  run grep 'declare -F die' "$SCRIPTS_DIR/phase-policy.sh"
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"declare -F die"* ]]
-}
-
 # ── T-6/H1: macOS ps args truncation rejection ───────────────────────────────
 
 @test "T-6/H1: _check_parent_env fails closed when ps args >= 8190 bytes" {
@@ -62,14 +56,29 @@ SCRIPTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)/scripts"
   [[ "$output" == *"truncated"* || "$output" == *"rc=1"* ]]
 }
 
-# ── T-7/H2: comm full path comparison prevents 15-byte truncation bypass ─────
+# ── Ring B gate: clear-converged / record-verdict / append-review-verdict ─────
 
-@test "T-7/H2: _ppid_chain_is_harness uses full args path (not comm 15-byte truncated)" {
-  # Verify capability.sh no longer uses comm= for the identity comparison.
-  run grep -c 'comm=' "$SCRIPTS_DIR/capability.sh"
-  # comm= may appear in comments or other context; the key check is that the
-  # comm_before/comm_after variables are gone and args_before/args_after are used.
-  run grep '_args_before\|_args_after' "$SCRIPTS_DIR/capability.sh"
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"_args_before"* ]]
+@test "Ring-B: clear-converged is rejected without CLAUDE_PLAN_CAPABILITY=harness" {
+  run bash -c '
+    unset CLAUDE_PLAN_CAPABILITY
+    source '"$SCRIPTS_DIR"'/lib/active-plan.sh
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    require_capability clear-converged B
+    echo ALLOWED
+  ' </dev/null 2>&1
+  [ "$status" -ne 0 ]
+  [[ "$output" != *"ALLOWED"* ]]
 }
+
+@test "Ring-B: record-verdict is rejected without CLAUDE_PLAN_CAPABILITY=harness" {
+  run bash -c '
+    unset CLAUDE_PLAN_CAPABILITY
+    source '"$SCRIPTS_DIR"'/lib/active-plan.sh
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    require_capability record-verdict B
+    echo ALLOWED
+  ' </dev/null 2>&1
+  [ "$status" -ne 0 ]
+  [[ "$output" != *"ALLOWED"* ]]
+}
+

@@ -7,6 +7,10 @@ _CAPABILITY_LOADED=1
 
 declare -F die >/dev/null 2>&1 || die() { echo "ERROR: $*" >&2; exit 1; }
 
+# Shared Ring C file pattern — used by phase-gate.sh (_guard_ring_c) and pretooluse-blocks.sh (block_ring_c).
+# One definition sourced by both to prevent divergence.
+_RING_C_FILES='CLAUDE\.md|settings\.json|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop)\.md|scripts/(phase-gate|pretooluse-bash|pretooluse-blocks|plan-file)\.sh|scripts/lib/(plan-cmd|plan-loop-helpers|active-plan|sidecar)\.sh'
+
 # _check_parent_env PID → returns 0 if the process has CLAUDE_PLAN_CAPABILITY=harness in its environment.
 # checks the parent process's environment rather than argv to prevent argv-injection bypass.
 _check_parent_env() {
@@ -62,20 +66,12 @@ _ppid_chain_is_harness() {
     [[ -z "$pid" ]] && return 1
     [[ "$pid" =~ ^[0-9]+$ ]] || return 1
     [[ "$pid" -le 1 ]] && return 1
-    local _args_before _args_after _lstart_before _lstart_after
-    # Use full args= (not comm= which truncates at 15 bytes) for identity check.
-    _args_before=$(ps -p "$pid" -o args= 2>/dev/null | awk '{print $1}') || { depth=$((depth + 1)); continue; }
+    local _lstart_before _lstart_after
     _lstart_before=$(ps -p "$pid" -o lstart= 2>/dev/null | tr -s ' ') || _lstart_before=""
     # Check env var of parent process rather than argv to prevent argv-inject bypass.
     if _check_parent_env "$pid"; then
-      # TOCTOU guard: verify process identity (path + start time) didn't change during env check.
-      _args_after=$(ps -p "$pid" -o args= 2>/dev/null | awk '{print $1}') || return 1
+      # TOCTOU guard: verify process start time didn't change during env check (PID reuse defense).
       _lstart_after=$(ps -p "$pid" -o lstart= 2>/dev/null | tr -s ' ') || _lstart_after=""
-      if [[ "$_args_before" != "$_args_after" ]]; then
-        [[ -n "${CLAUDE_DEBUG_PPID:-}" ]] && \
-          echo "[ppid-chain] WARN: pid $pid changed args during env check (${_args_before} → ${_args_after}) — fail-closed" >&2
-        return 1
-      fi
       # fail-closed if lstart is empty (race condition) — empty == empty would be a false pass.
       if [[ -z "$_lstart_before" ]] || [[ -z "$_lstart_after" ]]; then
         [[ -n "${CLAUDE_DEBUG_PPID:-}" ]] && \

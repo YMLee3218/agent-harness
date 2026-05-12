@@ -44,17 +44,18 @@ die_with_reason() {
 # Shared implementation. latest_fallback=1: try find-latest when find-active finds nothing.
 # latest_fallback=0: return 1 immediately when find-active finds nothing.
 _resolve_plan_core() {
-  local _pv="$1" _phv="$2" _with_latest_fallback="$3" _plan _rc _phase
+  local _pv="$1" _phv="$2" _with_latest_fallback="$3"
+  local __rpc_plan="" __rpc_phase="" _rc
   if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
-    _plan="$CLAUDE_PLAN_FILE"
+    __rpc_plan="$CLAUDE_PLAN_FILE"
   else
-    _plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null)
+    __rpc_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null)
     _rc=$?
     die_with_reason "$_rc"
     if [ $_rc -ne 0 ]; then
       if [ "$_with_latest_fallback" = "1" ]; then
         # Fallback: try find-latest (best-effort for status display or no-plan bootstrap)
-        _plan=$(bash "$PLAN_FILE_SH" find-latest 2>/dev/null) || {
+        __rpc_plan=$(bash "$PLAN_FILE_SH" find-latest 2>/dev/null) || {
           printf -v "$_pv" '%s' ''
           printf -v "$_phv" '%s' ''
           return 1
@@ -66,13 +67,13 @@ _resolve_plan_core() {
       fi
     fi
   fi
-  _phase=$(bash "$PLAN_FILE_SH" get-phase "$_plan" 2>/dev/null) || {
+  __rpc_phase=$(bash "$PLAN_FILE_SH" get-phase "$__rpc_plan" 2>/dev/null) || {
     printf -v "$_pv" '%s' ''
     printf -v "$_phv" '%s' ''
     return 1
   }
-  printf -v "$_pv" '%s' "$_plan"
-  printf -v "$_phv" '%s' "$_phase"
+  printf -v "$_pv" '%s' "$__rpc_plan"
+  printf -v "$_phv" '%s' "$__rpc_phase"
   return 0
 }
 

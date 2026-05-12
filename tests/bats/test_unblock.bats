@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# cmd_unblock — BLOCKED-AMBIGUOUS lines must survive unblock.
+# cmd_unblock — HUMAN_MUST_CLEAR_MARKERS lines must survive unblock.
 
 load setup
 
@@ -13,22 +13,7 @@ teardown() {
   teardown_plan_dir
 }
 
-_load_libs() {
-  printf '
-    export CLAUDE_PROJECT_DIR="%s"
-    export CLAUDE_PLAN_CAPABILITY=harness
-    source "%s/lib/active-plan.sh"
-    source "%s/phase-policy.sh"
-    source "%s/lib/sidecar.sh"
-    export PLAN_FILE_SH="%s/plan-file.sh"
-    source "%s/lib/plan-lib.sh"
-    source "%s/lib/plan-loop-helpers.sh"
-    source "%s/lib/plan-cmd.sh"
-  ' "$PLAN_BASE" \
-    "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
-    "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
-    "$SCRIPTS_DIR"
-}
+_load_libs() { _load_plan_libs full; }
 
 @test "T7/L5: cmd_unblock preserves BLOCKED-AMBIGUOUS lines for the named agent" {
   # Pre-populate an ambiguous block and a regular block for critic-code
@@ -66,85 +51,38 @@ EOF
   ! grep -q '\[BLOCKED\] implement:critic-code: some issue' "$PLAN_FILE"
 }
 
-@test "T7/L5: cmd_unblock preserves BLOCKED-AMBIGUOUS for a different agent too" {
-  # Ambiguous block for critic-code, unblock critic-test
+# ── HMCM array coverage: all human-must-clear entries preserved by unblock ───
+
+@test "human_must_clear: cmd_unblock preserves all HUMAN_MUST_CLEAR_MARKERS entries (array coverage)" {
   cat >> "$PLAN_FILE" <<'EOF'
 
-[BLOCKED-AMBIGUOUS] implement:critic-code: interpreter inline execution prohibited
-[BLOCKED] implement:critic-test: some test block
+[BLOCKED-CEILING] implement/critic-code: exceeded 5 runs
+[BLOCKED] coder:critic-code: some coder block
+[BLOCKED] parse:critic-code: verdict missing twice
+[BLOCKED] integration:critic-code: container failed
 EOF
 
   bash -c "
     $(_load_libs)
     sc_ensure_dir '$PLAN_FILE'
-    cmd_unblock 'critic-test'
+    cmd_unblock 'critic-code'
   " 2>/dev/null || true
 
-  # BLOCKED-AMBIGUOUS for critic-code untouched
-  grep -q '\[BLOCKED-AMBIGUOUS\] implement:critic-code' "$PLAN_FILE"
-}
-
-# ── T-11: BLOCKED-CEILING agent prefix overlap ────────────────────────────────
-
-@test "T-11: cmd_unblock critic-test-extra does not clear critic-test ceiling line" {
-  cat >> "$PLAN_FILE" <<'EOF'
-
-[BLOCKED-CEILING] implement/critic-test: exceeded 5 runs — manual review required
-EOF
-
-  bash -c "
-    $(_load_libs)
-    sc_ensure_dir '$PLAN_FILE'
-    cmd_unblock 'critic-test-extra' 2>/dev/null || true
-  " 2>/dev/null || true
-
-  # critic-test ceiling line must survive the unblock of critic-test-extra
-  grep -q '\[BLOCKED-CEILING\] implement/critic-test: exceeded' "$PLAN_FILE"
-}
-
-@test "T-11: cmd_unblock critic-test clears only critic-test ceiling line" {
-  cat >> "$PLAN_FILE" <<'EOF'
-
-[BLOCKED-CEILING] implement/critic-test: exceeded 5 runs — manual review required
-[BLOCKED-CEILING] implement/critic-test-extra: exceeded 5 runs — manual review required
-EOF
-
-  bash -c "
-    $(_load_libs)
-    sc_ensure_dir '$PLAN_FILE'
-    cmd_unblock 'critic-test' 2>/dev/null || true
-  " 2>/dev/null || true
-
-  # critic-test line cleared, critic-test-extra preserved
-  ! grep -q '\[BLOCKED-CEILING\] implement/critic-test:' "$PLAN_FILE" 2>/dev/null || true
-  grep -q '\[BLOCKED-CEILING\] implement/critic-test-extra:' "$PLAN_FILE"
-}
-
-# ── T-8/H3: BLOCKED-CEILING body false-match prevention ─────────────────────
-
-@test "T-8/H3: cmd_unblock critic-test does not clear ceiling line whose body mentions /critic-test" {
-  cat >> "$PLAN_FILE" <<'EOF'
-
-[BLOCKED-CEILING] implement/critic-code: exceeded 5 runs — see /critic-test for details
-EOF
-
-  bash -c "
-    $(_load_libs)
-    sc_ensure_dir '$PLAN_FILE'
-    cmd_unblock 'critic-test' 2>/dev/null || true
-  " 2>/dev/null || true
-
-  # critic-code ceiling must survive — only the body mentions /critic-test
   grep -q '\[BLOCKED-CEILING\] implement/critic-code:' "$PLAN_FILE"
+  grep -q '\[BLOCKED\] coder:critic-code:' "$PLAN_FILE"
+  grep -q '\[BLOCKED\] parse:critic-code:' "$PLAN_FILE"
+  grep -q '\[BLOCKED\] integration:critic-code:' "$PLAN_FILE"
 }
 
-# ── T-13/H5: BLOCKED-CEILING hierarchical token boundary ─────────────────────
+# ── T-11/T-8/T-13: BLOCKED-CEILING token-boundary precision ─────────────────
 
-@test "T-13/H5: cmd_unblock critic-test does not clear hierarchical critic-test/sub ceiling" {
+@test "T-11/T-8/T-13: cmd_unblock matches exact agent token — preserves prefix-overlap, body-mention, and hierarchical variants" {
   cat >> "$PLAN_FILE" <<'EOF'
 
-[BLOCKED-CEILING] implement/critic-test/subagent: exceeded 5 runs — sub-agent ceiling
 [BLOCKED-CEILING] implement/critic-test: exceeded 5 runs — main ceiling
+[BLOCKED-CEILING] implement/critic-test-extra: exceeded 5 runs — prefix overlap
+[BLOCKED-CEILING] implement/critic-code: exceeded 5 runs — see /critic-test for details
+[BLOCKED-CEILING] implement/critic-test/subagent: exceeded 5 runs — sub-agent ceiling
 EOF
 
   bash -c "
@@ -153,8 +91,10 @@ EOF
     cmd_unblock 'critic-test' 2>/dev/null || true
   " 2>/dev/null || true
 
-  # hierarchical form must survive (different scope)
-  grep -q '\[BLOCKED-CEILING\] implement/critic-test/subagent:' "$PLAN_FILE"
-  # non-hierarchical form must be cleared
+  # critic-test cleared
   ! grep -q '\[BLOCKED-CEILING\] implement/critic-test:' "$PLAN_FILE" 2>/dev/null || true
+  # prefix-overlap, body-mention, and hierarchical forms must survive
+  grep -q '\[BLOCKED-CEILING\] implement/critic-test-extra:' "$PLAN_FILE"
+  grep -q '\[BLOCKED-CEILING\] implement/critic-code:' "$PLAN_FILE"
+  grep -q '\[BLOCKED-CEILING\] implement/critic-test/subagent:' "$PLAN_FILE"
 }

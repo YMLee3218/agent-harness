@@ -17,7 +17,7 @@ case "$1" in
   # Ring B — harness or human: state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
   reset-for-rollback|clear-converged|record-verdict|record-verdict-guarded|append-review-verdict|\
-  gc-events|gc-verdicts|gc-sidecars|record-task-completed|record-stop-block|append-audit|mark-implemented|\
+  gc-events|gc-verdicts|record-task-completed|record-stop-block|append-audit|mark-implemented|\
   inter-feature-reset|migrate-to-sidecar)
     require_capability "$1" B ;;
 
@@ -43,7 +43,6 @@ case "$1" in
   context)              cmd_context ;;
   gc-events)            cmd_gc_events ;;
   gc-verdicts)          [ $# -eq 2 ] || die "Usage: plan-file.sh gc-verdicts <plan-file>"; cmd_gc_verdicts "$2" ;;
-  gc-sidecars)          [ $# -eq 2 ] || die "Usage: plan-file.sh gc-sidecars <plan-file>"; cmd_gc_sidecars "$2" ;;
   add-task)             [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
   update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
   append-review-verdict) [ $# -eq 4 ] || die "Usage: plan-file.sh append-review-verdict <plan-file> <agent> PASS|FAIL"; cmd_append_review_verdict "$2" "$3" "$4" ;;

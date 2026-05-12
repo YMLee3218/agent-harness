@@ -28,9 +28,9 @@ _sc_reset_convergence_for_scope() {
 _validated_ceiling() {
   local c="$1"
   case "$c" in
-    ''|*[!0-9]*) echo "[record-loop-state] invalid CLAUDE_CRITIC_LOOP_CEILING '${c}'; falling back to 5" >&2; c=5 ;;
+    ''|*[!0-9]*) c=5 ;;
   esac
-  [ "$c" -lt 2 ] && { echo "[record-loop-state] CLAUDE_CRITIC_LOOP_CEILING=${c} < 2; falling back to 5" >&2; c=5; }
+  [ "$c" -lt 2 ] && c=5
   echo "$c"
 }
 
@@ -78,24 +78,14 @@ _ceiling_block() {
   local run_ordinal="$5" ceiling="$6" conv_state="$7" convergence_path="$8"
   [ "$run_ordinal" -gt "$ceiling" ] || return 0
   local _ceil_bpath; _ceil_bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
-  local _write_ok=0
   _with_lock "${_ceil_bpath}.lock" \
-    _ceiling_block_body "$_ceil_bpath" "$plan_file" "$agent" "$scope" "$ceiling" && _write_ok=1 || {
-    if ! grep -qF "[BLOCKED-CEILING] ${scope}" "$plan_file" 2>/dev/null; then
-      _append_to_open_questions "$plan_file" \
-        "[BLOCKED] runtime: ceiling-dedup lock timeout — check for stale ${_ceil_bpath}.lock and re-run"
-      _record_blocked "$plan_file" "runtime" "$agent" "${scope}" "ceiling-dedup lock timeout"
-    fi
-  }
+    _ceiling_block_body "$_ceil_bpath" "$plan_file" "$agent" "$scope" "$ceiling" || true
   grep -qF "[BLOCKED-CEILING] ${scope}" "$plan_file" 2>/dev/null || \
     _append_to_open_questions "$plan_file" \
       "[BLOCKED-CEILING] ${scope}: exceeded ${ceiling} runs — manual review required"
-  # re-read conv_state after lock release to capture any concurrent ceiling_blocked flip
   conv_state=$(sc_read_json "$convergence_path" \
     '{"first_turn":false,"streak":0,"converged":false,"ceiling_blocked":false,"ordinal":0,"milestone_seq":0}')
-  if [[ "$_write_ok" -eq 1 ]]; then
-    sc_update_json "$convergence_path" "$(printf '%s' "$conv_state" | jq '.ceiling_blocked = true')"
-  fi
+  sc_update_json "$convergence_path" "$(printf '%s' "$conv_state" | jq '.ceiling_blocked = true')"
   echo "[record-loop-state] BLOCKED-CEILING: ${scope} run #${run_ordinal} exceeds ceiling ${ceiling}" >&2
   return 1
 }

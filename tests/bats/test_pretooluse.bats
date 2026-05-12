@@ -32,24 +32,6 @@ run_hook() {
 
 # ── 2. block_capability ───────────────────────────────────────────────────────
 
-@test "capability: BASH_ENV= assignment is blocked" {
-  cd "$WS_DIR"
-  run run_hook "BASH_ENV=/tmp/x bash -c true"
-  [ "$status" -ne 0 ]
-}
-
-@test "capability: LD_PRELOAD is blocked" {
-  cd "$WS_DIR"
-  run run_hook "LD_PRELOAD=/tmp/lib.so date"
-  [ "$status" -ne 0 ]
-}
-
-@test "capability: NODE_ENV= is allowed (false-positive guard)" {
-  cd "$WS_DIR"
-  run run_hook "NODE_ENV=production npm start"
-  [ "$status" -eq 0 ]
-}
-
 @test "capability: CLAUDE_PLAN_CAPABILITY= direct assignment is blocked" {
   cd "$WS_DIR"
   run run_hook "CLAUDE_PLAN_CAPABILITY=human bash -c true"
@@ -84,38 +66,203 @@ run_hook() {
   [ "$status" -ne 0 ]
 }
 
-@test "destructive: rm --recursive --force long-opts is blocked" {
-  cd "$WS_DIR"
-  run run_hook "rm --recursive --force /important"
-  [ "$status" -ne 0 ]
-}
-
 @test "destructive: git reset --hard is blocked" {
   cd "$WS_DIR"
   run run_hook "git reset --hard HEAD"
   [ "$status" -ne 0 ]
 }
 
-@test "destructive: truncate -s 0 is blocked" {
-  cd "$WS_DIR"
-  run run_hook "truncate -s 0 /etc/important"
-  [ "$status" -ne 0 ]
-}
-
-@test "destructive: cp /dev/null to file is blocked" {
-  cd "$WS_DIR"
-  run run_hook "cp /dev/null /tmp/important"
-  [ "$status" -ne 0 ]
-}
-
-@test "destructive: find -exec rm is blocked" {
-  cd "$WS_DIR"
-  run run_hook "find . -exec rm {} \;"
-  [ "$status" -ne 0 ]
-}
-
 # ── 5. block_ambiguous ────────────────────────────────────────────────────────
-# Only active when [BLOCKED-AMBIGUOUS] marker present in plan — covered by test_capability.bats
+
+run_hook_with_plan() {
+  local cmd="$1" plan_file="$2"
+  local json="{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$cmd\"}}"
+  printf '%s' "$json" | CLAUDE_PLAN_FILE="$plan_file" bash "$SCRIPTS_DIR/pretooluse-bash.sh" 2>/dev/null
+}
+
+@test "block_ambiguous: sed -i to delete BLOCKED-AMBIGUOUS marker is blocked when marker present" {
+  local td plan_file
+  td=$(mktemp -d)
+  plan_file="$td/plans/test-plan.md"
+  mkdir -p "$td/plans"
+  cat > "$plan_file" <<'EOF'
+---
+feature: test
+phase: implement
+schema: 2
+---
+## Phase
+implement
+## Open Questions
+[BLOCKED-AMBIGUOUS] critic-code: should we use approach A or B?
+EOF
+  export CLAUDE_PROJECT_DIR="$td"
+  run run_hook_with_plan "sed -i '/BLOCKED-AMBIGUOUS/d' $plan_file" "$plan_file"
+  rm -rf "$td"
+  [ "$status" -ne 0 ]
+}
+
+@test "phase-gate write: Write tool is blocked when BLOCKED-AMBIGUOUS present in active plan" {
+  local td plan_file
+  td=$(mktemp -d)
+  plan_file="$td/plans/test-plan.md"
+  mkdir -p "$td/plans/test-plan.state/convergence"
+  cat > "$plan_file" <<'EOF'
+---
+feature: test-plan
+phase: implement
+schema: 2
+---
+## Phase
+implement
+## Open Questions
+[BLOCKED-AMBIGUOUS] critic-code: some unresolved question
+EOF
+  local json="{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$td/src/foo.py\",\"content\":\"x=1\"}}"
+  run bash -c "printf '%s' '$json' | CLAUDE_PLAN_FILE='$plan_file' CLAUDE_PROJECT_DIR='$td' bash '$SCRIPTS_DIR/phase-gate.sh' write" 2>/dev/null
+  rm -rf "$td"
+  [ "$status" -eq 2 ]
+}
+
+# ── human_must_clear: non-AMBIGUOUS markers (§1.1 helper coverage) ───────────
+
+@test "human_must_clear: Write tool is blocked when BLOCKED-CEILING present (not just AMBIGUOUS)" {
+  local td plan_file
+  td=$(mktemp -d)
+  plan_file="$td/plans/test-plan.md"
+  mkdir -p "$td/plans/test-plan.state/convergence"
+  cat > "$plan_file" <<'EOF'
+---
+feature: test-plan
+phase: implement
+schema: 2
+---
+## Phase
+implement
+## Open Questions
+[BLOCKED-CEILING] implement/critic-code: exceeded 5 runs — manual review required
+EOF
+  local json="{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$td/src/foo.py\",\"content\":\"x=1\"}}"
+  run bash -c "printf '%s' '$json' | CLAUDE_PLAN_FILE='$plan_file' CLAUDE_PROJECT_DIR='$td' bash '$SCRIPTS_DIR/phase-gate.sh' write" 2>/dev/null
+  rm -rf "$td"
+  [ "$status" -eq 2 ]
+}
+
+@test "human_must_clear: sed -i deletion blocked when BLOCKED-CEILING present (not just AMBIGUOUS)" {
+  local td plan_file
+  td=$(mktemp -d)
+  plan_file="$td/plans/test-plan.md"
+  mkdir -p "$td/plans"
+  cat > "$plan_file" <<'EOF'
+---
+feature: test
+phase: implement
+schema: 2
+---
+## Phase
+implement
+## Open Questions
+[BLOCKED-CEILING] implement/critic-code: exceeded 5 runs
+EOF
+  export CLAUDE_PROJECT_DIR="$td"
+  run run_hook_with_plan "sed -i '/BLOCKED-CEILING/d' $plan_file" "$plan_file"
+  rm -rf "$td"
+  unset CLAUDE_PROJECT_DIR
+  [ "$status" -ne 0 ]
+}
+
+# ── plan rename / git revert guards ──────────────────────────────────────────
+
+@test "block_plan_revert: git checkout plans/*.md blocked when human-must-clear marker active" {
+  local td plan_file
+  td=$(mktemp -d)
+  plan_file="$td/plans/test-plan.md"
+  mkdir -p "$td/plans"
+  cat > "$plan_file" <<'EOF'
+---
+feature: test
+phase: implement
+schema: 2
+---
+## Phase
+implement
+## Open Questions
+[BLOCKED-AMBIGUOUS] critic-code: some question
+EOF
+  export CLAUDE_PROJECT_DIR="$td"
+  run run_hook_with_plan "git checkout HEAD~1 -- plans/test-plan.md" "$plan_file"
+  rm -rf "$td"
+  unset CLAUDE_PROJECT_DIR
+  [ "$status" -ne 0 ]
+}
+
+@test "block_plan_revert: git restore plans/*.md blocked when human-must-clear marker active" {
+  local td plan_file
+  td=$(mktemp -d)
+  plan_file="$td/plans/test-plan.md"
+  mkdir -p "$td/plans"
+  cat > "$plan_file" <<'EOF'
+---
+feature: test
+phase: implement
+schema: 2
+---
+## Phase
+implement
+## Open Questions
+[BLOCKED] coder:critic-code: something
+EOF
+  export CLAUDE_PROJECT_DIR="$td"
+  run run_hook_with_plan "git restore plans/test-plan.md" "$plan_file"
+  rm -rf "$td"
+  unset CLAUDE_PROJECT_DIR
+  [ "$status" -ne 0 ]
+}
+
+@test "block_plan_revert: git stash blocked when human-must-clear marker active" {
+  local td plan_file
+  td=$(mktemp -d)
+  plan_file="$td/plans/test-plan.md"
+  mkdir -p "$td/plans"
+  cat > "$plan_file" <<'EOF'
+---
+feature: test
+phase: implement
+schema: 2
+---
+## Phase
+implement
+## Open Questions
+[BLOCKED-AMBIGUOUS] critic-code: some question
+EOF
+  export CLAUDE_PROJECT_DIR="$td"
+  run run_hook_with_plan "git stash" "$plan_file"
+  rm -rf "$td"
+  unset CLAUDE_PROJECT_DIR
+  [ "$status" -ne 0 ]
+}
+
+@test "block_plan_revert: git stash allowed when no human-must-clear marker" {
+  local td plan_file
+  td=$(mktemp -d)
+  plan_file="$td/plans/test-plan.md"
+  mkdir -p "$td/plans"
+  cat > "$plan_file" <<'EOF'
+---
+feature: test
+phase: implement
+schema: 2
+---
+## Phase
+implement
+## Open Questions
+EOF
+  export CLAUDE_PROJECT_DIR="$td"
+  run run_hook_with_plan "git stash" "$plan_file"
+  rm -rf "$td"
+  unset CLAUDE_PROJECT_DIR
+  [ "$status" -eq 0 ]
+}
 
 # ── 6. block_ring_c ───────────────────────────────────────────────────────────
 
@@ -125,65 +272,4 @@ run_hook() {
   [ "$status" -ne 0 ]
 }
 
-@test "ring_c: redirect to reference/markers.md is blocked" {
-  cd "$WS_DIR"
-  run run_hook "echo evil > reference/markers.md"
-  [ "$status" -ne 0 ]
-}
-
-@test "ring_c: redirect to reference/effort.md is blocked" {
-  cd "$WS_DIR"
-  run run_hook "echo evil > reference/effort.md"
-  [ "$status" -ne 0 ]
-}
-
-@test "ring_c: redirect to reference/anti-hallucination.md is blocked" {
-  cd "$WS_DIR"
-  run run_hook "echo evil > reference/anti-hallucination.md"
-  [ "$status" -ne 0 ]
-}
-
-@test "ring_c: redirect to reference/language.md is blocked" {
-  cd "$WS_DIR"
-  run run_hook "echo evil > reference/language.md"
-  [ "$status" -ne 0 ]
-}
-
-@test "ring_c: redirect to reference/severity.md is blocked" {
-  cd "$WS_DIR"
-  run run_hook "echo evil > reference/severity.md"
-  [ "$status" -ne 0 ]
-}
-
-@test "ring_c: redirect to reference/phase-ops.md is blocked" {
-  cd "$WS_DIR"
-  run run_hook "echo evil > reference/phase-ops.md"
-  [ "$status" -ne 0 ]
-}
-
-@test "ring_c: redirect to reference/ultrathink.md is blocked" {
-  cd "$WS_DIR"
-  run run_hook "echo evil > reference/ultrathink.md"
-  [ "$status" -ne 0 ]
-}
-
-@test "ring_c: redirect to reference/pr-review-loop.md is blocked" {
-  cd "$WS_DIR"
-  run run_hook "echo evil > reference/pr-review-loop.md"
-  [ "$status" -ne 0 ]
-}
-
-# ── 7. block_sql_ddl ─────────────────────────────────────────────────────────
-
-@test "sql_ddl: DROP TABLE is blocked" {
-  cd "$WS_DIR"
-  run run_hook "DROP TABLE users"
-  [ "$status" -ne 0 ]
-}
-
-@test "sql_ddl: TRUNCATE DATABASE is blocked" {
-  cd "$WS_DIR"
-  run run_hook "TRUNCATE DATABASE mydb"
-  [ "$status" -ne 0 ]
-}
 

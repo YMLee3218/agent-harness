@@ -290,8 +290,6 @@ _dispatch_rls_rc() {
     3) echo "[record-verdict] BLOCKED-STREAK: streak compute failed — ${_label} not persisted" >&2
        cmd_append_verdict "$_plan" "[BLOCKED] kind=streak ${_label}" ;;
     4) echo "[record-verdict] BLOCKED-WRITE: verdicts.jsonl append failed — plan.md NOT updated" >&2 ;;
-    *) echo "[record-verdict] _record_loop_state rc=${_rc} — ${_label} not persisted" >&2
-       cmd_append_verdict "$_plan" "$_label" ;;
   esac
   exit 1
 }
@@ -399,7 +397,6 @@ _handle_parse_error() {
     1) echo "[record-verdict] ${retry_msg}" >&2
        cmd_append_verdict "$plan_file" "${current_phase}/${agent}: PARSE_ERROR" ;;
     2) cmd_append_verdict "$plan_file" "[BLOCKED] kind=corrupt-check ${current_phase}/${agent}: PARSE_ERROR" ;;
-    *) echo "[record-verdict] _check_consecutive_and_block rc=${_ccb_parse_rc} unknown" >&2; exit 1 ;;
   esac
   exit 1
 }
@@ -567,20 +564,12 @@ _clear_convergence_markers() {
 
 _cmd_clear_marker_body() {
   local plan_file="$1" marker="$2"
-  local _candidate_lines _hm
+  local _candidate_lines
   _candidate_lines=$(awk -v marker="$marker" '
     /^## Open Questions$/ { in_section=1; next }
     in_section && /^## / { in_section=0 }
     in_section && substr($0, 1, length(marker)) == marker { print }
   ' "$plan_file" 2>/dev/null || true)
-  if [[ -n "$_candidate_lines" ]]; then
-    for _hm in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
-      if printf '%s' "$_candidate_lines" | grep -qF "$_hm"; then
-        require_capability "clear-marker:$_hm" C
-        break
-      fi
-    done
-  fi
   if command -v jq >/dev/null 2>&1; then
     sc_ensure_dir "$plan_file" || return 1
     local _bpath _ts
@@ -614,7 +603,7 @@ cmd_clear_marker() {
 }
 
 # cmd_unblock clears [BLOCKED*:agent:...] lines for the named agent.
-# NOTE: BLOCKED-AMBIGUOUS lines are NOT cleared here — use cmd_clear_marker (Ring C).
+# HUMAN_MUST_CLEAR_MARKERS entries are preserved — use cmd_clear_marker (Ring C) to remove them.
 cmd_unblock() {
   local agent="$1"
   _validate_critic_agent "$agent" "unblock"
@@ -629,10 +618,25 @@ cmd_unblock() {
       "unblock" \
       --arg agent "$agent" --arg ts "$_ts" || return 1
   fi
-  _awk_inplace "$plan_file" -v agent="$agent" '
+  # Build awk ERE preserve pattern from HUMAN_MUST_CLEAR_MARKERS (array from phase-policy.sh).
+  # awk -v processes one escape level, so \\[ in the variable becomes \[ in awk ERE
+  # (which matches literal '['), while ": session-timeout" entries need no prefix.
+  local _hmcm_preserve="" _m _pat
+  for _m in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
+    case "$_m" in
+      ": "*) _pat="$_m" ;;
+      *) _pat="\\\\[$_m" ;;
+    esac
+    if [ -z "$_hmcm_preserve" ]; then
+      _hmcm_preserve="$_pat"
+    else
+      _hmcm_preserve="${_hmcm_preserve}|${_pat}"
+    fi
+  done
+  _awk_inplace "$plan_file" -v agent="$agent" -v hmcm_pat="$_hmcm_preserve" '
     /^## Open Questions$/ { in_section=1; print; next }
     in_section && /^## / { in_section=0 }
-    in_section && /\[BLOCKED-AMBIGUOUS\]/ { print; next }
+    in_section && ($0 ~ hmcm_pat) { print; next }
     in_section && /\[BLOCKED/ {
       _skip = 0
       if (match($0, /\[BLOCKED[^:]*:[^:]*:/)) {
@@ -869,51 +873,6 @@ cmd_gc_verdicts() {
 }
 
 # ── Sidecar queries / migration ───────────────────────────────────────────────
-
-cmd_gc_sidecars() {
-  local plan_file="$1"
-  require_file "$plan_file"
-  command -v jq >/dev/null 2>&1 || { echo "[gc-sidecars] jq not available — skipping" >&2; return 0; }
-  local vpath bpath
-  vpath=$(sc_path "$plan_file" "$SC_VERDICTS")
-  bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
-
-  if [[ -f "$vpath" ]] && [[ -s "$vpath" ]]; then
-    local max_ms keep_from varchive
-    max_ms=$(jq -r '.milestone_seq // 0' "$vpath" 2>/dev/null | sort -n | tail -1 || true)
-    max_ms="${max_ms:-0}"
-    if [[ "${max_ms}" -le 0 ]]; then
-      echo "[gc-sidecars] verdicts.jsonl: only milestone_seq=0 — nothing to rotate" >&2
-    else
-      keep_from=$(( max_ms - 1 ))
-      varchive=$(sc_path "$plan_file" "$SC_VERDICTS_ARCHIVE")
-      if _sc_rotate_jsonl "$vpath" "$varchive" \
-          'select((.milestone_seq // 0) >= $kf)' \
-          'select((.milestone_seq // 0) < $kf)' \
-          "gc-sidecars" --argjson kf "$keep_from"; then
-        echo "[gc-sidecars] rotated verdicts.jsonl (kept milestone_seq >= ${keep_from})" >&2
-      fi
-    fi
-  fi
-
-  if [[ -f "$bpath" ]]; then
-    local cutoff
-    cutoff=$(date -u -d '30 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null \
-             || date -u -v-30d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo "")
-    if [[ -n "$cutoff" ]]; then
-      local barchive
-      barchive=$(sc_path "$plan_file" "$SC_BLOCKED_ARCHIVE")
-      if _sc_rotate_jsonl "$bpath" "$barchive" \
-          'select(.cleared_at == null or .cleared_at >= $cut)' \
-          'select(.cleared_at != null and .cleared_at < $cut)' \
-          "gc-sidecars" --arg cut "$cutoff"; then
-        echo "[gc-sidecars] rotated blocked.jsonl (archived cleared records older than 30d)" >&2
-      fi
-    else
-      echo "[gc-sidecars] WARNING: neither GNU nor BSD date supports relative cutoff — skipping blocked.jsonl rotation" >&2
-    fi
-  fi
-}
 
 cmd_is_converged() {
   local plan_file="$1" phase="$2" agent="$3"

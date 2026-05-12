@@ -49,3 +49,28 @@ teardown_plan_dir() {
 
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts"
+
+# _load_plan_libs [full] — prints shell source commands for inline bash -c test blocks.
+# Without "full": sources through plan-loop-helpers (no plan-cmd, no harness capability).
+# With "full": also sources plan-cmd and sets CLAUDE_PLAN_CAPABILITY=harness + CLAUDE_PLAN_FILE.
+_load_plan_libs() {
+  local _mode="${1:-}"
+  printf '
+    export CLAUDE_PROJECT_DIR="%s"
+    source "%s/lib/active-plan.sh"
+    source "%s/phase-policy.sh"
+    source "%s/lib/sidecar.sh"
+    export PLAN_FILE_SH="%s/plan-file.sh"
+    source "%s/lib/plan-lib.sh"
+    source "%s/lib/plan-loop-helpers.sh"
+  ' "$PLAN_BASE" \
+    "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
+    "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR"
+  if [[ "$_mode" == "full" ]]; then
+    printf '
+    export CLAUDE_PLAN_CAPABILITY=harness
+    source "%s/lib/plan-cmd.sh"
+    export CLAUDE_PLAN_FILE="%s"
+    ' "$SCRIPTS_DIR" "$PLAN_FILE"
+  fi
+}

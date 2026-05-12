@@ -139,6 +139,20 @@ HUMAN_MUST_CLEAR_MARKERS=(
   ": plan unchanged"
 )
 
+# Echoes the first matching HUMAN_MUST_CLEAR_MARKERS entry if any is present in $1
+# (plan file path). Returns 1 if none found.
+marker_present_human_must_clear() {
+  local plan_file="$1" marker
+  [[ -f "$plan_file" ]] || return 1
+  for marker in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
+    if grep -qF "[$marker" "$plan_file" 2>/dev/null \
+       || grep -qF "$marker" "$plan_file" 2>/dev/null; then
+      printf '%s\n' "$marker"; return 0
+    fi
+  done
+  return 1
+}
+
 SIDECAR_PROTECTED_GLOBS=(
   "*/plans/*.state/*"
   "plans/*.state/*"

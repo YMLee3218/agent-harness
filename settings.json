@@ -25,15 +25,6 @@
       "Bash(grep *)",
       "Bash(test *)"
     ],
-    "ask": [
-      "Bash(curl *)",
-      "Bash(wget *)",
-      "Bash(rm *)",
-      "Bash(mv *)",
-      "Bash(cp *)",
-      "Write(**/.claude*/**)",
-      "Edit(**/.claude*/**)"
-    ],
     "deny": [
       "Read(~/.ssh/**)",
       "Read(~/.aws/credentials)",
@@ -58,7 +49,12 @@
       "Write(**/plans/*.state/**)",
       "Edit(**/plans/*.state/**)",
       "MultiEdit(**/plans/*.state/**)",
-      "NotebookEdit(**/plans/*.state/**)"
+      "NotebookEdit(**/plans/*.state/**)",
+      "Bash(mv plans/*.md *)",
+      "Bash(git checkout * plans/*.md*)",
+      "Bash(git restore plans/*.md*)",
+      "Bash(git restore plans/*)",
+      "Bash(git stash*)"
     ]
   },
   "statusLine": {

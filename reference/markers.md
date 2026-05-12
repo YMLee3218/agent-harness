@@ -3,7 +3,7 @@
 Single source of truth for all machine-readable markers used in plan files.
 Includes per-marker Write/Read/Clear/gc lifecycle and operation→marker reverse lookup.
 
-> **Single source of truth**: which markers Claude cannot clear is defined by the `HUMAN_MUST_CLEAR_MARKERS` array in `scripts/phase-policy.sh`. `pretooluse-bash.sh` consumes this array directly to decide whether to block. When adding a new human-must-clear marker, update the array first, then update the table below.
+> **Single source of truth**: which markers Claude cannot clear is defined by the `HUMAN_MUST_CLEAR_MARKERS` array in `scripts/phase-policy.sh`. `plan-file.sh` Ring C blocks all `clear-marker` calls — `CLAUDE_PLAN_CAPABILITY=human` is required. When adding a new human-must-clear marker, update the array first, then update the table below. Enforcement uses the `marker_present_human_must_clear` helper (also in `phase-policy.sh`), called by `scripts/phase-gate.sh` (`_guard_human_must_clear`) and `scripts/pretooluse-bash.sh` to block Write/Edit and Bash writes respectively; `scripts/lib/plan-cmd.sh` `cmd_unblock` also derives its awk preserve pattern from the same array.
 
 ## Bracketed plan-file markers
 

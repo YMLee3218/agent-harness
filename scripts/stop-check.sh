@@ -61,16 +61,19 @@ _parse_env_file() {
 source "$(dirname "$0")/lib/telegram-notify.sh"
 # shellcheck source=lib/active-plan.sh
 source "$(dirname "$0")/lib/active-plan.sh"
+# shellcheck source=phase-policy.sh
+source "$(dirname "$0")/phase-policy.sh"
 resolve_active_plan_and_phase active_plan phase || exit 0
 
-# [BLOCKED-AMBIGUOUS]: send Telegram notification and allow stop
-if grep -qF "[BLOCKED-AMBIGUOUS]" "$active_plan" 2>/dev/null; then
-  _question=$(grep -F "[BLOCKED-AMBIGUOUS]" "$active_plan" | head -1)
+# Human-must-clear marker: send Telegram notification and allow stop
+if _hmc_found=$(marker_present_human_must_clear "$active_plan" 2>/dev/null); then
+  _question=$(grep -F "[$_hmc_found" "$active_plan" | head -1)
+  [[ -z "$_question" ]] && _question=$(grep -F "$_hmc_found" "$active_plan" | head -1)
   _slug=$(basename "$active_plan" .md)
   telegram_send_blocked_ambiguous "$_slug" "$_question" \
     "$HOME/.claude/channels/telegram/.env" \
     "$HOME/.claude/channels/telegram/access.json" 2>/dev/null || true
-  echo "[stop-check] [BLOCKED-AMBIGUOUS] detected — Telegram notified; allowing stop" >&2
+  echo "[stop-check] [$_hmc_found] detected — Telegram notified; allowing stop" >&2
   exit 0
 fi
 
@@ -79,8 +82,6 @@ fi
 # review is excluded: pr-review FAIL recovery phase; source modifications mid-cycle may break tests.
 # implement is excluded: codex writes source to satisfy failing tests (via run-implement.sh).
 # done is excluded: see header comment — session already closed, no test run needed.
-# shellcheck source=phase-policy.sh
-source "$(dirname "$0")/phase-policy.sh"
 phase_runs_stop_check "$phase" || exit 0
 
 # if integration phase and a [BLOCKED] integration marker is already recorded,
@@ -163,11 +164,6 @@ fi
 echo "[stop-check] Verifying tests pass before stop (phase=${phase}, CLAUDE_NONINTERACTIVE=1)..." >&2
 if [ -n "$_timeout_cmd" ]; then
   "$_timeout_cmd" "$_timeout" bash -c "$test_cmd" >/dev/null 2>&1
-elif [ "${_timeout}" -gt 0 ] 2>/dev/null; then
-  bash "$PLAN_FILE_SH" record-stop-block "$active_plan" "$phase" \
-    "no timeout binary — install coreutils/gnu-timeout (brew install coreutils) or set CLAUDE_STOP_CHECK_TIMEOUT=0 to disable the cap" 2>/dev/null || true
-  echo "[STOP-BLOCKED] stop-check.sh: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_STOP_CHECK_TIMEOUT=0 to disable the cap" >&2
-  exit 2
 else
   bash -c "$test_cmd" >/dev/null 2>&1
 fi

@@ -28,25 +28,25 @@ if [ -z "$cmd" ] && [ -n "$input" ]; then
   exit 2
 fi
 
-# ── Static blocking rules (7 categories) ─────────────────────────────────────
+# ── Static blocking rules (unconditional pattern match) ──────────────────────
 block_ring_c "$cmd"
 block_capability "$cmd"
 block_destructive "$cmd"
 block_execution "$cmd"
 block_sidecar_writes "$cmd"
-block_sql_ddl "$cmd"
 
 # ── Phase-aware bash write detection ─────────────────────────────────────────
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 
+block_plan_revert "$cmd"
+
 if [ -f "$PLAN_FILE_SH" ]; then
   BLOCKED_LABEL="phase-gate/bash"
   if resolve_active_plan_and_phase _active_plan _current_phase; then
-    # [BLOCKED-AMBIGUOUS] → block all bash writes (consistent with phase-gate.sh)
-    if grep -qF "[BLOCKED-AMBIGUOUS]" "$_active_plan" 2>/dev/null; then
+    if _hmc_marker=$(marker_present_human_must_clear "$_active_plan" 2>/dev/null); then
       _ba_write=0
       while IFS= read -r _ba_p; do [ -n "$_ba_p" ] && _ba_write=1 && break; done < <(_bash_dest_paths "$cmd")
-      [ "$_ba_write" -eq 1 ] && { echo "BLOCKED [phase-gate/bash]: [BLOCKED-AMBIGUOUS] present — write prohibited; human must resolve the question and clear the marker from terminal" >&2; exit 2; }
+      [ "$_ba_write" -eq 1 ] && { echo "BLOCKED [phase-gate/bash]: [$_hmc_marker] present — write prohibited; human must resolve and clear the marker from terminal" >&2; exit 2; }
       block_ambiguous "$cmd"
     fi
     while IFS= read -r _dest_p; do

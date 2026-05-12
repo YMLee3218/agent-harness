@@ -171,7 +171,7 @@ When a FAIL leaves the fix direction unclear, do **not** guess. Append a `[BLOCK
 - **Scope expansion needed**: the fix requires changes outside this feature's scope
 - **Repeated failure with unknown cause**: the same problem recurs across runs and the root cause cannot be identified
 
-If none of the above apply, fix and re-run without stopping. **Autonomous mode behaviour**: the session terminates (`stop-check.sh` fires and allows stop; Telegram notified if configured). **Resuming**: once you have resolved the question, **run from a human terminal** (`pretooluse-bash.sh` blocks `clear-marker` on `[BLOCKED-AMBIGUOUS]` — Claude cannot execute this): `bash .claude/scripts/plan-file.sh clear-marker plans/{slug}.md "[BLOCKED-AMBIGUOUS] {agent}"`. Then tell the interactive Claude what decision you made; it will implement remaining changes and restart the autonomous run.
+If none of the above apply, fix and re-run without stopping. **Autonomous mode behaviour**: the session terminates (`stop-check.sh` fires and allows stop; Telegram notified if configured). **Resuming**: once you have resolved the question, **run from a human terminal** (Ring C in `plan-file.sh` blocks `clear-marker` — Claude cannot execute this): `bash .claude/scripts/plan-file.sh clear-marker plans/{slug}.md "[BLOCKED-AMBIGUOUS] {agent}"`. Then tell the interactive Claude what decision you made; it will implement remaining changes and restart the autonomous run.
 
 ## Resuming from a BLOCKED marker
 
@@ -188,7 +188,7 @@ If none of the above apply, fix and re-run without stopping. **Autonomous mode b
 
 ### Clear the marker and re-run
 
-After fixing the root cause, clear the marker using the exact text that appears in `## Open Questions`. **Both commands below must be run from a human terminal** (`pretooluse-bash.sh` blocks `clear-marker` on `[BLOCKED] parse:`, `[BLOCKED] category:`, and `[BLOCKED-AMBIGUOUS]` markers — Claude cannot execute these):
+After fixing the root cause, clear the marker using the exact text that appears in `## Open Questions`. **Both commands below must be run from a human terminal** (Ring C in `plan-file.sh` blocks `clear-marker` — Claude cannot execute these):
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED] {type}:{agent}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
