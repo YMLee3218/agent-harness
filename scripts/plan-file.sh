@@ -5,13 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/plan-lib.sh"
 . "$SCRIPT_DIR/lib/plan-loop-helpers.sh"
-. "$SCRIPT_DIR/lib/plan-cmd-state.sh"
-. "$SCRIPT_DIR/lib/plan-cmd-notes.sh"
-. "$SCRIPT_DIR/lib/plan-cmd-verdicts.sh"
-. "$SCRIPT_DIR/lib/plan-cmd-record-verdict.sh"
-. "$SCRIPT_DIR/lib/plan-cmd-markers.sh"
-. "$SCRIPT_DIR/lib/plan-cmd-tasks-gc.sh"
-. "$SCRIPT_DIR/lib/plan-cmd-sidecar.sh"
+. "$SCRIPT_DIR/lib/plan-cmd.sh"
 
 [ $# -ge 1 ] || die "Usage: plan-file.sh <command> [args...]"
 

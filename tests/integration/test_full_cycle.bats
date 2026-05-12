@@ -28,17 +28,11 @@ _libs() {
     export PLAN_FILE_SH="%s/plan-file.sh"
     source "%s/lib/plan-lib.sh"
     source "%s/lib/plan-loop-helpers.sh"
-    source "%s/lib/plan-cmd-state.sh"
-    source "%s/lib/plan-cmd-notes.sh"
-    source "%s/lib/plan-cmd-verdicts.sh"
-    source "%s/lib/plan-cmd-record-verdict.sh"
-    source "%s/lib/plan-cmd-markers.sh"
-    source "%s/lib/plan-cmd-sidecar.sh"' \
+    source "%s/lib/plan-cmd.sh"' \
     "$INTEG_BASE" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
     "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
-    "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR" \
-    "$SCRIPTS_DIR" "$SCRIPTS_DIR" "$SCRIPTS_DIR"
+    "$SCRIPTS_DIR"
 }
 
 # ── Sanity: harness scripts are executable and --help-equivalent exits cleanly ──
