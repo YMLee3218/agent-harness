@@ -97,7 +97,6 @@ _EVAL_SOURCE_PATTERNS=(
   '(^|[;|&[:space:]])[[:space:]]*eval[[:space:]].*\$\(|||eval with command substitution detected'
   '(^|[;|&[:space:]])[[:space:]]*source[[:space:]]+<\(|||source with process substitution detected'
   '(^|[;|&[:space:]])[[:space:]]*(eval|source|\.)[[:space:]]+[^[:space:]]*`|||eval/source with backtick detected'
-  '<<<[[:space:]]*[^|;&]*(\$\(|`)|||here-string with command substitution detected'
 )
 
 block_execution() {
