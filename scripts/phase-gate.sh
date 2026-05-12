@@ -69,6 +69,26 @@ _guard_sidecar() {
   fi
 }
 
+# _guard_plan_phase_mutation INPUT FILE_PATH — blocks direct phase edits to plans/*.md.
+# Phase transitions must go through plan-file.sh transition/set-phase (Ring B).
+_guard_plan_phase_mutation() {
+  local _input="$1" _file_path="$2"
+  [[ "$_file_path" == */plans/*.md ]] || return 0
+  [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
+  [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "harness" ]] && return 0
+  local _new _old
+  _new=$(printf '%s' "$_input" | jq -r '.tool_input.content // .tool_input.new_string // ""' 2>/dev/null)
+  _old=$(printf '%s' "$_input" | jq -r '.tool_input.old_string // ""' 2>/dev/null)
+  if printf '%s\n%s' "$_old" "$_new" | grep -qE '(^|\n)## Phase($|\n)|(^|\n)phase:[[:space:]]+[a-z]+'; then
+    echo "BLOCKED [phase-gate]: writes touching '## Phase' or frontmatter 'phase:' are reserved for 'plan-file.sh transition/set-phase' (Ring B). Use the harness command instead of editing plan.md directly." >&2
+    exit 2
+  fi
+  if printf '%s' "$_new" | grep -qF '[CONVERGED]'; then
+    echo "BLOCKED [phase-gate]: '[CONVERGED]' is not a valid plan-file marker — convergence state lives in the sidecar only (plans/{slug}.state/convergence/)" >&2
+    exit 2
+  fi
+}
+
 # _guard_human_must_clear — blocks all writes when any HUMAN_MUST_CLEAR_MARKERS entry is present.
 _guard_human_must_clear() {
   local _plan _phase _found
@@ -82,6 +102,17 @@ _guard_human_must_clear() {
 
 mode_write() {
   local input; input=$(cat)
+
+  # A5: validate CLAUDE_PLAN_FILE doesn't point outside plans/ (must run before $() subshell)
+  if [[ -n "${CLAUDE_PLAN_FILE:-}" && -f "${CLAUDE_PLAN_FILE}" && -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+    local _a5_plan _a5_plans
+    _a5_plan=$(_canon_path "$CLAUDE_PLAN_FILE" 2>/dev/null) || _a5_plan="$CLAUDE_PLAN_FILE"
+    _a5_plans=$(_canon_path "${CLAUDE_PROJECT_DIR}/plans" 2>/dev/null) || _a5_plans="${CLAUDE_PROJECT_DIR}/plans"
+    case "$_a5_plan" in
+      "${_a5_plans}/"*) ;;
+      *) echo "BLOCKED [phase-gate]: CLAUDE_PLAN_FILE resolves outside plans/ — env hijack rejected" >&2; exit 2 ;;
+    esac
+  fi
 
   require_jq_or_block "phase-gate" "${PHASE_GATE_STRICT:-1}" || { echo "[phase-gate] warning: jq not found; write allowed (strict mode off)" >&2; exit 0; }
 
@@ -98,6 +129,7 @@ mode_write() {
 
   _guard_sidecar "$file_path"
   _guard_human_must_clear
+  _guard_plan_phase_mutation "$input" "$file_path"
 
   apply_phase_block "$file_path" "$phase" "phase-gate" || exit 2
 

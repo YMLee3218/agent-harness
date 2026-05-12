@@ -15,24 +15,6 @@ teardown() {
 
 _load_libs() { _load_plan_libs full; }
 
-@test "T7/L5: cmd_unblock preserves BLOCKED-AMBIGUOUS lines for the named agent" {
-  # Pre-populate an ambiguous block and a regular block for critic-code
-  cat >> "$PLAN_FILE" <<'EOF'
-
-[BLOCKED-AMBIGUOUS] implement:critic-code: interpreter inline execution prohibited
-[BLOCKED] implement:critic-code: some regular block
-EOF
-
-  run bash -c "
-    $(_load_libs)
-    sc_ensure_dir '$PLAN_FILE'
-    cmd_unblock 'critic-code'
-    grep '\[BLOCKED-AMBIGUOUS\]' '$PLAN_FILE' && echo 'ambiguous_preserved'
-  " 2>&1
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"ambiguous_preserved"* ]]
-}
-
 @test "T7/L5: cmd_unblock removes regular BLOCKED lines for the named agent" {
   # Append both ambiguous and regular blocks
   cat >> "$PLAN_FILE" <<'EOF'

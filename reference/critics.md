@@ -59,23 +59,11 @@ Normative implementations:
 
 ## Loop convergence
 
-Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. Convergence state is stored exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state` (called via the SubagentStop hook for the five critics, or via `append-review-verdict` for pr-review); `converged=true` is set after 2 consecutive PASSes. Query convergence via `plan-file.sh is-converged <plan> <phase> <agent>` (exit 0 = converged). No plan.md marker mirrors this state.
+Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. Convergence state is stored exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state`; `converged=true` requires 2 consecutive PASSes (see `@reference/markers.md §Sidecar control state`). A PARSE_ERROR between two PASSes resets the streak: `PASS → PARSE_ERROR → PASS` = streak 1. Query via `plan-file.sh is-converged <plan> <phase> <agent>` (exit 0 = converged). No plan.md marker mirrors this state.
 
-The harness always operates in non-interactive mode — skills write `[BLOCKED]` markers to `## Open Questions` instead of prompting the user.
+`plan-file.sh record-verdict` automatically writes markers to `## Open Questions`; the skill reads them after each run and branches per §Skill branching logic. For pr-review, `run-critic-loop.sh` extracts `<!-- review-verdict: {nonce} PASS|FAIL -->` from stdout and calls `append-review-verdict` on the parent side.
 
-The loop terminates on **2 consecutive PASSes** (convergence), not on a single PASS. This filters lucky single-run PASSes caused by LLM non-determinism. Unlike the FAIL category streak (§Consecutive same-category escalation, where PARSE_ERROR is transparent), a PARSE_ERROR between two PASSes interrupts the convergence streak: `PASS → PARSE_ERROR → PASS` counts as streak=1, not 2 — two uninterrupted consecutive PASSes are required for CONVERGED.
-
-`plan-file.sh record-verdict` automatically writes markers to `## Open Questions`. For pr-review, `run-critic-loop.sh` extracts the nonce-anchored `<!-- review-verdict: {nonce} PASS|FAIL -->` from the session's stdout and calls `append-review-verdict` on the parent side (which has harness capability). The skill reads these markers after each run and branches accordingly.
-
-### Convergence signals
-
-Markers: `@reference/markers.md §Critic loop markers` and `@reference/markers.md §Phase-scoped convergence markers`. Convergence is detected via `plan-file.sh is-converged` (sidecar). Policy: §Skill branching logic below.
-
-#### pr-review asymmetry
-
-pr-review omits category/parse tracking — failures are categorised by the skill (see `@reference/pr-review-loop.md`). Apply §Skill branching logic steps 1 → 4–5 → 7 → 8 only. Steps 2, 3, and 6 are omitted: step 2 (`[BLOCKED-AMBIGUOUS]` stop) because pre-existing markers are caught by the orchestrating skill's Step 0 check before pr-review is reached, and any marker written during the fix chain causes an immediate `stop` that exits the B-session before step 4 is re-entered — same out-of-band handling as step 3; step 3 (`[BLOCKED]` check) because any `[BLOCKED]` markers would have halted the orchestrating skill's Step 0 check before pr-review is reached; step 6 (PARSE_ERROR retry) because pr-review records its verdict via `run-critic-loop.sh`'s nonce-anchored stdout extraction (not a PARSE_ERROR-producing path). For step 4, use `plan-file.sh is-converged` to check sidecar instead of reading plan.md.
-
-**Integration pipeline markers**: `@reference/markers.md §Integration test markers`. They do not interact with the critic convergence protocol above.
+**pr-review exception**: omits category/parse — apply steps 1 → 4–5 → 7 → 8 only (see `@reference/pr-review-loop.md`); use `plan-file.sh is-converged` for step 4. Integration pipeline markers (`@reference/markers.md §Integration test markers`) do not interact with this protocol.
 
 Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOCKED-CEILING]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting; `REJECT-PASS` entries written by `clear-converged` do **not** count). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
 
@@ -102,14 +90,7 @@ Skill reads ## Open Questions and queries sidecar, checks in priority order:
            codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
          → re-run critic
        - direction is ambiguous → append [BLOCKED-AMBIGUOUS] {agent}: {question} + stop
-       - [DOCS CONTRADICTION] in critic output → treat docs/*.md as ground truth by default;
-         fix direction is: update code (and spec if needed) to match docs.
-         Construct fix prompt accordingly and re-run critic.
-         Exception: if fixing code to match docs would itself require changing docs (i.e. docs
-         appears to reflect stale requirements), direction is genuinely ambiguous →
-         append [BLOCKED-AMBIGUOUS] {agent}: DOCS CONTRADICTION — docs may be stale,
-         cannot determine ground truth + stop.
-         (The calling context must then follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade` — see [BLOCKED-AMBIGUOUS] recovery below.)
+       - [DOCS CONTRADICTION] in critic output → treat docs/*.md as ground truth; fix code (and spec) to match. If fixing code would itself require changing docs (stale requirements), direction is ambiguous → append [BLOCKED-AMBIGUOUS] {agent}: DOCS CONTRADICTION — docs may be stale + stop; follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
 ```
 
 ---
@@ -171,24 +152,11 @@ When a FAIL leaves the fix direction unclear, do **not** guess. Append a `[BLOCK
 - **Scope expansion needed**: the fix requires changes outside this feature's scope
 - **Repeated failure with unknown cause**: the same problem recurs across runs and the root cause cannot be identified
 
-If none of the above apply, fix and re-run without stopping. **Autonomous mode behaviour**: the session terminates (`stop-check.sh` fires and allows stop; Telegram notified if configured). **Resuming**: once you have resolved the question, **run from a human terminal** (Ring C in `plan-file.sh` blocks `clear-marker` — Claude cannot execute this): `bash .claude/scripts/plan-file.sh clear-marker plans/{slug}.md "[BLOCKED-AMBIGUOUS] {agent}"`. Then tell the interactive Claude what decision you made; it will implement remaining changes and restart the autonomous run.
+If none of the above apply, fix and re-run without stopping. **Autonomous mode behaviour**: the session terminates (Telegram notified if configured). **Resuming**: once you have resolved the question, **run from a human terminal**: `bash .claude/scripts/plan-file.sh clear-marker plans/{slug}.md "[BLOCKED-AMBIGUOUS] {agent}"`. Then tell the interactive Claude the decision; it will restart the autonomous run.
 
 ## Resuming from a BLOCKED marker
 
-`[BLOCKED-AMBIGUOUS]`, `[BLOCKED] category:`, and `[BLOCKED] parse:` are agent-scoped and do not clear on phase transition or `reset-milestone`. Rationale and lifecycle: `@reference/markers.md §Implementation notes`.
-
-### Root cause per marker
-
-| Marker prefix | What to fix |
-|---------------|-------------|
-| `[BLOCKED-AMBIGUOUS]` | Resolve the question stated in the marker (update docs, code, or spec). **If the marker text says `DOCS CONTRADICTION`**: follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade` to resolve the contradiction and re-run the full critic chain — do not simply re-run the one blocked critic. Otherwise: if the fix changes spec or tests, roll back phase first (`@reference/phase-ops.md §Phase Rollback Procedure`) before re-running. |
-| `[BLOCKED] parse:` (verdict marker missing) | Investigate missing `<!-- verdict: -->` marker (common causes: agent ran out of turns, truncated output, model change). Fix root cause. |
-| `[BLOCKED] parse:` (FAIL without category) | Investigate missing `<!-- category: -->` marker — agent emitted a FAIL verdict without a category. Fix agent output format. |
-| `[BLOCKED] category:` | Inspect consecutive same-category FAILs in `## Critic Verdicts`; address the structural cause (refactor, spec change, layer fix — not a surface tweak). |
-
-### Clear the marker and re-run
-
-After fixing the root cause, clear the marker using the exact text that appears in `## Open Questions`. **Both commands below must be run from a human terminal** (Ring C in `plan-file.sh` blocks `clear-marker` — Claude cannot execute these):
+Markers `[BLOCKED-AMBIGUOUS]`, `[BLOCKED] category:`, and `[BLOCKED] parse:` are agent-scoped; they do not clear on phase transition or `reset-milestone` — see `@reference/markers.md` for lifecycle. After fixing the root cause, clear the marker and re-run: **both commands must be run from a human terminal** (Ring C — see `@reference/markers.md`):
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED] {type}:{agent}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"

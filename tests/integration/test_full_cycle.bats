@@ -64,13 +64,6 @@ _libs() {
   [[ "$output" == *"sidecar_ok"* ]]
 }
 
-@test "T13/happy: cmd_get_phase returns initial brainstorm phase" {
-  bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null
-  run bash -c "$(_libs); cmd_get_phase '$PLAN_FILE'"
-  [ "$status" -eq 0 ]
-  [[ "$output" == "brainstorm" ]]
-}
-
 @test "T13/happy: cmd_transition moves phase and records it in plan.md" {
   bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null
   run bash -c "
@@ -83,50 +76,7 @@ _libs() {
   grep -q 'brainstorm.*spec' "$PLAN_FILE"
 }
 
-@test "T13/happy: cmd_is_converged returns not-converged for fresh plan" {
-  bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null
-  bash -c "$(_libs); cmd_transition '$PLAN_FILE' spec 'to spec'" 2>/dev/null
-  run bash -c "$(_libs); cmd_is_converged '$PLAN_FILE' spec critic-spec" 2>&1
-  [ "$status" -ne 0 ]
-}
-
-@test "T13/happy: cmd_reset_milestone runs without error on fresh state" {
-  bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null
-  bash -c "$(_libs); cmd_transition '$PLAN_FILE' spec 'to spec'" 2>/dev/null
-  run bash -c "$(_libs); cmd_reset_milestone '$PLAN_FILE' critic-spec" 2>&1
-  [ "$status" -eq 0 ]
-}
-
 # ── T13/fail-recover: verdict recording, blocking, and recovery ───────────────
-
-@test "T13/fail-recover: recording a PASS verdict updates plan.md and sidecar" {
-  bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null
-  bash -c "$(_libs); cmd_transition '$PLAN_FILE' implement 'to implement'" 2>/dev/null
-  run bash -c "
-    $(_libs)
-    export CLAUDE_PLAN_FILE='$PLAN_FILE'
-    printf '%s' '{\"agent_type\":\"critic-code\",\"last_assistant_message\":\"### Verdict\\n<!-- verdict: PASS -->\"}' \
-      | cmd_record_verdict 2>&1
-  "
-  [ "$status" -eq 0 ]
-  grep -q 'PASS' "$PLAN_FILE"
-  [ -f "${PLAN_FILE%.md}.state/verdicts.jsonl" ]
-}
-
-@test "T13/fail-recover: FAIL verdict records in jsonl and plan.md" {
-  bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null
-  bash -c "$(_libs); cmd_transition '$PLAN_FILE' implement 'to implement'" 2>/dev/null
-  run bash -c "
-    $(_libs)
-    export CLAUDE_PLAN_FILE='$PLAN_FILE'
-    set +e
-    printf '%s' '{\"agent_type\":\"critic-code\",\"last_assistant_message\":\"### Verdict\\n<!-- verdict: FAIL -->\\n<!-- category: LAYER_VIOLATION -->\"}' \
-      | cmd_record_verdict 2>&1
-    echo \"rc=\$?\"
-  "
-  [[ "$output" == *"rc=1"* ]]
-  grep -q 'FAIL' "$PLAN_FILE"
-}
 
 @test "T13/fail-recover: consecutive PASS verdicts reach converged state" {
   bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null

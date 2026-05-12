@@ -27,6 +27,34 @@ _ACTIVE_PLAN_LOADED=1
 _AP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_AP_DIR}/hook-utils.sh"
 
+# ── Path helpers (inlined from path-canon.sh) ────────────────────────────────
+
+_canon_path() {
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -- "$1" 2>/dev/null
+  elif readlink -f /dev/null >/dev/null 2>&1; then
+    readlink -f -- "$1" 2>/dev/null
+  else
+    python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$1" 2>/dev/null
+  fi
+}
+
+_is_safe_transcript_path() {
+  local _p="$1"
+  [[ -z "$_p" ]] && return 1
+  local canon home_canon proj_canon
+  canon=$(_canon_path "$_p") || return 1
+  [[ -z "$canon" ]] && return 1
+  home_canon=$(_canon_path "${HOME}/.claude/projects") || home_canon="${HOME}/.claude/projects"
+  case "$canon" in "${home_canon}/"*) printf '%s' "$canon"; return 0 ;; esac
+  local _proj_dir="${CLAUDE_PROJECT_DIR:-}"
+  if [[ -n "$_proj_dir" ]]; then
+    proj_canon=$(_canon_path "$_proj_dir") || proj_canon="$_proj_dir"
+    [[ -n "$proj_canon" ]] && case "$canon" in "${proj_canon}/"*) printf '%s' "$canon"; return 0 ;; esac
+  fi
+  return 1
+}
+
 # ── Plan-resolution functions ─────────────────────────────────────────────────
 
 # die_with_reason <rc>
@@ -47,6 +75,15 @@ _resolve_plan_core() {
   local _pv="$1" _phv="$2" _with_latest_fallback="$3"
   local __rpc_plan="" __rpc_phase="" _rc
   if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
+    if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+      local __rpc_canon __rpc_plans_canon
+      __rpc_canon=$(_canon_path "$CLAUDE_PLAN_FILE" 2>/dev/null) || __rpc_canon="$CLAUDE_PLAN_FILE"
+      __rpc_plans_canon=$(_canon_path "${CLAUDE_PROJECT_DIR}/plans" 2>/dev/null) || __rpc_plans_canon="${CLAUDE_PROJECT_DIR}/plans"
+      case "$__rpc_canon" in
+        "${__rpc_plans_canon}/"*) ;;
+        *) echo "BLOCKED [active-plan]: CLAUDE_PLAN_FILE resolves outside plans/ — env hijack rejected" >&2; exit 2 ;;
+      esac
+    fi
     __rpc_plan="$CLAUDE_PLAN_FILE"
   else
     __rpc_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null)
@@ -110,5 +147,3 @@ bootstrap_block_if_strict() {
   return 0
 }
 
-# ── Path helpers (sourced from path-canon.sh) ─────────────────────────────────
-source "${_AP_DIR}/path-canon.sh"

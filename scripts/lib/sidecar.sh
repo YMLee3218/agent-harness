@@ -269,6 +269,14 @@ _sc_rotate_jsonl() {
   return 0
 }
 
+# Convergence JSON schema (convergence/{phase}__{agent}.json):
+# {"phase":"implement","agent":"critic-code","first_turn":true,"streak":2,
+#  "converged":true,"ceiling_blocked":false,"ordinal":2,"milestone_seq":0}
+# milestone_seq increments on reset-milestone/clear-converged; isolates streak history between milestones.
+# Blocked JSONL schema (blocked.jsonl, one record per line):
+# {"ts":"2025-05-10T12:00:00Z","kind":"ceiling","agent":"critic-code",
+#  "scope":"implement/critic-code","message":"exceeded 5 runs","cleared_at":null}
+# kind enum: ceiling | parse | category | protocol-violation | preflight | integration | coder | ambiguous | runtime
 # sc_make_conv_state PHASE AGENT [FT STREAK CONV CB ORD MS]
 # Builds a convergence JSON object. All keys emitted in canonical order.
 # Defaults: first_turn=false streak=0 converged=false ceiling_blocked=false ordinal=0 milestone_seq=0

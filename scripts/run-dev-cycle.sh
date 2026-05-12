@@ -3,12 +3,11 @@ set -euo pipefail
 export CLAUDE_PLAN_CAPABILITY=harness
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PF="$SCRIPTS_DIR/plan-file.sh"
-PROFILE="feature" PLAN="" _CALL_RC=0
+PLAN="" _CALL_RC=0
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --profile) PROFILE="$2"; shift 2 ;;
-    --plan)    PLAN="$2";     shift 2 ;;
+    --plan) PLAN="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done

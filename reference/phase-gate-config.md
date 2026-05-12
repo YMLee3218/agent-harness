@@ -48,12 +48,6 @@ CLAUDE_STOP_CHECK_TIMEOUT=600
 
 Per-test-run timeout (seconds) for `scripts/stop-check.sh`. Default: `600` (10 minutes). Raise when test suites are expected to exceed 10 minutes. Set to `0` to disable the timeout cap — `gtimeout 0` / `timeout 0` is treated as "no timeout" by GNU coreutils, and the script's no-binary fallback also runs uncapped when `_timeout=0`. The stop-check hook runs in the `green` and `integration` phases only (non-interactive runs: `CLAUDE_NONINTERACTIVE=1`).
 
-```bash
-MAX_CONSECUTIVE_NOOP=2
-```
-
-Maximum number of consecutive critic-loop iterations allowed where the plan file is unchanged (i.e., the critic session produced no verdicts). Default: `2`. If the plan file hash is unchanged for this many consecutive iterations, `run-critic-loop.sh` writes `[BLOCKED] {agent}: plan unchanged for {N} consecutive iterations — critic is not writing to plan file; check session logs` to `## Open Questions` and exits 1. This fires when a critic session silently exits without writing to the plan file. Increase only if your critic is expected to produce multiple plan-unchanged iterations (unusual).
-
 ## Phase enforcement rules
 
 Source of truth: `scripts/phase-policy.sh` (`phase_blocks_src`, `phase_blocks_test`, `list_phases`). Update `phase-policy.sh` to change phase predicates — this file does not restate them.

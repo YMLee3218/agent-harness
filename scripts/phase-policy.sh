@@ -122,6 +122,10 @@ apply_phase_block() {
   return 0
 }
 
+# NOTE: [INFO] falls through to user_memos in gc-events.
+# [BLOCKED] category:/parse: — persists across phase rollback; requires explicit clear-marker.
+# [BLOCKED-AMBIGUOUS] — persists across phase rollback; embedded question requires human input.
+#   Recipe: resolve, then plan-file.sh clear-marker "[BLOCKED-AMBIGUOUS] {agent}" and re-run.
 # Markers that require human intervention to clear.
 HUMAN_MUST_CLEAR_MARKERS=(
   "BLOCKED-AMBIGUOUS"

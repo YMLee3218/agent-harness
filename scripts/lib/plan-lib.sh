@@ -9,8 +9,26 @@ _PLAN_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_ACTIVE_PLAN_LOADED:-}" ]] || . "$_PLAN_LIB_DIR/active-plan.sh"
 [[ -n "${_PHASE_POLICY_LOADED:-}" ]] || . "${_PLAN_LIB_DIR}/../phase-policy.sh"
 [[ -n "${_SIDECAR_LOADED:-}" ]] || . "$_PLAN_LIB_DIR/sidecar.sh"
-[[ -n "${_BLOCKED_RECORD_LOADED:-}" ]] || . "$_PLAN_LIB_DIR/blocked-record.sh"
 VALID_PHASES="$(list_phases)"
+
+# ── Blocked-record helpers (inlined from blocked-record.sh) ───────────────────
+if [[ -z "${_BLOCKED_RECORD_LOADED:-}" ]]; then
+_BLOCKED_RECORD_LOADED=1
+
+# _record_blocked PLAN KIND AGENT SCOPE MSG [NOLCK]
+_record_blocked() {
+  local _plan="$1" _kind="$2" _agent="$3" _scope="$4" _msg="$5" _nolck="${6:-}"
+  local _bpath _ts _safe_msg _rec
+  [[ -z "$_nolck" ]] && { sc_ensure_dir "$_plan" || return 1; }
+  _bpath=$(sc_path "$_plan" "$SC_BLOCKED") || return 1
+  _ts=$(_iso_timestamp)
+  _safe_msg=$(printf '%s' "$_msg" | sed 's/\[BLOCKED[A-Z0-9_:-]*\][[:space:]]*//')
+  _rec=$(jq -nc --arg ts "$_ts" --arg kind "$_kind" --arg agent "$_agent" \
+    --arg scope "$_scope" --arg msg "$_safe_msg" \
+    '{ts:$ts,kind:$kind,agent:$agent,scope:$scope,message:$msg,cleared_at:null}')
+  [[ -z "$_nolck" ]] && sc_append_jsonl "$_bpath" "$_rec" || sc_append_jsonl_unlocked "$_bpath" "$_rec"
+}
+fi
 
 VALID_CRITIC_AGENTS="critic-feature critic-spec critic-test critic-code critic-cross pr-review"
 

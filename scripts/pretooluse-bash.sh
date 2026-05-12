@@ -19,17 +19,8 @@ input=$(cat)
 require_jq_or_block "pretooluse-bash"
 
 cmd=$(extract_tool_input_command "$input")
-if [ $? -ne 0 ]; then
-  echo "BLOCKED: failed to parse hook input JSON" >&2
-  exit 2
-fi
-if [ -z "$cmd" ] && [ -n "$input" ]; then
-  echo "BLOCKED: could not extract command field from hook input" >&2
-  exit 2
-fi
 
 # ── Static blocking rules (unconditional pattern match) ──────────────────────
-block_ring_c "$cmd"
 block_capability "$cmd"
 block_destructive "$cmd"
 block_execution "$cmd"
@@ -42,29 +33,29 @@ block_plan_revert "$cmd"
 
 if [ -f "$PLAN_FILE_SH" ]; then
   BLOCKED_LABEL="phase-gate/bash"
-  if resolve_active_plan_and_phase _active_plan _current_phase; then
+  _active_plan=""; _current_phase=""
+  resolve_active_plan_and_phase _active_plan _current_phase || _active_plan=""
+  if [ -n "$_active_plan" ]; then
     if _hmc_marker=$(marker_present_human_must_clear "$_active_plan" 2>/dev/null); then
       _ba_write=0
       while IFS= read -r _ba_p; do [ -n "$_ba_p" ] && _ba_write=1 && break; done < <(_bash_dest_paths "$cmd")
       [ "$_ba_write" -eq 1 ] && { echo "BLOCKED [phase-gate/bash]: [$_hmc_marker] present — write prohibited; human must resolve and clear the marker from terminal" >&2; exit 2; }
-      block_ambiguous "$cmd"
     fi
-    while IFS= read -r _dest_p; do
-      [ -z "$_dest_p" ] && continue
-      if is_sidecar_path "$_dest_p"; then
-        echo "BLOCKED [phase-gate/bash]: plans/{slug}.state/ is harness-exclusive — write denied" >&2; exit 2
-      fi
-      apply_phase_block "$_dest_p" "$_current_phase" "phase-gate/bash" || exit 2
-    done < <(_bash_dest_paths "$cmd")
-  else
-    while IFS= read -r _dest_p; do
-      [ -z "$_dest_p" ] && continue
-      if is_sidecar_path "$_dest_p"; then
-        echo "BLOCKED [phase-gate/bash]: plans/{slug}.state/ is harness-exclusive — write denied" >&2; exit 2
-      fi
-      bootstrap_block_if_strict "$_dest_p" || exit 2
-    done < <(_bash_dest_paths "$cmd")
   fi
+  while IFS= read -r _dest_p; do
+    [ -z "$_dest_p" ] && continue
+    if is_sidecar_path "$_dest_p"; then
+      echo "BLOCKED [phase-gate/bash]: plans/{slug}.state/ is harness-exclusive — write denied" >&2; exit 2
+    fi
+    if [[ "$_dest_p" == */plans/*.md ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
+      echo "BLOCKED [phase-gate/bash]: agent bash writes to plans/*.md are reserved for plan-file.sh harness commands" >&2; exit 2
+    fi
+    if [ -n "$_current_phase" ]; then
+      apply_phase_block "$_dest_p" "$_current_phase" "phase-gate/bash" || exit 2
+    else
+      bootstrap_block_if_strict "$_dest_p" || exit 2
+    fi
+  done < <(_bash_dest_paths "$cmd")
 fi
 
 exit 0

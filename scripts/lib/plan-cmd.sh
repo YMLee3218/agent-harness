@@ -549,17 +549,10 @@ cmd_record_verdict_guarded() {
 
 # ── Markers / reset ───────────────────────────────────────────────────────────
 
-PHASE_CONVERGENCE_MARKERS=(
-  "BLOCKED-CEILING"
-  "FIRST-TURN"
-)
-
 _clear_convergence_markers() {
   local plan_file="$1" scope="$2"
-  local marker
-  for marker in "${PHASE_CONVERGENCE_MARKERS[@]}"; do
-    cmd_clear_marker "$plan_file" "[${marker}] ${scope}"
-  done
+  cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] ${scope}"
+  cmd_clear_marker "$plan_file" "[FIRST-TURN] ${scope}"
 }
 
 _cmd_clear_marker_body() {

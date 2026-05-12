@@ -50,11 +50,16 @@
       "Edit(**/plans/*.state/**)",
       "MultiEdit(**/plans/*.state/**)",
       "NotebookEdit(**/plans/*.state/**)",
+      "Bash(mv plans *)",
+      "Bash(mv plans/* *)",
+      "Bash(mv ./plans *)",
       "Bash(mv plans/*.md *)",
+      "Bash(git mv plans/*)",
       "Bash(git checkout * plans/*.md*)",
       "Bash(git restore plans/*.md*)",
       "Bash(git restore plans/*)",
-      "Bash(git stash*)"
+      "Bash(git stash*)",
+      "mcp__filesystem__*"
     ]
   },
   "statusLine": {

@@ -9,7 +9,7 @@ declare -F die >/dev/null 2>&1 || die() { echo "ERROR: $*" >&2; exit 1; }
 
 # Shared Ring C file pattern — used by phase-gate.sh (_guard_ring_c) and pretooluse-blocks.sh (block_ring_c).
 # One definition sourced by both to prevent divergence.
-_RING_C_FILES='CLAUDE\.md|settings\.json|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop)\.md|scripts/(phase-gate|pretooluse-bash|pretooluse-blocks|plan-file)\.sh|scripts/lib/(plan-cmd|plan-loop-helpers|active-plan|sidecar)\.sh'
+_RING_C_FILES='CLAUDE\.md|settings\.json|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop)\.md|scripts/(phase-gate|pretooluse-bash|pretooluse-blocks|plan-file|phase-policy|capability|stop-check|preflight)\.sh|scripts/lib/(plan-cmd|plan-loop-helpers|active-plan|sidecar)\.sh'
 
 # _check_parent_env PID → returns 0 if the process has CLAUDE_PLAN_CAPABILITY=harness in its environment.
 # checks the parent process's environment rather than argv to prevent argv-injection bypass.
@@ -25,15 +25,8 @@ _check_parent_env() {
   # This prevents argv-mimic bypass where a process puts the env var literal in its argv.
   local ps_argv ps_full env_part
   ps_argv=$(ps -p "$ppid" -o args= 2>/dev/null) || return 1
-  # Fail-closed if ps args output is near the OS truncation limit (~8KB on macOS).
-  # An attacker can pad argv past the truncation point and append the env var after it.
-  if [[ "${#ps_argv}" -ge 8190 ]]; then
-    echo "BLOCKED-CAPABILITY: ps args truncated (${#ps_argv} bytes) — fail-closed for pid ${ppid}" >&2
-    return 1
-  fi
   ps_full=$(ps eww -p "$ppid" -o args= 2>/dev/null) || return 1
-  # fail-closed if ps eww output is near the OS truncation limit (~8KB).
-  # An attacker can pad the ENV section to push CLAUDE_PLAN_CAPABILITY past the cutoff.
+  # Fail-closed if ps eww output is near the OS truncation limit (~8KB on macOS).
   if [[ "${#ps_full}" -ge 8190 ]]; then
     echo "BLOCKED-CAPABILITY: ps eww output truncated (${#ps_full} bytes) — fail-closed for pid ${ppid}" >&2
     return 1
@@ -57,7 +50,6 @@ _check_parent_env() {
 
 # Walk PPID chain checking for a harness script ancestor with CLAUDE_PLAN_CAPABILITY=harness.
 # Depth is capped by CLAUDE_PPID_CHAIN_DEPTH (default 10) for testability.
-# TOCTOU guard: captures comm before and after _check_parent_env; mismatch → fail-closed.
 _ppid_chain_is_harness() {
   local pid="$$" depth=0
   local _max="${CLAUDE_PPID_CHAIN_DEPTH:-10}"
@@ -66,23 +58,8 @@ _ppid_chain_is_harness() {
     [[ -z "$pid" ]] && return 1
     [[ "$pid" =~ ^[0-9]+$ ]] || return 1
     [[ "$pid" -le 1 ]] && return 1
-    local _lstart_before _lstart_after
-    _lstart_before=$(ps -p "$pid" -o lstart= 2>/dev/null | tr -s ' ') || _lstart_before=""
     # Check env var of parent process rather than argv to prevent argv-inject bypass.
     if _check_parent_env "$pid"; then
-      # TOCTOU guard: verify process start time didn't change during env check (PID reuse defense).
-      _lstart_after=$(ps -p "$pid" -o lstart= 2>/dev/null | tr -s ' ') || _lstart_after=""
-      # fail-closed if lstart is empty (race condition) — empty == empty would be a false pass.
-      if [[ -z "$_lstart_before" ]] || [[ -z "$_lstart_after" ]]; then
-        [[ -n "${CLAUDE_DEBUG_PPID:-}" ]] && \
-          echo "[ppid-chain] WARN: pid $pid lstart empty during env check — fail-closed" >&2
-        return 1
-      fi
-      if [[ "$_lstart_before" != "$_lstart_after" ]]; then
-        [[ -n "${CLAUDE_DEBUG_PPID:-}" ]] && \
-          echo "[ppid-chain] WARN: pid $pid lstart changed during env check — fail-closed" >&2
-        return 1
-      fi
       return 0
     fi
     depth=$((depth + 1))

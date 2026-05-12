@@ -165,7 +165,7 @@ or
   plan_hash=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
   if [[ "$plan_hash" == "$LAST_PLAN_HASH" ]]; then
     CONSECUTIVE_NOOP=$((CONSECUTIVE_NOOP + 1))
-    if [[ $CONSECUTIVE_NOOP -ge ${MAX_CONSECUTIVE_NOOP:-2} ]]; then
+    if [[ $CONSECUTIVE_NOOP -ge 2 ]]; then
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
         "[BLOCKED] ${AGENT}: plan unchanged for ${CONSECUTIVE_NOOP} consecutive iterations — critic is not writing to plan file; check session logs" 2>/dev/null || true
       echo "[BLOCKED] plan unchanged for $CONSECUTIVE_NOOP consecutive iterations" >&2; exit 1
