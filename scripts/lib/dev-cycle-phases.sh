@@ -53,7 +53,8 @@ _phase_spec_prepass() {
 _phase_cross_spec_review() {
   bash "$PF" is-converged "$PLAN" spec critic-cross 2>/dev/null && return 0
   local _all_specs="" _spec_dir _sp
-  for _spec_dir in "${PROJECT_DIR}/features" "${PROJECT_DIR}/domain" "${PROJECT_DIR}/infrastructure"; do
+  for _spec_dir in "${PROJECT_DIR}/src/features" "${PROJECT_DIR}/src/domain" "${PROJECT_DIR}/src/infrastructure" \
+                   "${PROJECT_DIR}/features" "${PROJECT_DIR}/domain" "${PROJECT_DIR}/infrastructure"; do
     [[ -d "$_spec_dir" ]] || continue
     while IFS= read -r _sp; do
       _all_specs="${_all_specs:+$_all_specs }${_sp}"
