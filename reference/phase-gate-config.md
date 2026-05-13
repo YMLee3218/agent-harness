@@ -10,7 +10,7 @@ export PHASE_GATE_SRC_GLOB="src/domain/*:src/features/*:src/infrastructure/*:app
 export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:test_*.*:*.test.*:*.spec.*:*_spec.*"
 ```
 
-> **Source of truth for default glob patterns**: `scripts/phase-policy.sh`. If you change the patterns there, update examples in this file to match. Override in `initializing-project` for non-standard layouts.
+> **Source of truth for default glob patterns**: `scripts/phase-policy.sh`. Setting `PHASE_GATE_SRC_GLOB` or `PHASE_GATE_TEST_GLOB` replaces the built-in detection entirely — include all source/test path patterns relevant to your layout. The example above covers a standard VSA project layout; for other layouts (Go `cmd/*`/`pkg/*`, Rust `crates/*/src/*`, multi-module `packages/*/src/*`, etc.) see the built-in fallback patterns in `scripts/phase-policy.sh`. Override in `initializing-project` for non-standard layouts.
 
 ```bash
 PHASE_GATE_STRICT=1

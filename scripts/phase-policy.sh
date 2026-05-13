@@ -8,8 +8,7 @@ _PHASE_POLICY_LOADED=1
 declare -F die >/dev/null 2>&1 || die() { echo "ERROR: $*" >&2; exit 1; }
 
 # ── Path-matching predicates ─────────────────────────────────────────────────
-# If you change the default VSA layer paths or glob lists, update reference/layers.md and
-# reference/phase-gate-config.md examples to match.
+# If you change the default VSA layer paths or built-in glob fallbacks, update reference/layers.md.
 
 VSA_LAYER_PATHS=(
   "src/domain"
