@@ -286,7 +286,7 @@ _check_consecutive_and_block() {
       "$jq_prev_query" "$_vpath" 2>/dev/null) || _jq_rc=$?
     if [[ $_jq_rc -ne 0 ]]; then
       _record_blocked_runtime "$plan_file" "$agent" "$_scope" \
-        "corrupt verdicts.jsonl — jq failed in consecutive check; run gc-sidecars or fix manually"
+        "corrupt verdicts.jsonl — jq failed in consecutive check; fix manually (delete or repair the file)"
       return 2
     fi
   fi
@@ -320,8 +320,8 @@ cmd_append_audit() {
   local plan_file="$1" agent="$2" outcome="$3" summary="$4"
   require_file "$plan_file"
   case "$outcome" in
-    ACCEPT|ACCEPT-OVERRIDE|REJECT-PASS) ;;
-    *) die "append-audit: invalid outcome '${outcome}'. Must be ACCEPT, ACCEPT-OVERRIDE, or REJECT-PASS" ;;
+    ACCEPT|ACCEPT-OVERRIDE|REJECT-PASS|BLOCKED-AMBIGUOUS) ;;
+    *) die "append-audit: invalid outcome '${outcome}'. Must be ACCEPT, ACCEPT-OVERRIDE, REJECT-PASS, or BLOCKED-AMBIGUOUS" ;;
   esac
   local ts
   ts=$(_iso_timestamp)

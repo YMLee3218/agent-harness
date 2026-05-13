@@ -28,7 +28,9 @@ Defines how to map finding labels to severity levels, when to emit PASS vs FAIL,
 When a single FAIL contains findings from multiple categories, use the **highest-priority** category for the `<!-- category: X -->` marker so the consecutive-FAIL escalation logic tracks the most severe issue:
 
 ```
-LAYER_VIOLATION
+ENVELOPE_MISMATCH
+  > ENVELOPE_OVERREACH
+  > LAYER_VIOLATION
   > CROSS_FEATURE_CONTRADICTION
   > DOCS_CONTRADICTION
   > UNVERIFIED_CLAIM

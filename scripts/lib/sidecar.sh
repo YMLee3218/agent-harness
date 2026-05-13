@@ -252,7 +252,7 @@ _sc_rotate_jsonl() {
     "$_src" "$_archive" "$_keep_filter" "$_archive_filter" "$_tmp" "$_atmp" "$@" || _rc=$?
   if [[ $_rc -ne 0 ]]; then
     rm -f "$_tmp" "$_atmp" 2>/dev/null || true
-    echo "[${_log_tag}] WARNING: rotation of ${_src} failed — manual gc-sidecars run required" >&2
+    echo "[${_log_tag}] WARNING: rotation of ${_src} failed — manual file repair required" >&2
     return 1
   fi
   rm -f "$_tmp" "$_atmp" 2>/dev/null || true

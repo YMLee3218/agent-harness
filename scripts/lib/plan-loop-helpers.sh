@@ -161,7 +161,8 @@ _record_loop_state_body() {
       "$streak" \
       "$([ "$new_converged" = "true" ] && echo true || echo false)" \
       "$([ "$prior_cb" = "true" ] && echo true || echo false)" \
-      "$run_ordinal" "$ms")"
+      "$run_ordinal" "$ms" \
+    | jq --arg cat "$category" '. + {last_verdict_category: $cat}')"
   if [[ "$verdict" != "PARSE_ERROR" ]] && [[ "$was_first_turn" != "true" ]]; then
     _append_to_open_questions "$plan_file" "[FIRST-TURN] ${scope}"
     echo "[record-loop-state] FIRST-TURN: ${scope} first real verdict" >&2

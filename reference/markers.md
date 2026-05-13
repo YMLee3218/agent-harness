@@ -9,16 +9,16 @@ Includes per-marker Write/Read/Clear/gc lifecycle and operation→marker reverse
 
 ### Critic loop markers (written to `## Open Questions`)
 
-Managed by `scripts/lib/plan-lib.sh` and consumed by skills after each critic or pr-review run. Policy: `@reference/critics.md §Loop convergence`.
+Managed by `scripts/lib/plan-loop-helpers.sh` and `scripts/lib/plan-cmd.sh`; consumed by skills after each critic or pr-review run. Policy: `@reference/critics.md §Loop convergence`.
 
 | Marker | Scope | Written by | Clear path | Survives gc? |
 |--------|-------|------------|------------|-------------|
-| `[BLOCKED-CEILING] {phase}/{agent}: exceeded {N} runs — manual review required` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
-| `[BLOCKED] category:{agent}: {CATEGORY} failed twice — fix the root cause before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] parse:{agent}: verdict marker missing (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] parse:{agent}: FAIL without category (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-lib.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED-CEILING] {phase}/{agent}: exceeded {N} runs — manual review required` | phase-scoped | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
+| `[BLOCKED] category:{agent}: {CATEGORY} failed twice — fix the root cause before retrying` | agent-scoped | `plan-cmd.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED] parse:{agent}: verdict marker missing (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-cmd.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
+| `[BLOCKED] parse:{agent}: FAIL without category (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-cmd.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
 | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | agent-scoped | Skills (parent context) | Manual `plan-file.sh clear-marker` | Yes |
-| `[FIRST-TURN] {phase}/{agent}` | phase-scoped | `plan-lib.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
+| `[FIRST-TURN] {phase}/{agent}` | phase-scoped | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
 
 > **Authoritative convergence state**: lives exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state`. Query via `plan-file.sh is-converged <plan> <phase> <agent>` (exit 0 = converged). No plan.md marker mirrors this state.
 
@@ -55,7 +55,7 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 | `[UNVERIFIED CLAIM]` | brainstorming skill | Yes | Provisional assumption that was not web-verified; critic-spec will flag it |
 | `[AUTO-DECIDED] {skill}/{step}: {decision}` | implementing skill | No | Architectural choice made without asking |
 | `[INFO] {message}` | Various skills | Yes | Informational log entry |
-| `[IMPLEMENTED: {feat-slug}]` | `plan-lib.sh mark-implemented` (Ring B) | Yes | Records a completed feature slug; authoritative state is in `plans/{slug}.state/implemented.json` |
+| `[IMPLEMENTED: {feat-slug}]` | `plan-file.sh mark-implemented` (Ring B) | Yes | Records a completed feature slug; authoritative state is in `plans/{slug}.state/implemented.json` |
 
 ## Sidecar control state
 
@@ -66,7 +66,7 @@ All harness control state lives in `plans/{slug}.state/` — written only by har
 | File | Format | Written by | Read by | Lifecycle |
 |------|--------|------------|---------|-----------|
 | `convergence/{phase}__{agent}.json` | JSON | `_record_loop_state` (via SubagentStop hook) | `is-converged` (`run-dev-cycle.sh`, `run-critic-loop.sh`) | Created on first verdict; reset via `reset-milestone`/`clear-converged`; `converged=true` requires ≥2 consecutive PASSes |
-| `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `is-converged` (streak computation) | Appended per verdict; GC via `gc-sidecars` (rotates pre-milestone records, keeps 2 most recent milestone_seq values) |
+| `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `is-converged` (streak computation) | Appended per verdict; GC via `_sc_rotate_jsonl` in `scripts/lib/sidecar.sh` (not invoked automatically — file grows until milestone reset or manual cleanup) |
 | `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse/category), `cmd_append_note` (BLOCKED mirror) | `is-blocked`/`has-blocked` (`stop-check.sh`, `run-critic-loop.sh`) | `cleared_at:null` = open; set by `clear-marker`/`unblock` |
 | `implemented.json` | JSON | `mark-implemented` | `is-implemented` (`run-dev-cycle.sh`) | Feature slugs accumulate; never cleared |
 
@@ -122,4 +122,4 @@ Cleared per scope by `_clear_convergence_markers` in `scripts/lib/plan-cmd.sh`: 
 
 Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase.
 
-`review/critic-code` has no active invocation site — the cleanup in `cmd_reset_for_rollback` (`scripts/lib/plan-lib.sh`) defensively clears stale markers that would arise if `critic-code` ever ran while the plan phase was `review`.
+`review/critic-code` has no active invocation site — the cleanup in `cmd_reset_phase_state` (`scripts/lib/plan-cmd.sh`) defensively clears stale markers that would arise if `critic-code` ever ran while the plan phase was `review`.
