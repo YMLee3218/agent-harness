@@ -49,6 +49,25 @@ teardown() {
 }
 
 
+@test "cmd_record_verdict treats unknown verdict token (e.g. FIAL) as PARSE_ERROR (exits 1)" {
+  run bash -c '
+    source '"$SCRIPTS_DIR"'/lib/active-plan.sh
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    source '"$SCRIPTS_DIR"'/lib/sidecar.sh
+    export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
+    source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
+    export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
+    export CLAUDE_PLAN_CAPABILITY=harness
+    set +e
+    printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: FIAL -->"}'"'"' | cmd_record_verdict
+    echo "rc=$?"
+  ' 2>&1
+  [[ "$output" == *"rc=1"* ]]
+  [[ "$output" == *"unknown verdict token"* ]]
+}
+
 # ── T1: C1 regression — FAIL+category consecutive block ──────────────────────
 
 @test "T1/C1: second FAIL same category triggers BLOCKED (jq filter works)" {

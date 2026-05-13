@@ -258,15 +258,23 @@ cmd_context() {
 
 # ── Verdict streak / ceiling / audit ─────────────────────────────────────────
 
-# _dispatch_rls_rc PLAN LABEL RC — dispatches _record_loop_state failure codes; always exits 1.
+# _dispatch_rls_rc PLAN LABEL RC [PHASE AGENT] — dispatches _record_loop_state failure codes; always exits 1.
+# rc=1: CEILING (Open Questions + sidecar already written by _ceiling_block — add Critic Verdicts trace).
+# rc=2/4: ordinal/append failure — no prior _record_blocked_runtime; write Open Questions + sidecar now.
+# rc=3: _compute_streak failure — _record_blocked_runtime already called in _compute_streak; skip to avoid duplicate.
 _dispatch_rls_rc() {
-  local _plan="$1" _label="$2" _rc="$3"
+  local _plan="$1" _label="$2" _rc="$3" _phase="${4:-}" _agent="${5:-}"
   if [[ $_rc -eq 1 ]]; then
     echo "[record-verdict] BLOCKED-CEILING: ${_label}" >&2
     cmd_append_verdict "$_plan" "${MARK_BLOCKED_CEILING} ${_label}"
   else
     echo "[record-verdict] BLOCKED (rc=${_rc}): ${_label} not persisted" >&2
-    [[ $_rc -lt 4 ]] && cmd_append_verdict "$_plan" "[BLOCKED] kind=runtime ${_label}"
+    if [[ -n "$_phase" ]] && [[ -n "$_agent" ]] && [[ $_rc -ne 3 ]]; then
+      local _scope; _scope=$(_scope_of "$_phase" "$_agent")
+      _record_blocked_runtime "$_plan" "$_agent" "$_scope" \
+        "runtime failure (rc=${_rc}) persisting verdict — sidecar may need manual inspection"
+    fi
+    cmd_append_verdict "$_plan" "[BLOCKED] kind=runtime ${_label}"
   fi
   exit 1
 }
@@ -341,7 +349,7 @@ cmd_append_review_verdict() {
   local verdict_label="${current_phase}/${agent}: ${verdict}"
   local _arv_rc=0
   _record_loop_state "$plan_file" "$current_phase" "$agent" "$verdict" || _arv_rc=$?
-  [[ $_arv_rc -ne 0 ]] && _dispatch_rls_rc "$plan_file" "$verdict_label" "$_arv_rc"
+  [[ $_arv_rc -ne 0 ]] && _dispatch_rls_rc "$plan_file" "$verdict_label" "$_arv_rc" "$current_phase" "$agent"
   cmd_append_verdict "$plan_file" "$verdict_label"
   echo "[append-review-verdict] verdict appended: ${verdict_label}" >&2
 }
@@ -363,7 +371,7 @@ _handle_parse_error() {
   echo "[record-verdict] ${log_msg}" >&2
   local _hpe_rc=0
   _record_loop_state "$plan_file" "$current_phase" "$agent" "PARSE_ERROR" || _hpe_rc=$?
-  [[ $_hpe_rc -ne 0 ]] && _dispatch_rls_rc "$plan_file" "${current_phase}/${agent}: PARSE_ERROR" "$_hpe_rc"
+  [[ $_hpe_rc -ne 0 ]] && _dispatch_rls_rc "$plan_file" "${current_phase}/${agent}: PARSE_ERROR" "$_hpe_rc" "$current_phase" "$agent"
   local _ccb_parse_rc=0
   _check_consecutive_and_block "$plan_file" "$current_phase" "$agent" \
       '[.[] | select(.phase == $p and .agent == $a and .milestone_seq == $ms)] | .[-2].verdict // ""' \
@@ -421,15 +429,27 @@ _extract_or_handle_missing_verdict() {
   _pvm_out=$(_parse_verdict_message "$_output")
   IFS='|' read -r verdict category <<< "$_pvm_out"
   if [ -z "$verdict" ]; then
-    printf '%s' "$_output" | grep -qE 'Verdict:\s*(PASS|FAIL)|\*\*Verdict:\s*(PASS|FAIL)\*\*' && {
-      echo "[record-verdict] textual-verdict-only transcript for ${_agent} — skipping" >&2; exit 0; }
-    printf '%s' "$_output" | grep -qE '### Verdict|<!-- verdict:' || {
-      echo "[record-verdict] no verdict section in transcript for ${_agent} — skipping" >&2; exit 0; }
+    printf '%s' "$_output" | grep -qE 'Verdict:\s*(PASS|FAIL)|\*\*Verdict:\s*(PASS|FAIL)\*\*' && \
+      _handle_parse_error "$_plan" "$_phase" "$_agent" \
+        "textual verdict format (not HTML markers) from ${_agent}" \
+        "verdict marker missing (two consecutive parse errors) — check agent output format before retrying" \
+        "first PARSE_ERROR for ${_agent} (textual verdict format) — will retry automatically"
+    printf '%s' "$_output" | grep -qE '### Verdict|<!-- verdict:' || \
+      _handle_parse_error "$_plan" "$_phase" "$_agent" \
+        "no verdict section in transcript for ${_agent}" \
+        "verdict marker missing (two consecutive parse errors) — check agent output format before retrying" \
+        "first PARSE_ERROR for ${_agent} (no verdict section) — will retry automatically"
     local _keys; _keys=$(printf '%s' "$_input" | jq -r 'keys | join(", ")' 2>/dev/null || echo "unknown")
     _handle_parse_error "$_plan" "$_phase" "$_agent" \
       "missing verdict marker from ${_agent} (payload keys: ${_keys})" \
       "verdict marker missing (two consecutive parse errors) — check agent output format before retrying" \
       "first PARSE_ERROR for ${_agent} — will retry automatically"
+  fi
+  if [ "$verdict" != "PASS" ] && [ "$verdict" != "FAIL" ]; then
+    _handle_parse_error "$_plan" "$_phase" "$_agent" \
+      "unknown verdict token '${verdict}' from ${_agent} — expected PASS or FAIL" \
+      "unknown verdict token (two consecutive parse errors) — check agent output format before retrying" \
+      "first PARSE_ERROR for ${_agent} (unknown verdict token '${verdict}') — will retry automatically"
   fi
   [ "$verdict" = "FAIL" ] && [ -z "$category" ] && \
     _handle_parse_error "$_plan" "$_phase" "$_agent" \
@@ -466,7 +486,7 @@ _persist_verdict() {
   [ -n "$_category" ] && _label="${_label} [category: ${_category}]"
   local _rls_rc=0
   _record_loop_state "$_plan" "$_phase" "$_agent" "$_verdict" "$_category" || _rls_rc=$?
-  [[ $_rls_rc -ne 0 ]] && _dispatch_rls_rc "$_plan" "$_label" "$_rls_rc"
+  [[ $_rls_rc -ne 0 ]] && _dispatch_rls_rc "$_plan" "$_label" "$_rls_rc" "$_phase" "$_agent"
   if [ "$_verdict" = "FAIL" ] && [ -n "$_category" ]; then
     local _ccb_rc=0
     _check_consecutive_and_block "$_plan" "$_phase" "$_agent" \
