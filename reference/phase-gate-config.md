@@ -16,7 +16,7 @@ export PHASE_GATE_TEST_GLOB="tests/*:*_test.*:test_*.*:*.test.*:*.spec.*:*_spec.
 PHASE_GATE_STRICT=1
 ```
 
-When set, the phase gate blocks `src/` and test writes if no active plan file exists (fail-closed); writes to `docs/`, `plans/`, `reference/`, and other non-source paths remain permitted (see §Phase enforcement rules). **Default is `1` (fail-closed).** Override to `0` in downstream projects that need fail-open behaviour.
+When set, the phase gate blocks `src/` and test writes if no plan file exists at all (fail-closed); writes to `docs/`, `plans/`, `reference/`, and other non-source paths remain permitted (see §Phase enforcement rules). A done-phase plan applies done-phase policy regardless of this setting. **Default is `1` (fail-closed).** Override to `0` in downstream projects that need fail-open behaviour when no plan file is present.
 
 ```bash
 CLAUDE_PLAN_FILE=/path/to/plans/feature-slug.md

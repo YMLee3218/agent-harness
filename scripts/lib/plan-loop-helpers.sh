@@ -24,6 +24,23 @@ _sc_reset_convergence_for_scope() {
   sc_update_json "$conv_path" "$(sc_make_conv_state "$phase" "$agent" false 0 false false 0 "$new_ms")"
 }
 
+# _clear_ceiling_sidecar_entry PLAN SCOPE — marks the uncleared ceiling entry for SCOPE as cleared.
+# cmd_clear_marker's jq uses startswith($marker) which never matches ceiling entries: _record_blocked
+# strips the [BLOCKED*] prefix before storing, so messages are "exceeded N runs" (no bracket prefix).
+_clear_ceiling_sidecar_entry() {
+  local plan_file="$1" scope="$2"
+  command -v jq >/dev/null 2>&1 || return 0
+  sc_ensure_dir "$plan_file" || return 1
+  local _bpath _ts
+  _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
+  [[ -f "$_bpath" ]] || return 0
+  _ts=$(_iso_timestamp)
+  _sc_rewrite_jsonl "$_bpath" \
+    'if (.cleared_at == null and .kind == "ceiling" and .scope == $scope) then .cleared_at = $ts else . end' \
+    "reset-ceiling" \
+    --arg scope "$scope" --arg ts "$_ts" || return 1
+}
+
 # _validated_ceiling RAW → prints validated ceiling integer (min 2, default 5)
 _validated_ceiling() {
   local c="$1"

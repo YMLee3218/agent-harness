@@ -638,6 +638,7 @@ cmd_reset_milestone() {
   current_phase=$(_require_phase "$plan_file" "reset-milestone")
   local scope; scope=$(_scope_of "$current_phase" "$agent")
   cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] ${scope}"
+  _clear_ceiling_sidecar_entry "$plan_file" "${scope}"
   cmd_clear_marker "$plan_file" "[FIRST-TURN] ${scope}"
   local ts
   ts=$(_iso_timestamp)
@@ -654,6 +655,7 @@ cmd_reset_pr_review() {
   current_phase=$(_require_phase "$plan_file" "reset-pr-review")
   for phase in implement review; do
     cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] ${phase}/pr-review"
+    _clear_ceiling_sidecar_entry "$plan_file" "${phase}/pr-review"
     cmd_clear_marker "$plan_file" "[FIRST-TURN] ${phase}/pr-review"
     local ts
     ts=$(_iso_timestamp)
@@ -672,6 +674,7 @@ cmd_reset_phase_state() {
   cmd_reset_milestone "$plan_file" critic-code
   cmd_reset_pr_review "$plan_file"
   cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] review/critic-code"
+  _clear_ceiling_sidecar_entry "$plan_file" "review/critic-code"
   cmd_clear_marker "$plan_file" "[FIRST-TURN] review/critic-code"
   echo "[reset-for-rollback] phase set to ${target_phase}; critic-code and pr-review state cleared" >&2
 }

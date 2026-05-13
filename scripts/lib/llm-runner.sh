@@ -42,7 +42,10 @@ _recent_test_files() {
 
 find_spec_path() {
   local slug="$1"
-  for _sp in "${PROJECT_DIR}/features/${slug}/spec.md" \
+  for _sp in "${PROJECT_DIR}/src/features/${slug}/spec.md" \
+             "${PROJECT_DIR}/src/domain/${slug}/spec.md" \
+             "${PROJECT_DIR}/src/infrastructure/${slug}/spec.md" \
+             "${PROJECT_DIR}/features/${slug}/spec.md" \
              "${PROJECT_DIR}/domain/${slug}/spec.md" \
              "${PROJECT_DIR}/infrastructure/${slug}/spec.md"; do
     [[ -f "$_sp" ]] && echo "$_sp" && return

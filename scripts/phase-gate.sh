@@ -8,8 +8,8 @@ set -euo pipefail
 # Exit 2 = block the tool call
 # Exit 0 = allow
 #
-# Fail-closed when PHASE_GATE_STRICT=1 (default): if no active plan file exists, block writes to src/ and test paths (non-source paths remain permitted — see lib/active-plan.sh bootstrap_block_if_strict).
-# Fail-open when PHASE_GATE_STRICT=0: if no active plan file, allow unconditionally with a warning.
+# Fail-closed when PHASE_GATE_STRICT=1 (default): if no plan file exists at all, block writes to src/ and test paths (non-source paths remain permitted — see lib/active-plan.sh bootstrap_block_if_strict). A done-phase plan applies done-phase policy regardless of STRICT.
+# Fail-open when PHASE_GATE_STRICT=0: if no plan file exists at all, allow unconditionally with a warning. A done-phase plan still applies done-phase policy.
 
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 BLOCKED_LABEL="phase-gate"
