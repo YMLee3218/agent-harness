@@ -98,13 +98,13 @@ teardown() {
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
-    printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: FAIL -->\\n<!-- category: MISSING_TEST -->"}'"'"' \
+    printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: FAIL -->\\n<!-- category: SPEC_COMPLIANCE -->"}'"'"' \
       | cmd_record_verdict
     echo "rc=$?"
   ' 2>/dev/null
   [[ "$output" == *"rc=1"* ]]
   # T16: explicit negative assertion (not trivially true)
-  run grep -q 'category.*MISSING_TEST.*failed twice\|\[BLOCKED\].*category' "$PLAN_FILE"
+  run grep -q 'category.*SPEC_COMPLIANCE.*failed twice\|\[BLOCKED\].*category' "$PLAN_FILE"
   [ "$status" -ne 0 ]
 }
 

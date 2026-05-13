@@ -12,7 +12,7 @@ Single iteration spawned by `run-critic-loop.sh`. Do not loop — one pr-review 
    `<!-- review-verdict: {nonce} PASS -->` or `<!-- review-verdict: {nonce} FAIL -->`
    where `{nonce}` is the UUID printed in the prompt. `run-critic-loop.sh` captures this nonce-anchored marker and records the verdict via `append-review-verdict`. Do NOT call `append-review-verdict` directly — the spawned session has no `CLAUDE_PLAN_CAPABILITY` and the call would be rejected. The nonce prevents verdict spoofing via doc citations of the marker format.
 3. `@reference/ultrathink.md §Ultrathink verdict audit`
-4. Read `## Open Questions` and query `plan-file.sh is-converged` — apply `@reference/critics.md §pr-review asymmetry` (steps 1→4-5→7→8):
+4. Read `## Open Questions` and query `plan-file.sh is-converged` — apply `@reference/critics.md §Skill branching logic` (pr-review exception: steps 1→4-5→7→8 only):
    - `[BLOCKED-CEILING]` → exit (shell loop returns exit 2)
    - `is-converged` exits 0 → exit (shell loop returns exit 0)
    - `[FIRST-TURN]` + PASS, or no terminal marker + PASS → exit (shell loop re-runs)

@@ -588,6 +588,15 @@ cmd_unblock() {
         sub(/^\[BLOCKED[^:]*:/, "", f); sub(/:$/, "", f)
         if (f == a) { print; next }
       }
+      if (/\[BLOCKED-AMBIGUOUS\] /) {
+        p = "[BLOCKED-AMBIGUOUS] "
+        if (substr($0, 1, length(p)) == p) {
+          r = substr($0, length(p) + 1)
+          colon = index(r, ":")
+          if (colon > 0 && substr(r, 1, colon - 1) == a) print
+        }
+        next
+      }
       if (/\[BLOCKED-CEILING\]/) {
         p = "[BLOCKED-CEILING] "
         if (substr($0, 1, length(p)) == p) {

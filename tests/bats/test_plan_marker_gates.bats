@@ -135,7 +135,7 @@ EOF
 }
 
 @test "hmcm: unblock with CLAUDE_PLAN_CAPABILITY=human clears BLOCKED-AMBIGUOUS for agent" {
-  printf '\n[BLOCKED-AMBIGUOUS:critic-code: needs clarification]\n' >> "$PLAN_FILE"
+  printf '\n[BLOCKED-AMBIGUOUS] critic-code: needs clarification\n' >> "$PLAN_FILE"
   local wrapper
   wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
   printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock critic-code\n' \
@@ -144,7 +144,7 @@ EOF
   run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
   rm -f "$wrapper"
   [ "$status" -eq 0 ]
-  ! grep -qF "[BLOCKED-AMBIGUOUS:critic-code:" "$PLAN_FILE"
+  ! grep -qF "[BLOCKED-AMBIGUOUS] critic-code:" "$PLAN_FILE"
 }
 
 @test "awk-inplace: awk -i inplace targeting HMCM-active plan is blocked" {
