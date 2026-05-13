@@ -671,6 +671,8 @@ cmd_reset_milestone() {
   _append_to_critic_verdicts "$plan_file" \
     "[MILESTONE-BOUNDARY @${ts}] ${scope}:"
   _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
+  [[ "$agent" == "critic-spec" ]] && \
+    rm -f "${plan_file%.md}.state"/spec-reviewed-* 2>/dev/null || true
   echo "[reset-milestone] cleared convergence markers and added milestone boundary for ${scope}" >&2
 }
 

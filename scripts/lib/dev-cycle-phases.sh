@@ -12,11 +12,13 @@ _DEV_CYCLE_PHASES_LOADED=1
 _phase_spec_prepass() {
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
-    local feat_slug _spec_path _new_specs _spec_for_critic _other_specs _csp _cross_ctx _sp_file
+    local feat_slug _spec_path _new_specs _spec_for_critic _other_specs _csp _cross_ctx _sp_file _rev_marker
     feat_slug=$(_slugify_feature "$feature")
     _spec_path=$(find_spec_path "$feat_slug")
+    # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
+    _rev_marker="${PLAN%.md}.state/spec-reviewed-${feat_slug}"
     [[ -f "$_spec_path" ]] && git ls-files --error-unmatch "$_spec_path" 2>/dev/null && \
-      bash "$PF" is-converged "$PLAN" spec critic-spec 2>/dev/null && continue
+      [[ -f "$_rev_marker" ]] && continue
 
     if [[ ! -f "$_spec_path" ]]; then
       run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
@@ -41,6 +43,7 @@ _phase_spec_prepass() {
     run_critic critic-spec spec \
       "Review spec for feature: ${feature}. Spec: ${_spec_for_critic}. Docs: $(docs_paths). Plan: ${PLAN}.${_cross_ctx}"
     llm_exit "critic-spec"
+    touch "$_rev_marker" 2>/dev/null || true
 
     while IFS= read -r _sp_file; do
       [[ -n "$_sp_file" ]] && git add "$_sp_file"
