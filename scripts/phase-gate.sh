@@ -123,6 +123,16 @@ mode_write() {
   _guard_human_must_clear
   _guard_plan_phase_mutation "$input" "$file_path"
 
+  # Normalize to project-relative so is_source_path non-VSA fallback globs (lib/*, internal/*, etc.) match absolute paths.
+  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+    local _proj _file_norm _rel
+    _proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _proj="${CLAUDE_PROJECT_DIR}"
+    _file_norm=$(_canon_path "$file_path" 2>/dev/null) || _file_norm="$file_path"
+    _rel="${_file_norm#${_proj}/}"
+    [[ "$_rel" == "$_file_norm" ]] && _rel="${file_path#${CLAUDE_PROJECT_DIR}/}"
+    [[ "$_rel" != "$file_path" ]] && file_path="$_rel"
+  fi
+
   apply_phase_block "$file_path" "$phase" "phase-gate" || exit 2
 
   exit 0

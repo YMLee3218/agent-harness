@@ -155,7 +155,7 @@ or
           sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
     rm -f "$_review_out"; _review_out=""
     if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
-      bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv" 2>/dev/null || true
+      bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv"
     fi
   fi
 
