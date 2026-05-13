@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Plan-file library — core helpers. All cmd_* functions live in plan-cmd-*.sh modules.
+# Plan-file library — core helpers. All cmd_* functions live in plan-cmd.sh.
 # Source this file; do not execute directly.
 set -euo pipefail
 [[ -n "${_PLAN_LIB_LOADED:-}" ]] && return 0

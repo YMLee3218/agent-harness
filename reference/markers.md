@@ -29,6 +29,7 @@ Written by skills or hooks outside the critic convergence protocol.
 | Marker | Emitter | Effect | Clear path | Survives gc? |
 |--------|---------|--------|------------|-------------|
 | `[BLOCKED] {category}: {reason}` | Various harness scripts and skills | Harness stop requiring human action; category identifies source (e.g. `coder:`, `preflight:`, `integration:`, `parse:`, `protocol-violation:`, `runtime:`, `script-failure:`, `session-timeout`, `no timeout binary`, `plan unchanged`). Sidecar integrity failures use inline form: `[BLOCKED] kind=corrupt`, `[BLOCKED] kind=corrupt-check`, `[BLOCKED] kind=streak`. | Manual `plan-file.sh clear-marker` after resolving — see `HUMAN_MUST_CLEAR_MARKERS` in `scripts/phase-policy.sh` for full list | Yes |
+| `[ESCALATION] {agent}: {ENVELOPE_MISMATCH\|ENVELOPE_OVERREACH} — {reason}` | `run-critic-loop.sh` (exit 4 path) | Operating envelope must be corrected before re-running the critic; triggers `llm_exit` exit 4 in callers | Manual `plan-file.sh clear-marker` after correcting the spec's Operating Envelope | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | stop-check.sh | Why Stop hook blocked the previous stop attempt | Informational; survives `gc-events` | Yes |
 
 
@@ -59,7 +60,7 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 
 ## Sidecar control state
 
-All harness control state lives in `plans/{slug}.state/` — written only by harness scripts, never by agent tool calls (blocked by `settings.json` deny rules and `phase-gate.sh`).
+Persistent harness state lives in `plans/{slug}.state/` — written only by harness scripts, never by agent tool calls (blocked by `settings.json` deny rules and `phase-gate.sh`). The transient critic lock file (`plans/{slug}.md.critic.lock`) is also harness-exclusive but lives adjacent to the plan file, not inside `.state/`.
 
 ### Key sidecar files
 
@@ -109,7 +110,7 @@ Category enum values and priority: `@reference/severity.md §Category priority`
 
 ## Phase-scoped convergence markers
 
-Cleared per scope by `_clear_convergence_markers` in `scripts/lib/plan-cmd.sh`: `[BLOCKED-CEILING]` and `[FIRST-TURN]`. All markers require `{phase}` to equal the current plan phase — stale markers from prior phases do not satisfy a check.
+Cleared per scope by `plan-file.sh reset-milestone {agent}` (invokes `cmd_reset_milestone` in `scripts/lib/plan-cmd.sh`, which calls `cmd_clear_marker` + `_clear_ceiling_sidecar_entry`): `[BLOCKED-CEILING]` and `[FIRST-TURN]`. All markers require `{phase}` to equal the current plan phase — stale markers from prior phases do not satisfy a check.
 
 | Phase | Agent | Invocation site |
 |-------|-------|-----------------|

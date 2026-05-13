@@ -127,6 +127,7 @@ After completing the above, output as the very last line of your response exactl
       bash "$PF" reset-for-rollback "$PLAN" implement
       bash "$PF" inter-feature-reset "$PLAN"
       run_llm "Invoke the implementing skill to replan tasks for the integration failure. Plan: $PLAN"
+      llm_exit "implementing"
       if [[ -n "$UNIT_CMD" ]]; then
         bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       else
@@ -135,6 +136,7 @@ After completing the above, output as the very last line of your response exactl
       fi
       bash "$PF" reset-milestone "$PLAN" critic-code
       run_critic critic-code implement "Review integration bug fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+      llm_exit "critic-code"
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;
     "spec gap"|"docs conflict")

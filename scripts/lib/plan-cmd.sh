@@ -530,13 +530,19 @@ _cmd_clear_marker_body() {
   ' "$plan_file" 2>/dev/null || true)
   if command -v jq >/dev/null 2>&1; then
     sc_ensure_dir "$plan_file" || return 1
-    local _bpath _ts
+    local _bpath _ts _stripped_marker
     _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
     _ts=$(_iso_timestamp)
+    # _record_blocked strips [BLOCKED...] prefix; reconstruct kind:agent: prefix for category/parse entries.
+    _stripped_marker=$(printf '%s' "$marker" | sed 's/^\[BLOCKED[A-Z0-9_:-]*\][[:space:]]*//')
     _sc_rewrite_jsonl "$_bpath" \
-      'if (.cleared_at == null and (.message | startswith($marker))) then .cleared_at = $ts else . end' \
+      'if (.cleared_at == null and (
+         (.message | startswith($marker)) or
+         (.message | startswith($stripped)) or
+         ((.kind + ":" + .agent + ": " + .message) | startswith($stripped))
+       )) then .cleared_at = $ts else . end' \
       "clear-marker" \
-      --arg marker "$marker" --arg ts "$_ts" || return 1
+      --arg marker "$marker" --arg stripped "$_stripped_marker" --arg ts "$_ts" || return 1
   fi
   local _tmp
   _tmp=$(mktemp "${plan_file}.XXXXXX")
