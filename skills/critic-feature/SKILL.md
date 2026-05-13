@@ -30,6 +30,10 @@ Read the requirements document at the path provided.
 - Failure paths that need their own feature?
 - Existing `features/` that could be reused?
 
+**5. Operating Envelope**
+- Does the requirements doc (or plan file) include an Operating Envelope with all 6 axes (Actors, Frequency, Concurrency, Persistence, Failure model, External I/O) for each candidate?
+- If absent or any axis is undeclared (not `[BLOCKED]`): `[WARN]` — writing-spec will fail without it; prompt the user to complete the envelope before writing-spec runs.
+
 ## Output format
 
 ```

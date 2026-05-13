@@ -63,6 +63,15 @@ Same concept named differently across specs.
 A feature spec directly references domain concepts owned by another feature without going
 through the correct layer boundary (per layers.md).
 
+## Angle 7 — Cross-feature Envelope consistency
+
+For features that interact (handoffs, shared entities, state transitions): verify their Operating Envelopes are compatible.
+- Feature A declares single-tenant, Feature B (which it calls) declares multi-tenant → [FAIL] ENVELOPE_MISMATCH
+- Feature A declares Concurrency=none, Feature B (concurrent consumer) declares multi-writer → [FAIL] ENVELOPE_MISMATCH
+Quote both features' Operating Envelope sections.
+
+Before reporting any [FAIL] for cross-feature issues (Angles 1–4), verify the interaction scenario is within the declared envelope of both features. Drop findings that only occur outside either feature's envelope.
+
 ## Output format
 
 \`\`\`
@@ -94,6 +103,11 @@ None: "No naming inconsistencies"
 [FAIL] {feature}:{line} references domain concept owned by {other_feature} without boundary
 None: "No layer boundary violations"
 
+### Angle 7 — Cross-feature Envelope Consistency
+[FAIL] ENVELOPE_MISMATCH: {feature_a} envelope {axis}={value_a} incompatible with {feature_b} envelope {axis}={value_b}
+  {feature_a_spec}:{line}: "{envelope_a_excerpt}" vs {feature_b_spec}:{line}: "{envelope_b_excerpt}"
+None: "All envelope axes compatible across interacting features"
+
 ### Citation Summary
 (one line per blocking finding — omit if PASS)
 - {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
@@ -101,11 +115,12 @@ None: "No layer boundary violations"
 
 ## Category mapping
 
-- Contradictory behaviors / state conflicts   → CROSS_FEATURE_CONTRADICTION
-- Overlapping ownership                        → LAYER_VIOLATION
-- Missing handoffs                             → MISSING_SCENARIO
-- Naming inconsistencies                       → STRUCTURAL
-- Layer boundary cross-check                   → LAYER_VIOLATION
+- Contradictory behaviors / state conflicts        → CROSS_FEATURE_CONTRADICTION
+- Overlapping ownership                             → LAYER_VIOLATION
+- Missing handoffs                                  → MISSING_SCENARIO
+- Naming inconsistencies                            → STRUCTURAL
+- Layer boundary cross-check                        → LAYER_VIOLATION
+- Incompatible envelope axes across features (Angle 7) → ENVELOPE_MISMATCH
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
 
@@ -123,9 +138,9 @@ FAIL:
 ### Verdict
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
-<!-- category: {one of CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL} -->
+<!-- category: {one of CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL | ENVELOPE_MISMATCH} -->
 
-A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL.
+A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope interactions. Drop cross-feature findings that only occur outside both features' declared envelopes.
 EOF
 
 codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1

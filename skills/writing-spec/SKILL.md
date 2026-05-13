@@ -30,13 +30,32 @@ Do not `Read` or `Glob` anything in `src/`.
 
 If `docs/*.md` appears stale or contradictory to the requirement: log `[WARN] writing-spec: docs/{file}.md may contradict the requirement — continuing; critic-spec will flag [DOCS CONTRADICTION] if the spec needs updating`. Continue writing the spec.
 
-## Step 2 — Draft scenarios
+## Step 2 — Declare Operating Envelope
+
+Before drafting any scenario, fill in the Operating Envelope in the plan file — it will become the **first section** of spec.md in Step 4:
+
+```markdown
+## Operating Envelope
+
+- **Actors**: {1 user | N users | tenants}
+- **Frequency**: {one-shot | periodic 1/min | per-request | bursty}
+- **Concurrency**: {none | reader/writer | full multi-writer}
+- **Persistence**: {ephemeral | best-effort | durable | zero-loss}
+- **Failure model**: {crash-stop | crash-recover | partial-failure}
+- **External I/O**: {none | file | network | distributed}
+```
+
+Each axis must be declared explicitly. If an axis cannot be determined from the requirement, write `[BLOCKED]` for that axis and add it to `## Open Questions` — do not proceed until it is resolved.
+
+Scenarios must stay within this envelope. Do not draft scenarios that require an axis value beyond what is declared above.
+
+## Step 3 — Draft scenarios
 
 Write the full scenario structure to the plan file. Cover all Angle 1 checks in `critic-spec`.
 
-Proceed directly to Step 3.
+Proceed directly to Step 4.
 
-## Step 3 — Write spec.md
+## Step 4 — Write spec.md
 
 Read `docs/requirements/*.md` and identify ALL components implied by the feature requirements.
 Classify each component by layer using `@reference/layers.md §Layers`, then write to the spec path from `@reference/layers.md §Naming conventions` (§Layer-to-spec-path mapping is canonical).

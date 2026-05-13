@@ -1,6 +1,6 @@
 ## Effort Policy
 
-**Cost framing**: a deferred failure costs 10× to address after the next phase boundary (per `@reference/critics.md §Verdict format`). Fix root causes now.
+**Cost framing**: a deferred failure within the declared Operating Envelope costs 10× to address after the next phase boundary (per `@reference/critics.md §Verdict format`). Fix root causes now. Scenarios outside the declared envelope are not failures — they are out of scope and must not be added to spec/test/code. If the envelope itself is wrong, report `[ENVELOPE_MISMATCH]` instead of expanding coverage.
 
 **Root-cause obligation**: address the source of a failure, never its symptom. Forbidden:
 - Catching/suppressing an exception to hide a failing expression

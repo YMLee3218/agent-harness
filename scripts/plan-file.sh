@@ -18,8 +18,18 @@ case "$1" in
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
   reset-for-rollback|clear-converged|record-verdict|record-verdict-guarded|append-review-verdict|\
   gc-events|gc-verdicts|record-task-completed|record-stop-block|append-audit|mark-implemented|\
-  inter-feature-reset|migrate-to-sidecar)
-    require_capability "$1" B ;;
+  inter-feature-reset)
+    require_capability "$1" B
+    if [ "$1" = "append-review-verdict" ] && [ $# -ge 2 ] && [ ! -f "$2.critic.lock" ]; then
+      die "BLOCKED: ${2##*/}.critic.lock absent — append-review-verdict requires run-critic-loop.sh context"
+    fi
+    if [ "$1" = "record-verdict" ]; then
+      _rv_plan=$(cmd_find_active 2>/dev/null) || _rv_plan=""
+      if [ -n "$_rv_plan" ] && [ ! -f "${_rv_plan}.critic.lock" ]; then
+        die "BLOCKED: ${_rv_plan##*/}.critic.lock absent — record-verdict requires run-critic-loop.sh context"
+      fi
+    fi
+    ;;
 
   # Ring C — human-only
   unblock|clear-marker)
@@ -61,6 +71,5 @@ case "$1" in
   mark-implemented)     [ $# -eq 3 ] || die "Usage: plan-file.sh mark-implemented <plan-file> <feat-slug>"; cmd_mark_implemented "$2" "$3" ;;
   is-blocked|has-blocked) [ $# -ge 2 ] || die "Usage: plan-file.sh is-blocked <plan-file> [kind]"; cmd_is_blocked "$2" "${3:-}" ;;
   inter-feature-reset)  [ $# -eq 2 ] || die "Usage: plan-file.sh inter-feature-reset <plan-file>"; cmd_inter_feature_reset "$2" ;;
-  migrate-to-sidecar)   [ $# -eq 2 ] || die "Usage: plan-file.sh migrate-to-sidecar <plan-file>"; cmd_migrate_to_sidecar "$2" ;;
   *) die "Unknown command: $1" ;;
 esac

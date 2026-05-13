@@ -7,18 +7,18 @@ _CAPABILITY_LOADED=1
 
 declare -F die >/dev/null 2>&1 || die() { echo "ERROR: $*" >&2; exit 1; }
 
-# Shared Ring C file pattern — used by phase-gate.sh (_guard_ring_c) and pretooluse-blocks.sh (block_ring_c).
+# Shared Ring C file pattern — used by phase-gate.sh (_guard_ring_c).
 # One definition sourced by both to prevent divergence.
-_RING_C_FILES='CLAUDE\.md|settings\.json|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop)\.md|scripts/(phase-gate|pretooluse-bash|pretooluse-blocks|plan-file|phase-policy|capability|stop-check|preflight)\.sh|scripts/lib/(plan-cmd|plan-loop-helpers|active-plan|sidecar)\.sh'
+_RING_C_FILES='(\.claude(-harness)?/)?(CLAUDE\.md|settings\.json|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop)\.md|scripts/[^/]+\.sh|scripts/lib/[^/]+\.sh)'
 
-# _check_parent_env PID → returns 0 if the process has CLAUDE_PLAN_CAPABILITY=harness in its environment.
-# checks the parent process's environment rather than argv to prevent argv-injection bypass.
+# _check_parent_env PID [CAPABILITY] → returns 0 if the process has CLAUDE_PLAN_CAPABILITY=CAPABILITY in its environment.
+# CAPABILITY defaults to "harness". Checks the parent process's environment rather than argv to prevent argv-injection bypass.
 _check_parent_env() {
-  local ppid="$1" env_str=""
+  local ppid="$1" capability="${2:-harness}" env_str=""
   if [[ -r "/proc/${ppid}/environ" ]]; then
     # Linux: null-separated environment — convert to newline-separated and grep for exact var
     env_str=$(tr '\0' '\n' < "/proc/${ppid}/environ" 2>/dev/null) || env_str=""
-    printf '%s\n' "$env_str" | grep -qE '^CLAUDE_PLAN_CAPABILITY=harness$' && return 0
+    printf '%s\n' "$env_str" | grep -qE "^CLAUDE_PLAN_CAPABILITY=${capability}$" && return 0
     return 1
   fi
   # macOS/other: use set-difference between argv-only and argv+env to isolate env portion.
@@ -40,11 +40,11 @@ _check_parent_env() {
     return 1
   fi
   # Search only the env portion for the exact variable
-  if printf '%s' "$env_part" | grep -qE '(^| )CLAUDE_PLAN_CAPABILITY=harness( |$)'; then
+  if printf '%s' "$env_part" | grep -qE "(^| )CLAUDE_PLAN_CAPABILITY=${capability}( |$)"; then
     return 0
   fi
   [[ -n "${CLAUDE_DEBUG_PPID:-}" ]] && \
-    echo "[ppid-chain] CLAUDE_PLAN_CAPABILITY=harness not found in env of pid ${ppid}" >&2
+    echo "[ppid-chain] CLAUDE_PLAN_CAPABILITY=${capability} not found in env of pid ${ppid}" >&2
   return 1
 }
 
@@ -68,14 +68,31 @@ _ppid_chain_is_harness() {
   return 1
 }
 
+# Walk PPID chain checking for a human-capability ancestor with CLAUDE_PLAN_CAPABILITY=human.
+_ppid_chain_is_human() {
+  local pid="$$" depth=0
+  local _max="${CLAUDE_PPID_CHAIN_DEPTH:-10}"
+  while [[ $depth -lt $_max ]]; do
+    pid=$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d '[:space:]') || return 1
+    [[ -z "$pid" ]] && return 1
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    [[ "$pid" -le 1 ]] && return 1
+    _check_parent_env "$pid" "human" && return 0
+    depth=$((depth + 1))
+  done
+  return 1
+}
+
 # require_capability CMD [RING]
-# RING=B (default): allow if (launcher token OR (env-var AND PPID chain)) OR TTY.
-# RING=C: allow if CLAUDE_PLAN_CAPABILITY=human or stdin is TTY.
+# RING=B (default): allow if env-var=harness AND PPID chain has harness ancestor.
+# RING=C: allow if env-var=human AND PPID chain has human ancestor (export CLAUDE_PLAN_CAPABILITY=human first).
 require_capability() {
   local cmd="$1" ring="${2:-B}"
   if [[ "$ring" == "C" ]]; then
-    [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
-    die "[$cmd] is human-only — set CLAUDE_PLAN_CAPABILITY=human in the calling shell"
+    if [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]]; then
+      _ppid_chain_is_human && return 0
+    fi
+    die "[$cmd] is human-only — export CLAUDE_PLAN_CAPABILITY=human in the calling shell, then re-run"
   fi
   # Ring B: require CLAUDE_PLAN_CAPABILITY=harness AND PPID chain
   if [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "harness" ]]; then

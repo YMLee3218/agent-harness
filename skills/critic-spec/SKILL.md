@@ -72,6 +72,17 @@ If the prompt includes "Also verify consistency against existing specs:":
   - Report [FAIL] cross-spec: {brief description}
   Category: CROSS_FEATURE_CONTRADICTION
 
+## Angle 5 — Envelope Discipline
+
+Read the "## Operating Envelope" section from {spec_path}. Apply before any MISSING_SCENARIO finding.
+
+10. Missing envelope: spec has no Operating Envelope section → [FAIL] ENVELOPE_MISMATCH: Operating Envelope section missing
+11. Undeclared axis: any axis has a placeholder or is absent (not explicitly [BLOCKED]) → [FAIL] ENVELOPE_MISMATCH: axis {name} undeclared
+12. Envelope contradicts docs: declared envelope value conflicts with documented operational context in docs/*.md → [FAIL] ENVELOPE_MISMATCH: envelope declares {value} but {docs_file}:{line} states {other_value}
+13. Scenario overreach: a scenario asserts a concurrency level, actor count, persistence guarantee, or failure model that exceeds the declared envelope → [FAIL] ENVELOPE_OVERREACH: {scenario} requires {axis}={value} but envelope declares {declared_value}
+
+Before reporting any [MISSING] scenario, verify the scenario is within the declared envelope. If the scenario would only occur outside the envelope, do NOT report it as [MISSING] — drop it silently.
+
 ## Output format
 
 \`\`\`
@@ -99,6 +110,13 @@ None: "No unverified claims"
   {spec_path}:{line}: "{excerpt}" vs {other_spec_path}:{line}: "{excerpt}"
 None: "No cross-spec conflicts"
 
+### Angle 5 — Envelope Discipline
+[FAIL] ENVELOPE_MISMATCH: {what is wrong}
+  File: {spec_path}:{line}
+[FAIL] ENVELOPE_OVERREACH: {scenario}: requires {axis}={value}, envelope declares {declared_value}
+  File: {spec_path}:{line}
+None: "Operating Envelope present and scenarios within bounds"
+
 ### Citation Summary
 (one line per blocking finding — omit if PASS)
 - {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
@@ -112,6 +130,8 @@ None: "No cross-spec conflicts"
 - Missing scenario / boundary (Angle 1 §1–4)                          → MISSING_SCENARIO
 - Placement / BDD format (Angle 2 §5, §8)                             → STRUCTURAL
 - Cross-spec conflicts (Angle 4)                                       → CROSS_FEATURE_CONTRADICTION
+- Envelope missing / undeclared / contradicts docs (Angle 5 §10–12)  → ENVELOPE_MISMATCH
+- Scenario exceeds declared envelope (Angle 5 §13)                   → ENVELOPE_OVERREACH
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
 
@@ -129,9 +149,9 @@ FAIL:
 ### Verdict
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
-<!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION} -->
+<!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
 
-A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL.
+A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios. Do not FAIL for scenarios outside the declared envelope.
 EOF
 
 codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1

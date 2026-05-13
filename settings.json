@@ -50,6 +50,10 @@
       "Edit(**/plans/*.state/**)",
       "MultiEdit(**/plans/*.state/**)",
       "NotebookEdit(**/plans/*.state/**)",
+      "Write(**/plans/*.critic.lock)",
+      "Edit(**/plans/*.critic.lock)",
+      "MultiEdit(**/plans/*.critic.lock)",
+      "NotebookEdit(**/plans/*.critic.lock)",
       "Bash(mv plans *)",
       "Bash(mv plans/* *)",
       "Bash(mv ./plans *)",
@@ -59,6 +63,10 @@
       "Bash(git restore plans/*.md*)",
       "Bash(git restore plans/*)",
       "Bash(git stash*)",
+      "Bash(rm plans/*)",
+      "Bash(rm ./plans/*)",
+      "Bash(git rm plans/*)",
+      "Bash(git rm -* plans/*)",
       "mcp__filesystem__*"
     ]
   },
@@ -124,11 +132,6 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" context"
-          },
-          {
-            "type": "command",
-            "command": "CLAUDE_PLAN_CAPABILITY=harness bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh\" gc-events",
-            "async": true
           }
         ]
       }

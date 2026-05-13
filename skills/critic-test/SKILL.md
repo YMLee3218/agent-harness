@@ -65,6 +65,16 @@ git log --oneline \${red_sha}..HEAD -- {test_files}
 \`\`\`
 If \`red_sha\` is empty (no commits exist for the file), emit \`[SKIP] test file integrity: no commit history found for {file}\` and continue. If the second command returns commits, the test file was modified after the inferred Red commit — emit the same `[CRITICAL] test file modified after Red phase` FAIL verdict above. If git is unavailable, emit \`[SKIP] test file integrity: git unavailable\` and continue.
 
+## Envelope Discipline (evaluate before all other checks)
+
+Read the "## Operating Envelope" section from {spec_path}. If absent, report [FAIL] ENVELOPE_MISMATCH and stop.
+
+Before reporting any [MISSING] scenario coverage gap:
+- Verify the scenario is within the spec's declared Operating Envelope.
+- If the scenario only occurs outside the envelope, drop the [MISSING] finding — it is out of scope.
+
+If a test exercises a scenario whose conditions require an axis value exceeding the declared envelope (e.g. tests concurrent writes when Concurrency=none), report [FAIL] ENVELOPE_OVERREACH: {test_name} verifies {axis}={value} but envelope declares {declared_value}.
+
 ## Checks
 
 1. Scenario coverage — every Scenario has a test in {test_files}?
@@ -119,11 +129,13 @@ GREEN integrity violations: {list or "none"}
 
 ## Category mapping
 
-- Test file modified after Red / GREEN integrity   → TEST_INTEGRITY
-- Mocking level violation (Check 2)                 → LAYER_VIOLATION
-- Scenario coverage gap, no test exists (Check 1)   → MISSING_SCENARIO
-- Manifest mapping missing, pre-existing test covers it (Check 1) → STRUCTURAL
-- Test quality (Check 3)                            → TEST_QUALITY
+- Test file modified after Red / GREEN integrity      → TEST_INTEGRITY
+- Mocking level violation (Check 2)                   → LAYER_VIOLATION
+- Scenario coverage gap, no test exists (Check 1)     → MISSING_SCENARIO
+- Manifest mapping missing, pre-existing test covers (Check 1) → STRUCTURAL
+- Test quality (Check 3)                              → TEST_QUALITY
+- Envelope section missing (Envelope Discipline)      → ENVELOPE_MISMATCH
+- Test verifies out-of-envelope scenario              → ENVELOPE_OVERREACH
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
 
@@ -141,9 +153,9 @@ FAIL:
 ### Verdict
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
-<!-- category: {one of TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY | STRUCTURAL} -->
+<!-- category: {one of TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
 
-A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL.
+A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios. Do not FAIL for scenarios outside the declared envelope.
 EOF
 
 codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1

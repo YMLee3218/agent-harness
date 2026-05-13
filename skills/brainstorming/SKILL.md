@@ -60,7 +60,22 @@ Do NOT identify domain concepts, infrastructure components, or assign anything t
 
 If proposing domain rules or constraints not found in `docs/*.md`: mark the assumption `[UNVERIFIED CLAIM]` in the plan file and include it provisionally; critic-spec will independently flag unverified claims in the spec.
 
-List each candidate as small or large. Write decomposition to plan file. Proceed to Step 3.
+**Operating Envelope (required for each candidate before Step 3)**
+
+For each candidate feature, declare all 6 axes in the plan file:
+
+| Axis | Value |
+|------|-------|
+| Actors | {1 user \| N users \| tenants} |
+| Frequency | {one-shot \| periodic \| per-request \| bursty} |
+| Concurrency | {none \| reader-writer \| multi-writer} |
+| Persistence | {ephemeral \| best-effort \| durable \| zero-loss} |
+| Failure model | {crash-stop \| crash-recover \| partial-failure} |
+| External I/O | {none \| file \| network \| distributed} |
+
+If an axis cannot be determined: write `[BLOCKED]` for that axis and add it to `## Open Questions`. Do not proceed to Step 3 until all axes are declared or explicitly `[BLOCKED]`.
+
+List each candidate as small or large with its envelope. Write decomposition to plan file. Proceed to Step 3.
 
 ### Step 3 — Write output + create branch
 

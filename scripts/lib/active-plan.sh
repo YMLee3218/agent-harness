@@ -23,9 +23,34 @@ set -euo pipefail
 [[ -n "${_ACTIVE_PLAN_LOADED:-}" ]] && return 0
 _ACTIVE_PLAN_LOADED=1
 
-# ── Hook utilities (sourced from hook-utils.sh) ──────────────────────────────
-_AP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${_AP_DIR}/hook-utils.sh"
+# ── Hook utilities (inlined from hook-utils.sh) ──────────────────────────────
+
+# require_jq_or_block <label> [strict=1]
+#   strict=1 → exit 2 with "BLOCKED [label]: jq is required but not found"
+#   strict=0 → return 1 with advisory message; caller decides
+require_jq_or_block() {
+  local label="$1" strict="${2:-1}"
+  command -v jq >/dev/null 2>&1 && return 0
+  if [ "$strict" = "1" ]; then
+    echo "BLOCKED [$label]: jq is required but not found" >&2
+    exit 2
+  fi
+  echo "[$label] warning: jq not found" >&2
+  return 1
+}
+
+# extract_tool_input_field <field> <json> → prints .tool_input[field] (empty if absent)
+extract_tool_input_field() {
+  printf '%s' "$2" | jq -r --arg f "$1" '.tool_input[$f] // empty' 2>/dev/null
+}
+
+# extract_tool_input_path <json>   → prints file_path or notebook_path (empty if absent)
+extract_tool_input_path() {
+  printf '%s' "$1" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2>/dev/null
+}
+
+# extract_tool_input_command <json> → prints .tool_input.command (empty if absent)
+extract_tool_input_command() { extract_tool_input_field command "$1"; }
 
 # ── Path helpers (inlined from path-canon.sh) ────────────────────────────────
 
@@ -57,6 +82,19 @@ _is_safe_transcript_path() {
 
 # ── Plan-resolution functions ─────────────────────────────────────────────────
 
+# _assert_plan_file_inside_plans — exits 2 if CLAUDE_PLAN_FILE resolves outside plans/.
+# No-op if CLAUDE_PLAN_FILE or CLAUDE_PROJECT_DIR is unset/empty, or the plan file doesn't exist.
+_assert_plan_file_inside_plans() {
+  [[ -n "${CLAUDE_PLAN_FILE:-}" && -f "${CLAUDE_PLAN_FILE}" && -n "${CLAUDE_PROJECT_DIR:-}" ]] || return 0
+  local _canon _plans_canon
+  _canon=$(_canon_path "$CLAUDE_PLAN_FILE" 2>/dev/null) || _canon="$CLAUDE_PLAN_FILE"
+  _plans_canon=$(_canon_path "${CLAUDE_PROJECT_DIR}/plans" 2>/dev/null) || _plans_canon="${CLAUDE_PROJECT_DIR}/plans"
+  case "$_canon" in
+    "${_plans_canon}/"*) return 0 ;;
+    *) echo "BLOCKED [${BLOCKED_LABEL:-active-plan}]: CLAUDE_PLAN_FILE resolves outside plans/ — env hijack rejected" >&2; exit 2 ;;
+  esac
+}
+
 # die_with_reason <rc>
 # Exits 2 with a BLOCKED message when rc indicates ambiguous (3) or malformed (4) plan state.
 # Does nothing for all other rc values.
@@ -75,15 +113,7 @@ _resolve_plan_core() {
   local _pv="$1" _phv="$2" _with_latest_fallback="$3"
   local __rpc_plan="" __rpc_phase="" _rc
   if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
-    if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-      local __rpc_canon __rpc_plans_canon
-      __rpc_canon=$(_canon_path "$CLAUDE_PLAN_FILE" 2>/dev/null) || __rpc_canon="$CLAUDE_PLAN_FILE"
-      __rpc_plans_canon=$(_canon_path "${CLAUDE_PROJECT_DIR}/plans" 2>/dev/null) || __rpc_plans_canon="${CLAUDE_PROJECT_DIR}/plans"
-      case "$__rpc_canon" in
-        "${__rpc_plans_canon}/"*) ;;
-        *) echo "BLOCKED [active-plan]: CLAUDE_PLAN_FILE resolves outside plans/ — env hijack rejected" >&2; exit 2 ;;
-      esac
-    fi
+    _assert_plan_file_inside_plans
     __rpc_plan="$CLAUDE_PLAN_FILE"
   else
     __rpc_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null)

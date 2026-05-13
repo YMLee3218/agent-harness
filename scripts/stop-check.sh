@@ -39,24 +39,6 @@ if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ ! -f "$CLAUDE_PLAN_FILE" ]; then
   exit 0
 fi
 
-BLOCKED_LABEL="stop-check"
-
-# strict env parser — top-level so it can be tested independently.
-# Never source .env as bash (prevents RCE via embedded commands).
-# Handles values containing '=' and files without trailing newline.
-_parse_env_file() {
-  while IFS= read -r _pef_line || [ -n "$_pef_line" ]; do
-    [[ "$_pef_line" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "$_pef_line" ]] && continue
-    _pef_ek="${_pef_line%%=*}"
-    _pef_ev="${_pef_line#*=}"
-    [[ "$_pef_ek" =~ ^[A-Z_][A-Z0-9_]*$ ]] || continue
-    _pef_ev="${_pef_ev%\"}"; _pef_ev="${_pef_ev#\"}"
-    _pef_ev="${_pef_ev%\'}"; _pef_ev="${_pef_ev#\'}"
-    export "$_pef_ek=$_pef_ev"
-  done < "$1"
-}
-
 # shellcheck source=lib/telegram-notify.sh
 source "$(dirname "$0")/lib/telegram-notify.sh"
 # shellcheck source=lib/active-plan.sh
@@ -86,7 +68,7 @@ phase_runs_stop_check "$phase" || exit 0
 
 # if integration phase and a [BLOCKED] integration marker is already recorded,
 # allow the stop without re-running tests to avoid infinite Stop-hook block loops.
-# Reads from sidecar blocked.jsonl exclusively (no plan.md fallback — run migrate-to-sidecar on pre-migration plans).
+# Reads from sidecar blocked.jsonl exclusively (no plan.md fallback).
 if [ "$phase" = "integration" ]; then
   if bash "$PLAN_FILE_SH" is-blocked "$active_plan" integration 2>/dev/null; then
     echo "[stop-check] integration [BLOCKED] already recorded — allowing stop (sidecar self-halt)" >&2
@@ -162,12 +144,12 @@ elif command -v timeout >/dev/null 2>&1; then
 fi
 
 echo "[stop-check] Verifying tests pass before stop (phase=${phase}, CLAUDE_NONINTERACTIVE=1)..." >&2
+_test_exit=0
 if [ -n "$_timeout_cmd" ]; then
-  "$_timeout_cmd" "$_timeout" bash -c "$test_cmd" >/dev/null 2>&1
+  "$_timeout_cmd" "$_timeout" bash -c "$test_cmd" >/dev/null 2>&1 || _test_exit=$?
 else
-  bash -c "$test_cmd" >/dev/null 2>&1
+  bash -c "$test_cmd" >/dev/null 2>&1 || _test_exit=$?
 fi
-_test_exit=$?
 if [ $_test_exit -eq 0 ]; then
   echo "[stop-check] Tests passed — stop allowed." >&2
   exit 0

@@ -149,8 +149,7 @@ marker_present_human_must_clear() {
   local plan_file="$1" marker
   [[ -f "$plan_file" ]] || return 1
   for marker in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
-    if grep -qF "[$marker" "$plan_file" 2>/dev/null \
-       || grep -qF "$marker" "$plan_file" 2>/dev/null; then
+    if grep -qF "$marker" "$plan_file" 2>/dev/null; then
       printf '%s\n' "$marker"; return 0
     fi
   done
@@ -160,7 +159,6 @@ marker_present_human_must_clear() {
 SIDECAR_PROTECTED_GLOBS=(
   "*/plans/*.state/*"
   "plans/*.state/*"
-  "plans/*.state"
 )
 
 is_sidecar_path() {

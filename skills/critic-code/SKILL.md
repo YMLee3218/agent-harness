@@ -37,6 +37,12 @@ Read these reference files first — they govern your output:
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md   (severity levels, PASS/FAIL threshold, category priority)
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md     (forbidden imports, acceptable exceptions)
 
+## Envelope Discipline (evaluate before Angle 1)
+
+Read the "## Operating Envelope" section from {spec_path}. If absent, report [FAIL] ENVELOPE_MISMATCH and stop Angle 1 checks.
+
+Before reporting any Angle 1 compliance failure: verify the scenario is within the declared envelope. If the scenario only occurs outside the envelope, drop the finding — it is out of scope, not a bug. If you believe the envelope is wrong (e.g. the DB is multi-tenant but envelope declares single-tenant), report [FAIL] ENVELOPE_MISMATCH: {reason} and do not expand coverage.
+
 ## Angle 1 — Spec compliance
 
 For every Scenario in spec.md:
@@ -94,11 +100,12 @@ None: "No layer boundary violations"
 
 ## Category mapping
 
-- Layer boundary violation (Angle 2)            → LAYER_VIOLATION
-- Large feature calls domain directly (1.6)     → LAYER_VIOLATION
-- Docs contradiction                             → DOCS_CONTRADICTION
-- Unverified API usage (1.7)                     → UNVERIFIED_CLAIM
-- Spec compliance gap (1.1–1.5)                  → SPEC_COMPLIANCE
+- Layer boundary violation (Angle 2)                             → LAYER_VIOLATION
+- Large feature calls domain directly (1.6)                      → LAYER_VIOLATION
+- Docs contradiction                                             → DOCS_CONTRADICTION
+- Unverified API usage (1.7)                                     → UNVERIFIED_CLAIM
+- Spec compliance gap (1.1–1.5)                                  → SPEC_COMPLIANCE
+- Envelope section missing / contradicts docs (Envelope §)       → ENVELOPE_MISMATCH
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
 
@@ -116,9 +123,9 @@ FAIL:
 ### Verdict
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
-<!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | MISSING_SCENARIO | TEST_INTEGRITY | TEST_QUALITY | STRUCTURAL} -->
+<!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | MISSING_SCENARIO | TEST_INTEGRITY | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH} -->
 
-A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL (false PASS costs 10×, false FAIL costs 1×).
+A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios (false PASS for in-envelope scenarios costs 10×; out-of-envelope findings are not failures).
 EOF
 
 codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1

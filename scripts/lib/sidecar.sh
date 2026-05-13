@@ -76,12 +76,6 @@ sc_ensure_dir() {
   if [[ ! -d "$dir" ]]; then
     _tmp=$(mktemp -d "${dir}.tmp.XXXXXX") || return 1
     mkdir -p "${_tmp}/convergence"
-    if [ -e "$dir" ] || [ -L "$dir" ]; then
-      echo "[sidecar] FATAL: $dir appeared (or is symlink) during ensure — refusing mv" >&2
-      rm -rf "$_tmp" 2>/dev/null || true
-      return 1
-    fi
-    # mv is atomic at the rename(2) level; the pre-check above is for diagnostics only.
     if ! mv -n "$_tmp" "$dir" 2>/dev/null; then
       if [[ -L "$_tmp" ]]; then
         echo "[sidecar] FATAL: tmp dir became a symlink — refusing rm: $_tmp" >&2; return 1
@@ -258,11 +252,7 @@ _sc_rotate_jsonl() {
     "$_src" "$_archive" "$_keep_filter" "$_archive_filter" "$_tmp" "$_atmp" "$@" || _rc=$?
   if [[ $_rc -ne 0 ]]; then
     rm -f "$_tmp" "$_atmp" 2>/dev/null || true
-    echo "[${_log_tag}] WARNING: rotation of ${_src} failed — skipping" >&2
-    local _plan
-    _plan="$(dirname "$(dirname "$_src")")/$(basename "$(dirname "$_src")" .state).md"
-    _record_blocked "$_plan" "runtime" "harness" "gc-sidecars" \
-      "rotation of $(basename "$_src") failed — manual gc-sidecars run required" 2>/dev/null || true
+    echo "[${_log_tag}] WARNING: rotation of ${_src} failed — manual gc-sidecars run required" >&2
     return 1
   fi
   rm -f "$_tmp" "$_atmp" 2>/dev/null || true

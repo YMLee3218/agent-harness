@@ -104,15 +104,7 @@ mode_write() {
   local input; input=$(cat)
 
   # A5: validate CLAUDE_PLAN_FILE doesn't point outside plans/ (must run before $() subshell)
-  if [[ -n "${CLAUDE_PLAN_FILE:-}" && -f "${CLAUDE_PLAN_FILE}" && -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local _a5_plan _a5_plans
-    _a5_plan=$(_canon_path "$CLAUDE_PLAN_FILE" 2>/dev/null) || _a5_plan="$CLAUDE_PLAN_FILE"
-    _a5_plans=$(_canon_path "${CLAUDE_PROJECT_DIR}/plans" 2>/dev/null) || _a5_plans="${CLAUDE_PROJECT_DIR}/plans"
-    case "$_a5_plan" in
-      "${_a5_plans}/"*) ;;
-      *) echo "BLOCKED [phase-gate]: CLAUDE_PLAN_FILE resolves outside plans/ — env hijack rejected" >&2; exit 2 ;;
-    esac
-  fi
+  _assert_plan_file_inside_plans
 
   require_jq_or_block "phase-gate" "${PHASE_GATE_STRICT:-1}" || { echo "[phase-gate] warning: jq not found; write allowed (strict mode off)" >&2; exit 0; }
 

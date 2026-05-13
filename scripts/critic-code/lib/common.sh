@@ -41,9 +41,9 @@ const v=(d.modules||[]).flatMap(m=>(m.dependencies||[]).filter(dep=>dep.valid===
   \`\${m.source} → \${dep.resolved} [\${(dep.rules||[]).map(r=>r.name).join(',')}]\`));
 v.forEach(l=>console.log(l));
 if(!v.length)console.log('(none)');
-" 2>/dev/null || echo "(depcruise json parse failed — see grep fallback below)"
+" 2>/dev/null || echo "(depcruise json parse failed — see depcruise/ruff fallback below)"
   else
-    echo "(no .dependency-cruiser config found — skipping depcruise, using grep fallback)"
+    echo "(no .dependency-cruiser config found — skipping depcruise, using depcruise/ruff fallback)"
   fi
 }
 
@@ -55,7 +55,7 @@ import json, sys
 data = json.load(sys.stdin)
 for d in data:
     print(f\"{d['filename']}:{d['location']['row']} [{d['code']}] {d['message']}\")
-" 2>/dev/null || echo "(ruff json parse failed — see grep fallback below)"
+" 2>/dev/null || echo "(ruff json parse failed — see depcruise/ruff fallback below)"
 }
 
 # init_layer_check <lang-label> <excludes-flags>

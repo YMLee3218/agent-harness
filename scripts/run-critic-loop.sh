@@ -75,7 +75,6 @@ while true; do
 
   # Ceiling-blocked: check sidecar convergence file (per scope — not plan.md)
   source "$(dirname "${BASH_SOURCE[0]}")/lib/sidecar.sh" 2>/dev/null || true
-  local _conv_path
   _conv_path=$(sc_conv_path "$PLAN" "$PHASE" "$AGENT" 2>/dev/null) || {
     echo "[run-critic-loop] ERROR: sc_conv_path failed — CLAUDE_PROJECT_DIR may be unset" >&2
     exit 1
@@ -94,7 +93,6 @@ while true; do
 
   if [[ $NESTED -eq 0 ]]; then
     bash "$PLAN_FILE_SH" gc-verdicts "$PLAN" 2>/dev/null || true
-    bash "$PLAN_FILE_SH" gc-sidecars "$PLAN" 2>/dev/null || true
   fi
 
   iter=$((iter + 1))
@@ -159,6 +157,20 @@ or
     if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
       bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv" 2>/dev/null || true
     fi
+  fi
+
+  # Envelope escalation — ENVELOPE_MISMATCH/OVERREACH means the envelope itself needs
+  # correction, not the spec/code. These findings must not consume critic rounds silently.
+  # Read last recorded verdict category from sidecar (set by SubagentStop hook).
+  _last_cat=""
+  if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then
+    _last_cat=$(jq -r '.last_verdict_category // .last_category // ""' "$_conv_path" 2>/dev/null || true)
+  fi
+  if [[ "$_last_cat" == "ENVELOPE_MISMATCH" ]] || [[ "$_last_cat" == "ENVELOPE_OVERREACH" ]]; then
+    bash "$PLAN_FILE_SH" append-note "$PLAN" \
+      "[ESCALATION] ${AGENT}: ${_last_cat} — operating envelope must be corrected before critic can proceed; correct the Operating Envelope section in the spec and re-run" 2>/dev/null || true
+    echo "[ESCALATION] ${_last_cat} — manual envelope correction required; exiting critic loop" >&2
+    exit 4
   fi
 
   # Consecutive NOOP detection — plan file unchanged across iterations

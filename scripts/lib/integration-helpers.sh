@@ -31,22 +31,28 @@ _handle_spec_phase_rollback() {
   bash "$PF" reset-milestone "$PLAN" critic-test
   bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
   run_llm "Invoke the writing-spec skill to fix the ${_cat}. Plan: $PLAN"
+  llm_exit "writing-spec"
   while IFS= read -r _sp; do
     [[ -n "$_sp" ]] && git add "$_sp"
   done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
   git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
   bash "$PF" reset-milestone "$PLAN" critic-spec
   run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
+  llm_exit "critic-spec"
   bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
   bash "$PF" reset-milestone "$PLAN" critic-test
   run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
+  llm_exit "writing-tests"
   _test_files=$(_recent_test_files)
   run_critic critic-test red "Review updated tests for integration fix. Spec: ${_all_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
+  llm_exit "critic-test"
   bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
   bash "$PF" inter-feature-reset "$PLAN"
   run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
+  llm_exit "implementing"
   bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
   bash "$PF" reset-milestone "$PLAN" critic-code
   run_critic critic-code implement "Review integration ${_cat} fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+  llm_exit "critic-code"
   bash "$PF" transition "$PLAN" integration "re-entering integration after ${_cat} fix"
 }

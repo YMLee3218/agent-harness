@@ -105,11 +105,6 @@ cmd_find_active() {
 
   local found="" count=0 malformed=0
   while IFS= read -r -d '' f; do
-    local _fn; _fn=$(basename "$f" .md)
-    if ! [[ "$_fn" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]]; then
-      echo "[plan-file] WARNING: skipping plan file with non-slug name: $f" >&2
-      continue
-    fi
     local phase
     phase=$(_read_phase_quick "$f")
     if [ -z "$phase" ]; then
@@ -150,14 +145,9 @@ _find_latest_by_mtime() {
 cmd_find_latest() {
   local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
   [ -d "$plans_dir" ] || return 2
-  local f _fn
+  local f
   f=$(_find_latest_by_mtime "$plans_dir" '*.md' || true)
   [ -z "$f" ] && return 2
-  _fn=$(basename "$f" .md)
-  if ! [[ "$_fn" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]]; then
-    echo "[plan-file] WARNING: find-latest: skipping file with non-slug name: $f" >&2
-    return 2
-  fi
   echo "$f"
 }
 
@@ -187,11 +177,6 @@ cmd_commit_phase() {
 
 cmd_append_note() {
   local plan_file="$1" note="$2"
-  if [[ "${CLAUDE_PLAN_CAPABILITY:-agent}" != "harness" && "${CLAUDE_PLAN_CAPABILITY:-agent}" != "human" ]]; then
-    if printf '%s' "${note:-}" | grep -qE '\[[A-Z][A-Z0-9_:-]*\]'; then
-      die "append-note: control marker tokens (e.g. [BLOCKED], [IMPLEMENTED: x]) are reserved for the harness — use free-form text for notes in ## Open Questions"
-    fi
-  fi
   require_file "$plan_file"
   _append_to_open_questions "$plan_file" "$note"
   if printf '%s' "${note:-}" | grep -qE '^\[BLOCKED'; then
@@ -199,15 +184,9 @@ cmd_append_note() {
       sc_ensure_dir "$plan_file" || return 1
       local _kind="runtime"
       case "$note" in
-        *'[BLOCKED-CEILING]'*) _kind="ceiling" ;;
-        *'[BLOCKED] parse:'*)  _kind="parse" ;;
-        *'[BLOCKED] category:'*) _kind="category" ;;
-        *'[BLOCKED] protocol-violation:'*) _kind="protocol-violation" ;;
         *'[BLOCKED] preflight:'*) _kind="preflight" ;;
         *'[BLOCKED] integration:'*) _kind="integration" ;;
-        *'[BLOCKED] coder:'*) _kind="coder" ;;
         *'[BLOCKED-AMBIGUOUS]'*) _kind="ambiguous" ;;
-        *'[BLOCKED] script-failure:'*|*'[BLOCKED] session-timeout'*|*'[BLOCKED] no timeout'*|*'[BLOCKED] plan unchanged'*) _kind="runtime" ;;
       esac
       _record_blocked "$plan_file" "$_kind" "harness" "$(basename "$plan_file" .md)" "$note" 2>/dev/null || true
     fi
@@ -282,15 +261,13 @@ cmd_context() {
 # _dispatch_rls_rc PLAN LABEL RC — dispatches _record_loop_state failure codes; always exits 1.
 _dispatch_rls_rc() {
   local _plan="$1" _label="$2" _rc="$3"
-  case $_rc in
-    1) echo "[record-verdict] BLOCKED-CEILING: ${_label}" >&2
-       cmd_append_verdict "$_plan" "${MARK_BLOCKED_CEILING} ${_label}" ;;
-    2) echo "[record-verdict] BLOCKED-CORRUPT: ordinal compute failed — ${_label} not persisted" >&2
-       cmd_append_verdict "$_plan" "[BLOCKED] kind=corrupt ${_label}" ;;
-    3) echo "[record-verdict] BLOCKED-STREAK: streak compute failed — ${_label} not persisted" >&2
-       cmd_append_verdict "$_plan" "[BLOCKED] kind=streak ${_label}" ;;
-    4) echo "[record-verdict] BLOCKED-WRITE: verdicts.jsonl append failed — plan.md NOT updated" >&2 ;;
-  esac
+  if [[ $_rc -eq 1 ]]; then
+    echo "[record-verdict] BLOCKED-CEILING: ${_label}" >&2
+    cmd_append_verdict "$_plan" "${MARK_BLOCKED_CEILING} ${_label}"
+  else
+    echo "[record-verdict] BLOCKED (rc=${_rc}): ${_label} not persisted" >&2
+    [[ $_rc -lt 4 ]] && cmd_append_verdict "$_plan" "[BLOCKED] kind=runtime ${_label}"
+  fi
   exit 1
 }
 
@@ -433,12 +410,7 @@ _resolve_plan_for_verdict() {
   local _agent="$1" _find_rc=0
   plan_file=$(cmd_find_active) || _find_rc=$?
   if [ "$_find_rc" -ne 0 ]; then
-    case "$_find_rc" in
-      2) echo "[record-verdict] no active plan file — verdict for ${_agent} dropped" >&2 ;;
-      3) echo "[record-verdict] ambiguous: multiple active plan files — pin CLAUDE_PLAN_FILE for ${_agent}" >&2 ;;
-      4) echo "[record-verdict] unreadable plan phase — verdict for ${_agent} dropped" >&2 ;;
-      *) echo "[record-verdict] cmd_find_active failed (exit ${_find_rc}) — verdict for ${_agent} dropped" >&2 ;;
-    esac
+    echo "[record-verdict] cmd_find_active rc=${_find_rc} — verdict for ${_agent} dropped" >&2
     exit 0
   fi
   current_phase=$(_require_phase "$plan_file" "record-verdict") || exit $?
@@ -505,7 +477,6 @@ _persist_verdict() {
       0) cmd_append_verdict "$_plan" "$_label"; exit 1 ;;
       1) : ;;
       2) cmd_append_verdict "$_plan" "[BLOCKED] kind=corrupt-check ${_label}"; exit 1 ;;
-      *) echo "[record-verdict] _check_consecutive_and_block rc=${_ccb_rc} unknown" >&2; exit 1 ;;
     esac
   fi
   cmd_append_verdict "$_plan" "$_label"
@@ -549,12 +520,6 @@ cmd_record_verdict_guarded() {
 
 # ── Markers / reset ───────────────────────────────────────────────────────────
 
-_clear_convergence_markers() {
-  local plan_file="$1" scope="$2"
-  cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] ${scope}"
-  cmd_clear_marker "$plan_file" "[FIRST-TURN] ${scope}"
-}
-
 _cmd_clear_marker_body() {
   local plan_file="$1" marker="$2"
   local _candidate_lines
@@ -595,66 +560,49 @@ cmd_clear_marker() {
   echo "[clear-marker] removed '$marker' from ## Open Questions in $plan_file" >&2
 }
 
-# cmd_unblock clears [BLOCKED*:agent:...] lines for the named agent.
-# HUMAN_MUST_CLEAR_MARKERS entries are preserved — use cmd_clear_marker (Ring C) to remove them.
+# cmd_unblock clears [BLOCKED*:agent:...] lines for the named agent (human shorthand only — Ring C gated).
 cmd_unblock() {
   local agent="$1"
   _validate_critic_agent "$agent" "unblock"
   local plan_file
   plan_file=$(cmd_find_active) || die "unblock: no active plan found"
   if command -v jq >/dev/null 2>&1; then
-    local _bpath _ts
+    local _bpath _ts _jq_filter
     _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
     _ts=$(_iso_timestamp)
-    _sc_rewrite_jsonl "$_bpath" \
-      'if (.cleared_at == null and .kind != "ambiguous" and .agent == $agent) then .cleared_at = $ts else . end' \
-      "unblock" \
+    _jq_filter='if (.cleared_at == null and .agent == $agent) then .cleared_at = $ts else . end'
+    _sc_rewrite_jsonl "$_bpath" "$_jq_filter" "unblock" \
       --arg agent "$agent" --arg ts "$_ts" || return 1
   fi
-  # Build awk ERE preserve pattern from HUMAN_MUST_CLEAR_MARKERS (array from phase-policy.sh).
-  # awk -v processes one escape level, so \\[ in the variable becomes \[ in awk ERE
-  # (which matches literal '['), while ": session-timeout" entries need no prefix.
-  local _hmcm_preserve="" _m _pat
-  for _m in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
-    case "$_m" in
-      ": "*) _pat="$_m" ;;
-      *) _pat="\\\\[$_m" ;;
-    esac
-    if [ -z "$_hmcm_preserve" ]; then
-      _hmcm_preserve="$_pat"
-    else
-      _hmcm_preserve="${_hmcm_preserve}|${_pat}"
-    fi
-  done
-  _awk_inplace "$plan_file" -v agent="$agent" -v hmcm_pat="$_hmcm_preserve" '
-    /^## Open Questions$/ { in_section=1; print; next }
-    in_section && /^## / { in_section=0 }
-    in_section && ($0 ~ hmcm_pat) { print; next }
-    in_section && /\[BLOCKED/ {
-      _skip = 0
+  # Collect agent-matched [BLOCKED*] lines and clear each via cmd_clear_marker.
+  local _m
+  while IFS= read -r _m; do
+    [[ -n "$_m" ]] || continue
+    cmd_clear_marker "$plan_file" "$_m"
+  done < <(awk -v a="$agent" '
+    /^## Open Questions$/ { s=1; next }
+    s && /^## /           { exit }
+    s && /\[BLOCKED/ {
       if (match($0, /\[BLOCKED[^:]*:[^:]*:/)) {
-        field = substr($0, RSTART, RLENGTH)
-        sub(/^\[BLOCKED[^:]*:/, "", field); sub(/:$/, "", field)
-        if (field == agent) _skip = 1
+        f = substr($0, RSTART, RLENGTH)
+        sub(/^\[BLOCKED[^:]*:/, "", f); sub(/:$/, "", f)
+        if (f == a) { print; next }
       }
-      if (!_skip && /\[BLOCKED-CEILING\]/) {
-        prefix = "[BLOCKED-CEILING] "
-        if (substr($0, 1, length(prefix)) == prefix) {
-          rest = substr($0, length(prefix) + 1)
-          slash_pos = index(rest, "/")
-          if (slash_pos > 0) {
-            after_slash = substr(rest, slash_pos + 1)
-            if (substr(after_slash, 1, length(agent)) == agent) {
-              nxt = (length(after_slash) > length(agent)) ? substr(after_slash, length(agent)+1, 1) : ""
-              if (nxt == "" || nxt == " " || nxt == ":") _skip = 1
+      if (/\[BLOCKED-CEILING\]/) {
+        p = "[BLOCKED-CEILING] "
+        if (substr($0, 1, length(p)) == p) {
+          r = substr($0, length(p) + 1); sp = index(r, "/")
+          if (sp > 0) {
+            as = substr(r, sp + 1)
+            if (substr(as, 1, length(a)) == a) {
+              nx = (length(as) > length(a)) ? substr(as, length(a)+1, 1) : ""
+              if (nx == "" || nx == " " || nx == ":") print
             }
           }
         }
       }
-      if (_skip) next
     }
-    { print }
-  '
+  ' "$plan_file" 2>/dev/null || true)
   echo "[unblock] cleared [BLOCKED*] markers for '${agent}' in ${plan_file}" >&2
 }
 
@@ -680,7 +628,8 @@ cmd_reset_milestone() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-milestone")
   local scope; scope=$(_scope_of "$current_phase" "$agent")
-  _clear_convergence_markers "$plan_file" "$scope"
+  cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] ${scope}"
+  cmd_clear_marker "$plan_file" "[FIRST-TURN] ${scope}"
   local ts
   ts=$(_iso_timestamp)
   _append_to_critic_verdicts "$plan_file" \
@@ -695,7 +644,8 @@ cmd_reset_pr_review() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-pr-review")
   for phase in implement review; do
-    _clear_convergence_markers "$plan_file" "${phase}/pr-review"
+    cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] ${phase}/pr-review"
+    cmd_clear_marker "$plan_file" "[FIRST-TURN] ${phase}/pr-review"
     local ts
     ts=$(_iso_timestamp)
     _append_to_critic_verdicts "$plan_file" \
@@ -712,7 +662,8 @@ cmd_reset_phase_state() {
   cmd_set_phase "$plan_file" "$target_phase"
   cmd_reset_milestone "$plan_file" critic-code
   cmd_reset_pr_review "$plan_file"
-  _clear_convergence_markers "$plan_file" "review/critic-code"
+  cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] review/critic-code"
+  cmd_clear_marker "$plan_file" "[FIRST-TURN] review/critic-code"
   echo "[reset-for-rollback] phase set to ${target_phase}; critic-code and pr-review state cleared" >&2
 }
 
@@ -877,7 +828,7 @@ cmd_is_converged() {
   local conv_path
   conv_path=$(sc_conv_path "$plan_file" "$phase" "$agent")
   if [[ ! -f "$conv_path" ]]; then
-    echo "[is-converged] WARNING: sidecar convergence file absent — treating as not-converged (run migrate-to-sidecar if this is unexpected)" >&2
+    echo "[is-converged] WARNING: sidecar convergence file absent — treating as not-converged" >&2
     return 1
   fi
   local converged
@@ -891,7 +842,7 @@ cmd_is_blocked() {
   local _bpath
   _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
   if [[ ! -f "$_bpath" ]]; then
-    echo "[is-blocked] WARNING: blocked.jsonl absent — treating as not-blocked (run migrate-to-sidecar if this is unexpected)" >&2
+    echo "[is-blocked] WARNING: blocked.jsonl absent — treating as not-blocked" >&2
     return 1
   fi
   if ! command -v jq >/dev/null 2>&1; then
@@ -915,7 +866,7 @@ cmd_is_implemented() {
   impl_path=$(sc_path "$plan_file" "$SC_IMPLEMENTED")
   command -v jq >/dev/null 2>&1 || return 1
   if [[ ! -f "$impl_path" ]]; then
-    echo "[is-implemented] WARNING: sidecar implemented.json absent — treating as not-implemented (run migrate-to-sidecar if this is unexpected)" >&2
+    echo "[is-implemented] WARNING: sidecar implemented.json absent — treating as not-implemented" >&2
     return 1
   fi
   local result
@@ -960,59 +911,3 @@ cmd_inter_feature_reset() {
   echo "[inter-feature-reset] cleared task definitions and ledger rows in ${plan_file}" >&2
 }
 
-cmd_migrate_to_sidecar() {
-  local plan_file="$1"
-  require_file "$plan_file"
-  require_jq
-  sc_ensure_dir "$plan_file" || die "ERROR: sidecar dir setup failed for $plan_file"
-  local sentinel
-  sentinel=$(sc_path "$plan_file" ".migrated_from_v2.txt")
-  if [[ -f "$sentinel" ]]; then
-    echo "[migrate-to-sidecar] already migrated: $plan_file" >&2
-    return 0
-  fi
-  local conv_dir
-  conv_dir=$(sc_path "$plan_file" "convergence")
-  if ls "${conv_dir}"/*.json 2>/dev/null | grep -q .; then
-    echo "[migrate-to-sidecar] BLOCKED: convergence files already exist in ${conv_dir} — migration refused to avoid overwriting authoritative sidecar state (use reset-milestone if a fresh start is needed)" >&2
-    return 1
-  fi
-  local phase agent
-  for phase in brainstorm spec red implement review; do
-    for agent in critic-feature critic-spec critic-test critic-code critic-cross pr-review; do
-      local scope; scope=$(_scope_of "$phase" "$agent")
-      local converged=false ceiling_blocked=false streak_val=0
-      if grep -qF "[CONVERGED] ${scope}" "$plan_file" 2>/dev/null; then
-        converged=true; streak_val=2
-      fi
-      if grep -qF "[BLOCKED-CEILING] ${scope}" "$plan_file" 2>/dev/null; then
-        ceiling_blocked=true
-      fi
-      if [[ "$converged" == "true" ]] || [[ "$ceiling_blocked" == "true" ]]; then
-        local conv_path
-        conv_path=$(sc_conv_path "$plan_file" "$phase" "$agent")
-        jq -nc \
-          --arg p "$phase" --arg a "$agent" \
-          --argjson conv "$converged" --argjson cb "$ceiling_blocked" \
-          --argjson streak "$streak_val" \
-          '{"phase":$p,"agent":$a,"first_turn":true,"streak":$streak,"converged":$conv,"ceiling_blocked":$cb,"ordinal":2,"milestone_seq":0}' \
-          > "$conv_path"
-        echo "[migrate-to-sidecar] ${scope}: converged=${converged} ceiling=${ceiling_blocked}" >&2
-      fi
-    done
-  done
-  local impl_path
-  impl_path=$(sc_path "$plan_file" "$SC_IMPLEMENTED")
-  if [[ ! -f "$impl_path" ]]; then
-    local features_json='{"features":[]}'
-    while IFS= read -r line; do
-      [[ -z "$line" ]] && continue
-      local slug
-      slug=$(printf '%s' "$line" | sed 's/.*\[IMPLEMENTED: //; s/\].*//')
-      features_json=$(printf '%s' "$features_json" | jq --arg s "$slug" '.features |= (. + [$s] | unique)')
-    done < <(grep -F '[IMPLEMENTED:' "$plan_file" 2>/dev/null || true)
-    sc_update_json "$impl_path" "$features_json"
-  fi
-  echo "$(_iso_timestamp): migrated from plan.md v2" > "$sentinel"
-  echo "[migrate-to-sidecar] migration complete for $plan_file" >&2
-}

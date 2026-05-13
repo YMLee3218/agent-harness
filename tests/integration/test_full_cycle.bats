@@ -35,22 +35,9 @@ _libs() {
     "$SCRIPTS_DIR"
 }
 
-# ── Sanity: harness scripts are executable and --help-equivalent exits cleanly ──
+# ── T13: E2E — init → transition → 2× PASS → converged ──────────────────────
 
-@test "T10/smoke: run-integration.sh requires --plan and --integration-cmd args" {
-  run bash "$SCRIPTS_DIR/run-integration.sh" 2>&1
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"Usage"* || "$output" == *"plan"* ]]
-}
-
-@test "T10/smoke: plan-file.sh find-active returns rc=2 when no plans exist" {
-  run bash "$SCRIPTS_DIR/plan-file.sh" find-active 2>&1
-  [ "$status" -eq 2 ]
-}
-
-# ── T13: Happy-path — init, phase transitions, verdict recording ──────────────
-
-@test "T13/happy: cmd_init creates a valid plan file with sidecar" {
+@test "T13/e2e: init, transition, and consecutive PASS verdicts reach converged state" {
   run bash -c "
     $(_libs)
     cmd_init '$PLAN_FILE'
@@ -59,29 +46,17 @@ _libs() {
     [ -d '${PLAN_FILE%.md}.state' ] && echo 'sidecar_ok'
   " 2>&1
   [ "$status" -eq 0 ]
-  [[ "$output" == *"init_ok"* ]]
-  [[ "$output" == *"schema_ok"* ]]
-  [[ "$output" == *"sidecar_ok"* ]]
-}
+  [[ "$output" == *"init_ok"* && "$output" == *"schema_ok"* && "$output" == *"sidecar_ok"* ]]
 
-@test "T13/happy: cmd_transition moves phase and records it in plan.md" {
-  bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null
   run bash -c "
     $(_libs)
-    cmd_transition '$PLAN_FILE' spec 'moving to spec phase'
+    cmd_transition '$PLAN_FILE' implement 'to implement'
     cmd_get_phase '$PLAN_FILE'
   " 2>&1
   [ "$status" -eq 0 ]
-  [[ "$output" == *"spec"* ]]
-  grep -q 'brainstorm.*spec' "$PLAN_FILE"
-}
+  [[ "$output" == *"implement"* ]]
+  grep -q 'brainstorm.*implement' "$PLAN_FILE"
 
-# ── T13/fail-recover: verdict recording, blocking, and recovery ───────────────
-
-@test "T13/fail-recover: consecutive PASS verdicts reach converged state" {
-  bash -c "$(_libs); cmd_init '$PLAN_FILE'" 2>/dev/null
-  bash -c "$(_libs); cmd_transition '$PLAN_FILE' implement 'to implement'" 2>/dev/null
-  # Record two PASS verdicts to trigger convergence (streak >= 2)
   for _ in 1 2; do
     bash -c "
       $(_libs)

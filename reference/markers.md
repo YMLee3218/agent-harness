@@ -69,7 +69,6 @@ All harness control state lives in `plans/{slug}.state/` — written only by har
 | `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `is-converged` (streak computation) | Appended per verdict; GC via `gc-sidecars` (rotates pre-milestone records, keeps 2 most recent milestone_seq values) |
 | `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse/category), `cmd_append_note` (BLOCKED mirror) | `is-blocked`/`has-blocked` (`stop-check.sh`, `run-critic-loop.sh`) | `cleared_at:null` = open; set by `clear-marker`/`unblock` |
 | `implemented.json` | JSON | `mark-implemented` | `is-implemented` (`run-dev-cycle.sh`) | Feature slugs accumulate; never cleared |
-| `.migrated_from_v2.txt` | text sentinel | `migrate-to-sidecar` | admin verification only (not read at runtime) | Presence confirms sidecar was bootstrapped from plan.md v2 markers |
 
 ### Block-state queries (Ring A — agent-callable)
 
@@ -86,7 +85,7 @@ bash plan-file.sh is-blocked plans/{slug}.md ceiling
 bash plan-file.sh is-converged plans/{slug}.md implement critic-code
 ```
 
-Both commands read the sidecar `blocked.jsonl` exclusively. If `blocked.jsonl` is absent (no blocks ever written), they return "not blocked". The plan.md grep fallback has been removed — run `migrate-to-sidecar` on any pre-migration plan before querying block state.
+Both commands read the sidecar `blocked.jsonl` exclusively. If `blocked.jsonl` is absent (no blocks ever written), they return "not blocked".
 
 ## HTML verdict envelopes
 
