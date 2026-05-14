@@ -30,6 +30,15 @@ block_plan_revert "$cmd"
 
 if [ -f "$PLAN_FILE_SH" ]; then
   BLOCKED_LABEL="phase-gate/bash"
+
+  # git branch operations: allow checkout/switch to escape plan-ambiguous lockup.
+  # Dangerous targets (plans/*.state/, plans/*.md) are already caught by
+  # block_sidecar_writes / block_plan_revert above.
+  if printf '%s' "$cmd" | grep -iqE \
+    '(^|[;|&[:space:]])[[:space:]]*git[[:space:]]+(checkout|switch)([[:space:]]|$)'; then
+    exit 0
+  fi
+
   _active_plan=""; _current_phase=""
   resolve_active_plan_and_phase _active_plan _current_phase || _active_plan=""
   _hmc_marker=""

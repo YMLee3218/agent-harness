@@ -98,6 +98,21 @@ EOF
   unset CLAUDE_PROJECT_DIR
 }
 
+# ── git branch escape: allowed in ambiguous state ────────────────────────────
+
+@test "git-escape: git checkout and git switch are allowed in ambiguous state" {
+  cd "$WS_DIR"
+  for cmd in \
+    "git checkout main" \
+    "git checkout -b feature/autonomous-bug-fixer" \
+    "git switch feature/autonomous-bug-fixer" \
+    "git switch -c new-branch"
+  do
+    run run_hook "$cmd"
+    [ "$status" -eq 0 ] || { echo "FAIL: '$cmd' was blocked"; return 1; }
+  done
+}
+
 # ── plan rename / git revert guards ──────────────────────────────────────────
 
 @test "block_plan_revert: git checkout/restore blocked when human-must-clear marker active" {
