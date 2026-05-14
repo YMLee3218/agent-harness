@@ -41,13 +41,8 @@ elif [ $_fa_rc -ne 0 ] || [ -z "$plan_file" ]; then
   echo "plan: none"
 else
   phase=$("$SCRIPTS_DIR/plan-file.sh" get-phase "$plan_file" 2>/dev/null || echo "?")
-  source=$("$SCRIPTS_DIR/plan-file.sh" get-active-source 2>/dev/null || echo "")
   slug=$(basename "$plan_file" .md)
-  if [ -n "$source" ]; then
-    line3="${slug} (${source})"
-  else
-    line3="${slug}"
-  fi
+  line3="${slug}"
   [ ${#line3} -gt 40 ] && line3="${line3:0:38}…"
 
   last_verdict=$(awk '
