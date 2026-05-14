@@ -31,6 +31,7 @@ This file is the single source of truth for layer rules. CLAUDE.md, skills, and 
 - Domain concepts: `{noun}` singular kebab-case (e.g., `todo`, `user`, `notification`)
 - Spec files: top-level directories, not under `src/`
 - Infrastructure concepts: `{noun}` singular kebab-case (e.g., `noop-deploy`, `postgres-store`)
+- Branches: `feature/{feature-name}` where `{feature-name}` matches the feature folder name; created by brainstorming skill (see `skills/brainstorming/SKILL.md`)
 - Layer-to-spec-path mapping (canonical for all skills and critics):
 
   | Layer | Spec path |
