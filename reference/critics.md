@@ -152,12 +152,18 @@ When a FAIL leaves the fix direction unclear, do **not** guess. Append a `[BLOCK
 - **Scope expansion needed**: the fix requires changes outside this feature's scope
 - **Repeated failure with unknown cause**: the same problem recurs across runs and the root cause cannot be identified
 
-If none of the above apply, fix and re-run without stopping. **Autonomous mode behaviour**: the session terminates (Telegram notified if configured). **Resuming**: once you have resolved the question, **run from a human terminal**: `bash .claude/scripts/plan-file.sh clear-marker plans/{slug}.md "[BLOCKED-AMBIGUOUS] {agent}"`. Then tell the interactive Claude the decision; it will restart the autonomous run.
+If none of the above apply, fix and re-run without stopping. **Autonomous mode behaviour**: the session terminates (Telegram notified if configured). **Resuming**: once you have resolved the question, **run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required):
+```bash
+export CLAUDE_PLAN_CAPABILITY=human
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
+```
+Then tell the interactive Claude the decision; it will restart the autonomous run.
 
 ## Resuming from a BLOCKED marker
 
-Markers `[BLOCKED-AMBIGUOUS]`, `[BLOCKED] category:`, and `[BLOCKED] parse:` are agent-scoped; they do not clear on phase transition or `reset-milestone` — see `@reference/markers.md` for lifecycle. After fixing the root cause, clear the marker and re-run: **both commands must be run from a human terminal** (Ring C — see `@reference/markers.md`):
+Markers `[BLOCKED-AMBIGUOUS]`, `[BLOCKED] category:`, and `[BLOCKED] parse:` are agent-scoped; they do not clear on phase transition or `reset-milestone` — see `@reference/markers.md` for lifecycle. After fixing the root cause, clear the marker and re-run: **both commands must be run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required; see `@reference/markers.md`):
 ```bash
+export CLAUDE_PLAN_CAPABILITY=human
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED] {type}:{agent}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
 ```
