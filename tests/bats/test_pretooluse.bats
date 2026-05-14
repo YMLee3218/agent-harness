@@ -101,7 +101,24 @@ EOF
 # ── read-only: no-destination commands allowed in ambiguous state ────────────
 
 @test "read-only: no destination commands are allowed in ambiguous state" {
-  cd "$WS_DIR"
+  local td
+  td=$(mktemp -d)
+  mkdir -p "$td/plans"
+  for slug in foo bar; do
+    cat > "$td/plans/${slug}.md" <<EOF
+---
+feature: ${slug}
+phase: implement
+schema: 2
+---
+## Phase
+implement
+## Open Questions
+EOF
+  done
+  export CLAUDE_PROJECT_DIR="$td"
+  run bash "$SCRIPTS_DIR/plan-file.sh" find-active
+  [ "$status" -eq 3 ] || { echo "FAIL: setup did not produce ambiguous state (rc=$status)"; rm -rf "$td"; unset CLAUDE_PROJECT_DIR; return 1; }
   for cmd in \
     "echo test" \
     "git status" \
@@ -111,8 +128,14 @@ EOF
     "cat foo.txt | head"
   do
     run run_hook "$cmd"
-    [ "$status" -eq 0 ] || { echo "FAIL: '$cmd' was blocked"; return 1; }
+    [ "$status" -eq 0 ] || { echo "FAIL ambiguous: '$cmd' blocked"; rm -rf "$td"; unset CLAUDE_PROJECT_DIR; return 1; }
   done
+  run run_hook 'echo evil > plans/foo.state/x'
+  [ "$status" -ne 0 ] || { echo "FAIL: sidecar write not blocked"; rm -rf "$td"; unset CLAUDE_PROJECT_DIR; return 1; }
+  run run_hook 'cp -t plans/foo.state/ src/a.py'
+  [ "$status" -ne 0 ] || { echo "FAIL: cp -t sidecar not blocked"; rm -rf "$td"; unset CLAUDE_PROJECT_DIR; return 1; }
+  rm -rf "$td"
+  unset CLAUDE_PROJECT_DIR
 }
 
 # ── git branch escape: allowed in ambiguous state ────────────────────────────
