@@ -41,6 +41,15 @@ elif [ $_fa_rc -ne 0 ] || [ -z "$plan_file" ]; then
   echo "plan: none"
 else
   phase=$("$SCRIPTS_DIR/plan-file.sh" get-phase "$plan_file" 2>/dev/null || echo "?")
+  source=$("$SCRIPTS_DIR/plan-file.sh" get-active-source 2>/dev/null || echo "")
+  slug=$(basename "$plan_file" .md)
+  if [ -n "$source" ]; then
+    line3="${slug} (${source})"
+  else
+    line3="${slug}"
+  fi
+  [ ${#line3} -gt 40 ] && line3="${line3:0:38}…"
+
   last_verdict=$(awk '
     /^## Critic Verdicts$/ { in_s=1; next }
     in_s && /^## /         { in_s=0 }
@@ -48,10 +57,12 @@ else
     END                    { sub(/^- /, "", line); print line }
   ' "$plan_file" 2>/dev/null)
   if [ -n "$last_verdict" ]; then
-    line3=$(printf '%s | last: %s' "$phase" "$last_verdict")
+    line4=$(printf '%s | last: %s' "$phase" "$last_verdict")
   else
-    line3=$(printf '%s | no verdicts yet' "$phase")
+    line4=$(printf '%s | no verdicts yet' "$phase")
   fi
-  [ ${#line3} -gt 50 ] && line3="${line3:0:48}…"
+  [ ${#line4} -gt 40 ] && line4="${line4:0:38}…"
+
   printf '%s\n' "$line3"
+  printf '%s\n' "$line4"
 fi

@@ -171,4 +171,36 @@ EOF
   ! grep -qF "[BLOCKED] parse:critic-code:" "$PLAN_FILE"
 }
 
+@test "hmcm-anchor: historical prose with BLOCKED-AMBIGUOUS (no brackets) does not trigger marker detection" {
+  # Regression for substring false-positive: audit log entries use bare BLOCKED-AMBIGUOUS
+  # without brackets; only bracketed markers at line-start should trigger detection.
+  local tf
+  tf=$(mktemp)
+  printf '## Verdict Audits\n- 2026-05-02T critic-spec BLOCKED-AMBIGUOUS: reason here\n' > "$tf"
+  run bash --norc -c '
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    set +e
+    out=$(marker_present_human_must_clear "'"$tf"'" 2>/dev/null)
+    rc=$?
+    echo "out=$out rc=$rc"
+  ' </dev/null 2>&1
+  rm -f "$tf"
+  [[ "$output" == *"rc=1"* ]]
+}
+
+@test "hmcm-anchor: active [BLOCKED-AMBIGUOUS] marker at line start is detected" {
+  local tf
+  tf=$(mktemp)
+  printf '[BLOCKED-AMBIGUOUS] test-agent: dummy\n' > "$tf"
+  run bash --norc -c '
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    set +e
+    out=$(marker_present_human_must_clear "'"$tf"'" 2>/dev/null)
+    rc=$?
+    echo "out=$out rc=$rc"
+  ' </dev/null 2>&1
+  rm -f "$tf"
+  [[ "$output" == *"rc=0"* ]]
+  [[ "$output" == *"[BLOCKED-AMBIGUOUS]"* ]]
+}
 
