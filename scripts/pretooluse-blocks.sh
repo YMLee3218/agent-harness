@@ -108,6 +108,7 @@ _cmd_targets_critic_lock() {
 
 block_sidecar_writes() {
   local cmd="$1"
+  local _dest_list _sw_p
   # A4: block mv/cp -r targeting the plans/ directory itself
   if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(mv|cp[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*)([[:space:]]+-[a-zA-Z]+)*[[:space:]]+(\.\/)?plans(/[[:space:]]|[[:space:]]|/$)'; then
     echo "BLOCKED: mv/cp -r targeting plans/ directory — plan directory structure is harness-exclusive" >&2; exit 2
@@ -134,7 +135,11 @@ block_sidecar_writes() {
       echo "BLOCKED: rm targeting plans/*.md — plan file deletion not permitted" >&2; exit 2
     fi
   fi
-  local _sw_p
+  if [ $# -lt 2 ]; then
+    _dest_list=$(_bash_dest_paths "$cmd")
+  else
+    _dest_list="${2-}"
+  fi
   while IFS= read -r _sw_p; do
     [ -z "$_sw_p" ] && continue
     if is_sidecar_path "$_sw_p"; then
@@ -143,7 +148,7 @@ block_sidecar_writes() {
     case "$_sw_p" in *.critic.lock)
       echo "BLOCKED: write targeting plans/*.critic.lock — critic lock is harness-exclusive" >&2; exit 2 ;;
     esac
-  done < <(_bash_dest_paths "$cmd")
+  done <<< "$_dest_list"
 }
 
 # ── 4. block_capability ───────────────────────────────────────────────────────

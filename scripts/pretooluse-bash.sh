@@ -21,7 +21,8 @@ cmd=$(extract_tool_input_command "$input")
 block_capability "$cmd"
 block_destructive "$cmd"
 block_execution "$cmd"
-block_sidecar_writes "$cmd"
+_dest_list=$(_bash_dest_paths "$cmd")
+block_sidecar_writes "$cmd" "$_dest_list"
 
 # ── Phase-aware bash write detection ─────────────────────────────────────────
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
@@ -33,8 +34,10 @@ if [ -f "$PLAN_FILE_SH" ]; then
 
   # Read-only / no-write commands have no phase-gated destination — bypass
   # plan resolution so ambiguous-plan state does not block status checks,
-  # ls, echo, grep, pipes that only read, etc.
-  _dest_list=$(_bash_dest_paths "$cmd")
+  # ls, echo, grep, pipes that only read, and also git checkout/switch
+  # (which mutate the working tree but produce no redirect/tee/cp/mv dest;
+  # plans/*.state/ and plans/*.md remain protected by block_sidecar_writes
+  # and block_plan_revert above).
   if [ -z "$_dest_list" ]; then
     exit 0
   fi
