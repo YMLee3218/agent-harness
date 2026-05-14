@@ -7,6 +7,9 @@
 # Exit codes: 0=allow stop, 2=block stop (stderr fed back to Claude as context),
 # 1/other=non-blocking error. Always use exit 2 (never exit 1) to prevent stop.
 set -euo pipefail
+if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
+  exec /usr/bin/env CLAUDE_PLAN_CAPABILITY=harness "$0" "$@"
+fi
 
 [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] || exit 0
 
@@ -15,7 +18,6 @@ set -euo pipefail
 # pattern — stop_hook_active=true means we already fired once; a second block
 # would loop forever if tests keep failing.
 _payload=$(cat)
-export CLAUDE_PLAN_CAPABILITY=harness
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 if ! command -v jq >/dev/null 2>&1; then
   echo "[STOP-BLOCKED] jq required for autonomous stop-check — install jq and re-run" >&2

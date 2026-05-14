@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-export CLAUDE_PLAN_CAPABILITY=harness
+if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
+  exec /usr/bin/env CLAUDE_PLAN_CAPABILITY=harness "$0" "$@"
+fi
 
 AGENT="" PHASE="" PLAN="" PROMPT="" ITER_DOC="" NESTED=0
 PLAN_FILE_SH="$(dirname "${BASH_SOURCE[0]}")/plan-file.sh"

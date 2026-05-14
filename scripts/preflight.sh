@@ -18,10 +18,11 @@
 # Exit 2 = block the session (missing prerequisites)
 # Exit 0 = allow
 set -euo pipefail
+if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
+  exec /usr/bin/env CLAUDE_PLAN_CAPABILITY=harness "$0" "$@"
+fi
 
 [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ] || exit 0
-
-export CLAUDE_PLAN_CAPABILITY=harness
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 BLOCKED_LABEL="preflight"
 # shellcheck source=lib/active-plan.sh
