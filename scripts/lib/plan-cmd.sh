@@ -91,6 +91,38 @@ cmd_find_active() {
 
   [ -d "$plans_dir" ] || { exit 2; }
 
+  # Tier 2: plans/.active pointer file
+  local pointer_file="${plans_dir}/.active"
+  if [ -f "$pointer_file" ]; then
+    local pointer_slug
+    pointer_slug=$(tr -d '[:space:]' < "$pointer_file")
+    if [ -n "$pointer_slug" ]; then
+      case "$pointer_slug" in
+        */*|..*)
+          echo "[plan-file] WARNING: plans/.active contains invalid slug '${pointer_slug}' (path traversal rejected); falling through" >&2
+          ;;
+        *)
+          local pointer_plan="${plans_dir}/${pointer_slug}.md"
+          if [ -f "$pointer_plan" ]; then
+            local pphase
+            pphase=$(_read_phase_quick "$pointer_plan")
+            if [ -n "$pphase" ] && [ "$pphase" != "done" ]; then
+              echo "$pointer_plan"
+              return 0
+            elif [ "$pphase" = "done" ]; then
+              echo "[plan-file] WARNING: plans/.active points to done plan '${pointer_slug}'; falling through" >&2
+            else
+              echo "[plan-file] WARNING: plans/.active points to plan with unreadable phase '${pointer_slug}'; falling through" >&2
+            fi
+          else
+            echo "[plan-file] WARNING: plans/.active points to nonexistent plan '${pointer_slug}'; falling through" >&2
+          fi
+          ;;
+      esac
+    fi
+  fi
+
+  # Tier 3: git branch slug matching
   local branch
   branch=$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" symbolic-ref --short HEAD 2>/dev/null \
            | sed 's|^feature/||; s|/|-|g; s|[^A-Za-z0-9_-]|-|g' || true)
@@ -158,6 +190,119 @@ _require_phase() {
   echo "$_phase"
 }
 
+cmd_get_active_source() {
+  local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
+
+  if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
+    local envphase
+    envphase=$(_read_phase_quick "$CLAUDE_PLAN_FILE")
+    if [ -n "$envphase" ] && [ "$envphase" != "done" ]; then
+      echo "env"
+      return 0
+    fi
+  fi
+
+  [ -d "$plans_dir" ] || return 2
+
+  local pointer_file="${plans_dir}/.active"
+  if [ -f "$pointer_file" ]; then
+    local pointer_slug
+    pointer_slug=$(tr -d '[:space:]' < "$pointer_file")
+    if [ -n "$pointer_slug" ]; then
+      case "$pointer_slug" in
+        */*|..*) : ;;
+        *)
+          local pointer_plan="${plans_dir}/${pointer_slug}.md"
+          if [ -f "$pointer_plan" ]; then
+            local pphase
+            pphase=$(_read_phase_quick "$pointer_plan")
+            if [ -n "$pphase" ] && [ "$pphase" != "done" ]; then
+              echo "pointer"
+              return 0
+            fi
+          fi
+          ;;
+      esac
+    fi
+  fi
+
+  local branch
+  branch=$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" symbolic-ref --short HEAD 2>/dev/null \
+           | sed 's|^feature/||; s|/|-|g; s|[^A-Za-z0-9_-]|-|g' || true)
+  if [ -n "$branch" ] && [ -f "$plans_dir/${branch}.md" ]; then
+    local bphase
+    bphase=$(_read_phase_quick "$plans_dir/${branch}.md")
+    if [ -n "$bphase" ] && [ "$bphase" != "done" ]; then
+      echo "branch"
+      return 0
+    fi
+  fi
+
+  local count=0
+  while IFS= read -r -d '' f; do
+    local phase
+    phase=$(_read_phase_quick "$f")
+    if [ -n "$phase" ] && [ "$phase" != "done" ]; then
+      count=$((count + 1))
+    fi
+  done < <(find "$plans_dir" -maxdepth 1 -name '*.md' -print0 2>/dev/null | sort -z)
+  [ "$count" -eq 1 ] && echo "singleton" && return 0
+  return 2
+}
+
+cmd_get_active_pointer() {
+  local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
+  local pointer_file="${plans_dir}/.active"
+  [ -f "$pointer_file" ] || return 0
+  printf '%s\n' "$(tr -d '[:space:]' < "$pointer_file")"
+}
+
+_cmd_set_active_body() {
+  local pointer_file="$1" slug="$2"
+  local tmp
+  tmp=$(mktemp "${pointer_file}.XXXXXX")
+  printf '%s\n' "$slug" > "$tmp"
+  mv "$tmp" "$pointer_file"
+  echo "[plan-file] set plans/.active → ${slug}" >&2
+}
+
+cmd_set_active() {
+  local slug="$1"
+  local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
+  case "$slug" in
+    */*|..*|'') die "set-active: invalid slug '${slug}'" ;;
+  esac
+  local plan_file="${plans_dir}/${slug}.md"
+  [ -f "$plan_file" ] || die "set-active: plans/${slug}.md does not exist"
+  local phase
+  phase=$(_read_phase_quick "$plan_file")
+  [ -n "$phase" ] || die "set-active: cannot read phase from plans/${slug}.md"
+  [ "$phase" != "done" ] || die "set-active: plans/${slug}.md is already done; pick an active plan"
+  local pointer_file="${plans_dir}/.active"
+  _with_lock "$pointer_file" _cmd_set_active_body "$pointer_file" "$slug"
+}
+
+cmd_clear_active() {
+  local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
+  local pointer_file="${plans_dir}/.active"
+  if [ -f "$pointer_file" ]; then
+    rm -f "$pointer_file"
+    echo "[plan-file] cleared plans/.active" >&2
+  else
+    echo "[plan-file] plans/.active not set (no-op)" >&2
+  fi
+}
+
+_cmd_transition_cleanup_pointer() {
+  local pointer_file="$1" slug="$2"
+  [ -f "$pointer_file" ] || return 0
+  local current_pointer
+  current_pointer=$(tr -d '[:space:]' < "$pointer_file")
+  [ "$current_pointer" = "$slug" ] || return 0
+  rm -f "$pointer_file"
+  echo "[plan-file] cleared plans/.active (was → ${slug})" >&2
+}
+
 cmd_transition() {
   local plan_file="$1" to_phase="$2" reason="$3"
   require_file "$plan_file"
@@ -165,6 +310,11 @@ cmd_transition() {
   from_phase=$(_require_phase "$plan_file" "cmd_transition") || exit $?
   cmd_set_phase "$plan_file" "$to_phase"
   _append_to_phase_transitions "$plan_file" "- ${from_phase} → ${to_phase} (reason: ${reason})"
+  if [ "$to_phase" = "done" ]; then
+    local pointer_file
+    pointer_file="$(dirname "$plan_file")/.active"
+    _with_lock "$pointer_file" _cmd_transition_cleanup_pointer "$pointer_file" "$(basename "$plan_file" .md)"
+  fi
 }
 
 cmd_commit_phase() {

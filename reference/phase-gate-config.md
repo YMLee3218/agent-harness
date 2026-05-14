@@ -25,6 +25,16 @@ CLAUDE_PLAN_FILE=/path/to/plans/feature-slug.md
 Pins the active plan file for `plan-file.sh find-active`. Highest priority override — use when multiple features run in parallel on the same branch, or in CI where branch-based lookup is unreliable.
 
 ```bash
+plans/.active
+```
+
+Plan slug pointer for `plan-file.sh find-active` (tier 2, below `CLAUDE_PLAN_FILE`).
+Single-line file containing a plan slug (no `.md` suffix); persists across sessions.
+Manage via `plan-file.sh set-active <slug>` (Ring B) and `clear-active`.
+Auto-cleared when `transition <plan> done` is called on the pointed plan.
+gitignored — local working state only.
+
+```bash
 CLAUDE_CRITIC_SESSION_TIMEOUT=3600
 ```
 

@@ -180,8 +180,11 @@ block_capability() {
 block_plan_revert() {
   local cmd="$1"
   [[ -z "${PLAN_FILE_SH:-}" ]] && return 0
-  local _active_plan="" _phase=""
-  resolve_active_plan_and_phase _active_plan _phase 2>/dev/null || return 0
+  local _active_plan=""
+  # Use find-active directly: any non-zero (no plan, ambiguous rc=3, malformed rc=4)
+  # means we cannot determine which plan to guard, so skip this check.
+  _active_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) || return 0
+  [[ -z "$_active_plan" ]] && return 0
   marker_present_human_must_clear "$_active_plan" >/dev/null 2>&1 || return 0
   if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+(checkout|restore|apply|am|revert|cherry-pick)[[:space:]]' && \
      printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]]*\.md'; then

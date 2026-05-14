@@ -6,6 +6,9 @@
 # Stray harness plan.md (belongs at harness root, not workspace) — never commit
 /plan.md
 
+# plans/.active sidecar pointer — local working state, not committed
+plans/.active
+
 # Tool caches — never committed
 .ruff_cache/
 __pycache__/

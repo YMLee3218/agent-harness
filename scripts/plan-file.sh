@@ -12,13 +12,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Capability ring gate
 case "$1" in
   # Ring A — agent-callable: read-only or narrative-safe
-  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|is-blocked|has-blocked|is-implemented) ;;
+  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|is-blocked|has-blocked|is-implemented|get-active-pointer|get-active-source) ;;
 
   # Ring B — harness or human: state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
   reset-for-rollback|clear-converged|record-verdict|record-verdict-guarded|append-review-verdict|\
   gc-events|gc-verdicts|record-task-completed|record-stop-block|append-audit|mark-implemented|\
-  inter-feature-reset)
+  inter-feature-reset|set-active|clear-active)
     require_capability "$1" B
     if [ "$1" = "append-review-verdict" ] && [ $# -ge 2 ] && [ ! -f "$2.critic.lock" ]; then
       die "BLOCKED: ${2##*/}.critic.lock absent — append-review-verdict requires run-critic-loop.sh context"
@@ -71,5 +71,9 @@ case "$1" in
   mark-implemented)     [ $# -eq 3 ] || die "Usage: plan-file.sh mark-implemented <plan-file> <feat-slug>"; cmd_mark_implemented "$2" "$3" ;;
   is-blocked|has-blocked) [ $# -ge 2 ] || die "Usage: plan-file.sh is-blocked <plan-file> [kind]"; cmd_is_blocked "$2" "${3:-}" ;;
   inter-feature-reset)  [ $# -eq 2 ] || die "Usage: plan-file.sh inter-feature-reset <plan-file>"; cmd_inter_feature_reset "$2" ;;
+  set-active)           [ $# -eq 2 ] || die "Usage: plan-file.sh set-active <slug>"; cmd_set_active "$2" ;;
+  clear-active)         cmd_clear_active ;;
+  get-active-pointer)   cmd_get_active_pointer ;;
+  get-active-source)    cmd_get_active_source ;;
   *) die "Unknown command: $1" ;;
 esac
