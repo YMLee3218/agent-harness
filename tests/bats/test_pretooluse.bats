@@ -98,6 +98,23 @@ EOF
   unset CLAUDE_PROJECT_DIR
 }
 
+# ── read-only: no-destination commands allowed in ambiguous state ────────────
+
+@test "read-only: no destination commands are allowed in ambiguous state" {
+  cd "$WS_DIR"
+  for cmd in \
+    "echo test" \
+    "git status" \
+    "git status && git branch" \
+    "ls plans/" \
+    "grep foo bar.txt" \
+    "cat foo.txt | head"
+  do
+    run run_hook "$cmd"
+    [ "$status" -eq 0 ] || { echo "FAIL: '$cmd' was blocked"; return 1; }
+  done
+}
+
 # ── git branch escape: allowed in ambiguous state ────────────────────────────
 
 @test "git-escape: git checkout and git switch are allowed in ambiguous state" {

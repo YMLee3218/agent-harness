@@ -39,6 +39,14 @@ if [ -f "$PLAN_FILE_SH" ]; then
     exit 0
   fi
 
+  # Read-only / no-write commands have no phase-gated destination — bypass
+  # plan resolution so ambiguous-plan state does not block status checks,
+  # ls, echo, grep, pipes that only read, etc.
+  _dest_list=$(_bash_dest_paths "$cmd")
+  if [ -z "$_dest_list" ]; then
+    exit 0
+  fi
+
   _active_plan=""; _current_phase=""
   resolve_active_plan_and_phase _active_plan _current_phase || _active_plan=""
   _hmc_marker=""
@@ -58,7 +66,7 @@ if [ -f "$PLAN_FILE_SH" ]; then
     else
       bootstrap_block_if_strict "$_dest_p" || exit 2
     fi
-  done < <(_bash_dest_paths "$cmd")
+  done <<< "$_dest_list"
 fi
 
 exit 0
