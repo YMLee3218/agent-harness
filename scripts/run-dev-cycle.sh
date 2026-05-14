@@ -80,8 +80,14 @@ if [[ -z "$PLAN" ]] || \
      ! bash "$PF" is-converged "$PLAN" brainstorm critic-feature 2>/dev/null; }; then
   run_llm "Invoke the brainstorming skill." opus
   llm_exit "brainstorming"
-  PLAN=$(bash "$PF" find-active 2>/dev/null || true)
-  [[ -z "$PLAN" ]] && { echo "ERROR: plan file not created by brainstorming" >&2; exit 1; }
+  find_rc=0
+  PLAN=$(bash "$PF" find-active 2>/dev/null) || find_rc=$?
+  case $find_rc in
+    0) [[ -n "$PLAN" ]] || { echo "ERROR: plan file not created by brainstorming" >&2; exit 1; } ;;
+    3) echo "ERROR: multiple active plan files after brainstorming — set CLAUDE_PLAN_FILE=plans/{slug}.md" >&2; exit 1 ;;
+    4) echo "ERROR: plan file phase unreadable after brainstorming — repair the ## Phase section" >&2; exit 1 ;;
+    *) echo "ERROR: plan file not created by brainstorming (find-active rc=$find_rc)" >&2; exit 1 ;;
+  esac
   if grep -q '^mode:' "$PLAN" 2>/dev/null; then
     sed -i '' "s/^mode:.*$/mode: ${MODE}/" "$PLAN" 2>/dev/null || true
   else

@@ -111,13 +111,21 @@ die_with_reason() {
 # latest_fallback=0: return 1 immediately when find-active finds nothing.
 _resolve_plan_core() {
   local _pv="$1" _phv="$2" _with_latest_fallback="$3"
-  local __rpc_plan="" __rpc_phase="" _rc
+  local __rpc_plan="" __rpc_phase="" _rc _env_adopted=0
   if [ -n "${CLAUDE_PLAN_FILE:-}" ] && [ -f "$CLAUDE_PLAN_FILE" ]; then
     _assert_plan_file_inside_plans
-    __rpc_plan="$CLAUDE_PLAN_FILE"
-  else
-    __rpc_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null)
-    _rc=$?
+    local _env_phase
+    _env_phase=$(bash "$PLAN_FILE_SH" get-phase "$CLAUDE_PLAN_FILE" 2>/dev/null) || true
+    if [ -n "$_env_phase" ] && [ "$_env_phase" != "done" ]; then
+      __rpc_plan="$CLAUDE_PLAN_FILE"
+      _env_adopted=1
+    elif [ "$_env_phase" = "done" ]; then
+      echo "[active-plan] CLAUDE_PLAN_FILE=$CLAUDE_PLAN_FILE is done; falling through to find-active." >&2
+    fi
+  fi
+  if [ "$_env_adopted" = "0" ]; then
+    _rc=0
+    __rpc_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) || _rc=$?
     die_with_reason "$_rc"
     if [ $_rc -ne 0 ]; then
       if [ "$_with_latest_fallback" = "1" ]; then
