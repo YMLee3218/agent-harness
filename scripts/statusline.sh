@@ -31,8 +31,8 @@ COST_FMT=$(printf '$%.2f' "$COST")
 echo -e "${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET} | ⏱️  ${MINS}m ${SECS}s"
 
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
-plan_file=$("$SCRIPTS_DIR/plan-file.sh" find-active 2>/dev/null)
-_fa_rc=$?
+_fa_rc=0
+plan_file=$("$SCRIPTS_DIR/plan-file.sh" find-active 2>/dev/null) || _fa_rc=$?
 if [ $_fa_rc -eq 3 ]; then
   echo "plan: ambiguous"
 elif [ $_fa_rc -eq 4 ]; then
