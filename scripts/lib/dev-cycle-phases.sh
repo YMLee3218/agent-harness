@@ -40,6 +40,7 @@ _phase_spec_prepass() {
       _cross_ctx=" Also verify consistency against existing specs: ${_other_specs}."
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
+    rm -f "$_rev_marker" 2>/dev/null || true
     run_critic critic-spec spec \
       "Review spec for feature: ${feature}. Spec: ${_spec_for_critic}. Docs: $(docs_paths). Plan: ${PLAN}.${_cross_ctx}"
     llm_exit "critic-spec"

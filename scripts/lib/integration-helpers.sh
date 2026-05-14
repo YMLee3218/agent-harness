@@ -27,6 +27,7 @@ _handle_spec_phase_rollback() {
   bash "$PF" transition "$PLAN" spec "integration failure: ${_cat}"
   bash "$PF" reset-for-rollback "$PLAN" spec
   bash "$PF" reset-milestone "$PLAN" critic-spec
+  rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
   bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"
   bash "$PF" reset-milestone "$PLAN" critic-test
   bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
@@ -37,6 +38,7 @@ _handle_spec_phase_rollback() {
   done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
   git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
   bash "$PF" reset-milestone "$PLAN" critic-spec
+  rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
   run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
   llm_exit "critic-spec"
   bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"

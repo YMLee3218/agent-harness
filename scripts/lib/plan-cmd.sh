@@ -191,6 +191,11 @@ cmd_append_note() {
       esac
       _record_blocked "$plan_file" "$_kind" "harness" "$(basename "$plan_file" .md)" "$note" 2>/dev/null || true
     fi
+  elif printf '%s' "${note:-}" | grep -qE '^\[ESCALATION\]'; then
+    if command -v jq >/dev/null 2>&1; then
+      sc_ensure_dir "$plan_file" || return 1
+      _record_blocked "$plan_file" "escalation" "harness" "$(basename "$plan_file" .md)" "$note" 2>/dev/null || true
+    fi
   fi
 }
 
@@ -672,8 +677,6 @@ cmd_reset_milestone() {
   _append_to_critic_verdicts "$plan_file" \
     "[MILESTONE-BOUNDARY @${ts}] ${scope}:"
   _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
-  [[ "$agent" == "critic-spec" ]] && \
-    rm -f "${plan_file%.md}.state"/spec-reviewed-* 2>/dev/null || true
   echo "[reset-milestone] cleared convergence markers and added milestone boundary for ${scope}" >&2
 }
 
