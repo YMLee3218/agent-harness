@@ -169,4 +169,4 @@ All `[BLOCKED:{kind}]` markers are cleared by `unblock` in a single pass — no 
 export CLAUDE_PLAN_CAPABILITY=human
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "plans/{slug}.md"
 ```
-Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED:{kind}]` marker, but does reset the ceiling counter).
+Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` clears the `[BLOCKED:ceiling]` marker for the given agent and resets the ceiling counter, but does NOT clear any other `[BLOCKED:{kind}]` markers).

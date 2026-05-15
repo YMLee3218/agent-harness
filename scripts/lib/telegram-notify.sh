@@ -23,10 +23,10 @@ if ! declare -F _parse_env_file >/dev/null 2>&1; then
   }
 fi
 
-# telegram_send_blocked PLAN_SLUG QUESTION ENV_FILE ACCESS_FILE
-# Sends a [BLOCKED:spec] or [BLOCKED:docs] notification via Telegram if credentials exist.
+# telegram_send_human_must_clear PLAN_SLUG QUESTION ENV_FILE ACCESS_FILE
+# Sends a human-must-clear BLOCKED notification via Telegram if credentials exist.
 # Returns 0 if notification sent, 1 if credentials missing or invalid.
-telegram_send_blocked_ambiguous() {
+telegram_send_human_must_clear() {
   local _slug="$1" _question="$2" _env_file="$3" _access_file="$4"
   [ -f "$_env_file" ] && [ -f "$_access_file" ] || return 1
   _parse_env_file "$_env_file"

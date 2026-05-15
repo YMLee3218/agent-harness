@@ -22,7 +22,7 @@ _record_blocked() {
   [[ -z "$_nolck" ]] && { sc_ensure_dir "$_plan" || return 1; }
   _bpath=$(sc_path "$_plan" "$SC_BLOCKED") || return 1
   _ts=$(_iso_timestamp)
-  _safe_msg=$(printf '%s' "$_msg" | sed 's/\[BLOCKED[A-Z0-9_:-]*\][[:space:]]*//')
+  _safe_msg=$(printf '%s' "$_msg" | sed 's/^\[BLOCKED:[a-z]*\][[:space:]]*//')
   _rec=$(jq -nc --arg ts "$_ts" --arg kind "$_kind" --arg agent "$_agent" \
     --arg scope "$_scope" --arg msg "$_safe_msg" \
     '{ts:$ts,kind:$kind,agent:$agent,scope:$scope,message:$msg,cleared_at:null}')

@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Capability ring gate
 case "$1" in
   # Ring A — agent-callable: read-only or narrative-safe
-  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|is-blocked|has-blocked|is-implemented) ;;
+  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|is-blocked|is-implemented) ;;
 
   # Ring B — harness or human: state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
@@ -68,7 +68,7 @@ case "$1" in
   is-converged)         [ $# -eq 4 ] || die "Usage: plan-file.sh is-converged <plan-file> <phase> <agent>"; cmd_is_converged "$2" "$3" "$4" ;;
   is-implemented)       [ $# -eq 3 ] || die "Usage: plan-file.sh is-implemented <plan-file> <feat-slug>"; cmd_is_implemented "$2" "$3" ;;
   mark-implemented)     [ $# -eq 3 ] || die "Usage: plan-file.sh mark-implemented <plan-file> <feat-slug>"; cmd_mark_implemented "$2" "$3" ;;
-  is-blocked|has-blocked) [ $# -ge 2 ] || die "Usage: plan-file.sh is-blocked <plan-file> [kind]"; cmd_is_blocked "$2" "${3:-}" ;;
+  is-blocked) [ $# -ge 2 ] || die "Usage: plan-file.sh is-blocked <plan-file> [kind]"; cmd_is_blocked "$2" "${3:-}" ;;
   inter-feature-reset)  [ $# -eq 2 ] || die "Usage: plan-file.sh inter-feature-reset <plan-file>"; cmd_inter_feature_reset "$2" ;;
   *) die "Unknown command: $1" ;;
 esac

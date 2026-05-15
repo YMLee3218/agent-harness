@@ -338,6 +338,45 @@ EOF
   [[ "$output" == *"rc=1"* ]]
 }
 
+@test "B3 regression: unblock resets ceiling_blocked in convergence JSON" {
+  # B3: after unblock, convergence/{phase}__{agent}.json must have ceiling_blocked=false.
+  # Before the fix, ceiling_blocked stayed true and the next run-critic-loop.sh call immediately
+  # re-blocked on the existing ceiling state.
+  local state_dir="$PLAN_DIR/test-feature.state"
+  mkdir -p "$state_dir/convergence"
+  local ts; ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+  # Seed an open ceiling record in blocked.jsonl with scope=implement/critic-code
+  printf '{"ts":"%s","kind":"ceiling","agent":"critic-code","scope":"implement/critic-code","message":"exceeded 20 runs","cleared_at":null}\n' \
+    "$ts" > "$state_dir/blocked.jsonl"
+
+  # Seed convergence JSON with ceiling_blocked=true
+  printf '{"phase":"implement","agent":"critic-code","first_turn":true,"streak":0,"converged":false,"ceiling_blocked":true,"ordinal":21,"milestone_seq":0}\n' \
+    > "$state_dir/convergence/implement__critic-code.json"
+
+  # Also add [BLOCKED:ceiling] line to plan.md
+  printf '\n[BLOCKED:ceiling] critic-code: implement/critic-code exceeded 20 runs — manual review required\n' >> "$PLAN_FILE"
+
+  local wrapper
+  wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
+  printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock "%s"\n' \
+    "$PLAN_BASE" "$SCRIPTS_DIR" "$PLAN_FILE" > "$wrapper"
+  chmod +x "$wrapper"
+  run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
+  rm -f "$wrapper"
+  [ "$status" -eq 0 ]
+
+  # ceiling_blocked must be false in the convergence JSON
+  local cb
+  cb=$(jq -r '.ceiling_blocked' "$state_dir/convergence/implement__critic-code.json" 2>/dev/null || echo "FAIL")
+  [ "$cb" = "false" ]
+
+  # blocked.jsonl ceiling record must have cleared_at set
+  local uncleaned
+  uncleaned=$(jq -r 'select(.kind == "ceiling" and .cleared_at == null) | 1' "$state_dir/blocked.jsonl" 2>/dev/null | awk 'END{print NR}')
+  [ "$uncleaned" -eq 0 ]
+}
+
 @test "clear-marker is no longer a public dispatcher command" {
   # clear-marker was removed from the public Ring C dispatcher.
   # Calling it should fail with a non-zero exit code.

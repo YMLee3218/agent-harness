@@ -184,13 +184,21 @@ cmd_append_note() {
     echo "[cmd_append_note] WARN: [BLOCKED:transient] note suppressed from plan.md — use _record_transient directly" >&2
     return 0
   fi
-  _append_to_open_questions "$plan_file" "$note"
+  local _kind=""
   if printf '%s' "${note:-}" | grep -qE '^\[BLOCKED:'; then
+    _kind=$(printf '%s' "$note" | sed -n 's/^\[BLOCKED:\([a-z]*\)\].*/\1/p')
+    case "${_kind:-}" in
+      envelope|docs|spec|code|env|harness|ceiling) ;;
+      *)
+        echo "[cmd_append_note] WARN: unrecognized BLOCKED kind '${_kind:-empty}' — refusing to write marker" >&2
+        return 1
+        ;;
+    esac
+  fi
+  _append_to_open_questions "$plan_file" "$note"
+  if [[ -n "$_kind" ]]; then
     if command -v jq >/dev/null 2>&1; then
       sc_ensure_dir "$plan_file" || return 1
-      local _kind
-      _kind=$(printf '%s' "$note" | sed -n 's/^\[BLOCKED:\([a-z]*\)\].*/\1/p')
-      [[ -z "$_kind" ]] && _kind="harness"
       local _agent; _agent=$(printf '%s' "$note" | sed -n 's/^\[BLOCKED:[a-z]*\] \([^ :]*\).*/\1/p')
       [[ -z "$_agent" ]] && _agent="harness"
       _record_blocked "$plan_file" "$_kind" "$_agent" "$(basename "$plan_file" .md)" "$note" 2>/dev/null || true
@@ -270,8 +278,8 @@ cmd_context() {
 _dispatch_rls_rc() {
   local _plan="$1" _label="$2" _rc="$3" _phase="${4:-}" _agent="${5:-}"
   if [[ $_rc -eq 1 ]]; then
-    echo "[record-verdict] BLOCKED-CEILING: ${_label}" >&2
-    cmd_append_verdict "$_plan" "${MARK_BLOCKED_CEILING} ${_label}"
+    echo "[record-verdict] [BLOCKED:ceiling]: ${_label}" >&2
+    cmd_append_verdict "$_plan" "[BLOCKED:ceiling] ${_label}"
   else
     echo "[record-verdict] BLOCKED (rc=${_rc}): ${_label} not persisted" >&2
     if [[ -n "$_phase" ]] && [[ -n "$_agent" ]] && [[ $_rc -ne 3 ]]; then
@@ -561,7 +569,7 @@ _cmd_clear_marker_body() {
     _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
     _ts=$(_iso_timestamp)
     # _record_blocked strips [BLOCKED...] prefix; reconstruct kind:agent: prefix for category/parse entries.
-    _stripped_marker=$(printf '%s' "$marker" | sed 's/^\[BLOCKED[A-Z0-9_:-]*\][[:space:]]*//')
+    _stripped_marker=$(printf '%s' "$marker" | sed 's/^\[BLOCKED:[a-z]*\][[:space:]]*//')
     _sc_rewrite_jsonl "$_bpath" \
       'if (.cleared_at == null and (
          ((.message // "") | startswith($marker)) or
@@ -609,9 +617,24 @@ cmd_unblock() {
     local _bpath _ts
     _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
     _ts=$(_iso_timestamp)
+    local _ceiling_scopes=()
+    if [[ -f "$_bpath" ]]; then
+      while IFS= read -r _s; do
+        [[ -n "$_s" ]] && _ceiling_scopes+=("$_s")
+      done < <(jq -r 'select(.cleared_at == null and .kind == "ceiling") | .scope' "$_bpath" 2>/dev/null || true)
+    fi
     _sc_rewrite_jsonl "$_bpath" \
       'if (.cleared_at == null and (.kind | IN("envelope","docs","spec","code","env","harness","ceiling"))) then .cleared_at = $ts else . end' \
       "unblock" --arg ts "$_ts" || return 1
+    for _scope in "${_ceiling_scopes[@]+"${_ceiling_scopes[@]}"}"; do
+      local _cp_phase="${_scope%%/*}" _cp_agent="${_scope##*/}"
+      local _cpath; _cpath=$(sc_conv_path "$plan_file" "$_cp_phase" "$_cp_agent" 2>/dev/null) || continue
+      [[ -f "$_cpath" ]] || continue
+      local _cs; _cs=$(jq '.ceiling_blocked = false' "$_cpath" 2>/dev/null) \
+        || { echo "[unblock] WARN: jq read failed for ${_cpath} — ceiling_blocked may remain true" >&2; continue; }
+      sc_update_json "$_cpath" "$_cs" 2>/dev/null \
+        || echo "[unblock] WARN: failed to write ceiling_blocked=false to ${_cpath}" >&2
+    done
   fi
   local _count=0 _m
   while IFS= read -r _m; do
@@ -877,7 +900,7 @@ cmd_is_blocked() {
     _count=$(jq -r --arg k "$kind" 'select(.cleared_at == null and .kind == $k) | 1' \
       "$_bpath" 2>/dev/null | awk 'END{print NR}' || echo 0)
   else
-    _count=$(jq -r 'select(.cleared_at == null) | 1' "$_bpath" 2>/dev/null | awk 'END{print NR}' || echo 0)
+    _count=$(jq -r 'select(.cleared_at == null and .kind != "transient") | 1' "$_bpath" 2>/dev/null | awk 'END{print NR}' || echo 0)
   fi
   [[ "$_count" -gt 0 ]]
 }

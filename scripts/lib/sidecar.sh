@@ -8,9 +8,6 @@ _SIDECAR_LOADED=1
 SC_VERDICTS="verdicts.jsonl"
 SC_BLOCKED="blocked.jsonl"
 SC_IMPLEMENTED="implemented.json"
-SC_VERDICTS_ARCHIVE="verdicts-archive.jsonl"
-SC_BLOCKED_ARCHIVE="blocked-archive.jsonl"
-MARK_BLOCKED_CEILING="[BLOCKED:ceiling]"
 
 # Defined here so sidecar helpers can use it without active-plan.sh dependency.
 # active-plan.sh re-exports the same function if loaded first; both definitions are identical.
@@ -211,53 +208,6 @@ _sc_rewrite_jsonl() {
   fi
 }
 
-# _sc_rotate_jsonl SRC ARCHIVE KEEP_FILTER ARCHIVE_FILTER LOG_TAG [JQ_ARGS...]
-# Archive is written atomically: both keep and archive jq outputs succeed BEFORE either file is modified.
-_sc_rotate_jsonl_body() {
-  local _src="$1" _archive="$2" _keep_filter="$3" _archive_filter="$4" _tmp="$5" _atmp="$6"; shift 6
-  if ! jq -c "$@" "$_keep_filter" "$_src" 2>/dev/null > "$_tmp"; then
-    rm -f "$_tmp" "$_atmp"; return 1
-  fi
-  if ! jq -c "$@" "$_archive_filter" "$_src" 2>/dev/null > "$_atmp"; then
-    rm -f "$_tmp" "$_atmp"; return 1
-  fi
-  # Commit order: replace source FIRST, then append to archive atomically (cp+cat+mv).
-  # If interrupted after mv, source is clean — duplicates on next rotation are impossible.
-  # Archive append uses cp+cat+mv so a SIGINT mid-write doesn't corrupt the existing archive.
-  if ! mv "$_tmp" "$_src"; then
-    rm -f "$_tmp" "$_atmp"; return 1
-  fi
-  if [[ -f "$_archive" ]]; then
-    local _archmp
-    _archmp=$(_sc_mktemp "$_archive") || { rm -f "$_atmp"; return 1; }
-    if ! cp "$_archive" "$_archmp" || ! cat "$_atmp" >> "$_archmp"; then
-      rm -f "$_atmp" "$_archmp"; return 1
-    fi
-    mv "$_archmp" "$_archive" || { rm -f "$_atmp" "$_archmp"; return 1; }
-  else
-    mv "$_atmp" "$_archive" || { rm -f "$_atmp"; return 1; }
-    _atmp=""
-  fi
-  [[ -n "${_atmp:-}" ]] && rm -f "$_atmp"
-  return 0
-}
-_sc_rotate_jsonl() {
-  local _src="$1" _archive="$2" _keep_filter="$3" _archive_filter="$4" _log_tag="$5"
-  shift 5
-  local _tmp _atmp _rc=0
-  _tmp=$(_sc_mktemp "$_src") || return 1
-  _atmp=$(_sc_mktemp "${_src}.arch") || { rm -f "$_tmp"; return 1; }
-  _with_lock "${_src}.lock" _sc_rotate_jsonl_body \
-    "$_src" "$_archive" "$_keep_filter" "$_archive_filter" "$_tmp" "$_atmp" "$@" || _rc=$?
-  if [[ $_rc -ne 0 ]]; then
-    rm -f "$_tmp" "$_atmp" 2>/dev/null || true
-    echo "[${_log_tag}] WARNING: rotation of ${_src} failed — manual file repair required" >&2
-    return 1
-  fi
-  rm -f "$_tmp" "$_atmp" 2>/dev/null || true
-  return 0
-}
-
 # Convergence JSON schema (convergence/{phase}__{agent}.json):
 # {"phase":"implement","agent":"critic-code","first_turn":true,"streak":2,
 #  "converged":true,"ceiling_blocked":false,"ordinal":2,"milestone_seq":0}
@@ -314,14 +264,15 @@ _record_transient() {
     --arg ts "$_ts" --arg agent "$_agent" --arg sk "$_sub_kind" --arg detail "$_detail" \
     '{"ts":$ts,"kind":"transient","agent":$agent,"sub_kind":$sk,"detail":$detail,"cleared_at":null}')" 2>/dev/null || true
   if [[ "$_current" -ge "$_threshold" ]]; then
+    _sc_rewrite_jsonl "$_bpath" \
+      'if (.kind == "transient" and .agent == $a and .sub_kind == $sk and .cleared_at == null) then .cleared_at = $ts else . end' \
+      "transient-promote" \
+      --arg a "$_agent" --arg sk "$_sub_kind" --arg ts "$_ts" 2>/dev/null || true
     local _env_msg="[BLOCKED:env] ${_agent}: ${_sub_kind} — recurred ${_current} times: ${_detail}"
-    [[ -n "$_pf_sh" ]] && bash "$_pf_sh" append-note "$_plan" "$_env_msg" 2>/dev/null || true
     local _reset
     _reset=$(printf '%s' "$_new_counters" | jq --arg k "$_key" 'del(.[$k])')
     sc_update_json "$_cpath" "$_reset"
-    sc_append_jsonl "$_bpath" "$(jq -nc \
-      --arg ts "$_ts" --arg agent "$_agent" --arg sk "$_sub_kind" --arg msg "$_env_msg" \
-      '{"ts":$ts,"kind":"env","agent":$agent,"sub_kind":$sk,"message":$msg,"cleared_at":null}')" 2>/dev/null || true
+    [[ -n "$_pf_sh" ]] && bash "$_pf_sh" append-note "$_plan" "$_env_msg" 2>/dev/null || true
     echo "[transient] promoted ${_agent}/${_sub_kind} to [BLOCKED:env] after ${_current} occurrences" >&2
     return 0
   fi

@@ -86,7 +86,8 @@ _libs() {
 
   local bpath="$state_dir/blocked.jsonl"
   [ -f "$bpath" ]
-  local env_record; env_record=$(jq -r 'select(.kind == "env" and .sub_kind == "loop-lock") | .agent' "$bpath" 2>/dev/null || true)
+  # env record is written by append-note → _record_blocked (no sub_kind field — check by kind+agent)
+  local env_record; env_record=$(jq -r 'select(.kind == "env" and .agent == "critic-code") | .agent' "$bpath" 2>/dev/null || true)
   [ "$env_record" = "critic-code" ]
 }
 
@@ -225,4 +226,52 @@ _libs() {
   [ -f "$cpath" ]
   local count; count=$(jq -r '."critic-spec__loop-lock" // 0' "$cpath" 2>/dev/null || echo 0)
   [ "$count" -eq 1 ]
+}
+
+@test "B2 regression: is-blocked (no kind) returns false when only transient records exist" {
+  # K=3 transient occurrences accumulate; before B2 fix, is-blocked would count them and return true.
+  local state_dir="$PLAN_DIR/test-feature.state"
+  mkdir -p "$state_dir"
+  local ts; ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  for i in 1 2 3; do
+    printf '{"ts":"%s","kind":"transient","agent":"critic-code","sub_kind":"session-timeout","detail":"after 3600s","cleared_at":null}\n' \
+      "$ts" >> "$state_dir/blocked.jsonl"
+  done
+
+  run bash -c "
+    $(_libs)
+    export CLAUDE_PLAN_CAPABILITY=harness
+    source '$SCRIPTS_DIR/lib/plan-cmd.sh'
+    cmd_is_blocked '$PLAN_FILE'
+  " 2>&1
+  # is-blocked must return 1 (not blocked) when only transient records are open
+  [ "$status" -ne 0 ]
+}
+
+@test "B4 regression: after promotion, exactly one open env record and all transient records cleared" {
+  # B4: promotion must close all transient records for (agent, sub_kind) and write exactly one env record.
+  local state_dir="$PLAN_DIR/test-feature.state"
+  mkdir -p "$state_dir"
+  # Pre-seed counter at K-1=2 so next call is the K-th (promoting) call
+  printf '{"critic-code__session-timeout":2}\n' > "$state_dir/transient_counters.json"
+
+  bash -c "
+    $(_libs)
+    _record_transient '$PLAN_FILE' 'critic-code' 'session-timeout' 'after 3600s' '$SCRIPTS_DIR/plan-file.sh'
+  " 2>/dev/null || true
+
+  local bpath="$state_dir/blocked.jsonl"
+  [ -f "$bpath" ]
+
+  # All transient records for this (agent, sub_kind) must have cleared_at set
+  local open_transient
+  open_transient=$(jq -r 'select(.kind=="transient" and .agent=="critic-code" and .sub_kind=="session-timeout" and .cleared_at==null) | 1' \
+    "$bpath" 2>/dev/null | awk 'END{print NR}')
+  [ "$open_transient" -eq 0 ]
+
+  # Exactly one open env record for this agent (env records use kind+agent; sub_kind not written by _record_blocked)
+  local open_env
+  open_env=$(jq -r 'select(.kind=="env" and .agent=="critic-code" and .cleared_at==null) | 1' \
+    "$bpath" 2>/dev/null | awk 'END{print NR}')
+  [ "$open_env" -eq 1 ]
 }

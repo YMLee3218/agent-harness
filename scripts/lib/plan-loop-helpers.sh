@@ -103,7 +103,7 @@ _ceiling_block() {
   conv_state=$(sc_read_json "$convergence_path" \
     '{"first_turn":false,"streak":0,"converged":false,"ceiling_blocked":false,"ordinal":0,"milestone_seq":0}')
   sc_update_json "$convergence_path" "$(printf '%s' "$conv_state" | jq '.ceiling_blocked = true')"
-  echo "[record-loop-state] BLOCKED-CEILING: ${scope} run #${run_ordinal} exceeds ceiling ${ceiling}" >&2
+  echo "[record-loop-state] [BLOCKED:ceiling]: ${scope} run #${run_ordinal} exceeds ceiling ${ceiling}" >&2
   return 1
 }
 
@@ -139,7 +139,7 @@ _record_loop_state_body() {
   # if already ceiling-blocked, return immediately.
   local prior_cb; prior_cb=$(printf '%s' "$conv_state" | jq -r '.ceiling_blocked // false')
   if [[ "$prior_cb" == "true" ]]; then
-    echo "[record-loop-state] BLOCKED-CEILING: ${scope} already ceiling-blocked — run reset-milestone or unblock to resume" >&2
+    echo "[record-loop-state] [BLOCKED:ceiling]: ${scope} already ceiling-blocked — run reset-milestone or unblock to resume" >&2
     return 1
   fi
   local ms; ms=$(printf '%s' "$conv_state" | jq -r '.milestone_seq // 0')

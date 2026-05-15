@@ -54,7 +54,7 @@ if _hmc_found=$(marker_present_human_must_clear "$active_plan" 2>/dev/null); the
   _question=$(grep -F "[$_hmc_found" "$active_plan" | head -1)
   [[ -z "$_question" ]] && _question=$(grep -F "$_hmc_found" "$active_plan" | head -1)
   _slug=$(basename "$active_plan" .md)
-  telegram_send_blocked_ambiguous "$_slug" "$_question" \
+  telegram_send_human_must_clear "$_slug" "$_question" \
     "$HOME/.claude/channels/telegram/.env" \
     "$HOME/.claude/channels/telegram/access.json" 2>/dev/null || true
   echo "[stop-check] [$_hmc_found] detected — Telegram notified; allowing stop" >&2
