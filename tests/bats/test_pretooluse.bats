@@ -70,9 +70,9 @@ run_hook_with_plan() {
 
 @test "block_ambiguous: sed -i to delete any HMCM marker is blocked when marker present" {
   local markers=(
-    "BLOCKED-CEILING] implement/critic-code: exceeded 5 runs"
-    "BLOCKED-AMBIGUOUS] critic-code: should we use approach A or B?"
-    "BLOCKED] category:critic-code: FAIL_TYPE failed twice"
+    "BLOCKED:ceiling] critic-code: implement/critic-code exceeded 20 runs — manual review required"
+    "BLOCKED:spec] critic-code: ambiguous — should we use approach A or B?"
+    "BLOCKED:code] critic-code: category — FAIL_TYPE failed twice"
   )
   local td plan_file m
   for m in "${markers[@]}"; do
@@ -173,7 +173,7 @@ schema: 2
 ## Phase
 implement
 ## Open Questions
-[BLOCKED-AMBIGUOUS] critic-code: some question
+[BLOCKED:spec] critic-code: ambiguous — some question
 EOF
     export CLAUDE_PROJECT_DIR="$td"
     run run_hook_with_plan "$cmd" "$plan_file"

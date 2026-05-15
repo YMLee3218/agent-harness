@@ -25,13 +25,16 @@ ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
   exit 5
 }
 
+# Source sidecar for transient mechanism (needed before lock check and in while loop)
+source "$(dirname "${BASH_SOURCE[0]}")/lib/sidecar.sh" 2>/dev/null || true
+
 # Lock file — prevent concurrent runs on the same plan.
 # record-verdict-guarded requires this lock to exist when a critic subagent stops.
 LOOP_LOCK="${PLAN}.critic.lock"
 if [[ $NESTED -eq 0 ]]; then
   if ! (set -C; echo $$ > "$LOOP_LOCK") 2>/dev/null; then
-    bash "$PLAN_FILE_SH" append-note "$PLAN" \
-      "[BLOCKED] ${AGENT}: critic loop already running for this plan — wait for the active run to finish or remove $(basename "$LOOP_LOCK")" 2>/dev/null || true
+    _record_transient "$PLAN" "$AGENT" loop-lock \
+      "critic loop already running — wait or remove $(basename "$LOOP_LOCK")" "$PLAN_FILE_SH" 2>/dev/null || true
     echo "=== run-critic-loop: already running for $PLAN ===" >&2; exit 3
   fi
   trap 'rm -f "$LOOP_LOCK"' EXIT
@@ -60,8 +63,8 @@ SESSION_TIMEOUT="${CLAUDE_CRITIC_SESSION_TIMEOUT:-3600}"
 # indefinitely. Mirrors stop-check.sh:140-144. Set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to bypass.
 if [[ -z "$TIMEOUT_CMD" ]] && [[ "$SESSION_TIMEOUT" != "0" ]]; then
   bash "$PLAN_FILE_SH" append-note "$PLAN" \
-    "[BLOCKED] ${AGENT}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap" 2>/dev/null || true
-  echo "[BLOCKED] ${AGENT}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap" >&2
+    "[BLOCKED:env] ${AGENT}: no-timeout-binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap" 2>/dev/null || true
+  echo "[BLOCKED:env] ${AGENT}: no-timeout-binary — install GNU coreutils or set CLAUDE_CRITIC_SESSION_TIMEOUT=0" >&2
   exit 1
 fi
 
@@ -76,20 +79,19 @@ while true; do
   fi
 
   # Ceiling-blocked: check sidecar convergence file (per scope — not plan.md)
-  source "$(dirname "${BASH_SOURCE[0]}")/lib/sidecar.sh" 2>/dev/null || true
   _conv_path=$(sc_conv_path "$PLAN" "$PHASE" "$AGENT" 2>/dev/null) || {
     echo "[run-critic-loop] ERROR: sc_conv_path failed — CLAUDE_PROJECT_DIR may be unset" >&2
     exit 1
   }
   if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then
     if jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
-      echo "[BLOCKED-CEILING] ${PHASE}/${AGENT}: exceeded critic ceiling — manual review required" >&2
+      echo "[BLOCKED:ceiling] ${AGENT}: ${PHASE}/${AGENT} exceeded critic ceiling — manual review required" >&2
       exit 2
     fi
   fi
-  # General blocked check: sidecar blocked.jsonl only (D5 removed plan.md fallback)
+  # General blocked check: sidecar blocked.jsonl only
   if bash "$PLAN_FILE_SH" is-blocked "$PLAN" 2>/dev/null; then
-    echo "[BLOCKED] active block detected — exiting critic loop" >&2
+    echo "[BLOCKED:*] active block detected — exiting critic loop" >&2
     exit 1
   fi
 
@@ -138,16 +140,17 @@ or
     fi
     rm -f "${_review_out:-}"
     if [[ $exit_code -eq 124 ]]; then
-      bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED] ${AGENT}: session-timeout after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" 2>/dev/null || true
-      echo "[BLOCKED] session-timeout after ${SESSION_TIMEOUT}s" >&2; exit 1
+      _record_transient "$PLAN" "$AGENT" session-timeout \
+        "after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" "$PLAN_FILE_SH" 2>/dev/null || true
+      echo "[transient] session-timeout after ${SESSION_TIMEOUT}s" >&2; exit 1
     else
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED] ${AGENT}: script-failure: ${exit_code} — claude session exited unexpectedly; check session logs" 2>/dev/null || true
-      echo "[BLOCKED] script-failure: ${exit_code}" >&2; exit 1
+        "[BLOCKED:env] ${AGENT}: script-failure — exit ${exit_code}; check session logs" 2>/dev/null || true
+      echo "[BLOCKED:env] script-failure: ${exit_code}" >&2; exit 1
     fi
   }
   CLAUDE_PID=""
+  _clear_transient_for "$PLAN" "$AGENT" 2>/dev/null || true
 
   # For pr-review: echo captured output then extract nonce-anchored verdict marker and record it.
   # nonce prevents the grep from matching a doc citation of the marker format.
@@ -170,8 +173,8 @@ or
   fi
   if [[ "$_last_cat" == "ENVELOPE_MISMATCH" ]] || [[ "$_last_cat" == "ENVELOPE_OVERREACH" ]]; then
     bash "$PLAN_FILE_SH" append-note "$PLAN" \
-      "[ESCALATION] ${AGENT}: ${_last_cat} — operating envelope must be corrected before critic can proceed; correct the Operating Envelope section in the spec and re-run" 2>/dev/null || true
-    echo "[ESCALATION] ${_last_cat} — manual envelope correction required; exiting critic loop" >&2
+      "[BLOCKED:envelope] ${AGENT}: ${_last_cat} — correct Operating Envelope in spec and re-run" 2>/dev/null || true
+    echo "[BLOCKED:envelope] ${_last_cat} — manual envelope correction required; exiting critic loop" >&2
     exit 4
   fi
 
@@ -181,8 +184,8 @@ or
     CONSECUTIVE_NOOP=$((CONSECUTIVE_NOOP + 1))
     if [[ $CONSECUTIVE_NOOP -ge 2 ]]; then
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED] ${AGENT}: plan unchanged for ${CONSECUTIVE_NOOP} consecutive iterations — critic is not writing to plan file; check session logs" 2>/dev/null || true
-      echo "[BLOCKED] plan unchanged for $CONSECUTIVE_NOOP consecutive iterations" >&2; exit 1
+        "[BLOCKED:env] ${AGENT}: plan-unchanged — for ${CONSECUTIVE_NOOP} iterations; check session logs" 2>/dev/null || true
+      echo "[BLOCKED:env] plan-unchanged for $CONSECUTIVE_NOOP consecutive iterations" >&2; exit 1
     fi
   else
     CONSECUTIVE_NOOP=0

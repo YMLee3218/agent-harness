@@ -68,12 +68,12 @@ fi
 # done is excluded: see header comment — session already closed, no test run needed.
 phase_runs_stop_check "$phase" || exit 0
 
-# if integration phase and a [BLOCKED] integration marker is already recorded,
+# if integration phase and a [BLOCKED:code] integration marker is already recorded,
 # allow the stop without re-running tests to avoid infinite Stop-hook block loops.
 # Reads from sidecar blocked.jsonl exclusively (no plan.md fallback).
 if [ "$phase" = "integration" ]; then
-  if bash "$PLAN_FILE_SH" is-blocked "$active_plan" integration 2>/dev/null; then
-    echo "[stop-check] integration [BLOCKED] already recorded — allowing stop (sidecar self-halt)" >&2
+  if bash "$PLAN_FILE_SH" is-blocked "$active_plan" code 2>/dev/null; then
+    echo "[stop-check] [BLOCKED:code] already recorded — allowing stop (sidecar self-halt)" >&2
     exit 0
   fi
 fi

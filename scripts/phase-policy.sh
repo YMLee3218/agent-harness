@@ -122,44 +122,27 @@ apply_phase_block() {
 }
 
 # NOTE: [INFO] falls through to user_memos in gc-events.
-# [BLOCKED] category:/parse: — persists across phase rollback; requires explicit clear-marker.
-# [BLOCKED-AMBIGUOUS] — persists across phase rollback; embedded question requires human input.
-#   Recipe: resolve, then plan-file.sh clear-marker "[BLOCKED-AMBIGUOUS] {agent}" and re-run.
-# Markers that require human intervention to clear.
+# Markers that require human intervention to clear (7 kinds — [BLOCKED:transient] excluded).
+# Clear all at once with: plan-file.sh unblock
 HUMAN_MUST_CLEAR_MARKERS=(
-  "[BLOCKED-AMBIGUOUS]"
-  "[BLOCKED-CEILING]"
-  "[ESCALATION]"
-  "[BLOCKED] protocol-violation:"
-  "[BLOCKED] category:"
-  "[BLOCKED] parse:"
-  "[BLOCKED] integration:"
-  "[BLOCKED] preflight:"
-  "[BLOCKED] coder:"
-  "[BLOCKED] script-failure:"
-  "[BLOCKED] post-implement smoke test"
-  ": session-timeout"
-  ": script-failure"
-  ": no timeout binary"
-  ": plan unchanged"
+  "[BLOCKED:envelope]"
+  "[BLOCKED:docs]"
+  "[BLOCKED:spec]"
+  "[BLOCKED:code]"
+  "[BLOCKED:env]"
+  "[BLOCKED:harness]"
+  "[BLOCKED:ceiling]"
 )
 
 # Echoes the first matching HUMAN_MUST_CLEAR_MARKERS entry if any is present in $1
 # (plan file path). Returns 1 if none found.
-# Markers beginning with '[' must appear at the start of a line (line-anchored ERE)
-# so historical audit prose containing the same text mid-sentence does not trigger.
-# Colon-prefixed markers (": session-timeout" etc.) are sub-patterns of a
-# "[BLOCKED] {agent}: ..." line and are matched as substrings.
+# All markers begin with '[BLOCKED:' and must appear at line start (line-anchored ERE).
 marker_present_human_must_clear() {
   local plan_file="$1" marker escaped
   [[ -f "$plan_file" ]] || return 1
   for marker in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
-    if [[ "$marker" == \[* ]]; then
-      escaped=$(printf '%s' "$marker" | sed 's/[][\\.*^$(){}?+|]/\\&/g')
-      grep -qE "^[[:space:]]*${escaped}" "$plan_file" 2>/dev/null || continue
-    else
-      grep -qF "$marker" "$plan_file" 2>/dev/null || continue
-    fi
+    escaped=$(printf '%s' "$marker" | sed 's/[][\\.*^$(){}?+|]/\\&/g')
+    grep -qE "^[[:space:]]*${escaped}" "$plan_file" 2>/dev/null || continue
     printf '%s\n' "$marker"; return 0
   done
   return 1

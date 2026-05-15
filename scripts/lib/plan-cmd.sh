@@ -179,22 +179,21 @@ cmd_commit_phase() {
 cmd_append_note() {
   local plan_file="$1" note="$2"
   require_file "$plan_file"
+  # [BLOCKED:transient] must never reach plan.md — route to sidecar transient counter only.
+  if printf '%s' "${note:-}" | grep -qF '[BLOCKED:transient]'; then
+    echo "[cmd_append_note] WARN: [BLOCKED:transient] note suppressed from plan.md — use _record_transient directly" >&2
+    return 0
+  fi
   _append_to_open_questions "$plan_file" "$note"
-  if printf '%s' "${note:-}" | grep -qE '^\[BLOCKED'; then
+  if printf '%s' "${note:-}" | grep -qE '^\[BLOCKED:'; then
     if command -v jq >/dev/null 2>&1; then
       sc_ensure_dir "$plan_file" || return 1
-      local _kind="runtime"
-      case "$note" in
-        *'[BLOCKED] preflight:'*) _kind="preflight" ;;
-        *'[BLOCKED] integration:'*) _kind="integration" ;;
-        *'[BLOCKED-AMBIGUOUS]'*) _kind="ambiguous" ;;
-      esac
-      _record_blocked "$plan_file" "$_kind" "harness" "$(basename "$plan_file" .md)" "$note" 2>/dev/null || true
-    fi
-  elif printf '%s' "${note:-}" | grep -qE '^\[ESCALATION\]'; then
-    if command -v jq >/dev/null 2>&1; then
-      sc_ensure_dir "$plan_file" || return 1
-      _record_blocked "$plan_file" "escalation" "harness" "$(basename "$plan_file" .md)" "$note" 2>/dev/null || true
+      local _kind
+      _kind=$(printf '%s' "$note" | sed -n 's/^\[BLOCKED:\([a-z]*\)\].*/\1/p')
+      [[ -z "$_kind" ]] && _kind="harness"
+      local _agent; _agent=$(printf '%s' "$note" | sed -n 's/^\[BLOCKED:[a-z]*\] \([^ :]*\).*/\1/p')
+      [[ -z "$_agent" ]] && _agent="harness"
+      _record_blocked "$plan_file" "$_kind" "$_agent" "$(basename "$plan_file" .md)" "$note" 2>/dev/null || true
     fi
   fi
 }
@@ -280,7 +279,7 @@ _dispatch_rls_rc() {
       _record_blocked_runtime "$_plan" "$_agent" "$_scope" \
         "runtime failure (rc=${_rc}) persisting verdict — sidecar may need manual inspection"
     fi
-    cmd_append_verdict "$_plan" "[BLOCKED] kind=runtime ${_label}"
+    cmd_append_verdict "$_plan" "[BLOCKED:harness] sidecar: runtime — ${_label}"
   fi
   exit 1
 }
@@ -305,8 +304,8 @@ _check_consecutive_and_block() {
     fi
   fi
   if [[ -n "$_prev_val" ]] && [[ "$_prev_val" == "$match_val" ]]; then
-    _append_to_open_questions "$plan_file" "[BLOCKED] ${kind}:${agent}: ${msg}"
-    _record_blocked "$plan_file" "$kind" "$agent" "$_scope" "$msg" 2>/dev/null || true
+    _append_to_open_questions "$plan_file" "[BLOCKED:code] ${agent}: ${kind} — ${msg}"
+    _record_blocked "$plan_file" "code" "$agent" "$_scope" "$msg" 2>/dev/null || true
     echo "[record-verdict] ${log_label}" >&2
     return 0
   fi
@@ -387,7 +386,7 @@ _handle_parse_error() {
     0) : ;;
     1) echo "[record-verdict] ${retry_msg}" >&2
        cmd_append_verdict "$plan_file" "${current_phase}/${agent}: PARSE_ERROR" ;;
-    2) cmd_append_verdict "$plan_file" "[BLOCKED] kind=corrupt-check ${current_phase}/${agent}: PARSE_ERROR" ;;
+    2) cmd_append_verdict "$plan_file" "[BLOCKED:harness] sidecar: corrupt-check — ${current_phase}/${agent}: PARSE_ERROR" ;;
   esac
   exit 1
 }
@@ -502,7 +501,7 @@ _persist_verdict() {
     case $_ccb_rc in
       0) cmd_append_verdict "$_plan" "$_label"; exit 1 ;;
       1) : ;;
-      2) cmd_append_verdict "$_plan" "[BLOCKED] kind=corrupt-check ${_label}"; exit 1 ;;
+      2) cmd_append_verdict "$_plan" "[BLOCKED:harness] sidecar: corrupt-check — ${_label}"; exit 1 ;;
     esac
   fi
   cmd_append_verdict "$_plan" "$_label"
@@ -535,8 +534,10 @@ cmd_record_verdict_guarded() {
   if [ -z "$_lock" ] || [ ! -f "$_lock" ]; then
     if [ "$_find_rc" -eq 0 ]; then
       sc_ensure_dir "$_plan" || { echo "ERROR: [record-verdict-guarded] sc_ensure_dir failed: $_plan" >&2; exit 2; }
-      _record_blocked_runtime "$_plan" "$_agent" "protocol-violation" \
-        "invoked outside run-critic-loop.sh context"
+      _record_blocked "$_plan" "harness" "$_agent" "$(basename "$_plan" .md)" \
+        "protocol-violation — invoked outside run-critic-loop.sh context" 2>/dev/null || true
+      _append_to_open_questions "$_plan" \
+        "[BLOCKED:harness] ${_agent}: protocol-violation — invoked outside run-critic-loop.sh context"
     fi
     echo "[record-verdict-guarded] BLOCKED: ${_agent} ran outside run-critic-loop.sh" >&2
     exit 2
@@ -563,9 +564,9 @@ _cmd_clear_marker_body() {
     _stripped_marker=$(printf '%s' "$marker" | sed 's/^\[BLOCKED[A-Z0-9_:-]*\][[:space:]]*//')
     _sc_rewrite_jsonl "$_bpath" \
       'if (.cleared_at == null and (
-         (.message | startswith($marker)) or
-         (.message | startswith($stripped)) or
-         ((.kind + ":" + .agent + ": " + .message) | startswith($stripped))
+         ((.message // "") | startswith($marker)) or
+         ((.message // "") | startswith($stripped)) or
+         ((.kind + ":" + .agent + ": " + (.message // "")) | startswith($stripped))
        )) then .cleared_at = $ts else . end' \
       "clear-marker" \
       --arg marker "$marker" --arg stripped "$_stripped_marker" --arg ts "$_ts" || return 1
@@ -592,59 +593,37 @@ cmd_clear_marker() {
   echo "[clear-marker] removed '$marker' from ## Open Questions in $plan_file" >&2
 }
 
-# cmd_unblock clears [BLOCKED*:agent:...] lines for the named agent (human shorthand only — Ring C gated).
+# cmd_unblock clears all human-must-clear [BLOCKED:{kind}] lines from ## Open Questions.
+# No agent argument — clears all 7 human-must kinds at once (Ring C gated).
+# [BLOCKED:transient] is intentionally excluded — it has auto lifecycle.
 cmd_unblock() {
-  local agent="$1"
-  _validate_critic_agent "$agent" "unblock"
+  local _explicit="${1:-}"
   local plan_file
-  plan_file=$(cmd_find_active) || die "unblock: no active plan found"
+  if [[ -n "$_explicit" ]]; then
+    plan_file="$_explicit"
+    [[ -f "$plan_file" ]] || die "unblock: plan file not found: $plan_file"
+  else
+    plan_file=$(cmd_find_active) || die "unblock: no active plan found"
+  fi
   if command -v jq >/dev/null 2>&1; then
-    local _bpath _ts _jq_filter
+    local _bpath _ts
     _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
     _ts=$(_iso_timestamp)
-    _jq_filter='if (.cleared_at == null and .agent == $agent) then .cleared_at = $ts else . end'
-    _sc_rewrite_jsonl "$_bpath" "$_jq_filter" "unblock" \
-      --arg agent "$agent" --arg ts "$_ts" || return 1
+    _sc_rewrite_jsonl "$_bpath" \
+      'if (.cleared_at == null and (.kind | IN("envelope","docs","spec","code","env","harness","ceiling"))) then .cleared_at = $ts else . end' \
+      "unblock" --arg ts "$_ts" || return 1
   fi
-  # Collect agent-matched [BLOCKED*] lines and clear each via cmd_clear_marker.
-  local _m
+  local _count=0 _m
   while IFS= read -r _m; do
     [[ -n "$_m" ]] || continue
     cmd_clear_marker "$plan_file" "$_m"
-  done < <(awk -v a="$agent" '
+    _count=$((_count + 1))
+  done < <(awk '
     /^## Open Questions$/ { s=1; next }
     s && /^## /           { exit }
-    s && /\[BLOCKED/ {
-      if (match($0, /\[BLOCKED[^:]*:[^:]*:/)) {
-        f = substr($0, RSTART, RLENGTH)
-        sub(/^\[BLOCKED[^:]*:/, "", f); sub(/:$/, "", f)
-        if (f == a) { print; next }
-      }
-      if (/\[BLOCKED-AMBIGUOUS\] /) {
-        p = "[BLOCKED-AMBIGUOUS] "
-        if (substr($0, 1, length(p)) == p) {
-          r = substr($0, length(p) + 1)
-          colon = index(r, ":")
-          if (colon > 0 && substr(r, 1, colon - 1) == a) print
-        }
-        next
-      }
-      if (/\[BLOCKED-CEILING\]/) {
-        p = "[BLOCKED-CEILING] "
-        if (substr($0, 1, length(p)) == p) {
-          r = substr($0, length(p) + 1); sp = index(r, "/")
-          if (sp > 0) {
-            as = substr(r, sp + 1)
-            if (substr(as, 1, length(a)) == a) {
-              nx = (length(as) > length(a)) ? substr(as, length(a)+1, 1) : ""
-              if (nx == "" || nx == " " || nx == ":") print
-            }
-          }
-        }
-      }
-    }
+    s && /^\[BLOCKED:(envelope|docs|spec|code|env|harness|ceiling)\]/ { print }
   ' "$plan_file" 2>/dev/null || true)
-  echo "[unblock] cleared [BLOCKED*] markers for '${agent}' in ${plan_file}" >&2
+  echo "[unblock] cleared ${_count} markers in ${plan_file}" >&2
 }
 
 cmd_clear_converged() {
@@ -669,9 +648,9 @@ cmd_reset_milestone() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-milestone")
   local scope; scope=$(_scope_of "$current_phase" "$agent")
-  cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] ${scope}"
+  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] ${agent}"
   _clear_ceiling_sidecar_entry "$plan_file" "${scope}"
-  cmd_clear_marker "$plan_file" "[FIRST-TURN] ${scope}"
+  _reset_all_transient_counters "$plan_file" 2>/dev/null || true
   local ts
   ts=$(_iso_timestamp)
   _append_to_critic_verdicts "$plan_file" \
@@ -686,15 +665,15 @@ cmd_reset_pr_review() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-pr-review")
   for phase in implement review; do
-    cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] ${phase}/pr-review"
+    cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] pr-review"
     _clear_ceiling_sidecar_entry "$plan_file" "${phase}/pr-review"
-    cmd_clear_marker "$plan_file" "[FIRST-TURN] ${phase}/pr-review"
     local ts
     ts=$(_iso_timestamp)
     _append_to_critic_verdicts "$plan_file" \
       "[MILESTONE-BOUNDARY @${ts}] ${phase}/pr-review:"
     _sc_reset_convergence_for_scope "$plan_file" "$phase" "pr-review"
   done
+  _reset_all_transient_counters "$plan_file" 2>/dev/null || true
   echo "[reset-pr-review] cleared pr-review convergence markers for implement and review phases" >&2
 }
 
@@ -705,9 +684,9 @@ cmd_reset_phase_state() {
   cmd_set_phase "$plan_file" "$target_phase"
   cmd_reset_milestone "$plan_file" critic-code
   cmd_reset_pr_review "$plan_file"
-  cmd_clear_marker "$plan_file" "[BLOCKED-CEILING] review/critic-code"
+  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-code"
   _clear_ceiling_sidecar_entry "$plan_file" "review/critic-code"
-  cmd_clear_marker "$plan_file" "[FIRST-TURN] review/critic-code"
+  _reset_all_transient_counters "$plan_file" 2>/dev/null || true
   echo "[reset-for-rollback] phase set to ${target_phase}; critic-code and pr-review state cleared" >&2
 }
 
@@ -785,8 +764,8 @@ cmd_tier_safe() {
       blocked_tasks="${blocked_tasks} ${task_id}(ledger:blocked)"
       continue
     fi
-    if grep -qF "[BLOCKED] coder:${task_id}" "$plan_file" 2>/dev/null; then
-      blocked_tasks="${blocked_tasks} ${task_id}([BLOCKED] coder)"
+    if grep -qF "[BLOCKED:code] coder:${task_id}" "$plan_file" 2>/dev/null; then
+      blocked_tasks="${blocked_tasks} ${task_id}([BLOCKED:code] coder)"
     fi
   done
   if [ -n "$blocked_tasks" ]; then

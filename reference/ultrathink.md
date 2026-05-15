@@ -23,7 +23,7 @@ Include `ultrathink` in the audit prompt and check the five items in §Audit che
 |---------|-----------|--------|
 | **ACCEPT** | Verdict is sound | Adopt verdict as-is; proceed to `@reference/critics.md §Skill branching logic` |
 | **REJECT-PASS** | Subagent returned PASS but audit found a substantive gap | Call `clear-converged` (resets sidecar streak regardless of plan.md state), then record audit and enter FAIL path. **Ultrathink may demote PASS→FAIL but must never promote FAIL→PASS — except via ACCEPT-OVERRIDE when Read-tool verification confirms all cited excerpts are absent from their files (see §Audit outcomes).** |
-| **BLOCKED-AMBIGUOUS** | Audit result is inconclusive | Append `[BLOCKED-AMBIGUOUS] {agent}: ultrathink audit inconclusive — {question}` to `## Open Questions` and stop |
+| **BLOCKED-AMBIGUOUS** | Audit result is inconclusive | Append `[BLOCKED:spec] {agent}: ambiguous — ultrathink audit inconclusive: {question}` to `## Open Questions` and stop |
 | **ACCEPT-OVERRIDE** | Verdict is FAIL but every blocking finding is demonstrably false: either (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If some findings are false and others are genuine, use BLOCKED-AMBIGUOUS instead. | Promote FAIL→PASS; append-audit with "ACCEPT-OVERRIDE" and list each absent citation. **Only when all blocking finding citations are absent — if some are absent but not all, use BLOCKED-AMBIGUOUS instead.** |
 
 ### Applying the audit outcome
@@ -49,7 +49,7 @@ Enter the FAIL path. (`clear-converged` writes a `REJECT-PASS` streak-reset entr
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
   "plans/{slug}.md" "{agent}" "BLOCKED-AMBIGUOUS" "{one-line summary}"
 ```
-Append `[BLOCKED-AMBIGUOUS] {agent}: ultrathink audit inconclusive — {question}` to `## Open Questions` and stop.
+Append `[BLOCKED:spec] {agent}: ambiguous — ultrathink audit inconclusive: {question}` to `## Open Questions` and stop.
 
 **ACCEPT-OVERRIDE**: record and proceed as PASS.
 ```bash

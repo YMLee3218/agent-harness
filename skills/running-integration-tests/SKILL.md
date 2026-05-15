@@ -14,7 +14,7 @@ Default test path convention: `tests/integration/**`. The actual integration tes
 
 ## Phase entry
 
-Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `green`, `integration` (re-run after previous failure). For unexpected phases: `[BLOCKED] running-integration-tests entered from unexpected phase {phase} — expected green or integration`.
+Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `green`, `integration` (re-run after previous failure). For unexpected phases: `[BLOCKED:env] running-integration-tests: unexpected-phase — entered from {phase}; expected green or integration`.
 
 ## When to run
 
@@ -40,6 +40,6 @@ Use `run_in_background=true` — this script may run for minutes.
 - Phase transition to `integration` before running tests
 - Pass → `done` transition
 - Fail → LLM failure categorization (one B-session), rollback, fix skill invocation, re-run once (blocks on second failure)
-- Blocked on ambiguous category → `[BLOCKED]` marker written to plan file
+- Blocked on ambiguous category → `[BLOCKED:code]` marker written to plan file
 
-After the completion notification, read `## Open Questions` for any `[BLOCKED]` markers and report to user.
+After the completion notification, read `## Open Questions` for any `[BLOCKED:{kind}]` markers and report to user. Use `plan-file.sh unblock` after fixing the root cause.

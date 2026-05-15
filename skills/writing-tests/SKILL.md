@@ -25,7 +25,7 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 Phase entry:
 - Phase `spec`: proceed normally.
 - Phase `red` + `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "plans/{slug}.md" spec critic-spec` exits 0: skip to Step 2 (no transition needed).
-- Phase `red` without spec/critic-spec converged, or any other phase: `[BLOCKED] writing-tests entered from unexpected phase {phase} — critic-spec convergence required; re-run writing-spec`.
+- Phase `red` without spec/critic-spec converged, or any other phase: `[BLOCKED:env] writing-tests: unexpected-phase — entered from {phase}; critic-spec convergence required; re-run writing-spec`.
 
 - `Read` the project `CLAUDE.md` to extract the test command
 - `Read` the target `spec.md` in full
@@ -102,7 +102,7 @@ Parse the tail for `TEST_OUTCOME:` lines. For each:
 - `RED` → record in `## Test Manifest` as `{file}::{test_name} → RED`.
 - `GREEN_PRE_EXISTING` → record as `{file}::{test_name} → GREEN (pre-existing)` and append a `## Open Questions` note so the user can confirm the existing behaviour is intentional. Skip implement for these.
 
-If the tail is missing `=== TEST-WRITER DONE ===`, retry once with `RETRY: previous run did not complete; finish all scenarios and emit the done sentinel.` appended. If the second run also fails, write `[BLOCKED] test-writer: Codex did not complete` and stop.
+If the tail is missing `=== TEST-WRITER DONE ===`, retry once with `RETRY: previous run did not complete; finish all scenarios and emit the done sentinel.` appended. If the second run also fails, write `[BLOCKED:code] test-writer: codex-incomplete — Codex did not complete` and stop.
 
 If any test claimed `RED` actually passed (rerun the test command yourself once to confirm), retry once with the failing-test names appended and the instruction `RETRY: these tests must be rewritten to FAIL — they currently pass without implementation`. Tests that pass due to wrong subject or empty assertions must be rewritten, not relabelled.
 

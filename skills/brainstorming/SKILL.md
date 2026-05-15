@@ -26,7 +26,7 @@ Phase entry:
 - Phase `brainstorm`: proceed normally (re-entry after `/compact` or session interruption).
 - Phase `done`: proceed normally (new feature after previous feature is complete).
 - No plan file (CLAUDE_PLAN_FILE unset or file does not exist): proceed normally — Step 1 initialises it.
-- Any other phase: `[BLOCKED] brainstorming entered from unexpected phase {phase} — finish the current feature first, or unset CLAUDE_PLAN_FILE to start a fresh plan for the new feature`.
+- Any other phase: `[BLOCKED:env] brainstorming: unexpected-phase — entered from {phase}; finish the current feature first, or unset CLAUDE_PLAN_FILE to start a fresh plan for the new feature`.
 
 **Pre-entry git check** — run before any other work:
 
@@ -34,7 +34,7 @@ Phase entry:
 git status --porcelain
 ```
 
-If dirty working tree (non-empty output): `[BLOCKED] dirty working tree — commit or stash changes first`
+If dirty working tree (non-empty output): `[BLOCKED:env] brainstorming: dirty-working-tree — commit or stash changes first`
 
 If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars) and use `plans/{slug}.md` as the plan path throughout. If the plan file (from `CLAUDE_PLAN_FILE` or derived) does not yet exist, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "<plan-path>"` before any other `plan-file.sh` command.
 
@@ -44,7 +44,7 @@ Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 - `Glob` `docs/` and `Read` any `docs/*.md` that exist — these are the SOT for domain knowledge
 - `Read` `features/*/spec.md` for any features that may be reused (signatures and behaviour, not implementation)
 
-If `docs/` is empty or absent: `[BLOCKED] docs/ is empty — create at least one docs/{concept}.md before re-running`
+If `docs/` is empty or absent: `[BLOCKED:spec] brainstorming: no-docs — create at least one docs/{concept}.md before re-running`
 
 After docs/ is present, write or update `docs/{concept}.md` (same template as initializing-project Step 3). This must happen before writing-spec runs — critics use docs/*.md as the contradiction SOT.
 
@@ -73,7 +73,7 @@ For each candidate feature, declare all 6 axes in the plan file:
 | Failure model | {crash-stop \| crash-recover \| partial-failure} |
 | External I/O | {none \| file \| network \| distributed} |
 
-If an axis cannot be determined: write `[BLOCKED]` for that axis and add it to `## Open Questions`. Do not proceed to Step 3 until all axes are declared or explicitly `[BLOCKED]`.
+If an axis cannot be determined: write `[BLOCKED:spec] brainstorming: ambiguous — axis {name} cannot be determined` and add it to `## Open Questions`. Do not proceed to Step 3 until all axes are declared or the block is resolved.
 
 List each candidate as small or large with its envelope. Write decomposition to plan file. Proceed to Step 3.
 
@@ -104,7 +104,7 @@ Pre-branch checks:
 
 | Condition | Action |
 |-----------|--------|
-| Not a git repo (`git rev-parse --git-dir` fails) | Append `[BLOCKED] not a git repository` to `## Open Questions` and stop |
+| Not a git repo (`git rev-parse --git-dir` fails) | Append `[BLOCKED:env] brainstorming: not-a-git-repo — run git init before brainstorming` to `## Open Questions` and stop |
 | Branch already exists (`git show-ref --verify refs/heads/feature/{name}` succeeds) | Log `[INFO] branch feature/{name} already exists — reusing` to `## Open Questions` and run `git checkout feature/{name}` |
 
 Then (if not already on the branch): `git checkout -b feature/{name}`

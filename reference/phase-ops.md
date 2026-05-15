@@ -33,7 +33,7 @@ On entry, every skill must verify the plan file phase before doing any work.
 2. Confirm phase matches the skill's expected entry phase(s) listed at the top of the skill.
 3. If phase matches: proceed.
 4. If phase does not match and rollback is allowed (e.g., slice mode re-entry or explicit rollback trigger): apply §Phase Rollback Procedure with the appropriate `{target-phase}`.
-5. If phase does not match and no rollback path applies: append `[BLOCKED] {skill-name} entered from unexpected phase {phase} — {guidance}` to `## Open Questions` and stop.
+5. If phase does not match and no rollback path applies: append `[BLOCKED:env] {skill-name}: unexpected-phase — entered from {phase}; {guidance}` to `## Open Questions` and stop.
 
 ### Unexpected phase handling
 
@@ -54,14 +54,14 @@ Only call `transition` when actually changing phase. Do not re-transition to the
 
 ## DOCS CONTRADICTION cascade
 
-When a `[DOCS CONTRADICTION]` verdict is raised, apply this cascade:
+When a `[BLOCKED:docs]` marker is written (triggered by a `[DOCS CONTRADICTION]` verdict), apply this cascade:
 
-First, clear the `[BLOCKED-AMBIGUOUS]` marker that triggered this cascade — `run-critic-loop.sh` exits 1 on any `[BLOCKED` match, so leaving it in place blocks every sub-run below.
+First, clear the `[BLOCKED:docs]` marker that triggered this cascade — `run-critic-loop.sh` exits 1 on any `[BLOCKED` match, so leaving it in place blocks every sub-run below.
 
-**Run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required; `plan-file.sh` blocks `clear-marker` without it):
+**Run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required; `plan-file.sh` blocks `unblock` without it):
 ```bash
 export CLAUDE_PLAN_CAPABILITY=human
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "plans/{slug}.md"
 ```
 
 1. Determine ground truth: if `docs/*.md` is stale (the implementation reflects the correct intent), update `docs/*.md` to match; if the implementation deviated from documented intent, update code/spec to match `docs/*.md`. `docs/*.md` is the intended source of truth for domain knowledge — leave it accurate after resolution.
@@ -72,7 +72,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slu
      "docs contradiction — resetting spec milestone for re-review"
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
    ```
-   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --nested --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
+   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --nested --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
    After critic-spec converges, **only if step 3 will NOT also run** (tests do not need changing), restore to `implement`:
    ```bash
    # Skip this block if step 3 (tests need changing) will also run — step 3's §Phase Rollback handles the phase advance from spec → red → implement
@@ -82,7 +82,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slu
 
 3. If tests need to change:
    **Rollback to red**: apply §Phase Rollback Procedure with target-phase=`red`, critic=`critic-test`.
-   Fix tests → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --nested --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required. Then advance back to `implement`:
+   Fix tests → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --nested --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required. Then advance back to `implement`:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
      "docs contradiction fixed — tests updated and passing"
@@ -98,7 +98,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slu
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
    ```
-   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --nested --prompt "Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
+   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --nested --prompt "Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 
 **During `review` phase** — after critic-code passes, restore phase to `review` before re-running pr-review:
 ```bash

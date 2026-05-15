@@ -32,7 +32,7 @@ FAIL — {comma-separated list of blocking finding labels}
 <!-- category: {highest-priority category} -->
 ```
 
-A **FAIL** verdict must include a `<!-- category: X -->` marker. A FAIL that has a verdict marker but no category marker is recorded as PARSE_ERROR; on the second consecutive occurrence `[BLOCKED] parse:{agent}` is set. Verdict calibration: false PASS → production defect (cost 10×); false FAIL → one extra iteration (cost 1×). When evidence is ambiguous, FAIL.
+A **FAIL** verdict must include a `<!-- category: X -->` marker. A FAIL that has a verdict marker but no category marker is recorded as PARSE_ERROR; on the second consecutive occurrence `[BLOCKED:code] {agent}: parse` is set. Verdict calibration: false PASS → production defect (cost 10×); false FAIL → one extra iteration (cost 1×). When evidence is ambiguous, FAIL.
 
 Full iteration protocol: §Loop convergence.
 
@@ -41,10 +41,10 @@ Full iteration protocol: §Loop convergence.
 `plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, milestone-scoped — the streak resets on `reset-milestone` and is computed within the current phase+milestone boundary). If the same critic emits **two consecutive FAILs with the same category** (PARSE_ERROR verdicts between them are transparent — they do not reset the streak; `reset-milestone` writes a `[MILESTONE-BOUNDARY @ts]` sentinel that **does** reset the streak — streaks are therefore isolated per milestone), the script writes:
 
 ```
-[BLOCKED] category:{agent}: {CATEGORY} failed twice — fix the root cause before retrying
+[BLOCKED:code] {agent}: category — {CATEGORY} failed twice — fix the root cause before retrying
 ```
 
-to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLOCKED]` marker and stops. The loop cannot converge when the same structural problem recurs; human review is required.
+to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLOCKED:code]` marker and stops. The loop cannot converge when the same structural problem recurs; human review is required.
 
 ## Review execution rule (subagent mandate)
 
@@ -65,7 +65,7 @@ Convergence-based protocol used by every phase-gate critic (critic-feature, crit
 
 **pr-review exception**: omits category/parse — apply steps 1 → 4–5 → 7 → 8 only (see `@reference/pr-review-loop.md`); use `plan-file.sh is-converged` for step 4. Integration pipeline markers (`@reference/markers.md §Integration test markers`) do not interact with this protocol.
 
-Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOCKED-CEILING]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting; `REJECT-PASS` entries written by `clear-converged` do **not** count). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
+Ceiling N defaults to **20** (runs 1–20 are allowed; the 21st run triggers `[BLOCKED:ceiling]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting; `REJECT-PASS` entries written by `clear-converged` do **not** count). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
 
 ### Skill branching logic (after each run)
 
@@ -73,24 +73,26 @@ Ceiling N defaults to **5** (runs 1–5 are allowed; the 6th run triggers `[BLOC
 After critic/review run → script records verdict + emits markers
 Skill reads ## Open Questions and queries sidecar, checks in priority order:
 
-  1. [BLOCKED-CEILING] {phase}/{agent}  → stop (manual review)
-  2. [BLOCKED-AMBIGUOUS] {agent}        → stop (human decision required)
-  3. [BLOCKED] {any text}               → stop (read reason; fix root cause; clear marker; retry)
-  4. is-converged exits 0               → proceed to next step
-  5. [FIRST-TURN] {phase}/{agent}       → re-run automatically
+  1. [BLOCKED:ceiling] {agent}: ...   → stop (manual review; use reset-milestone or unblock)
+  2. [BLOCKED:spec] {agent}: ambiguous → stop (human decision required)
+  3. [BLOCKED:docs] {agent}: ...      → stop (human decision required; apply DOCS CONTRADICTION cascade)
+  4. [BLOCKED:{any kind}] ...         → stop (read reason; fix root cause; run unblock; retry)
+  5. is-converged exits 0             → proceed to next step
+  6. (first real verdict — sidecar convergence json has first_turn=true)
+                                       → re-run automatically
                                           **Only when latest verdict is PASS.**
-                                          If latest verdict is FAIL, skip to step 8.
-  6. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
+                                          If latest verdict is FAIL, skip to step 9.
+  7. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
                                 → re-run automatically (one retry allowed;
-                                  second consecutive PARSE_ERROR triggers [BLOCKED] parse:)
-  7. (no terminal marker, PASS) → re-run automatically
-  8. (no terminal marker, FAIL; or redirected from step 5 on [FIRST-TURN]+FAIL) → LLM determines fix direction:
+                                  second consecutive PARSE_ERROR triggers [BLOCKED:code] {agent}: parse)
+  8. (no terminal marker, PASS) → re-run automatically
+  9. (no terminal marker, FAIL; or redirected from step 6 on first-turn+FAIL) → LLM determines fix direction:
        - direction is clear → construct Codex fix prompt (critic finding, target file,
          change to apply, test command, layer rules if applicable); write to tmp file:
            codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
          → re-run critic
-       - direction is ambiguous → append [BLOCKED-AMBIGUOUS] {agent}: {question} + stop
-       - [DOCS CONTRADICTION] in critic output → treat docs/*.md as ground truth; fix code (and spec) to match. If fixing code would itself require changing docs (stale requirements), direction is ambiguous → append [BLOCKED-AMBIGUOUS] {agent}: DOCS CONTRADICTION — docs may be stale + stop; follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
+       - direction is ambiguous → append [BLOCKED:spec] {agent}: ambiguous — {question} + stop
+       - [DOCS CONTRADICTION] in critic output → treat docs/*.md as ground truth; fix code (and spec) to match. If fixing code would itself require changing docs (stale requirements), direction is ambiguous → append [BLOCKED:docs] {agent}: contradiction — docs may be stale, ground truth ambiguous; apply cascade + stop; follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
 ```
 
 ---
@@ -103,7 +105,7 @@ After launching, end your turn immediately. The background completion notificati
 
 After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. The B-session for each `run-critic-loop.sh` iteration runs the audit internally — `§Critic one-shot iteration` step 2 for the five critic subagents, `pr-review-loop.md §PR-review one-shot iteration` step 3 for pr-review — so the orchestrator that called `run-critic-loop.sh` must **not** re-run the audit after the loop returns. (Direct critic invocations are not a remaining code path: the `record-verdict-guarded` SubagentStop hook at settings.json rejects any critic-subagent run outside `run-critic-loop.sh`.)
 
-**Exit codes**: 0 = converged; 1 = blocked (non-ceiling BLOCKED marker in plan, or session timeout/NOOP); 2 = BLOCKED-CEILING; 3 = lock contention (another run already active for this plan — wait for it to finish or remove the plan's `.critic.lock` file (e.g. `plans/{slug}.md.critic.lock`)); 4 = ESCALATION (ENVELOPE_MISMATCH or ENVELOPE_OVERREACH — operating envelope must be corrected before re-running; `## Open Questions` contains the `[ESCALATION]` marker written by `run-critic-loop.sh`); any other code is a script failure: write `[BLOCKED] {agent}: script-failure: {code}` to `## Open Questions` and stop. Running critics manually is not a fallback — it is a protocol violation.
+**Exit codes**: 0 = converged; 1 = blocked (`[BLOCKED:{kind}]` marker in plan, or transient retry); 2 = `[BLOCKED:ceiling]`; 3 = lock contention (another run already active for this plan — wait for it to finish or remove the plan's `.critic.lock` file (e.g. `plans/{slug}.md.critic.lock`)); 4 = `[BLOCKED:envelope]` (ENVELOPE_MISMATCH or ENVELOPE_OVERREACH — operating envelope must be corrected before re-running; `## Open Questions` contains the `[BLOCKED:envelope]` marker written by `run-critic-loop.sh`); any other code is a script failure: write `[BLOCKED:env] {agent}: script-failure — exit {code}` to `## Open Questions` and stop. Running critics manually is not a fallback — it is a protocol violation.
 ### New milestone
 
 Before starting a critic run for a new milestone within the same phase, call:
@@ -139,32 +141,32 @@ One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** l
 
 ## Ambiguity signaling
 
-When a FAIL leaves the fix direction unclear, do **not** guess. Append a `[BLOCKED-AMBIGUOUS]` marker to `## Open Questions` and stop:
+When a FAIL leaves the fix direction unclear, do **not** guess. Append a `[BLOCKED:spec]` or `[BLOCKED:docs]` marker to `## Open Questions` and stop:
 
 ```
-[BLOCKED-AMBIGUOUS] {agent}: {one-sentence question for the human}
+[BLOCKED:spec] {agent}: ambiguous — {one-sentence question for the human}
+[BLOCKED:docs] {agent}: contradiction — docs may be stale, ground truth ambiguous; apply cascade
 ```
 
 **Conditions that require human input** (LLM must not resolve unilaterally):
 
-- **Multiple valid fix paths**: "Should docs be updated to match code, or code fixed to match docs?" (classic DOCS_CONTRADICTION split)
-- **Contradictory requirements**: spec and docs conflict, and which is ground truth is unclear
-- **Scope expansion needed**: the fix requires changes outside this feature's scope
-- **Repeated failure with unknown cause**: the same problem recurs across runs and the root cause cannot be identified
+- **Multiple valid fix paths**: "Should docs be updated to match code, or code fixed to match docs?" (classic DOCS_CONTRADICTION split → use `[BLOCKED:docs]`)
+- **Contradictory requirements**: spec and docs conflict, and which is ground truth is unclear (→ `[BLOCKED:docs]`)
+- **Scope expansion needed**: the fix requires changes outside this feature's scope (→ `[BLOCKED:spec]`)
+- **Repeated failure with unknown cause**: the same problem recurs across runs and the root cause cannot be identified (→ `[BLOCKED:spec]`)
 
 If none of the above apply, fix and re-run without stopping. **Autonomous mode behaviour**: the session terminates (Telegram notified if configured). **Resuming**: once you have resolved the question, **run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required):
 ```bash
 export CLAUDE_PLAN_CAPABILITY=human
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "plans/{slug}.md"
 ```
 Then tell the interactive Claude the decision; it will restart the autonomous run.
 
 ## Resuming from a BLOCKED marker
 
-Markers `[BLOCKED-AMBIGUOUS]`, `[BLOCKED] category:`, and `[BLOCKED] parse:` are agent-scoped; they do not clear on phase transition or `reset-milestone` — see `@reference/markers.md` for lifecycle. After fixing the root cause, clear the marker and re-run: **both commands must be run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required; see `@reference/markers.md`):
+All `[BLOCKED:{kind}]` markers are cleared by `unblock` in a single pass — no marker text input needed. `[BLOCKED:transient]` is intentionally excluded (auto lifecycle; not a human-must marker). After fixing the root cause, **run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required; see `@reference/markers.md`):
 ```bash
 export CLAUDE_PLAN_CAPABILITY=human
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED] {type}:{agent}"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-marker "plans/{slug}.md" "[BLOCKED-AMBIGUOUS] {agent}"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "plans/{slug}.md"
 ```
-Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED]` marker).
+Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` does NOT clear any `[BLOCKED]` marker, but does reset the ceiling counter).

@@ -11,7 +11,7 @@ SC_IMPLEMENTED="implemented.json"
 SC_VERDICTS_ARCHIVE="verdicts-archive.jsonl"
 SC_BLOCKED_ARCHIVE="blocked-archive.jsonl"
 MARK_BLOCKED="[BLOCKED]"
-MARK_BLOCKED_CEILING="[BLOCKED-CEILING]"
+MARK_BLOCKED_CEILING="[BLOCKED:ceiling]"
 
 # Defined here so sidecar helpers can use it without active-plan.sh dependency.
 # active-plan.sh re-exports the same function if loaded first; both definitions are identical.
@@ -265,8 +265,8 @@ _sc_rotate_jsonl() {
 # milestone_seq increments on reset-milestone/clear-converged; isolates streak history between milestones.
 # Blocked JSONL schema (blocked.jsonl, one record per line):
 # {"ts":"2025-05-10T12:00:00Z","kind":"ceiling","agent":"critic-code",
-#  "scope":"implement/critic-code","message":"exceeded 5 runs","cleared_at":null}
-# kind enum: ceiling | parse | category | protocol-violation | preflight | integration | coder | ambiguous | runtime
+#  "scope":"implement/critic-code","message":"exceeded 20 runs","cleared_at":null}
+# kind enum: envelope | docs | spec | code | env | harness | ceiling | transient
 # sc_make_conv_state PHASE AGENT [FT STREAK CONV CB ORD MS]
 # Builds a convergence JSON object. All keys emitted in canonical order.
 # Defaults: first_turn=false streak=0 converged=false ceiling_blocked=false ordinal=0 milestone_seq=0
@@ -280,4 +280,69 @@ sc_make_conv_state() {
     --argjson conv "$_conv" --argjson cb "$_cb" \
     --argjson ord "$_ord" --argjson ms "$_ms" \
     '{"phase":$phase,"agent":$agent,"first_turn":$ft,"streak":$streak,"converged":$conv,"ceiling_blocked":$cb,"ordinal":$ord,"milestone_seq":$ms}'
+}
+
+# ── Transient mechanism ────────────────────────────────────────────────────────
+# Transient sub-kind enum (closed set): session-timeout loop-lock
+_TRANSIENT_SUB_KINDS="session-timeout loop-lock"
+
+# _record_transient PLAN_FILE AGENT SUB_KIND DETAIL [PLAN_FILE_SH]
+# Records a 1회성 transient state without writing to plan.md.
+# Counter in transient_counters.json; on K-th occurrence promotes to [BLOCKED:env].
+_record_transient() {
+  local _plan="$1" _agent="$2" _sub_kind="$3" _detail="$4" _pf_sh="${5:-${PLAN_FILE_SH:-}}"
+  command -v jq >/dev/null 2>&1 || { echo "[transient] jq required" >&2; return 1; }
+  local _valid=0
+  for _sk in $_TRANSIENT_SUB_KINDS; do [[ "$_sub_kind" == "$_sk" ]] && _valid=1 && break; done
+  [[ "$_valid" -eq 1 ]] || { echo "[transient] unknown sub-kind: ${_sub_kind}" >&2; return 1; }
+  sc_ensure_dir "$_plan" || return 1
+  local _cpath _bpath _ts _threshold _key _current _existing _new_counters
+  _cpath=$(sc_path "$_plan" "transient_counters.json")
+  _bpath=$(sc_path "$_plan" "$SC_BLOCKED")
+  _ts=$(_iso_timestamp)
+  _threshold="${CLAUDE_TRANSIENT_THRESHOLD:-3}"
+  _key="${_agent}__${_sub_kind}"
+  _existing='{}'; [[ -f "$_cpath" ]] && _existing=$(cat "$_cpath")
+  _current=$(printf '%s' "$_existing" | jq -r --arg k "$_key" '.[$k] // 0' 2>/dev/null || echo 0)
+  _current=$((_current + 1))
+  _new_counters=$(printf '%s' "$_existing" | jq --arg k "$_key" --argjson v "$_current" '.[$k] = $v')
+  sc_update_json "$_cpath" "$_new_counters"
+  sc_append_jsonl "$_bpath" "$(jq -nc \
+    --arg ts "$_ts" --arg agent "$_agent" --arg sk "$_sub_kind" --arg detail "$_detail" \
+    '{"ts":$ts,"kind":"transient","agent":$agent,"sub_kind":$sk,"detail":$detail,"cleared_at":null}')" 2>/dev/null || true
+  if [[ "$_current" -ge "$_threshold" ]]; then
+    local _env_msg="[BLOCKED:env] ${_agent}: ${_sub_kind} — recurred ${_current} times: ${_detail}"
+    [[ -n "$_pf_sh" ]] && bash "$_pf_sh" append-note "$_plan" "$_env_msg" 2>/dev/null || true
+    local _reset
+    _reset=$(printf '%s' "$_new_counters" | jq --arg k "$_key" 'del(.[$k])')
+    sc_update_json "$_cpath" "$_reset"
+    sc_append_jsonl "$_bpath" "$(jq -nc \
+      --arg ts "$_ts" --arg agent "$_agent" --arg sk "$_sub_kind" --arg msg "$_env_msg" \
+      '{"ts":$ts,"kind":"env","agent":$agent,"sub_kind":$sk,"message":$msg,"cleared_at":null}')" 2>/dev/null || true
+    echo "[transient] promoted ${_agent}/${_sub_kind} to [BLOCKED:env] after ${_current} occurrences" >&2
+    return 0
+  fi
+  echo "[transient] recorded ${_agent}/${_sub_kind} count=${_current}/${_threshold}" >&2
+  return 1
+}
+
+# _clear_transient_for PLAN_FILE AGENT — resets all transient counters for an agent.
+_clear_transient_for() {
+  local _plan="$1" _agent="$2"
+  command -v jq >/dev/null 2>&1 || return 0
+  local _cpath
+  _cpath=$(sc_path "$_plan" "transient_counters.json" 2>/dev/null) || return 0
+  [[ -f "$_cpath" ]] || return 0
+  local _new
+  _new=$(jq --arg prefix "${_agent}__" \
+    'to_entries | map(select(.key | startswith($prefix) | not)) | from_entries' "$_cpath" 2>/dev/null || echo '{}')
+  sc_update_json "$_cpath" "$_new"
+}
+
+# _reset_all_transient_counters PLAN_FILE — clears all transient counters (on reset-milestone etc.)
+_reset_all_transient_counters() {
+  local _plan="$1"
+  local _cpath
+  _cpath=$(sc_path "$_plan" "transient_counters.json" 2>/dev/null) || return 0
+  [[ -f "$_cpath" ]] && sc_update_json "$_cpath" '{}'
 }

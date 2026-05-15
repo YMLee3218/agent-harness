@@ -3,37 +3,119 @@
 Single source of truth for all machine-readable markers used in plan files.
 Includes per-marker Write/Read/Clear/gc lifecycle and operation→marker reverse lookup.
 
-> **Single source of truth**: which markers Claude cannot clear is defined by the `HUMAN_MUST_CLEAR_MARKERS` array in `scripts/phase-policy.sh`. `plan-file.sh` Ring C blocks all `clear-marker` calls — `CLAUDE_PLAN_CAPABILITY=human` is required. When adding a new human-must-clear marker, update the array first, then update the table below. Enforcement uses the `marker_present_human_must_clear` helper (also in `phase-policy.sh`), called by `scripts/phase-gate.sh` (`_guard_human_must_clear`) and `scripts/pretooluse-bash.sh` to block Write/Edit and Bash writes respectively; `scripts/lib/plan-cmd.sh` `cmd_unblock` also derives its awk preserve pattern from the same array.
+> **Single source of truth**: which markers Claude cannot clear is defined by the `HUMAN_MUST_CLEAR_MARKERS` array in `scripts/phase-policy.sh`. `plan-file.sh` Ring C blocks `unblock` without `CLAUDE_PLAN_CAPABILITY=human`. When adding a new human-must-clear kind, update the array first, then update the table below. Enforcement uses the `marker_present_human_must_clear` helper (also in `phase-policy.sh`), called by `scripts/phase-gate.sh` (`_guard_human_must_clear`) and `scripts/pretooluse-bash.sh` to block Write/Edit and Bash writes respectively.
 
-## Bracketed plan-file markers
+## Stop marker taxonomy
 
-### Critic loop markers (written to `## Open Questions`)
+All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes **where to fix** the problem (fix-level prefix), and the clearance axis determines **who clears** it.
 
-Managed by `scripts/lib/plan-loop-helpers.sh` and `scripts/lib/plan-cmd.sh`; consumed by skills after each critic or pr-review run. Policy: `@reference/critics.md §Loop convergence`.
+### Standard format
+
+```
+[BLOCKED:{kind}] {scope}: {sub-kind} — {detail}
+```
+
+- `{kind}` — one of the 8 values in the table below.
+- `{scope}` — identifies the emitter: critic agent name (`critic-code`, `critic-spec`, …), coder task (`coder:{task-id}`), or an agent-less identifier (`preflight:{tool}`, `integration`, `smoke`, `sidecar`, `run-dev-cycle`).
+- `{sub-kind}` — first token of the body; identifies the specific condition (e.g., `ENVELOPE_MISMATCH`, `session-timeout`, `tests-failing`).
+- `{detail}` — human-readable short explanation.
+
+### Stop marker kinds
+
+| Kind | Fix location | Clearance | Absorbs (old prefix) | exit |
+|------|-------------|-----------|----------------------|------|
+| `[BLOCKED:envelope]` | Spec's Operating Envelope section | human-must | `[ESCALATION]` | 4 |
+| `[BLOCKED:docs]` | docs/spec/test — ground truth decision needed → cascade | human-must | `[BLOCKED-AMBIGUOUS] … DOCS CONTRADICTION` | 1 |
+| `[BLOCKED:spec]` | Spec gap or ambiguity — human answer needed | human-must | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | 1 |
+| `[BLOCKED:code]` | Code/test root cause (coder, integration, smoke) | human-must | `[BLOCKED] category:`, `parse:`, `coder:`, `integration:`, `post-implement smoke test` | 1 |
+| `[BLOCKED:env]` | Environment/session/tool (persistent or recurring) | human-must | `[BLOCKED] preflight:`, `script-failure:`, `no timeout binary`, `plan unchanged` | 1 |
+| `[BLOCKED:harness]` | Harness call path or sidecar integrity | human-must | `[BLOCKED] protocol-violation:`, `kind=corrupt`, `kind=corrupt-check`, `kind=streak` | 1 |
+| `[BLOCKED:ceiling]` | Critic loop ceiling exceeded → `reset-milestone` | human-must | `[BLOCKED-CEILING] {phase}/{agent}:` | 2 |
+| `[BLOCKED:transient]` | **1-time transient state** (session timeout, lock clash) | **auto** — harness self-retries; never requires `unblock` | `[BLOCKED] {agent}: session-timeout`, `[BLOCKED] {agent}: critic loop already running` | 1 |
+
+> **`[BLOCKED:transient]` is sidecar-only** — it is never written to `plan.md`. If one appears in `## Open Questions`, it was written incorrectly; `unblock` intentionally does not clear it. See §Transient auto-handling.
+
+### Examples
+
+```
+[BLOCKED:envelope] critic-code: ENVELOPE_MISMATCH — Operating Envelope section missing in spec
+[BLOCKED:docs] critic-spec: contradiction — docs may be stale, ground truth ambiguous; apply cascade
+[BLOCKED:spec] critic-code: ambiguous — which encoding should be used for foo?
+[BLOCKED:code] critic-code: category — LAYER_VIOLATION failed twice
+[BLOCKED:code] coder:feat-x: merge-conflict — resolve and re-run implementing
+[BLOCKED:code] integration: tests-failing — failed after 2 fix attempts; manual review required
+[BLOCKED:code] smoke: tests-failing — full suite not passing after all tiers
+[BLOCKED:env] preflight:jq: not-installed — install via brew install jq
+[BLOCKED:env] critic-code: no-timeout-binary — install GNU coreutils (brew install coreutils)
+[BLOCKED:env] critic-code: session-timeout — recurred 3 times: after 3600s
+[BLOCKED:harness] critic-code: protocol-violation — invoked outside run-critic-loop.sh context
+[BLOCKED:harness] sidecar: corrupt-check — manual sidecar repair required
+[BLOCKED:ceiling] critic-code: spec/critic-code exceeded 20 runs — manual review required
+```
+
+Transient (sidecar only, never plan.md):
+```
+[BLOCKED:transient] critic-code: session-timeout — after 3600s
+[BLOCKED:transient] critic-code: loop-lock — critic loop already running
+```
+
+## Clearing stop markers
+
+**`unblock` — the single human command** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required):
+
+```bash
+export CLAUDE_PLAN_CAPABILITY=human
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "plans/{slug}.md"
+```
+
+Clears all 7 human-must kinds (`envelope`, `docs`, `spec`, `code`, `env`, `harness`, `ceiling`) from `## Open Questions` in one pass and sets `cleared_at` on their open sidecar records. `[BLOCKED:transient]` is intentionally excluded — it has its own auto lifecycle. Non-stop markers (`[UNVERIFIED CLAIM]`, `[INFO]`, `[AUTO-DECIDED]`, etc.) are also left untouched.
+
+After resolving the root cause, run `unblock` then restart the autonomous run.
+
+> **Ceiling block only**: if only a `[BLOCKED:ceiling]` is present and the ceiling iteration count itself is the problem (e.g., real convergence needed more runs), call `reset-milestone` instead of `unblock` — `reset-milestone` resets the streak counter so the next run starts fresh. `unblock` clears the marker but does not reset the streak.
+
+## Transient auto-handling
+
+`[BLOCKED:transient]` markers are managed by `_record_transient` in `scripts/lib/sidecar.sh`. They **never** write to `plan.md`.
+
+**Mechanism**:
+
+1. Each `(agent, sub-kind)` pair has a counter in `plans/{slug}.state/transient_counters.json`.
+2. Below threshold K (`CLAUDE_TRANSIENT_THRESHOLD`, default 3): counter increments; no plan.md write; the caller exits 1 (harness retries on next cycle automatically).
+3. At K-th occurrence: `[BLOCKED:env] {agent}: {sub-kind} — recurred {K} times: {detail}` is written to `## Open Questions`; counter resets.
+4. Counter reset also on: successful critic run (PASS verdict), `reset-milestone`, `reset-phase-state`.
+5. `unblock` does not touch transient counters — they have their own lifecycle.
+
+**Transient sub-kinds** (closed set — additions require explicit policy review):
+- `session-timeout` — critic session hit `CLAUDE_CRITIC_SESSION_TIMEOUT` wall
+- `loop-lock` — critic loop already running (lock file conflict)
+
+## Non-loop stop markers (written to `## Open Questions`)
+
+Written by scripts outside the critic convergence protocol.
+
+| Marker | Emitter | Clear path | Survives gc? |
+|--------|---------|------------|-------------|
+| `[BLOCKED:envelope] {scope}: {sub-kind} — {detail}` | `run-critic-loop.sh` (exit 4) | `plan-file.sh unblock` | Yes |
+| `[BLOCKED:docs] {scope}: {sub-kind} — {detail}` | Skills (parent context) | `plan-file.sh unblock` then cascade | Yes |
+| `[BLOCKED:spec] {scope}: {sub-kind} — {detail}` | Skills (parent context) | `plan-file.sh unblock` | Yes |
+| `[BLOCKED:code] {scope}: {sub-kind} — {detail}` | Various scripts | `plan-file.sh unblock` | Yes |
+| `[BLOCKED:env] {scope}: {sub-kind} — {detail}` | `preflight.sh`, `run-critic-loop.sh`, scripts | `plan-file.sh unblock` | Yes |
+| `[BLOCKED:harness] {scope}: {sub-kind} — {detail}` | `plan-cmd.sh`, `run-critic-loop.sh` | `plan-file.sh unblock` | Yes |
+| `[BLOCKED:ceiling] {scope}: {sub-kind} — {detail}` | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `unblock` | Yes |
+| `[STOP-BLOCKED @ts] phase={p} — {reason}` | `stop-check.sh` | Informational — survives `gc-events` | Yes |
+
+## Critic loop markers (written to `## Open Questions`)
+
+Managed by `scripts/lib/plan-loop-helpers.sh` and `scripts/lib/plan-cmd.sh`.
 
 | Marker | Scope | Written by | Clear path | Survives gc? |
 |--------|-------|------------|------------|-------------|
-| `[BLOCKED-CEILING] {phase}/{agent}: exceeded {N} runs — manual review required` | phase-scoped | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
-| `[BLOCKED] category:{agent}: {CATEGORY} failed twice — fix the root cause before retrying` | agent-scoped | `plan-cmd.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] parse:{agent}: verdict marker missing (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-cmd.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED] parse:{agent}: FAIL without category (two consecutive parse errors) — check agent output format before retrying` | agent-scoped | `plan-cmd.sh cmd_record_verdict` | Manual `plan-file.sh clear-marker` | Yes |
-| `[BLOCKED-AMBIGUOUS] {agent}: {question}` | agent-scoped | Skills (parent context) | Manual `plan-file.sh clear-marker` | Yes |
-| `[FIRST-TURN] {phase}/{agent}` | phase-scoped | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
+| `[BLOCKED:ceiling] {agent}: {phase}/{agent} exceeded {N} runs — manual review required` | phase-scoped | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `unblock` | Yes |
 
 > **Authoritative convergence state**: lives exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state`. Query via `plan-file.sh is-converged <plan> <phase> <agent>` (exit 0 = converged). No plan.md marker mirrors this state.
 
-### Non-loop stop markers (written to `## Open Questions`)
-
-Written by skills or hooks outside the critic convergence protocol.
-
-| Marker | Emitter | Effect | Clear path | Survives gc? |
-|--------|---------|--------|------------|-------------|
-| `[BLOCKED] {category}: {reason}` | Various harness scripts and skills | Harness stop requiring human action; category identifies source (e.g. `coder:`, `preflight:`, `integration:`, `parse:`, `protocol-violation:`, `runtime:`, `script-failure:`, `session-timeout`, `no timeout binary`, `plan unchanged`). Sidecar integrity failures use inline form: `[BLOCKED] kind=corrupt`, `[BLOCKED] kind=corrupt-check`, `[BLOCKED] kind=streak`. | Manual `plan-file.sh clear-marker` after resolving — see `HUMAN_MUST_CLEAR_MARKERS` in `scripts/phase-policy.sh` for full list | Yes |
-| `[ESCALATION] {agent}: {ENVELOPE_MISMATCH\|ENVELOPE_OVERREACH} — {reason}` | `run-critic-loop.sh` (exit 4 path) | Operating envelope must be corrected before re-running the critic; triggers `llm_exit` exit 4 in callers | Manual `plan-file.sh clear-marker` after correcting the spec's Operating Envelope | Yes |
-| `[STOP-BLOCKED @ts] phase={p} — {reason}` | stop-check.sh | Why Stop hook blocked the previous stop attempt | Informational; survives `gc-events` | Yes |
-
-
-### Integration test markers (written to `## Integration Failures`)
+## Integration test markers (written to `## Integration Failures`)
 
 Written by `running-integration-tests`; do not interact with the critic convergence protocol.
 
@@ -41,7 +123,7 @@ Written by `running-integration-tests`; do not interact with the critic converge
 |--------|---------|--------|------------|
 | `[AUTO-CATEGORIZED-INTEGRATION] {test name}: {category}` | running-integration-tests | Failure category inferred; fix skill invoked | Log entry — persists in `## Integration Failures`; not processed by `gc-events` |
 
-### Audit and run markers
+## Audit and run markers
 
 Written to `## Critic Verdicts`; not subject to `gc-events`.
 
@@ -49,7 +131,7 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 |--------|---------|---------|--------|
 | `[MILESTONE-BOUNDARY @ts] {scope}:` | `## Critic Verdicts` | `reset-milestone`, `reset-pr-review` | Breaks trailing-PASS streak; prior milestone verdicts do not count toward new streak |
 
-### Inline plan-file markers
+## Inline plan-file markers
 
 | Marker | Emitter | Survives `gc-events`? | Effect |
 |--------|---------|----------------------|--------|
@@ -67,9 +149,10 @@ Persistent harness state lives in `plans/{slug}.state/` — written only by harn
 | File | Format | Written by | Read by | Lifecycle |
 |------|--------|------------|---------|-----------|
 | `convergence/{phase}__{agent}.json` | JSON | `_record_loop_state` (via SubagentStop hook) | `is-converged` (`run-dev-cycle.sh`, `run-critic-loop.sh`) | Created on first verdict; reset via `reset-milestone`/`clear-converged`; `converged=true` requires ≥2 consecutive PASSes |
-| `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `is-converged` (streak computation) | Appended per verdict; GC via `_sc_rotate_jsonl` in `scripts/lib/sidecar.sh` (not invoked automatically — file grows until milestone reset or manual cleanup) |
-| `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse/category), `cmd_append_note` (BLOCKED mirror) | `is-blocked`/`has-blocked` (`stop-check.sh`, `run-critic-loop.sh`) | `cleared_at:null` = open; set by `clear-marker`/`unblock` |
+| `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `is-converged` (streak computation) | Appended per verdict; GC via `_sc_rotate_jsonl` in `scripts/lib/sidecar.sh` |
+| `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse/category), `cmd_append_note` (BLOCKED mirror) | `is-blocked`/`has-blocked` (`stop-check.sh`, `run-critic-loop.sh`) | `cleared_at:null` = open; set by `unblock`; kind enum: `envelope\|docs\|spec\|code\|env\|harness\|ceiling\|transient` |
 | `implemented.json` | JSON | `mark-implemented` | `is-implemented` (`run-dev-cycle.sh`) | Feature slugs accumulate; never cleared |
+| `transient_counters.json` | JSON | `_record_transient` in `sidecar.sh` | `_record_transient`, `_clear_transient_for`, `_reset_all_transient_counters` | Counter per `{agent}__{sub-kind}` key; cleared on PASS, reset-milestone, reset-phase-state |
 
 ### Block-state queries (Ring A — agent-callable)
 
@@ -81,6 +164,7 @@ bash plan-file.sh has-blocked plans/{slug}.md          # alias
 # Filter by kind
 bash plan-file.sh is-blocked plans/{slug}.md integration
 bash plan-file.sh is-blocked plans/{slug}.md ceiling
+bash plan-file.sh is-blocked plans/{slug}.md env
 
 # Returns 0 if sidecar convergence file says converged=true; 1 otherwise
 bash plan-file.sh is-converged plans/{slug}.md implement critic-code
@@ -110,7 +194,7 @@ Category enum values and priority: `@reference/severity.md §Category priority`
 
 ## Phase-scoped convergence markers
 
-Cleared per scope by `plan-file.sh reset-milestone {agent}` (invokes `cmd_reset_milestone` in `scripts/lib/plan-cmd.sh`, which calls `cmd_clear_marker` + `_clear_ceiling_sidecar_entry`): `[BLOCKED-CEILING]` and `[FIRST-TURN]`. All markers require `{phase}` to equal the current plan phase — stale markers from prior phases do not satisfy a check.
+Cleared per scope by `plan-file.sh reset-milestone {agent}` (invokes `cmd_reset_milestone` in `scripts/lib/plan-cmd.sh`, which calls `cmd_clear_marker` + `_clear_ceiling_sidecar_entry`): `[BLOCKED:ceiling]`. All markers require `{phase}` to equal the current plan phase — stale markers from prior phases do not satisfy a check.
 
 | Phase | Agent | Invocation site |
 |-------|-------|-----------------|

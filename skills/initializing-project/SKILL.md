@@ -7,7 +7,7 @@ description: >
 disable-model-invocation: true
 ---
 
-**Non-interactive handling**: emit `[BLOCKED] {reason}` per the inline conditions below; do not ask questions.
+**Non-interactive handling**: emit `[BLOCKED:spec] {scope}: {reason}` or `[BLOCKED:env] {scope}: {reason}` per the inline conditions below; do not ask questions.
 
 # Project Initialisation
 
@@ -18,11 +18,11 @@ disable-model-invocation: true
 
 If docs/ is absent:
 - Interactive: `AskUserQuestion` for core business concepts, actions, tech stack, and commands.
-- Non-interactive: `[BLOCKED] docs/ is absent — create at least one docs/{concept}.md and populate .claude/local.md before re-running`
+- Non-interactive: `[BLOCKED:spec] initializing-project: no-docs — create at least one docs/{concept}.md and populate .claude/local.md before re-running`
 
 If docs/ is present but `.claude/local.md` is absent or missing commands:
 - Interactive: `AskUserQuestion` — "What are the tech stack, test command, and lint command?"
-- Non-interactive: `[BLOCKED] .claude/local.md is missing or incomplete — fill in language, test command, and lint command`
+- Non-interactive: `[BLOCKED:env] initializing-project: missing-local-md — fill in language, test command, and lint command`
 
 ## Step 2 — Propose structure
 
@@ -186,7 +186,7 @@ Then stage and commit all scaffold files so the working tree is clean before bra
 
 If the project is not yet a git repository (`git rev-parse --git-dir` fails):
 - **Interactive**: use `AskUserQuestion` — "No git repository found. Run `git init && git add .gitignore` first, then re-run initializing-project."
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED] not a git repository — run git init before initializing-project` to `## Open Questions` in the plan file, then stop.
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): append `[BLOCKED:env] initializing-project: not-a-git-repo — run git init before initializing-project` to `## Open Questions` in the plan file, then stop.
 
 Stage and commit if there is anything to stage:
 ```bash

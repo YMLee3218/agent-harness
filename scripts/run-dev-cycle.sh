@@ -41,10 +41,10 @@ source "$SCRIPTS_DIR/lib/dev-cycle-phases.sh"
 # shellcheck source=lib/llm-runner.sh
 source "$SCRIPTS_DIR/lib/llm-runner.sh"
 
-# Preflight: abort if preflight-blocked
+# Preflight: abort if any block present (catches [BLOCKED:env] preflight markers)
 if [[ -n "$PLAN" ]]; then
-  if bash "$PF" is-blocked "$PLAN" preflight 2>/dev/null; then
-    echo "[BLOCKED] preflight marker present — resolve and re-run" >&2; exit 1
+  if bash "$PF" is-blocked "$PLAN" env 2>/dev/null; then
+    echo "[BLOCKED:env] env/preflight block present — resolve and re-run" >&2; exit 1
   fi
 fi
 
@@ -123,7 +123,7 @@ if [[ "${current_phase:-}" == "integration" ]]; then
 fi
 
 if [[ -z "$(get_features)" ]]; then
-  bash "$PF" append-note "$PLAN" "[BLOCKED] run-dev-cycle: no features in ${REQ_FILE} — run /brainstorming first"
+  bash "$PF" append-note "$PLAN" "[BLOCKED:spec] run-dev-cycle: no-features — no features in ${REQ_FILE}; run /brainstorming first"
   exit 1
 fi
 

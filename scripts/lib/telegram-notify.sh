@@ -23,8 +23,8 @@ if ! declare -F _parse_env_file >/dev/null 2>&1; then
   }
 fi
 
-# telegram_send_blocked_ambiguous PLAN_SLUG QUESTION ENV_FILE ACCESS_FILE
-# Sends a BLOCKED-AMBIGUOUS notification via Telegram if credentials exist.
+# telegram_send_blocked PLAN_SLUG QUESTION ENV_FILE ACCESS_FILE
+# Sends a [BLOCKED:spec] or [BLOCKED:docs] notification via Telegram if credentials exist.
 # Returns 0 if notification sent, 1 if credentials missing or invalid.
 telegram_send_blocked_ambiguous() {
   local _slug="$1" _question="$2" _env_file="$3" _access_file="$4"
@@ -42,15 +42,16 @@ telegram_send_blocked_ambiguous() {
     [[ "$_chat" =~ ^-?[0-9]+$ ]] || { echo "[stop-check] WARNING: invalid chat_id shape — skipping Telegram" >&2; _chat=""; }
   fi
   [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${_chat:-}" ] || return 1
-  local _clear_key _msg
-  _clear_key=$(printf '%s' "$_question" | sed 's/^\(\[BLOCKED-AMBIGUOUS\] [^:]*\):.*/\1/')
-  _msg="[BLOCKED-AMBIGUOUS] Autonomous run paused — human decision required
+  local _prefix _msg
+  _prefix=$(printf '%s' "$_question" | grep -oE '^\[BLOCKED:[a-z]+\]' || echo '[BLOCKED:spec]')
+  _msg="${_prefix} Autonomous run paused — human decision required
 
 Plan: ${_slug}
 ${_question}
 
 To resume, run in terminal:
-bash .claude/scripts/plan-file.sh clear-marker plans/${_slug}.md \"${_clear_key}\""
+export CLAUDE_PLAN_CAPABILITY=human
+bash .claude/scripts/plan-file.sh unblock"
   curl -s -X POST \
     "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
     --data-urlencode "chat_id=${_chat}" \

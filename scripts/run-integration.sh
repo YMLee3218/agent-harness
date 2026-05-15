@@ -57,7 +57,7 @@ _validate_integration_preconditions() {
   bash "$PF" reset-for-rollback "$PLAN" implement
   bash "$PF" transition "$PLAN" red "unit tests failing at integration entry — fresh task planning needed"
   bash "$PF" reset-milestone "$PLAN" critic-test
-  bash "$PF" append-note "$PLAN" "[BLOCKED] unit tests failing before integration tests — resolve via /implementing before re-running"
+  bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: unit-tests-failing — resolve via /implementing before re-running"
   exit 1
 }
 
@@ -78,7 +78,7 @@ while true; do
   today=$(date +%Y-%m-%d)
 
   if [[ $attempt -ge $max_attempts ]]; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED] integration: tests failed after $((max_attempts - 1)) fix attempt(s) — manual review required"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: tests-failing — after $((max_attempts - 1)) fix attempt(s); manual review required"
     exit 1
   fi
 
@@ -97,8 +97,8 @@ Then for each failing test:
 Category: {docs conflict | spec gap | implementation bug}
 Description: {one sentence}
 Log [AUTO-CATEGORIZED-INTEGRATION] {test name}: {category} for each.
-If the categories across all failing tests are mixed (not all the same), append [BLOCKED] integration: mixed failure categories — manual review required to ## Open Questions and stop.
-If ambiguous for any individual test, append [BLOCKED] integration:{test name}: cannot determine category automatically — manual review required to ## Open Questions and stop.
+If the categories across all failing tests are mixed (not all the same), append [BLOCKED:code] integration: tests-failing — mixed failure categories; manual review required to ## Open Questions and stop.
+If ambiguous for any individual test, append [BLOCKED:code] integration: tests-failing — cannot determine category for {test name}; manual review required to ## Open Questions and stop.
 
 After completing the above, output as the very last line of your response exactly one of:
 <!-- integration-result: ${_cat_nonce} docs conflict -->
@@ -113,13 +113,13 @@ After completing the above, output as the very last line of your response exactl
 
   if [[ "$_cat_marker" == "blocked" || -z "$_cat_marker" ]]; then
     [[ -z "$_cat_marker" ]] && bash "$PF" append-note "$PLAN" \
-      "[BLOCKED] integration: categorizer produced no result marker — re-run or review manually" 2>/dev/null || true
+      "[BLOCKED:code] integration: tests-failing — categorizer produced no result marker; re-run or review manually" 2>/dev/null || true
     exit 1
   fi
 
   category="$_cat_marker"
   if [[ "$category" != "docs conflict" && "$category" != "spec gap" && "$category" != "implementation bug" ]]; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED] integration: categorizer returned unrecognised category '${category}' — manual review required"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: tests-failing — unrecognised category '${category}'; manual review required"
     exit 1
   fi
 
@@ -133,7 +133,7 @@ After completing the above, output as the very last line of your response exactl
       if [[ -n "$UNIT_CMD" ]]; then
         bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
       else
-        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: implementation bug requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
+        bash "$PF" append-note "$PLAN" "[BLOCKED:env] integration: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md and re-run"
         exit 1
       fi
       bash "$PF" reset-milestone "$PLAN" critic-code
@@ -143,13 +143,13 @@ After completing the above, output as the very last line of your response exactl
       ;;
     "spec gap"|"docs conflict")
       if [[ -z "$UNIT_CMD" ]]; then
-        bash "$PF" append-note "$PLAN" "[BLOCKED] integration: ${category}-fix requires unit test command — add '- Test: {cmd}' to CLAUDE.md and re-run"
+        bash "$PF" append-note "$PLAN" "[BLOCKED:env] integration: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md and re-run"
         exit 1
       fi
       _handle_spec_phase_rollback "$category"
       ;;
     *)
-      bash "$PF" append-note "$PLAN" "[BLOCKED] integration: could not determine fix category — manual review required"
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: tests-failing — could not determine fix category; manual review required"
       exit 1
       ;;
   esac

@@ -99,13 +99,13 @@ _restore_and_retry() {
   if grep -qE 'coder-status: abort|^layer violation:' "$retry_log" 2>/dev/null || \
      ! grep -q 'coder-status: complete' "$retry_log" 2>/dev/null; then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} — test files modified after retry: ${test_files}"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: test-files-touched — modified after retry: ${test_files}"
     return 1
   fi
   local still; still=$(_extract_test_paths "$base" "$wt")
   if [[ -n "$still" ]]; then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} — retry still modified test files: ${still}"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: test-files-touched — retry still modified: ${still}"
     return 1
   fi
 }
@@ -118,7 +118,7 @@ _run_failing_test() {
   test_file="${failing_test%%::*}"
   if [[ -n "$test_file" ]] && ! (cd "$wt" && bash -c "$TEST_CMD $test_file" 2>&1); then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} — tests failing after implementation"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — after implementation"
     return 1
   fi
 }
@@ -134,7 +134,7 @@ verify_task() {
   if grep -qE 'coder-status: abort|^layer violation:' "$log" 2>/dev/null || \
      ! grep -q 'coder-status: complete' "$log" 2>/dev/null; then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} — coder aborted: $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
     return 1
   fi
 
@@ -151,7 +151,7 @@ verify_task() {
     local goal; goal=$(get_field "$id" goal)
     (cd "$wt" && git add -A && git commit -m "feat: ${goal}" 2>/dev/null) || {
       bash "$PF" update-task "$PLAN" "$id" blocked
-      bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} — no commit and nothing to stage"
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: no-commit — nothing to stage"
       return 1
     }
   fi

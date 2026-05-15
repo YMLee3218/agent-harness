@@ -41,13 +41,13 @@ _clear_ceiling_sidecar_entry() {
     --arg scope "$scope" --arg ts "$_ts" || return 1
 }
 
-# _validated_ceiling RAW → prints validated ceiling integer (min 2, default 5)
+# _validated_ceiling RAW → prints validated ceiling integer (min 2, default 20)
 _validated_ceiling() {
   local c="$1"
   case "$c" in
-    ''|*[!0-9]*) c=5 ;;
+    ''|*[!0-9]*) c=20 ;;
   esac
-  [ "$c" -lt 2 ] && c=5
+  [ "$c" -lt 2 ] && c=20
   echo "$c"
 }
 
@@ -84,7 +84,7 @@ _ceiling_block_body() {
     [[ $_cr -eq 0 ]] && _cout=$(printf '%s' "${_co:-}" | awk 'END{print NR}')
   fi
   [[ "$_cout" -eq 0 ]] && _record_blocked "$plan_file" "ceiling" "$agent" "${scope}" \
-    "exceeded ${ceiling} runs" 1
+    "${scope} exceeded ${ceiling} runs — manual review required" 1
 }
 
 # _ceiling_block PLAN PHASE AGENT SCOPE RUN_ORDINAL CEILING CONV_STATE CONV_PATH
@@ -97,9 +97,9 @@ _ceiling_block() {
   local _ceil_bpath; _ceil_bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
   _with_lock "${_ceil_bpath}.lock" \
     _ceiling_block_body "$_ceil_bpath" "$plan_file" "$agent" "$scope" "$ceiling" || true
-  grep -qF "[BLOCKED-CEILING] ${scope}" "$plan_file" 2>/dev/null || \
+  grep -qF "[BLOCKED:ceiling] ${agent}" "$plan_file" 2>/dev/null || \
     _append_to_open_questions "$plan_file" \
-      "[BLOCKED-CEILING] ${scope}: exceeded ${ceiling} runs — manual review required"
+      "[BLOCKED:ceiling] ${agent}: ${scope} exceeded ${ceiling} runs — manual review required"
   conv_state=$(sc_read_json "$convergence_path" \
     '{"first_turn":false,"streak":0,"converged":false,"ceiling_blocked":false,"ordinal":0,"milestone_seq":0}')
   sc_update_json "$convergence_path" "$(printf '%s' "$conv_state" | jq '.ceiling_blocked = true')"
@@ -181,8 +181,7 @@ _record_loop_state_body() {
       "$run_ordinal" "$ms" \
     | jq --arg cat "$category" '. + {last_verdict_category: $cat}')"
   if [[ "$verdict" != "PARSE_ERROR" ]] && [[ "$was_first_turn" != "true" ]]; then
-    _append_to_open_questions "$plan_file" "[FIRST-TURN] ${scope}"
-    echo "[record-loop-state] FIRST-TURN: ${scope} first real verdict" >&2
+    echo "[record-loop-state] first real verdict for ${scope}" >&2
   fi
   if [[ "$new_converged" == "true" ]] && [[ "$was_converged" != "true" ]]; then
     echo "[record-loop-state] CONVERGED: ${scope} with ${streak} consecutive PASSes" >&2
@@ -193,7 +192,7 @@ _record_loop_state() {
   command -v jq >/dev/null 2>&1 || \
     die "_record_loop_state: jq is required — install jq (brew install jq or apt install jq)"
   local scope; scope=$(_scope_of "$current_phase" "$agent")
-  local ceiling; ceiling=$(_validated_ceiling "${CLAUDE_CRITIC_LOOP_CEILING:-5}")
+  local ceiling; ceiling=$(_validated_ceiling "${CLAUDE_CRITIC_LOOP_CEILING:-20}")
   sc_ensure_dir "$plan_file" || die "ERROR: sidecar dir setup failed for $plan_file"
   local verdicts_path; verdicts_path=$(sc_path "$plan_file" "$SC_VERDICTS")
   local convergence_path; convergence_path=$(sc_conv_path "$plan_file" "$current_phase" "$agent")

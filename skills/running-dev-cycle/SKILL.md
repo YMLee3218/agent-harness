@@ -17,4 +17,4 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-dev-cycle.sh" {args} \
 
 Use `run_in_background=true` (script may run for hours).
 
-After the completion notification, read `## Open Questions` for any `[BLOCKED]` markers and report to the user.
+After the completion notification, read `## Open Questions` for any `[BLOCKED:{kind}]` markers and report to the user. All human-must kinds (`envelope`, `docs`, `spec`, `code`, `env`, `harness`, `ceiling`) require `plan-file.sh unblock` after fixing the root cause.

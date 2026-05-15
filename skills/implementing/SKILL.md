@@ -22,7 +22,7 @@ paths:
 
 ## Step 1 — Read plan file + plan implementation order
 
-Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `red`, `implement` (recovery). Read `plans/{slug}.md`. For non-`red` phases or non-empty Task Ledgers, consult §Session Recovery. For unexpected phases: `[BLOCKED] implementing entered from unexpected phase {phase} — cannot proceed`.
+Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `red`, `implement` (recovery). Read `plans/{slug}.md`. For non-`red` phases or non-empty Task Ledgers, consult §Session Recovery. For unexpected phases: `[BLOCKED:env] implementing: unexpected-phase — entered from {phase}; cannot proceed`.
 
 **Phase `red` — plan task list:**
 
@@ -79,5 +79,5 @@ Read `plans/{slug}.md` and check the `## Task Ledger` section. Mark any `in_prog
 | `red`, empty ledger | Step 1 (task planning) |
 | `implement` or `red`, has pending tasks | Signal caller — re-run run-implement.sh |
 | `implement` or `red`, all tasks complete | Tasks complete — signal caller |
-| any, has `blocked` task | Stop. Tell the user: "A `[BLOCKED] coder:` marker is present — clear it from a terminal with `bash .claude/scripts/plan-file.sh clear-marker plans/{slug}.md \"[BLOCKED] coder:{id}\"`; Claude cannot clear this marker (blocked by pretooluse hook)." Do not attempt to call plan-file.sh clear-marker yourself. |
+| any, has `blocked` task | Stop. Tell the user: "A `[BLOCKED:code] coder:` marker is present — clear it from a terminal with `export CLAUDE_PLAN_CAPABILITY=human && bash .claude/scripts/plan-file.sh unblock plans/{slug}.md`; Claude cannot clear this marker (blocked by pretooluse hook)." Do not attempt to call plan-file.sh unblock yourself. |
 | `implement`, empty ledger (fresh-start) | Step 1 |

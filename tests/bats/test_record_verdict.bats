@@ -99,8 +99,8 @@ teardown() {
   # No jq parse errors in output
   [[ "$output" != *"jq: error"* ]]
   [[ "$output" != *"parse error (null"* ]]
-  # Plan file should have [BLOCKED] category marker
-  grep -q '\[BLOCKED\]' "$PLAN_FILE"
+  # Plan file should have [BLOCKED:code] category marker
+  grep -q '\[BLOCKED:code\]' "$PLAN_FILE"
 }
 
 # ── T4: L1 — first-FAIL non-blocking regression ───────────────────────────────
@@ -123,7 +123,7 @@ teardown() {
   ' 2>/dev/null
   [[ "$output" == *"rc=1"* ]]
   # T16: explicit negative assertion (not trivially true)
-  run grep -q 'category.*SPEC_COMPLIANCE.*failed twice\|\[BLOCKED\].*category' "$PLAN_FILE"
+  run grep -q 'category.*SPEC_COMPLIANCE.*failed twice\|\[BLOCKED:code\].*category' "$PLAN_FILE"
   [ "$status" -ne 0 ]
 }
 

@@ -130,8 +130,8 @@ _awk_replace_phase_body() {
 # Appends to blocked.jsonl (kind=runtime) AND open questions simultaneously.
 _record_blocked_runtime() {
   local _plan="$1" _agent="$2" _scope="$3" _msg="$4"
-  _record_blocked "$_plan" "runtime" "$_agent" "$_scope" "$_msg" 2>/dev/null || true
-  _append_to_open_questions "$_plan" "${MARK_BLOCKED} ${_scope}:${_agent}: ${_msg}"
+  _record_blocked "$_plan" "harness" "$_agent" "$_scope" "$_msg" 2>/dev/null || true
+  _append_to_open_questions "$_plan" "[BLOCKED:harness] ${_agent}: runtime — ${_msg}"
 }
 
 # ── Convergence compute helpers ───────────────────────────────────────────────

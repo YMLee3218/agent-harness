@@ -91,7 +91,7 @@ for tier in domain infrastructure features; do
   for id in "${tier_ids[@]}"; do
     if ! merge_task "$id"; then
       bash "$PF" update-task "$PLAN" "$id" blocked
-      bash "$PF" append-note "$PLAN" "[BLOCKED] coder:${id} merge conflict — resolve then re-run implementing"
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: merge-conflict — resolve and re-run implementing"
       git merge --abort 2>/dev/null || true
       for _remaining in "${tier_ids[@]}"; do
         awk -v id="$_remaining" '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&$0~id{print}' "$PLAN" \
@@ -105,7 +105,7 @@ done
 
 if [[ $OVERALL_BLOCKED -eq 0 ]]; then
   if ! bash -c "$TEST_CMD" 2>&1; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED] post-implement smoke test failed — full test suite not passing after all tiers"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] smoke: tests-failing — full suite not passing after all tiers"
     OVERALL_BLOCKED=1
   fi
 fi

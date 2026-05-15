@@ -13,14 +13,14 @@ Single iteration spawned by `run-critic-loop.sh`. Do not loop — one pr-review 
    where `{nonce}` is the UUID printed in the prompt. `run-critic-loop.sh` captures this nonce-anchored marker and records the verdict via `append-review-verdict`. Do NOT call `append-review-verdict` directly — the spawned session has no `CLAUDE_PLAN_CAPABILITY` and the call would be rejected. The nonce prevents verdict spoofing via doc citations of the marker format.
 3. `@reference/ultrathink.md §Ultrathink verdict audit`
 4. Read `## Open Questions` and query `plan-file.sh is-converged` — apply `@reference/critics.md §Skill branching logic` (pr-review exception: steps 1→4-5→7→8 only):
-   - `[BLOCKED-CEILING]` → exit (shell loop returns exit 2)
+   - `[BLOCKED:ceiling]` → exit (shell loop returns exit 2)
    - `is-converged` exits 0 → exit (shell loop returns exit 0)
-   - `[FIRST-TURN]` + PASS, or no terminal marker + PASS → exit (shell loop re-runs)
-   - `[FIRST-TURN]` + FAIL, or no terminal marker + FAIL → apply fix chain below, then exit
+   - first-turn (sidecar `first_turn=true`) + PASS, or no terminal marker + PASS → exit (shell loop re-runs)
+   - first-turn + FAIL, or no terminal marker + FAIL → apply fix chain below, then exit
 5. On FAIL: §Categorisation below → appropriate fix chain → §Fix-chain finisher → exit.
    Shell loop re-runs pr-review in the next iteration.
 
-**Categorisation** — interactive: `AskUserQuestion`; non-interactive: infer from evidence. If ambiguous, append `[BLOCKED-AMBIGUOUS] pr-review: {question}` and stop.
+**Categorisation** — interactive: `AskUserQuestion`; non-interactive: infer from evidence. If ambiguous, append `[BLOCKED:spec] pr-review: ambiguous — {question}` and stop.
 
 **Fix chains on FAIL** — **(if not already in `review` phase)** transition to `review` before fixing; remain in `review` for all subsequent FAILs:
 
@@ -49,10 +49,10 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
   "spec gap — resetting critic-spec milestone before re-review"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
 ```
-→ `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --nested --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
+→ `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --nested --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 
 → Apply `@reference/phase-ops.md §Phase Rollback Procedure`: target-phase=`red`, critic=`critic-test`
-→ Write failing test → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --nested --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (§Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
+→ Write failing test → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --nested --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (§Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 → Advance to `implement`:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
@@ -80,7 +80,7 @@ Issue: implementation contradicts domain rules.
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
    ```
-   → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --nested --prompt "Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → [BLOCKED] written to plan — stop and report; exit 2 → [BLOCKED-CEILING] — manual review required.
+   → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --nested --prompt "Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 
 2. **(If not already in `review` phase)** Restore to `review`:
    ```bash

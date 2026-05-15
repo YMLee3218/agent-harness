@@ -28,13 +28,13 @@ Pins the active plan file for `plan-file.sh find-active`. Highest priority overr
 CLAUDE_CRITIC_SESSION_TIMEOUT=3600
 ```
 
-Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-loop.sh`. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` exits 1 and appends `[BLOCKED] {agent}: session-timeout after {N}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run` to `## Open Questions` (where `{N}` is the value of `CLAUDE_CRITIC_SESSION_TIMEOUT`). Set to `0` to disable the timeout cap — `gtimeout 0` / `timeout 0` is treated as "no timeout" by GNU coreutils. When neither `gtimeout` nor `timeout` is installed, `run-critic-loop.sh` BLOCKs at start with `[BLOCKED] {agent}: no timeout binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap` (mirrors `stop-check.sh` no-binary handling).
+Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-loop.sh`. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` records a transient event (sidecar only); after K occurrences (`CLAUDE_TRANSIENT_THRESHOLD`, default 3) it promotes to `[BLOCKED:env] {agent}: session-timeout — recurred {K} times: after {N}s` in `## Open Questions`. Set to `0` to disable the timeout cap — `gtimeout 0` / `timeout 0` is treated as "no timeout" by GNU coreutils. When neither `gtimeout` nor `timeout` is installed, `run-critic-loop.sh` BLOCKs at start with `[BLOCKED:env] {agent}: no-timeout-binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap`.
 
 ```bash
-CLAUDE_CRITIC_LOOP_CEILING=5
+CLAUDE_CRITIC_LOOP_CEILING=20
 ```
 
-Maximum critic loop iterations per run (runs 1–N allowed; the (N+1)th triggers `[BLOCKED-CEILING]`). Default: `5`. Must be a numeric integer ≥ 2; invalid values or values below 2 fall back to 5. See `@reference/critics.md` for how PARSE_ERROR verdicts count toward the ceiling.
+Maximum critic loop iterations per run (runs 1–N allowed; the (N+1)th triggers `[BLOCKED:ceiling]`). Default: `20`. Must be a numeric integer ≥ 2; invalid values or values below 2 fall back to 20. See `@reference/critics.md` for how PARSE_ERROR verdicts count toward the ceiling.
 
 ```bash
 CLAUDE_CRITIC_LOOP_MODEL=opus
