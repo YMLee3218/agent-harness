@@ -101,7 +101,7 @@ Skill reads ## Open Questions and queries sidecar, checks in priority order:
 
 Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `plan-file.sh record-verdict-guarded` automatically when the critic agent exits — do **not** call `record-verdict` or `record-verdict-guarded` manually (doing so would double-record the run, inflating the streak and ceiling counters). For pr-review, `run-critic-loop.sh` records the verdict automatically by extracting the nonce-anchored `<!-- review-verdict: {nonce} PASS|FAIL -->` marker from the spawned session's stdout — do **not** call `append-review-verdict` manually either.
 
-After launching, end your turn immediately. The background completion notification resumes execution in the next turn automatically — no Monitor, ScheduleWakeup, or polling of any kind. When the notification arrives, read `## Open Questions` for terminal markers and proceed per exit code rules. B sessions handle all fixes; do not act on output observed before the notification.
+**B-session only** (invoked by `run-critic-loop.sh` as a `claude -p` one-shot): `Skill("{agent}", "{prompt}")` runs the critic subagent synchronously — the subagent completes and the `SubagentStop` hook records the verdict within the **same turn**. Do **not** end the turn after invoking Skill; do **not** run the call in the background; do **not** wait for a completion notification — `claude -p` has no subsequent turn. Ending the turn early orphans the subagent and any child Codex processes, causing a verdict-less `PARSE_ERROR`. After `Skill(...)` returns, proceed immediately to the ultrathink audit and branching within the same turn before exiting.
 
 After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. The B-session for each `run-critic-loop.sh` iteration runs the audit internally — `§Critic one-shot iteration` step 2 for the five critic subagents, `pr-review-loop.md §PR-review one-shot iteration` step 3 for pr-review — so the orchestrator that called `run-critic-loop.sh` must **not** re-run the audit after the loop returns. (Direct critic invocations are not a remaining code path: the `record-verdict-guarded` SubagentStop hook at settings.json rejects any critic-subagent run outside `run-critic-loop.sh`.)
 
@@ -135,8 +135,8 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 
 ## §Critic one-shot iteration
 
-One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** loop — one critic run per session.
-1. `Skill("{agent}", "{prompt}")` — `SubagentStop` fires `record-verdict-guarded` automatically.
+One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** loop — one critic run per session. Steps 1 and 2 execute in a single continuous turn — no turn boundary between them.
+1. `Skill("{agent}", "{prompt}")` — synchronous; `SubagentStop` fires `record-verdict-guarded` automatically when the subagent exits. Do not end the turn here.
 2. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 5/6/7 hand their re-run back to the shell loop; however step 5's FAIL branch routes to step 8, which this session does execute before exiting); exit after each branching action.
 
 ## Ambiguity signaling

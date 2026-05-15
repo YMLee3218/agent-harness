@@ -146,6 +146,7 @@ EOF
 codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-cross exit: $_codex_exit ==="
+[[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
 tail -200 "$_codex_log"
 rm -f "$_codex_prompt" "$_codex_log"
 ```

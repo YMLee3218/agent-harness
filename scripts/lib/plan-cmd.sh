@@ -442,6 +442,24 @@ _extract_or_handle_missing_verdict() {
   _pvm_out=$(_parse_verdict_message "$_output")
   IFS='|' read -r verdict category <<< "$_pvm_out"
   if [ -z "$verdict" ]; then
+    # Infrastructure failure detection: classify as [BLOCKED:env] instead of PARSE_ERROR when
+    # output is empty (subagent never ran) or contains known infra-failure signatures.
+    local _infra_detail=""
+    if [ -z "$_output" ]; then
+      _infra_detail="no subagent output"
+    elif printf '%s' "$_output" | grep -qE \
+        '(Unknown skill|ERROR:[[:space:]]+[a-z-]+ must be invoked via|=== CODEX-INFRA-FAILURE:|=== Codex [a-z-]+ exit: [1-9])'; then
+      _infra_detail=$(printf '%s' "$_output" | \
+        grep -E '(Unknown skill|ERROR: [a-z-]+ must be invoked via|=== CODEX-INFRA-FAILURE:|=== Codex [a-z-]+ exit: [1-9])' \
+        | head -1 | cut -c1-120 || echo "infrastructure signature detected")
+    fi
+    if [ -n "$_infra_detail" ]; then
+      _append_to_open_questions "$_plan" "[BLOCKED:env] ${_agent}: critic-skill-not-run — ${_infra_detail}"
+      _record_blocked "$_plan" "env" "$_agent" "$(basename "$_plan" .md)" \
+        "critic-skill-not-run — ${_infra_detail}" 2>/dev/null || true
+      echo "[record-verdict] [BLOCKED:env] ${_agent}: critic-skill-not-run — ${_infra_detail}" >&2
+      exit 1
+    fi
     printf '%s' "$_output" | grep -qE 'Verdict:\s*(PASS|FAIL)|\*\*Verdict:\s*(PASS|FAIL)\*\*' && \
       _handle_parse_error "$_plan" "$_phase" "$_agent" \
         "textual verdict format (not HTML markers) from ${_agent}" \
