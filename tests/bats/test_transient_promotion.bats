@@ -172,10 +172,33 @@ _libs() {
   " 2>/dev/null || true
 
   local cpath="$state_dir/transient_counters.json"
-  if [ -f "$cpath" ]; then
-    local count; count=$(jq -r '."critic-code__session-timeout" // 0' "$cpath" 2>/dev/null || echo 0)
-    [ "$count" -eq 0 ]
-  fi
+  [ -f "$cpath" ]
+  local count; count=$(jq -r '."critic-code__session-timeout" // 0' "$cpath" 2>/dev/null || echo 0)
+  [ "$count" -eq 0 ]
+}
+
+@test "transient: reset-milestone clears only target agent's counters (B4 regression)" {
+  # B4: cmd_reset_milestone must call _clear_transient_for (per-agent), not _reset_all_transient_counters.
+  local state_dir="$PLAN_DIR/test-feature.state"
+  mkdir -p "$state_dir/convergence"
+  printf '{"critic-code__session-timeout":2,"critic-spec__loop-lock":1}\n' \
+    > "$state_dir/transient_counters.json"
+  printf '{"phase":"implement","agent":"critic-code","first_turn":false,"streak":0,"converged":false,"ceiling_blocked":false,"ordinal":1,"milestone_seq":0}\n' \
+    > "$state_dir/convergence/implement__critic-code.json"
+
+  bash -c "
+    $(_libs)
+    cmd_reset_milestone '$PLAN_FILE' 'critic-code'
+  " 2>/dev/null || true
+
+  local cpath="$state_dir/transient_counters.json"
+  [ -f "$cpath" ]
+  # critic-code counter must be cleared
+  local cc; cc=$(jq -r '."critic-code__session-timeout" // 0' "$cpath" 2>/dev/null || echo 0)
+  [ "$cc" -eq 0 ]
+  # critic-spec counter must be preserved
+  local cs; cs=$(jq -r '."critic-spec__loop-lock" // 0' "$cpath" 2>/dev/null || echo 0)
+  [ "$cs" -eq 1 ]
 }
 
 @test "transient: unknown sub-kind is rejected" {

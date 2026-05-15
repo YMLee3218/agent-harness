@@ -223,7 +223,7 @@ cmd_context() {
   local blocked_items other_items questions
   blocked_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && (/\[BLOCKED/ || /\[STOP-BLOCKED/){print}' \
     "$plan_file" 2>/dev/null | head -3 | tr '\n' '|' | sed 's/|$//' || true)
-  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[FIRST-TURN/ && !/\[AUTO-DECIDED/{print}' \
+  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[AUTO-DECIDED/{print}' \
     "$plan_file" 2>/dev/null | head -2 | tr '\n' '|' | sed 's/|$//' || true)
 
   if [ -n "$blocked_items" ] && [ -n "$other_items" ]; then
@@ -650,7 +650,7 @@ cmd_reset_milestone() {
   local scope; scope=$(_scope_of "$current_phase" "$agent")
   cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] ${agent}"
   _clear_ceiling_sidecar_entry "$plan_file" "${scope}"
-  _reset_all_transient_counters "$plan_file" 2>/dev/null || true
+  _clear_transient_for "$plan_file" "$agent" 2>/dev/null || true
   local ts
   ts=$(_iso_timestamp)
   _append_to_critic_verdicts "$plan_file" \
@@ -673,7 +673,7 @@ cmd_reset_pr_review() {
       "[MILESTONE-BOUNDARY @${ts}] ${phase}/pr-review:"
     _sc_reset_convergence_for_scope "$plan_file" "$phase" "pr-review"
   done
-  _reset_all_transient_counters "$plan_file" 2>/dev/null || true
+  _clear_transient_for "$plan_file" "pr-review" 2>/dev/null || true
   echo "[reset-pr-review] cleared pr-review convergence markers for implement and review phases" >&2
 }
 

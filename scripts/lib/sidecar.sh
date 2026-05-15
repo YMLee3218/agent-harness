@@ -10,7 +10,6 @@ SC_BLOCKED="blocked.jsonl"
 SC_IMPLEMENTED="implemented.json"
 SC_VERDICTS_ARCHIVE="verdicts-archive.jsonl"
 SC_BLOCKED_ARCHIVE="blocked-archive.jsonl"
-MARK_BLOCKED="[BLOCKED]"
 MARK_BLOCKED_CEILING="[BLOCKED:ceiling]"
 
 # Defined here so sidecar helpers can use it without active-plan.sh dependency.
@@ -301,12 +300,16 @@ _record_transient() {
   _bpath=$(sc_path "$_plan" "$SC_BLOCKED")
   _ts=$(_iso_timestamp)
   _threshold="${CLAUDE_TRANSIENT_THRESHOLD:-3}"
+  case "$_threshold" in
+    ''|*[!0-9]*) echo "[transient] CLAUDE_TRANSIENT_THRESHOLD='${_threshold}' not an integer; using 3" >&2; _threshold=3 ;;
+  esac
+  [[ "$_threshold" -lt 1 ]] && { echo "[transient] CLAUDE_TRANSIENT_THRESHOLD='${_threshold}' must be >= 1; using 3" >&2; _threshold=3; }
   _key="${_agent}__${_sub_kind}"
   _existing='{}'; [[ -f "$_cpath" ]] && _existing=$(cat "$_cpath")
   _current=$(printf '%s' "$_existing" | jq -r --arg k "$_key" '.[$k] // 0' 2>/dev/null || echo 0)
   _current=$((_current + 1))
   _new_counters=$(printf '%s' "$_existing" | jq --arg k "$_key" --argjson v "$_current" '.[$k] = $v')
-  sc_update_json "$_cpath" "$_new_counters"
+  sc_update_json "$_cpath" "$_new_counters" || return 1
   sc_append_jsonl "$_bpath" "$(jq -nc \
     --arg ts "$_ts" --arg agent "$_agent" --arg sk "$_sub_kind" --arg detail "$_detail" \
     '{"ts":$ts,"kind":"transient","agent":$agent,"sub_kind":$sk,"detail":$detail,"cleared_at":null}')" 2>/dev/null || true
