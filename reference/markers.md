@@ -22,16 +22,16 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 
 ### Stop marker kinds
 
-| Kind | Fix location | Clearance | Absorbs (old prefix) | exit |
-|------|-------------|-----------|----------------------|------|
-| `[BLOCKED:envelope]` | Spec's Operating Envelope section | human-must | `[ESCALATION]` | 4 |
-| `[BLOCKED:docs]` | docs/spec/test — ground truth decision needed → cascade | human-must | `[BLOCKED-AMBIGUOUS] … DOCS CONTRADICTION` | 1 |
-| `[BLOCKED:spec]` | Spec gap or ambiguity — human answer needed | human-must | `[BLOCKED-AMBIGUOUS] {agent}: {question}` | 1 |
-| `[BLOCKED:code]` | Code/test root cause (coder, integration, smoke) | human-must | `[BLOCKED] category:`, `parse:`, `coder:`, `integration:`, `post-implement smoke test` | 1 |
-| `[BLOCKED:env]` | Environment/session/tool (persistent or recurring) | human-must | `[BLOCKED] preflight:`, `script-failure:`, `no timeout binary`, `plan unchanged` | 1 |
-| `[BLOCKED:harness]` | Harness call path or sidecar integrity | human-must | `[BLOCKED] protocol-violation:`, `kind=corrupt`, `kind=corrupt-check`, `kind=streak` | 1 |
-| `[BLOCKED:ceiling]` | Critic loop ceiling exceeded → `reset-milestone` | human-must | `[BLOCKED-CEILING] {phase}/{agent}:` | 2 |
-| `[BLOCKED:transient]` | **1-time transient state** (session timeout, lock clash) | **auto** — harness self-retries; never requires `unblock` | `[BLOCKED] {agent}: session-timeout`, `[BLOCKED] {agent}: critic loop already running` | 1 |
+| Kind | Fix location | Clearance | exit |
+|------|-------------|-----------|------|
+| `[BLOCKED:envelope]` | Spec's Operating Envelope section | human-must | 4 |
+| `[BLOCKED:docs]` | docs/spec/test — ground truth decision needed → cascade | human-must | 1 |
+| `[BLOCKED:spec]` | Spec gap or ambiguity — human answer needed | human-must | 1 |
+| `[BLOCKED:code]` | Code/test root cause (coder, integration, smoke) | human-must | 1 |
+| `[BLOCKED:env]` | Environment/session/tool (persistent or recurring) | human-must | 1 |
+| `[BLOCKED:harness]` | Harness call path or sidecar integrity | human-must | 1 |
+| `[BLOCKED:ceiling]` | Critic loop ceiling exceeded → `reset-milestone` | human-must | 2 |
+| `[BLOCKED:transient]` | **1-time transient state** (session timeout, lock clash) | **auto** — harness self-retries; never requires `unblock` | 1 |
 
 > **`[BLOCKED:transient]` is sidecar-only** — it is never written to `plan.md`. If one appears in `## Open Questions`, it was written incorrectly; `unblock` intentionally does not clear it. See §Transient auto-handling.
 
@@ -104,16 +104,6 @@ Written by scripts outside the critic convergence protocol.
 | `[BLOCKED:harness] {scope}: {sub-kind} — {detail}` | `plan-cmd.sh`, `run-critic-loop.sh` | `plan-file.sh unblock` | Yes |
 | `[BLOCKED:ceiling] {scope}: {sub-kind} — {detail}` | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `unblock` | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | `stop-check.sh` | Informational — survives `gc-events` | Yes |
-
-## Critic loop markers (written to `## Open Questions`)
-
-Managed by `scripts/lib/plan-loop-helpers.sh` and `scripts/lib/plan-cmd.sh`.
-
-| Marker | Scope | Written by | Clear path | Survives gc? |
-|--------|-------|------------|------------|-------------|
-| `[BLOCKED:ceiling] {agent}: {phase}/{agent} exceeded {N} runs — manual review required` | phase-scoped | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `unblock` | Yes |
-
-> **Authoritative convergence state**: lives exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state`. Query via `plan-file.sh is-converged <plan> <phase> <agent>` (exit 0 = converged). No plan.md marker mirrors this state.
 
 ## Integration test markers (written to `## Integration Failures`)
 
