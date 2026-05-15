@@ -231,6 +231,38 @@ EOF
   [ "$transient_cleared" = "null" ]
 }
 
+@test "unblock: jq null-guard — transient record with no .message field does not crash cmd_clear_marker" {
+  # Regression: plan-cmd.sh:567-569 uses (.message // "") so transient records
+  # (which have .detail but no .message) must not cause jq type errors.
+  local state_dir="$PLAN_DIR/test-feature.state"
+  mkdir -p "$state_dir"
+  local ts; ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  # Transient record — no .message field
+  printf '{"ts":"%s","kind":"transient","agent":"critic-code","sub_kind":"session-timeout","detail":"after 3600s","cleared_at":null}\n' \
+    "$ts" > "$state_dir/blocked.jsonl"
+  # Code record — has .message field; should get cleared_at stamped
+  printf '{"ts":"%s","kind":"code","agent":"critic-code","scope":"implement/critic-code","message":"tests-failing — needs fix","cleared_at":null}\n' \
+    "$ts" >> "$state_dir/blocked.jsonl"
+  printf '\n[BLOCKED:code] critic-code: tests-failing — needs fix\n' >> "$PLAN_FILE"
+
+  local wrapper
+  wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
+  printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock "%s"\n' \
+    "$PLAN_BASE" "$SCRIPTS_DIR" "$PLAN_FILE" > "$wrapper"
+  chmod +x "$wrapper"
+  run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
+  rm -f "$wrapper"
+  [ "$status" -eq 0 ]
+
+  # code record must have cleared_at set; transient must remain null
+  local code_cleared
+  code_cleared=$(jq -r 'select(.kind == "code") | .cleared_at' "$state_dir/blocked.jsonl" 2>/dev/null || echo "FAIL")
+  [ "$code_cleared" != "null" ]
+  local transient_still_null
+  transient_still_null=$(jq -r 'select(.kind == "transient") | .cleared_at' "$state_dir/blocked.jsonl" 2>/dev/null || echo "FAIL")
+  [ "$transient_still_null" = "null" ]
+}
+
 @test "awk-inplace: awk -i inplace targeting HMCM-active plan is blocked" {
   local tf
   tf=$(mktemp)
