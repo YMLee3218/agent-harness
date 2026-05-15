@@ -127,7 +127,7 @@ _awk_replace_phase_body() {
 # ── Blocked-record helpers ───────────────────────────────────────────────────
 
 # _record_blocked_runtime PLAN_FILE AGENT SCOPE MESSAGE
-# Appends to blocked.jsonl (kind=runtime) AND open questions simultaneously.
+# Appends to blocked.jsonl (kind=harness) AND open questions simultaneously.
 _record_blocked_runtime() {
   local _plan="$1" _agent="$2" _scope="$3" _msg="$4"
   _record_blocked "$_plan" "harness" "$_agent" "$_scope" "$_msg" 2>/dev/null || true
