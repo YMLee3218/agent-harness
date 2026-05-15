@@ -16,8 +16,8 @@ case "$1" in
 
   # Ring B — harness or human: state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
-  reset-for-rollback|clear-converged|record-verdict|record-verdict-guarded|append-review-verdict|\
-  gc-events|gc-verdicts|record-task-completed|record-stop-block|append-audit|mark-implemented|\
+  reset-for-rollback|record-verdict|record-verdict-guarded|append-review-verdict|\
+  gc-events|gc-verdicts|record-task-completed|record-stop-block|mark-implemented|\
   inter-feature-reset)
     require_capability "$1" B
     if [ "$1" = "append-review-verdict" ] && [ $# -ge 2 ] && [ ! -f "$2.critic.lock" ]; then
@@ -29,6 +29,14 @@ case "$1" in
         die "BLOCKED: ${_rv_plan##*/}.critic.lock absent — record-verdict requires run-critic-loop.sh context"
       fi
     fi
+    ;;
+
+  # Critic-loop B-session mutators — gated by .critic.lock presence only.
+  # B-session runs without CLAUDE_PLAN_CAPABILITY (run-critic-loop.sh strips it);
+  # the lock proves a genuine run-critic-loop.sh context.
+  append-audit|clear-converged)
+    [ $# -ge 2 ] || die "Usage: plan-file.sh $1 <plan-file> ..."
+    [ -f "$2.critic.lock" ] || die "BLOCKED: ${2##*/}.critic.lock absent — $1 requires run-critic-loop.sh context"
     ;;
 
   # Ring C — human-only
