@@ -72,6 +72,14 @@ _ppid_chain_is_harness() {
 _ppid_chain_is_human() {
   local pid="$$" depth=0
   local _max="${CLAUDE_PPID_CHAIN_DEPTH:-10}"
+  # macOS: ps eww does not expose env vars for processes we own (SIP restriction).
+  # Fall back to trusting the inherited env var — spoofing is blocked upstream by
+  # pretooluse-bash.sh::block_capability, which prevents the agent from ever setting
+  # CLAUDE_PLAN_CAPABILITY in a Bash tool call.
+  if [[ "$(uname 2>/dev/null)" == "Darwin" ]]; then
+    [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
+    return 1
+  fi
   while [[ $depth -lt $_max ]]; do
     pid=$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d '[:space:]') || return 1
     [[ -z "$pid" ]] && return 1
