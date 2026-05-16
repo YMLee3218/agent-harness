@@ -116,6 +116,9 @@ or
 <!-- review-verdict: ${_nonce} FAIL -->"
   fi
   _session_out=$(mktemp)
+  _log_slug=$(basename "$PLAN" .md)
+  _log_dir="$(dirname "$PLAN")/${_log_slug}.state"
+  mkdir -p "$_log_dir" 2>/dev/null || true
   _cmd=()
   [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
   _cmd+=(claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT")
@@ -134,9 +137,6 @@ or
       fi
     fi
     # Preserve session output for diagnosis before removing the temp file
-    _log_slug=$(basename "$PLAN" .md)
-    _log_dir="$(dirname "$PLAN")/${_log_slug}.state"
-    mkdir -p "$_log_dir" 2>/dev/null || true
     [[ -n "${_session_out:-}" && -s "${_session_out:-}" ]] && \
       cp "$_session_out" "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null || true
     rm -f "${_session_out:-}"
@@ -154,9 +154,6 @@ or
   _clear_transient_for "$PLAN" "$AGENT" 2>/dev/null || true
 
   # Preserve session output for diagnosis; echo for pr-review verdict extraction.
-  _log_slug=$(basename "$PLAN" .md)
-  _log_dir="$(dirname "$PLAN")/${_log_slug}.state"
-  mkdir -p "$_log_dir" 2>/dev/null || true
   [[ -n "${_session_out:-}" && -s "${_session_out:-}" ]] && \
     cp "$_session_out" "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null || true
   # nonce prevents the grep from matching a doc citation of the marker format.

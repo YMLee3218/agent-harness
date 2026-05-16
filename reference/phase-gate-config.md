@@ -52,7 +52,7 @@ Per-test-run timeout (seconds) for `scripts/stop-check.sh`. Default: `600` (10 m
 
 Source of truth: `scripts/phase-policy.sh` (`phase_blocks_src`, `phase_blocks_test`, `list_phases`). Update `phase-policy.sh` to change phase predicates — this file does not restate them.
 
-> **Note:** Phase gating applies only to `src/` and test paths. Writes to `docs/`, `plans/`, `reference/`, and other non-source paths are always permitted in every phase.
+> **Note:** Phase gating applies only to `src/` and test paths. Writes to `docs/`, `plans/`, `reference/`, and other non-source paths are always permitted in every phase. Exception: Ring C files in `reference/` (and other Ring C paths) are blocked by the capability gate in both `phase-gate.sh` and `pretooluse-bash.sh` unless `CLAUDE_PLAN_CAPABILITY=human` — this is a capability restriction, not a phase restriction.
 
 `implement` is the codex execution phase (via run-implement.sh) — source writes are permitted; test files remain frozen. Freeze is enforced by two independent hooks (`phase-gate.sh` and `pretooluse-bash.sh`); both must be adjusted together if fail-open behaviour is needed.
 

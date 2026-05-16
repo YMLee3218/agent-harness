@@ -10,6 +10,8 @@ source "$(dirname "$0")/lib/active-plan.sh"
 source "$(dirname "$0")/phase-policy.sh"
 # shellcheck source=pretooluse-blocks.sh
 source "$(dirname "$0")/pretooluse-blocks.sh"
+# shellcheck source=capability.sh (provides _RING_C_FILES for Ring C protection)
+source "$(dirname "$0")/capability.sh"
 
 input=$(cat)
 
@@ -55,6 +57,13 @@ if [ -f "$PLAN_FILE_SH" ]; then
     fi
     if [[ "$_dest_p" == */plans/*.md ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
       echo "BLOCKED [phase-gate/bash]: agent bash writes to plans/*.md are reserved for plan-file.sh harness commands" >&2; exit 2
+    fi
+    if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
+      _ring_rel="${_dest_p#${CLAUDE_PROJECT_DIR}/}"
+      [[ "$_ring_rel" == "$_dest_p" ]] && _ring_rel="${_dest_p#$(pwd)/}"
+      if printf '%s' "$_ring_rel" | grep -qE "^(${_RING_C_FILES})$"; then
+        echo "BLOCKED [phase-gate/bash]: Ring C file ($(basename "$_dest_p")) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2; exit 2
+      fi
     fi
     if [ -n "$_current_phase" ]; then
       apply_phase_block "$_dest_p" "$_current_phase" "phase-gate/bash" || exit 2
