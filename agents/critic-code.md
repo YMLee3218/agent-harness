@@ -27,4 +27,4 @@ FAIL — Codex did not emit a verdict marker
 <!-- category: STRUCTURAL -->
 ```
 
-so the hook records a FAIL (not a silent pass) and the loop retries with PARSE_ERROR handling.
+so the hook records a FAIL (not a silent pass) and the loop retries via the standard FAIL path (step 9 of §Skill branching logic — LLM determines fix direction).
