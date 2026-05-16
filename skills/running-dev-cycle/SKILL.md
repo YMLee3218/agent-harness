@@ -11,7 +11,7 @@ disable-model-invocation: true
 Resolve the active plan file, then run:
 
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-dev-cycle.sh" {args} \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-dev-cycle.sh" \
   --plan "$(bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')"
 ```
 
