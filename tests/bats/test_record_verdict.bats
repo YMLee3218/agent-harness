@@ -166,3 +166,37 @@ teardown() {
   [ "$status" -ne 0 ]
 }
 
+# ── T3: C1 fix — FAIL+PARSE_ERROR+FAIL DOES block (PARSE_ERROR transparent) ──
+
+@test "T3/C1: FAIL then PARSE_ERROR then same-category FAIL triggers BLOCKED" {
+  # Pre-populate verdicts.jsonl: FAIL(LAYER_VIOLATION) then PARSE_ERROR — PARSE_ERROR must be transparent
+  local state_dir="$PLAN_DIR/test-feature.state"
+  mkdir -p "$state_dir/convergence"
+  local ts; ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  printf '{"ts":"%s","phase":"implement","agent":"critic-code","verdict":"FAIL","category":"LAYER_VIOLATION","ordinal":1,"milestone_seq":0}\n' \
+    "$ts" > "$state_dir/verdicts.jsonl"
+  printf '{"ts":"%s","phase":"implement","agent":"critic-code","verdict":"PARSE_ERROR","category":"","ordinal":2,"milestone_seq":0}\n' \
+    "$ts" >> "$state_dir/verdicts.jsonl"
+  printf '{"phase":"implement","agent":"critic-code","first_turn":true,"streak":0,"converged":false,"ceiling_blocked":false,"ordinal":2,"milestone_seq":0}\n' \
+    > "$state_dir/convergence/implement__critic-code.json"
+
+  run bash -c '
+    source '"$SCRIPTS_DIR"'/lib/active-plan.sh
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    source '"$SCRIPTS_DIR"'/lib/sidecar.sh
+    export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
+    source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
+    export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
+    export CLAUDE_PLAN_CAPABILITY=harness
+    set +e
+    printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: FAIL -->\\n<!-- category: LAYER_VIOLATION -->"}'"'"' \
+      | cmd_record_verdict 2>&1
+  ' 2>&1
+  # PARSE_ERROR between two same-category FAILs is transparent — must still block
+  [[ "$output" == *"consecutive same-category FAIL"* || "$output" == *"consecutive same-category"* ]]
+  [[ "$output" != *"jq: error"* ]]
+  grep -q '\[BLOCKED:code\]' "$PLAN_FILE"
+}
+

@@ -521,7 +521,7 @@ _persist_verdict() {
   if [ "$_verdict" = "FAIL" ] && [ -n "$_category" ]; then
     local _ccb_rc=0
     _check_consecutive_and_block "$_plan" "$_phase" "$_agent" \
-      '[.[] | select(.phase == $p and .agent == $a and .milestone_seq == $ms)] | .[-2] | select(.verdict == "FAIL") | .category // ""' \
+      '[.[] | select(.phase == $p and .agent == $a and .milestone_seq == $ms and .verdict != "PARSE_ERROR")] | .[-2] | select(.verdict == "FAIL") | .category // ""' \
       "$_category" "category" "${_category} failed twice — fix root cause before retrying" \
       "consecutive same-category FAIL (${_category}) from ${_agent} — blocked" || _ccb_rc=$?
     case $_ccb_rc in
