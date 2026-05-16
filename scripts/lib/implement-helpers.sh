@@ -113,10 +113,9 @@ _restore_and_retry() {
 # _run_failing_test ID WD — runs the task's designated failing test; returns 1 with BLOCKED on failure.
 _run_failing_test() {
   local id="$1" wt="$2"
-  local failing_test test_file
+  local failing_test
   failing_test=$(get_field "$id" failing_test)
-  test_file="${failing_test%%::*}"
-  if [[ -n "$test_file" ]] && ! (cd "$wt" && bash -c "$TEST_CMD $test_file" 2>&1); then
+  if [[ -n "$failing_test" ]] && ! (cd "$wt" && bash -c "$TEST_CMD $failing_test" 2>&1); then
     bash "$PF" update-task "$PLAN" "$id" blocked
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — after implementation"
     return 1
