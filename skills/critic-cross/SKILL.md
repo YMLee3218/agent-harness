@@ -22,7 +22,7 @@ Substitute placeholders from the prompt you received (`{all_spec_paths}`, `{docs
 
 ```bash
 _codex_prompt=$(mktemp /tmp/critic-cross-prompt-XXXXXX.txt)
-_codex_log=$(mktemp /tmp/critic-cross-log-XXXXXX.txt)
+_codex_log=/tmp/critic-cross-log.txt
 cat > "$_codex_prompt" <<EOF
 You are an adversarial cross-feature reviewer. Read ALL provided spec files in full.
 Assume contradictions exist until proven otherwise.
@@ -147,8 +147,9 @@ codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-cross exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
+echo "=== full critic log retained at $_codex_log ==="
 tail -200 "$_codex_log"
-rm -f "$_codex_prompt" "$_codex_log"
+rm -f "$_codex_prompt"
 ```
 
 The verdict markers in the tail are your final stdout. Do not append text after `tail -200`.

@@ -21,7 +21,7 @@ Substitute placeholders from the prompt you received (`{spec_path}`, `{docs_path
 
 ```bash
 _codex_prompt=$(mktemp /tmp/critic-spec-prompt-XXXXXX.txt)
-_codex_log=$(mktemp /tmp/critic-spec-log-XXXXXX.txt)
+_codex_log=/tmp/critic-spec-log.txt
 cat > "$_codex_prompt" <<EOF
 You are an adversarial spec reviewer. Find cases where implementing this spec would fail. Assume the spec is flawed until proven otherwise. Read every file you need.
 
@@ -158,8 +158,9 @@ codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-spec exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
+echo "=== full critic log retained at $_codex_log ==="
 tail -200 "$_codex_log"
-rm -f "$_codex_prompt" "$_codex_log"
+rm -f "$_codex_prompt"
 ```
 
 The verdict markers in the tail are your final stdout. Do not append text after `tail -200`.

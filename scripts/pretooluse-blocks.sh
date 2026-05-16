@@ -12,8 +12,12 @@ _PRETOOLUSE_BLOCKS_LOADED=1
 # returned as a sidecar path so callers fail-closed rather than silently bypass.
 _bash_dest_paths() {
   local c="$1" _t
-  printf '%s' "$c" | grep -oE '>{1,2} *[^[:space:]]+' | sed 's/^>* *//' | tr -d '"'"'" | while IFS= read -r _t; do
-    case "$_t" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t" ;; esac
+  printf '%s' "$c" | grep -oE '>{1,2} *[^[:space:];|&)(<>]+' | sed 's/^>* *//' | tr -d '"'"'" | while IFS= read -r _t; do
+    case "$_t" in
+      /dev/null|/dev/stdout|/dev/stderr) ;;
+      *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;;
+      *) echo "$_t" ;;
+    esac
   done || true
   printf '%s' "$c" | grep -oE '\btee( +[^[:space:]]+)+' | sed 's/^tee *//' | tr ' ' '\n' | grep -v '^-' | while IFS= read -r _t; do
     case "$_t" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t" ;; esac

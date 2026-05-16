@@ -21,7 +21,7 @@ Substitute the placeholders below from the prompt you received (`{spec_path}`, `
 
 ```bash
 _codex_prompt=$(mktemp /tmp/critic-code-prompt-XXXXXX.txt)
-_codex_log=$(mktemp /tmp/critic-code-log-XXXXXX.txt)
+_codex_log=/tmp/critic-code-log.txt
 cat > "$_codex_prompt" <<EOF
 You are an adversarial code reviewer. Find where this implementation violates the spec. Assume the code is wrong until proven otherwise. Read every file you need.
 
@@ -132,8 +132,9 @@ codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-code exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
+echo "=== full critic log retained at $_codex_log ==="
 tail -200 "$_codex_log"
-rm -f "$_codex_prompt" "$_codex_log"
+rm -f "$_codex_prompt"
 ```
 
 The verdict markers in the tail are your final stdout. The SubagentStop hook reads `<!-- verdict: -->` and `<!-- category: -->` from there. Do not append anything after the `tail -200` output.
