@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dispatcher — exit codes: 0=success 1=error 2=not-found/blocked 3=ambiguous(find-active) 4=malformed(find-active)
-# Marker side-effects: reference/markers.md §Bracketed plan-file markers
+# Marker side-effects: reference/markers.md §Stop marker taxonomy
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/plan-lib.sh"

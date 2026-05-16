@@ -46,7 +46,7 @@ On entry, every skill must verify the plan file phase before doing any work.
 
 ### After phase confirmation
 
-Set or confirm the correct phase in the plan file using:
+Set the correct phase in the plan file using:
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {phase} "{reason}"
 ```
