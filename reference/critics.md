@@ -14,7 +14,7 @@ If invoked outside the `{name}` skill context (no parent skill orchestrating thi
 
 Severity levels, PASS/FAIL threshold, category priority, and finding labels: `@reference/severity.md` (single source of truth — do not duplicate here).
 
-Every critic **must** end its output with a `### Verdict` section containing the HTML markers shown below. Output that does not end with these markers is recorded as `PARSE_ERROR` in the plan file.
+Every critic **must** end its output with a `### Verdict` section containing the HTML markers shown below. Output that does not contain these markers is recorded as `PARSE_ERROR` in the plan file. (The parser accepts the last occurrence of the markers anywhere in the transcript — trailing text after the markers does not cause a PARSE_ERROR, but critics should still place markers at the end for clarity.)
 
 **PASS**
 ```
@@ -23,6 +23,7 @@ PASS
 <!-- verdict: PASS -->
 <!-- category: NONE -->
 ```
+(`<!-- category: NONE -->` is the recommended format for PASS but is not enforced by the parser — category enforcement applies to FAIL only.)
 
 **FAIL**
 ```
