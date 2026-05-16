@@ -159,7 +159,7 @@ _libs() {
   [ "$content" = "{}" ]
 }
 
-@test "transient: reset-milestone resets all transient counters" {
+@test "transient: reset-milestone resets target agent's transient counters" {
   local state_dir="$PLAN_DIR/test-feature.state"
   mkdir -p "$state_dir/convergence"
   printf '{"critic-code__session-timeout":2}\n' > "$state_dir/transient_counters.json"

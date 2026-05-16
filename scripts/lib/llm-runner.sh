@@ -41,12 +41,14 @@ _recent_test_files() {
 
 find_spec_path() {
   local slug="$1"
-  for _sp in "${PROJECT_DIR}/src/features/${slug}/spec.md" \
-             "${PROJECT_DIR}/src/domain/${slug}/spec.md" \
-             "${PROJECT_DIR}/src/infrastructure/${slug}/spec.md" \
-             "${PROJECT_DIR}/features/${slug}/spec.md" \
+  # Canonical paths (per layers.md §Naming conventions: spec files are top-level) checked first;
+  # src/ paths are legacy fallback for non-standard layouts.
+  for _sp in "${PROJECT_DIR}/features/${slug}/spec.md" \
              "${PROJECT_DIR}/domain/${slug}/spec.md" \
-             "${PROJECT_DIR}/infrastructure/${slug}/spec.md"; do
+             "${PROJECT_DIR}/infrastructure/${slug}/spec.md" \
+             "${PROJECT_DIR}/src/features/${slug}/spec.md" \
+             "${PROJECT_DIR}/src/domain/${slug}/spec.md" \
+             "${PROJECT_DIR}/src/infrastructure/${slug}/spec.md"; do
     [[ -f "$_sp" ]] && echo "$_sp" && return
   done
   echo "features/${slug}/spec.md"

@@ -71,8 +71,8 @@ if ! claude plugin list 2>/dev/null | grep -q 'pr-review-toolkit'; then
   _append_blocked "pr-review-toolkit" "install via settings.json enabledPlugins or 'claude plugin install'"
 fi
 
-# Check: codex plugin
-if ! claude plugin list 2>/dev/null | grep -q 'codex'; then
+# Check: codex CLI (invoked directly in bash subprocesses by implement-helpers.sh)
+if ! command -v codex >/dev/null 2>&1; then
   _append_blocked "codex" "install via settings.json enabledPlugins or 'claude plugin install codex@openai-codex'"
 fi
 
