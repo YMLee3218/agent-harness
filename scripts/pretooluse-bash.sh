@@ -2,7 +2,7 @@
 # PreToolUse hook for Bash tool.
 # Reads JSON from stdin, extracts .tool_input.command, blocks destructive patterns.
 # Exit 2 = blocked; exit 0 = allowed.
-# Mistake-prevention only; authoritative gate is the PPID-chain check in capability.sh::_check_parent_env.
+# Mistake-prevention layer; the capability gate is require_capability in capability.sh.
 set -euo pipefail
 # shellcheck source=lib/active-plan.sh
 source "$(dirname "$0")/lib/active-plan.sh"

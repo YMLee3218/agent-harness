@@ -170,20 +170,6 @@ or
   fi
   rm -f "${_session_out:-}"; _session_out=""
 
-  # Envelope escalation — ENVELOPE_MISMATCH/OVERREACH means the envelope itself needs
-  # correction, not the spec/code. These findings must not consume critic rounds silently.
-  # Read last recorded verdict category from sidecar (set by SubagentStop hook).
-  _last_cat=""
-  if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then
-    _last_cat=$(jq -r '.last_verdict_category // .last_category // ""' "$_conv_path" 2>/dev/null || true)
-  fi
-  if [[ "$_last_cat" == "ENVELOPE_MISMATCH" ]] || [[ "$_last_cat" == "ENVELOPE_OVERREACH" ]]; then
-    bash "$PLAN_FILE_SH" append-note "$PLAN" \
-      "[BLOCKED:envelope] ${AGENT}: ${_last_cat} — correct Operating Envelope in spec and re-run" 2>/dev/null || true
-    echo "[BLOCKED:envelope] ${_last_cat} — manual envelope correction required; exiting critic loop" >&2
-    exit 4
-  fi
-
   # Consecutive NOOP detection — plan file unchanged across iterations
   plan_hash=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
   if [[ "$plan_hash" == "$LAST_PLAN_HASH" ]]; then

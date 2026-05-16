@@ -24,7 +24,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 
 | Kind | Fix location | Clearance | exit |
 |------|-------------|-----------|------|
-| `[BLOCKED:envelope]` | Spec's Operating Envelope section | human-must | 4 |
+| `[BLOCKED:envelope]` | Spec's Operating Envelope section | human-must | 1 |
 | `[BLOCKED:docs]` | docs/spec/test — ground truth decision needed → cascade | human-must | 1 |
 | `[BLOCKED:spec]` | Spec gap or ambiguity — human answer needed | human-must | 1 |
 | `[BLOCKED:code]` | Code/test root cause (coder, integration, smoke) | human-must | 1 |
@@ -38,7 +38,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 ### Examples
 
 ```
-[BLOCKED:envelope] critic-code: ENVELOPE_MISMATCH — Operating Envelope section missing in spec
+[BLOCKED:envelope] coder:feat-x: ENVELOPE_MISMATCH — envelope declares single-tenant but DB is multi-tenant
 [BLOCKED:docs] critic-spec: contradiction — docs may be stale, ground truth ambiguous; apply cascade
 [BLOCKED:spec] critic-code: ambiguous — which encoding should be used for foo?
 [BLOCKED:code] critic-code: category — LAYER_VIOLATION failed twice
@@ -96,7 +96,7 @@ Written by scripts outside the critic convergence protocol.
 
 | Marker | Emitter | Clear path | Survives gc? |
 |--------|---------|------------|-------------|
-| `[BLOCKED:envelope] {scope}: {sub-kind} — {detail}` | `run-critic-loop.sh` (exit 4) | `plan-file.sh unblock` | Yes |
+| `[BLOCKED:envelope] {scope}: {sub-kind} — {detail}` | Skills (worker context — envelope itself wrong, per effort.md) | `plan-file.sh unblock` | Yes |
 | `[BLOCKED:docs] {scope}: {sub-kind} — {detail}` | Skills (parent context) | `plan-file.sh unblock` then cascade | Yes |
 | `[BLOCKED:spec] {scope}: {sub-kind} — {detail}` | Skills (parent context) | `plan-file.sh unblock` | Yes |
 | `[BLOCKED:code] {scope}: {sub-kind} — {detail}` | Various scripts | `plan-file.sh unblock` | Yes |

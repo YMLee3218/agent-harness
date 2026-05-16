@@ -29,7 +29,6 @@ llm_exit() {
     1) echo "[BLOCKED] ${label} failed — see ## Open Questions" >&2; exit 1 ;;
     2) echo "[BLOCKED:ceiling] ${label} — manual review required" >&2; exit 2 ;;
     3) echo "[BLOCKED] ${label}: critic loop already running — wait or remove .critic.lock" >&2; exit 1 ;;
-    4) echo "[BLOCKED:envelope] ${label}: operating envelope must be corrected — see marker in ## Open Questions" >&2; exit 4 ;;
     *) echo "Script failure: ${label} exited ${rc}" >&2
        [[ -n "${PLAN:-}" ]] && bash "${PF:-}" append-note "$PLAN" "[BLOCKED:env] ${label}: script-failure — exit ${rc}" 2>/dev/null || true
        exit $rc ;;

@@ -389,3 +389,28 @@ EOF
   rm -f "$wrapper"
   [ "$status" -ne 0 ]
 }
+
+@test "is-blocked kind filter: envelope+spec open; envelope=true docs=false any=true" {
+  # Verifies plan-cmd.sh:917-919 kind-filter path. With [BLOCKED:envelope] emitted by
+  # worker per effort.md, the shell's general is-blocked check (no kind arg) at
+  # run-critic-loop.sh:93 must catch it, and the envelope kind filter must be selective.
+  local state_dir="$PLAN_DIR/test-feature.state"
+  mkdir -p "$state_dir"
+  local ts; ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  printf '{"kind":"envelope","agent":"coder:feat-x","sub_kind":"ENVELOPE_MISMATCH","detail":"fix spec","ts":"%s","cleared_at":null}\n' \
+    "$ts" > "$state_dir/blocked.jsonl"
+  printf '{"kind":"spec","agent":"critic-spec","sub_kind":"ambiguous","detail":"which axis?","ts":"%s","cleared_at":null}\n' \
+    "$ts" >> "$state_dir/blocked.jsonl"
+
+  # is-blocked <plan> envelope → exit 0 (true)
+  run env CLAUDE_PROJECT_DIR="$PLAN_BASE" bash "$SCRIPTS_DIR/plan-file.sh" is-blocked "$PLAN_FILE" envelope </dev/null 2>&1
+  [ "$status" -eq 0 ]
+
+  # is-blocked <plan> docs → exit 1 (false — no docs record)
+  run env CLAUDE_PROJECT_DIR="$PLAN_BASE" bash "$SCRIPTS_DIR/plan-file.sh" is-blocked "$PLAN_FILE" docs </dev/null 2>&1
+  [ "$status" -eq 1 ]
+
+  # is-blocked <plan> (no kind) → exit 0 (true — envelope+spec both open)
+  run env CLAUDE_PROJECT_DIR="$PLAN_BASE" bash "$SCRIPTS_DIR/plan-file.sh" is-blocked "$PLAN_FILE" </dev/null 2>&1
+  [ "$status" -eq 0 ]
+}

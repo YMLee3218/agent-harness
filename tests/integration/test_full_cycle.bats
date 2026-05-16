@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # T10/T13: Integration e2e — harness state machine + critic-loop plumbing.
 # Tests the plan-file.sh command suite end-to-end without invoking real claude sessions.
-# Ring B commands are called via sourced libs (bypasses dispatcher's PPID-chain check, intentional for tests).
+# Ring B commands are called via sourced libs (bypasses the dispatcher's capability gate, intentional for tests).
 
 SCRIPTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)/scripts"
 WS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"

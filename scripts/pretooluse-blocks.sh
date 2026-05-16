@@ -2,7 +2,7 @@
 # PreToolUse Bash hook — all blocking rules in 5 categories.
 # Each function receives the command string as $1 and calls exit 2 on match.
 # Source this file; do not execute directly.
-# Mistake-prevention only; authoritative gate is the PPID-chain check in capability.sh::_check_parent_env.
+# Mistake-prevention layer; the capability gate is require_capability in capability.sh.
 set -euo pipefail
 [[ -n "${_PRETOOLUSE_BLOCKS_LOADED:-}" ]] && return 0
 _PRETOOLUSE_BLOCKS_LOADED=1

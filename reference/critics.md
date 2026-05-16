@@ -93,6 +93,18 @@ Skill reads ## Open Questions and queries sidecar, checks in priority order:
          → re-run critic
        - direction is ambiguous → append [BLOCKED:spec] {agent}: ambiguous — {question} + stop
        - [DOCS CONTRADICTION] in critic output → treat docs/*.md as ground truth; fix code (and spec) to match. If fixing code would itself require changing docs (stale requirements), direction is ambiguous → append [BLOCKED:docs] {agent}: contradiction — docs may be stale, ground truth ambiguous; apply cascade + stop; follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
+     ENVELOPE_MISMATCH / ENVELOPE_OVERREACH are ordinary FAIL categories — no
+     envelope-specific branch. They resolve through the three branches above:
+       - an axis derivable from the spec body, or a scenario overreaching a
+         correct envelope (shrink the scenario, per @reference/effort.md) →
+         clear → fix, then the critic re-run validates;
+       - an axis the spec body does not determine, or a scenario that may be a
+         real requirement whose resolution (widen the envelope vs drop the
+         scenario) the loop cannot decide → ambiguous → [BLOCKED:spec];
+       - an ENVELOPE_MISMATCH FAIL whose finding text says the envelope
+         contradicts docs/*.md (the category is ENVELOPE_MISMATCH, not a
+         literal [DOCS CONTRADICTION]) — it is a ground-truth decision; apply
+         the [DOCS CONTRADICTION] branch by the finding text → [BLOCKED:docs].
 ```
 
 ---
@@ -105,7 +117,7 @@ Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `
 
 After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. The B-session for each `run-critic-loop.sh` iteration runs the audit internally — `§Critic one-shot iteration` step 2 for the five critic subagents, `pr-review-loop.md §PR-review one-shot iteration` step 3 for pr-review — so the orchestrator that called `run-critic-loop.sh` must **not** re-run the audit after the loop returns. (Direct critic invocations are not a remaining code path: the `record-verdict-guarded` SubagentStop hook at settings.json rejects any critic-subagent run outside `run-critic-loop.sh`.)
 
-**Exit codes**: 0 = converged; 1 = blocked (`[BLOCKED:{kind}]` marker in plan, or transient retry); 2 = `[BLOCKED:ceiling]`; 3 = lock contention (another run already active for this plan — wait for it to finish or remove the plan's `.critic.lock` file (e.g. `plans/{slug}.md.critic.lock`)); 4 = `[BLOCKED:envelope]` (ENVELOPE_MISMATCH or ENVELOPE_OVERREACH — operating envelope must be corrected before re-running; `## Open Questions` contains the `[BLOCKED:envelope]` marker written by `run-critic-loop.sh`); any other code is a script failure: write `[BLOCKED:env] {agent}: script-failure — exit {code}` to `## Open Questions` and stop. Running critics manually is not a fallback — it is a protocol violation.
+**Exit codes**: 0 = converged; 1 = blocked (`[BLOCKED:{kind}]` marker in plan, or transient retry); 2 = `[BLOCKED:ceiling]`; 3 = lock contention (another run already active for this plan — wait for it to finish or remove the plan's `.critic.lock` file (e.g. `plans/{slug}.md.critic.lock`)); any other code is a script failure: write `[BLOCKED:env] {agent}: script-failure — exit {code}` to `## Open Questions` and stop. Running critics manually is not a fallback — it is a protocol violation.
 ### New milestone
 
 Before starting a critic run for a new milestone within the same phase, call:

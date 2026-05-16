@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Phase predicates and path-matching for phase-gate enforcement.
-# Capability functions (require_capability, _ppid_chain_is_harness) live in capability.sh.
+# Capability functions (require_capability) live in capability.sh.
 # Source this file; do not execute directly.
 set -euo pipefail
 [[ -n "${_PHASE_POLICY_LOADED:-}" ]] && return 0
@@ -161,6 +161,6 @@ is_sidecar_path() {
   return 1
 }
 
-# Source capability module (provides require_capability and _ppid_chain_is_harness).
+# Source capability module (provides require_capability).
 _PHASE_POLICY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_CAPABILITY_LOADED:-}" ]] || . "$_PHASE_POLICY_DIR/capability.sh"
