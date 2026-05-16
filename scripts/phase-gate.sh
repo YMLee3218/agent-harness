@@ -73,7 +73,7 @@ _guard_sidecar() {
 # Phase transitions must go through plan-file.sh transition/set-phase (Ring B).
 _guard_plan_phase_mutation() {
   local _input="$1" _file_path="$2"
-  [[ "$_file_path" == */plans/*.md ]] || return 0
+  [[ "$_file_path" == */plans/*.md || "$_file_path" == plans/*.md ]] || return 0
   [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
   [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "harness" ]] && return 0
   local _new _old
