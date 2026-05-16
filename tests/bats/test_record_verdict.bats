@@ -127,4 +127,42 @@ teardown() {
   [ "$status" -ne 0 ]
 }
 
+# ── T2: C1 fix — FAIL+PASS+FAIL does NOT block (PASS resets consecutiveness) ──
+
+@test "T2/C1: FAIL then PASS then same-category FAIL does not trigger BLOCKED" {
+  # Pre-populate verdicts.jsonl: FAIL(LAYER_VIOLATION) then PASS — simulates a temporary fix
+  local state_dir="$PLAN_DIR/test-feature.state"
+  mkdir -p "$state_dir/convergence"
+  local ts; ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  printf '{"ts":"%s","phase":"implement","agent":"critic-code","verdict":"FAIL","category":"LAYER_VIOLATION","ordinal":1,"milestone_seq":0}\n' \
+    "$ts" > "$state_dir/verdicts.jsonl"
+  printf '{"ts":"%s","phase":"implement","agent":"critic-code","verdict":"PASS","category":"NONE","ordinal":2,"milestone_seq":0}\n' \
+    "$ts" >> "$state_dir/verdicts.jsonl"
+  # Convergence sidecar reflects state after PASS (streak=1, not converged yet)
+  printf '{"phase":"implement","agent":"critic-code","first_turn":false,"streak":1,"converged":false,"ceiling_blocked":false,"ordinal":2,"milestone_seq":0}\n' \
+    > "$state_dir/convergence/implement__critic-code.json"
+
+  run bash -c '
+    source '"$SCRIPTS_DIR"'/lib/active-plan.sh
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    source '"$SCRIPTS_DIR"'/lib/sidecar.sh
+    export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
+    source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
+    export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
+    export CLAUDE_PLAN_CAPABILITY=harness
+    set +e
+    printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: FAIL -->\\n<!-- category: LAYER_VIOLATION -->"}'"'"' \
+      | cmd_record_verdict 2>&1
+    echo "rc=$?"
+  ' 2>&1
+  # FAIL exits 1 (correct — it is a failure)
+  [[ "$output" == *"rc=1"* ]]
+  # But the intervening PASS must prevent the ceiling block
+  [[ "$output" != *"consecutive same-category FAIL"* ]]
+  # No [BLOCKED:code] category marker in plan file
+  run grep -q '\[BLOCKED:code\]' "$PLAN_FILE"
+  [ "$status" -ne 0 ]
+}
 

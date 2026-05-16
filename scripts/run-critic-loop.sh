@@ -132,14 +132,6 @@ or
   wait "$CLAUDE_PID" || {
     exit_code=$?
     CLAUDE_PID=""
-    # salvage verdict marker before cleanup so a crash/timeout after writing the marker still records it.
-    if [[ -n "${_nonce:-}" && -n "${_session_out:-}" && -s "${_session_out:-}" ]]; then
-      _rv_salvage=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "${_session_out}" | tail -1 | \
-                    sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
-      if [[ "$_rv_salvage" == "PASS" || "$_rv_salvage" == "FAIL" ]]; then
-        bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv_salvage" 2>/dev/null || true
-      fi
-    fi
     # Preserve session output for diagnosis before removing the temp file
     [[ -n "${_session_out:-}" && -s "${_session_out:-}" ]] && \
       cp "$_session_out" "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null || true
