@@ -83,7 +83,7 @@ After resolving the root cause, run `unblock` then restart the autonomous run.
 1. Each `(agent, sub-kind)` pair has a counter in `plans/{slug}.state/transient_counters.json`.
 2. Below threshold K (`CLAUDE_TRANSIENT_THRESHOLD`, default 3): counter increments; no plan.md write; the caller exits 1 (harness retries on next cycle automatically).
 3. At K-th occurrence: `[BLOCKED:env] {agent}: {sub-kind} — recurred {K} times: {detail}` is written to `## Open Questions`; counter resets.
-4. Counter reset also on: successful critic run (PASS verdict), `reset-milestone`, `reset-for-rollback`.
+4. Counter reset also on: any completed critic session (successful session exit), `reset-milestone`, `reset-for-rollback`.
 5. `unblock` does not touch transient counters — they have their own lifecycle.
 
 **Transient sub-kinds** (closed set — additions require explicit policy review):
@@ -142,7 +142,7 @@ Persistent harness state lives in `plans/{slug}.state/` — written only by harn
 | `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `_record_loop_state` (streak input) | Appended per verdict; no automatic GC |
 | `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse/category), `cmd_append_note` (BLOCKED mirror) | `is-blocked` (`stop-check.sh`, `run-critic-loop.sh`, `run-dev-cycle.sh`) | `cleared_at:null` = open; set by `unblock`; kind enum: `envelope\|docs\|spec\|code\|env\|harness\|ceiling\|transient` |
 | `implemented.json` | JSON | `mark-implemented` | `is-implemented` (`run-dev-cycle.sh`) | Feature slugs accumulate; never cleared |
-| `transient_counters.json` | JSON | `_record_transient` in `sidecar.sh` | `_record_transient`, `_clear_transient_for`, `_reset_all_transient_counters` | Counter per `{agent}__{sub-kind}` key; cleared on PASS, reset-milestone, reset-for-rollback |
+| `transient_counters.json` | JSON | `_record_transient` in `sidecar.sh` | `_record_transient`, `_clear_transient_for`, `_reset_all_transient_counters` | Counter per `{agent}__{sub-kind}` key; cleared on any completed session, reset-milestone, reset-for-rollback |
 
 ### Block-state queries (Ring A — agent-callable)
 

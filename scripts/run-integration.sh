@@ -62,7 +62,8 @@ _validate_integration_preconditions() {
 }
 
 _validate_integration_preconditions
-bash "$PF" transition "$PLAN" integration "starting integration test run"
+[[ "$(bash "$PF" get-phase "$PLAN")" != "integration" ]] && \
+  bash "$PF" transition "$PLAN" integration "starting integration test run"
 
 attempt=0
 max_attempts=2

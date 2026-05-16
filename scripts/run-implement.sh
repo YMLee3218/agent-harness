@@ -29,8 +29,10 @@ while IFS=$'\t' read -r id layer _; do
   bash "$PF" add-task "$PLAN" "$id" "$layer" 2>/dev/null || true
 done < <(printf '%s' "$TASK_JSON" | jq -r '.[] | [.id, .layer, "x"] | @tsv')
 
-bash "$PF" transition "$PLAN" implement "task list registered — advancing to implement"
-bash "$PF" commit-phase "$PLAN" "chore(phase): advance to implement — task list registered"
+if [[ "$(bash "$PF" get-phase "$PLAN")" != "implement" ]]; then
+  bash "$PF" transition "$PLAN" implement "task list registered — advancing to implement"
+  bash "$PF" commit-phase "$PLAN" "chore(phase): advance to implement — task list registered"
+fi
 
 BASE_SHA=$(git rev-parse HEAD)
 WORK_DIR=$(mktemp -d /tmp/run-impl-XXXXXX)
