@@ -151,6 +151,8 @@ marker_present_human_must_clear() {
 SIDECAR_PROTECTED_GLOBS=(
   "*/plans/*.state/*"
   "plans/*.state/*"
+  "*/plans/*.state"
+  "plans/*.state"
 )
 
 is_sidecar_path() {

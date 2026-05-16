@@ -56,7 +56,7 @@ Only call `transition` when actually changing phase. Do not re-transition to the
 
 When a `[BLOCKED:docs]` marker is written (triggered by a `[DOCS CONTRADICTION]` verdict), apply this cascade:
 
-First, clear the `[BLOCKED:docs]` marker that triggered this cascade — `run-critic-loop.sh` exits 1 on any `[BLOCKED` match, so leaving it in place blocks every sub-run below.
+First, clear the `[BLOCKED:docs]` marker that triggered this cascade — `unblock` also clears the corresponding entry in the sidecar `blocked.jsonl`, which `run-critic-loop.sh` checks via `is-blocked`; leaving the block in place causes every sub-run below to exit 1 immediately.
 
 **Run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required; `plan-file.sh` blocks `unblock` without it):
 ```bash

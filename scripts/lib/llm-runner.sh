@@ -36,7 +36,7 @@ llm_exit() {
 }
 
 _recent_test_files() {
-  git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.' | tr '\n' ' ' || true
+  git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | tr '\n' ' ' || true
 }
 
 find_spec_path() {
