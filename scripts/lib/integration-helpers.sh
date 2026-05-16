@@ -26,6 +26,7 @@ _handle_spec_phase_rollback() {
   local _cat="$1" _sp _test_files
   bash "$PF" transition "$PLAN" spec "integration failure: ${_cat}"
   bash "$PF" reset-for-rollback "$PLAN" spec
+  bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
   bash "$PF" reset-milestone "$PLAN" critic-spec
   rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
   bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"

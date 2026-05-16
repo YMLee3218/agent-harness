@@ -293,7 +293,7 @@ _clear_transient_for() {
   sc_update_json "$_cpath" "$_new"
 }
 
-# _reset_all_transient_counters PLAN_FILE — clears all transient counters (on reset-milestone etc.)
+# _reset_all_transient_counters PLAN_FILE — clears all transient counters (on reset-for-rollback)
 _reset_all_transient_counters() {
   local _plan="$1"
   local _cpath

@@ -55,7 +55,7 @@ if [ -f "$PLAN_FILE_SH" ]; then
     if [ -n "$_hmc_marker" ]; then
       echo "BLOCKED [phase-gate/bash]: [$_hmc_marker] present — write prohibited; human must resolve and clear the marker from terminal" >&2; exit 2
     fi
-    if [[ "$_dest_p" == */plans/*.md ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
+    if [[ "$_dest_p" == */plans/*.md || "$_dest_p" == plans/*.md ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
       echo "BLOCKED [phase-gate/bash]: agent bash writes to plans/*.md are reserved for plan-file.sh harness commands" >&2; exit 2
     fi
     if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
