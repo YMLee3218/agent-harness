@@ -122,15 +122,15 @@ After `record-verdict` (or `append-review-verdict`) completes, run `@reference/u
 
 Before starting a critic run for a new milestone within the same phase, call:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {agent}
 ```
 This clears the 1 phase-scoped convergence marker (`[BLOCKED:ceiling]`) (see `@reference/markers.md §Phase-scoped convergence markers`) for this phase+agent from `## Open Questions`, and appends a `[MILESTONE-BOUNDARY]` sentinel to `## Critic Verdicts` so prior-milestone history does not contribute to the new streak. `transition` must run before `reset-milestone` when also changing phase (`transition` calls `set-phase` internally and writes a Phase Transitions log entry; using `plan-file.sh set-phase` directly would skip the log entry), so `reset-milestone` reads the correct phase when clearing phase-scoped markers. For the full list of markers written and cleared by `reset-milestone`, `reset-pr-review`, and `reset-for-rollback`, see `reference/markers.md §Stop marker taxonomy`.
 
 Re-brainstorming the same requirements doc: transition to `brainstorm` first (required before `reset-milestone` so the correct phase-scoped markers are cleared — see line above), then reset the prior critic-feature streak:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" brainstorm \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" brainstorm \
   "re-brainstorming"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-feature
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" critic-feature
 ```
 Then re-invoke the `brainstorming` skill.
 
@@ -138,9 +138,9 @@ Then re-invoke the `brainstorming` skill.
 
 For integration failure or unit-test failure before integration: call `transition` first to log the rollback reason in Phase Transitions, then `reset-for-rollback` to atomically set phase, run `reset-milestone critic-code`, run `reset-pr-review`, and clear stale `review/critic-code` markers:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" {target-phase} \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {target-phase} \
   "{one sentence reason}"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "plans/{slug}.md" {target-phase}
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {target-phase}
 ```
 
 When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`. After `transition {destination-phase}`, additionally call `reset-milestone {destination-critic}` if a prior milestone's sidecar streak needs resetting (e.g., rolling back to `red` may require `reset-milestone critic-test` to isolate the new streak). When a milestone must be reset at a non-destination phase (e.g., resetting `red/critic-test` while destination is `spec`): use a phase round-trip — `transition {milestone-phase}`, `reset-milestone {milestone-critic}`, `transition {destination-phase}` — because `reset-milestone` scopes to the current plan phase (implemented by `run-integration.sh`'s spec-gap recovery path).
@@ -170,7 +170,7 @@ When a FAIL leaves the fix direction unclear, do **not** guess. Append a `[BLOCK
 If none of the above apply, fix and re-run without stopping. **Autonomous mode behaviour**: the session terminates (Telegram notified if configured). **Resuming**: once you have resolved the question, **run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required):
 ```bash
 export CLAUDE_PLAN_CAPABILITY=human
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "plans/{slug}.md"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "$CLAUDE_PROJECT_DIR/plans/{slug}.md"
 ```
 Then tell the interactive Claude the decision; it will restart the autonomous run.
 
@@ -179,6 +179,6 @@ Then tell the interactive Claude the decision; it will restart the autonomous ru
 All `[BLOCKED:{kind}]` markers are cleared by `unblock` in a single pass — no marker text input needed. `[BLOCKED:transient]` is intentionally excluded (auto lifecycle; not a human-must marker). After fixing the root cause, **run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required; see `@reference/markers.md`):
 ```bash
 export CLAUDE_PLAN_CAPABILITY=human
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "plans/{slug}.md"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "$CLAUDE_PROJECT_DIR/plans/{slug}.md"
 ```
-Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" {agent}` (separate call — `reset-milestone` clears the `[BLOCKED:ceiling]` marker for the given agent and resets the ceiling counter, but does NOT clear any other `[BLOCKED:{kind}]` markers).
+Re-run the critic. If streak reset needed (parse or category block): `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {agent}` (separate call — `reset-milestone` clears the `[BLOCKED:ceiling]` marker for the given agent and resets the ceiling counter, but does NOT clear any other `[BLOCKED:{kind}]` markers).

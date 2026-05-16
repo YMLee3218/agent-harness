@@ -33,28 +33,28 @@ Entries accumulate in `## Verdict Audits` (permanent trail — not compacted by 
 **ACCEPT**: record and proceed.
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
-  "plans/{slug}.md" "{agent}" "ACCEPT" "{one-line summary}"
+  "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "ACCEPT" "{one-line summary}"
 ```
 Proceed to `@reference/critics.md §Skill branching logic`.
 
 **REJECT-PASS** — reset convergence streak before recording:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-converged "plans/{slug}.md" "{agent}"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit "plans/{slug}.md" "{agent}" "REJECT-PASS" "audit overrode PASS — {gap}"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}"
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "REJECT-PASS" "audit overrode PASS — {gap}"
 ```
 Enter the FAIL path. (`clear-converged` writes a `REJECT-PASS` streak-reset entry to `## Critic Verdicts` and resets the sidecar — excluded from ceiling counts.)
 
 **BLOCKED-AMBIGUOUS**: record, then stop.
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
-  "plans/{slug}.md" "{agent}" "BLOCKED-AMBIGUOUS" "{one-line summary}"
+  "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "BLOCKED-AMBIGUOUS" "{one-line summary}"
 ```
 Append `[BLOCKED:spec] {agent}: ambiguous — ultrathink audit inconclusive: {question}` to `## Open Questions` and stop.
 
 **ACCEPT-OVERRIDE**: record and proceed as PASS.
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
-  "plans/{slug}.md" "{agent}" "ACCEPT-OVERRIDE" \
+  "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "ACCEPT-OVERRIDE" \
   "all {N} citations absent from files — verdict promoted to PASS"
 ```
 Proceed to `@reference/critics.md §Skill branching logic` via the PASS path (re-run for convergence confirmation). ACCEPT-OVERRIDE is only valid when the Citation Summary is present and **every** blocking finding citation is absent from its file. If any citation verifies as present, fall back to BLOCKED-AMBIGUOUS.

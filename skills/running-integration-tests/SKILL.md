@@ -28,7 +28,7 @@ Read project `CLAUDE.md` for the unit test command and integration test command.
 
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-integration.sh" \
-  --plan "plans/{slug}.md" \
+  --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" \
   --unit-cmd "{unit test command}" \
   --integration-cmd "{integration test command}"
 ```

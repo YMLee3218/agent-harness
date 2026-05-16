@@ -111,7 +111,7 @@ Then (if not already on the branch): `git checkout -b feature/{name}`
 
 Set plan file phase (skip if already in `brainstorm` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`):
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" brainstorm \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" brainstorm \
   "decomposition approved — starting brainstorm phase"
 ```
 
@@ -137,7 +137,7 @@ If `docs/requirements/{name}.md` does not already exist, create it. Apply the sa
 
 Set phase to `brainstorm` (skip if already in `brainstorm` — do not re-transition to the same phase):
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" brainstorm \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" brainstorm \
   "re-brainstorming"
 ```
 

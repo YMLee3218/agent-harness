@@ -25,7 +25,7 @@ Single iteration spawned by `run-critic-loop.sh`. Do not loop — one pr-review 
 **Fix chains on FAIL** — **(if not already in `review` phase)** transition to `review` before fixing; remain in `review` for all subsequent FAILs:
 
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" review \
   "first pr-review FAIL"
 ```
 
@@ -45,19 +45,19 @@ Issue: unhandled scenario revealed by review.
 
 → Reset the critic-spec milestone and transition to `spec` phase (`reset-milestone` bumps `milestone_seq` so the new streak is isolated from prior verdicts; it also requires the current phase to equal the marker scope):
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" spec \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" spec \
   "spec gap — resetting critic-spec milestone before re-review"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-spec
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" critic-spec
 ```
-→ `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "plans/{slug}.md" --nested --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
+→ `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 
 → Apply `@reference/phase-ops.md §Phase Rollback Procedure`: target-phase=`red`, critic=`critic-test`
-→ Write failing test → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "plans/{slug}.md" --nested --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (§Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
+→ Write failing test → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (§Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 → Advance to `implement`:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" implement \
   "spec gap test written — implementing fix"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" commit-phase "plans/{slug}.md" \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" commit-phase "$CLAUDE_PROJECT_DIR/plans/{slug}.md" \
   "chore(phase): advance to implement — spec gap fix"
 ```
 → Implement → apply §Fix-chain finisher (all 3 steps)
@@ -73,18 +73,18 @@ Issue: implementation contradicts domain rules.
 1. **(If code changed)** Re-run critic-code:
    (a) **(If not already in `implement` phase)** Transition to `implement` (ensures `record-verdict` stamps `implement/critic-code`; without this, the plan may be in `review` and markers would be stamped `review/critic-code`, breaking convergence):
    ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" implement \
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" implement \
      "pr-review fix — re-running critic-code"
    ```
    (b) Reset critic-code milestone:
    ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "plans/{slug}.md" critic-code
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" critic-code
    ```
-   → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "plans/{slug}.md" --nested --prompt "Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
+   → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Review these files: [explicit list]. Spec at: [path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 
 2. **(If not already in `review` phase)** Restore to `review`:
    ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" review \
      "{fix description} — resuming pr-review"
    ```
 

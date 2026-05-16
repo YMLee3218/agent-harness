@@ -64,7 +64,7 @@ This is the only phase where domain concepts and infrastructure components are i
 
 Set plan file phase (skip if phase is already `spec` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`):
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" spec \
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" spec \
   "approved plan — writing spec"
 ```
 
