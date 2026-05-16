@@ -37,11 +37,8 @@ WORK_DIR=$(mktemp -d /tmp/run-impl-XXXXXX)
 _cleanup_all_worktrees() {
   for wt_file in "$WORK_DIR"/wt-*.txt; do
     [[ -f "$wt_file" ]] || continue
-    wt=$(cat "$wt_file")
     id="${wt_file##*/wt-}"; id="${id%.txt}"
-    branch=$(cat "$WORK_DIR/branch-${id}.txt" 2>/dev/null || true)
-    [[ -n "$wt" ]]     && git worktree remove --force "$wt" 2>/dev/null || true
-    [[ -n "$branch" ]] && git branch -D "$branch" 2>/dev/null || true
+    cleanup_wt "$id"
   done
   rm -rf "$WORK_DIR"
 }

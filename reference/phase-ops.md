@@ -105,4 +105,4 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "plans/{slug}.md
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}.md" review \
   "docs contradiction fixed — resuming pr-review"
 ```
-→ re-run `Skill("pr-review-toolkit:review-pr")` → output nonce-anchored verdict marker per `@reference/pr-review-loop.md §PR-review one-shot iteration` step 2 → run `@reference/ultrathink.md §Ultrathink verdict audit` → branch per `@reference/critics.md §Skill branching logic` (pr-review exception: steps 1→4-5→7→8 only) (converged: return to calling context; FAIL: re-categorize above and apply the appropriate fix chain again)
+→ Exit current iteration — the shell loop (`run-critic-loop.sh`) re-runs pr-review in the next iteration per `@reference/pr-review-loop.md §Fix-chain finisher` step 3.

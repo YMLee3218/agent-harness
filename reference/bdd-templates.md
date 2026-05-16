@@ -41,9 +41,9 @@ Feature: {feature name}
       | value2  | result2  |
 ```
 
-## Required boundary rows by input type
+## Required boundary coverage by input type
 
-Every `Scenario Outline` Examples table must include boundaries applicable to the input type:
+This rule applies to each `Scenario Outline` whose `Examples` parameterise an input of a type listed below. For such an Outline, every boundary value applicable to that input type must be **covered** — as a row in the Outline's `Examples` table, **OR**, when the boundary triggers a `Then` that diverges from the Outline's `Then` (a *distinct flow* per §Rules), as a dedicated `Scenario:`. When a boundary is relocated to a dedicated `Scenario:`, the Outline should be marked with a comment pointing to it (e.g. `# -1 boundary covered by Scenario "rejects negative quantity" — divergent flow`).
 
 | Input type | Required boundary values |
 |-----------|--------------------------|

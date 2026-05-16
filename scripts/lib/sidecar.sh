@@ -236,7 +236,7 @@ sc_make_conv_state() {
 _TRANSIENT_SUB_KINDS="session-timeout loop-lock"
 
 # _record_transient PLAN_FILE AGENT SUB_KIND DETAIL [PLAN_FILE_SH]
-# Records a 1회성 transient state without writing to plan.md.
+# Records a one-time transient state without writing to plan.md.
 # Counter in transient_counters.json; on K-th occurrence promotes to [BLOCKED:env].
 _record_transient() {
   local _plan="$1" _agent="$2" _sub_kind="$3" _detail="$4" _pf_sh="${5:-${PLAN_FILE_SH:-}}"

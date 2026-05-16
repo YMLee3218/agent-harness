@@ -78,4 +78,4 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "plans/{slug}
 
 ## Scenario templates
 
-Templates and required boundary rows: `@reference/bdd-templates.md`
+Templates and required boundary coverage: `@reference/bdd-templates.md`

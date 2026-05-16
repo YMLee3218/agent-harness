@@ -49,7 +49,9 @@ For every Scenario in spec.md:
 1. Given condition handled correctly?
 2. When action has a corresponding code path?
 3. Then outcome produced reliably?
-4. Scenario Outline — all Examples rows including boundaries handled?
+4. Scenario Outline — all Examples rows handled? (A divergent boundary value
+     may live in a dedicated Scenario rather than a row — covered by the
+     per-Scenario checks above.)
 5. Failure scenarios — error paths implemented?
 6. Large feature: implementation calls domain directly instead of composing small features? (→ [CRITICAL])
 

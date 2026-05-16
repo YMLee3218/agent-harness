@@ -39,7 +39,7 @@ Plan: {plan_path}
 Read these reference files first — they govern your output:
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md     (severity, PASS/FAIL, category priority)
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md       (naming conventions, spec-path mapping)
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/bdd-templates.md (required boundary rows by input type)
+- ${CLAUDE_PROJECT_DIR}/.claude/reference/bdd-templates.md (required boundary coverage by input type)
 
 ## Angle 1 — Missing scenarios
 
@@ -47,7 +47,14 @@ For every scenario:
 1. Failure paths: fails / partially succeeds / times out / external system down?
 2. Concurrent state: same request while processing? Prior step incomplete when next starts?
 3. Ordering: events out of order? Duplicate events?
-4. Boundaries: every Scenario Outline Examples table includes the boundary rows required by bdd-templates.md?
+4. Boundaries: for every Scenario Outline whose Examples parameterise an input
+   type listed in bdd-templates.md, each required boundary value is covered —
+   as a row in its Examples table, or as a dedicated Scenario when the boundary
+   triggers a divergent Then (per bdd-templates.md's coverage clause). When no
+   Examples row covers a boundary, search the spec for a dedicated Scenario
+   covering its divergent outcome (the Outline's pointing comment, if present,
+   names it). Covered by neither a row nor a dedicated Scenario → [MISSING];
+   covered by a dedicated Scenario the Outline does not point to → [WARN].
 
 Compare spec against docs/*.md. If the spec contradicts documented domain knowledge, report [DOCS CONTRADICTION] (do not judge sides).
 
