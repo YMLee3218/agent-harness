@@ -98,8 +98,8 @@ Then for each failing test:
 Category: {docs conflict | spec gap | implementation bug}
 Description: {one sentence}
 Log [AUTO-CATEGORIZED-INTEGRATION] {test name}: {category} for each.
-If the categories across all failing tests are mixed (not all the same), append [BLOCKED:code] integration: tests-failing — mixed failure categories; manual review required to ## Open Questions and stop.
-If ambiguous for any individual test, append [BLOCKED:code] integration: tests-failing — cannot determine category for {test name}; manual review required to ## Open Questions and stop.
+If the categories across all failing tests are mixed (not all the same), do not write to the plan — output the blocked result marker below and stop.
+If ambiguous for any individual test, do not write to the plan — output the blocked result marker below and stop.
 
 After completing the above, output as the very last line of your response exactly one of:
 <!-- integration-result: ${_cat_nonce} docs conflict -->
@@ -113,8 +113,13 @@ After completing the above, output as the very last line of your response exactl
   rm -f "$_cat_out"
 
   if [[ "$_cat_marker" == "blocked" || -z "$_cat_marker" ]]; then
-    [[ -z "$_cat_marker" ]] && bash "$PF" append-note "$PLAN" \
-      "[BLOCKED:code] integration: tests-failing — categorizer produced no result marker; re-run or review manually" 2>/dev/null || true
+    if [[ "$_cat_marker" == "blocked" ]]; then
+      bash "$PF" append-note "$PLAN" \
+        "[BLOCKED:code] integration: tests-failing — mixed or ambiguous failure categories; manual review required" 2>/dev/null || true
+    else
+      bash "$PF" append-note "$PLAN" \
+        "[BLOCKED:code] integration: tests-failing — categorizer produced no result marker; re-run or review manually" 2>/dev/null || true
+    fi
     exit 1
   fi
 

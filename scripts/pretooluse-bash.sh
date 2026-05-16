@@ -66,7 +66,17 @@ if [ -f "$PLAN_FILE_SH" ]; then
       fi
     fi
     if [ -n "$_current_phase" ]; then
-      apply_phase_block "$_dest_p" "$_current_phase" "phase-gate/bash" || exit 2
+      # Normalize to project-relative so is_source_path non-VSA fallback globs (lib/*, internal/*, etc.) match absolute paths.
+      # Mirrors phase-gate.sh:126-134 which performs identical normalization for Write/Edit paths.
+      _phase_dest="$_dest_p"
+      if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+        _proj_abs="$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null)" || _proj_abs="${CLAUDE_PROJECT_DIR}"
+        _dest_abs="$(_canon_path "$_dest_p" 2>/dev/null)" || _dest_abs="$_dest_p"
+        _dest_rel="${_dest_abs#${_proj_abs}/}"
+        [[ "$_dest_rel" == "$_dest_abs" ]] && _dest_rel="${_dest_p#${CLAUDE_PROJECT_DIR}/}"
+        [[ "$_dest_rel" != "$_dest_p" ]] && _phase_dest="$_dest_rel"
+      fi
+      apply_phase_block "$_phase_dest" "$_current_phase" "phase-gate/bash" || exit 2
     else
       bootstrap_block_if_strict "$_dest_p" || exit 2
     fi
