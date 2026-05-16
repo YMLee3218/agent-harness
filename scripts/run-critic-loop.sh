@@ -118,6 +118,10 @@ or
   _session_out=$(mktemp)
   _log_slug=$(basename "$PLAN" .md)
   _log_dir="$(dirname "$PLAN")/${_log_slug}.state"
+  if [[ -L "$_log_dir" ]]; then
+    echo "[run-critic-loop] FATAL: sidecar dir $_log_dir is a symlink — refusing" >&2
+    exit 2
+  fi
   mkdir -p "$_log_dir" 2>/dev/null || true
   _cmd=()
   [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")

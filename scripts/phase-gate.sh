@@ -77,8 +77,8 @@ _guard_plan_phase_mutation() {
   [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
   [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "harness" ]] && return 0
   local _new _old
-  _new=$(printf '%s' "$_input" | jq -r '.tool_input.content // .tool_input.new_string // ""' 2>/dev/null)
-  _old=$(printf '%s' "$_input" | jq -r '.tool_input.old_string // ""' 2>/dev/null)
+  _new=$(printf '%s' "$_input" | jq -r '(.tool_input.content // .tool_input.new_string // "") + "\n" + ([.tool_input.edits[]?.new_string // ""] | join("\n"))' 2>/dev/null)
+  _old=$(printf '%s' "$_input" | jq -r '(.tool_input.old_string // "") + "\n" + ([.tool_input.edits[]?.old_string // ""] | join("\n"))' 2>/dev/null)
   if printf '%s\n%s' "$_old" "$_new" | grep -qE '(^|\n)## Phase($|\n)|(^|\n)phase:[[:space:]]+[a-z]+'; then
     echo "BLOCKED [phase-gate]: writes touching '## Phase' or frontmatter 'phase:' are reserved for 'plan-file.sh transition/set-phase' (Ring B). Use the harness command instead of editing plan.md directly." >&2
     exit 2
