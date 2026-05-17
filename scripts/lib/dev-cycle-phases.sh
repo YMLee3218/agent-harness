@@ -31,6 +31,11 @@ _phase_spec_prepass() {
     local _ph; _ph=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo "")
     if [[ "$_ph" == "brainstorm" ]]; then
       bash "$PF" transition "$PLAN" spec "spec already committed — advancing to spec phase for critic-spec"
+    elif [[ "$_ph" != "spec" ]]; then
+      # Plan is past spec phase; spec was already reviewed in a prior run.
+      # Recreate rev_marker to prevent re-entry on next run and skip.
+      touch "$_rev_marker" 2>/dev/null || true
+      continue
     fi
 
     _new_specs=$(git status --porcelain 2>/dev/null \
@@ -64,6 +69,14 @@ _phase_spec_prepass() {
 # _phase_cross_spec_review — run critic-cross once across all spec files.
 _phase_cross_spec_review() {
   bash "$PF" is-converged "$PLAN" spec critic-cross 2>/dev/null && return 0
+  # Ensure plan is in spec phase before running critic-cross so record-verdict writes
+  # to the spec/critic-cross scope that this function's is-converged check reads.
+  local _cph; _cph=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo "")
+  if [[ "$_cph" == "brainstorm" ]]; then
+    bash "$PF" transition "$PLAN" spec "advancing to spec phase for critic-cross"
+  elif [[ "$_cph" != "spec" ]]; then
+    return 0  # Past spec phase; cross-spec was already reviewed in a prior run
+  fi
   local _all_specs="" _spec_dir _sp
   for _spec_dir in "${PROJECT_DIR}/src/features" "${PROJECT_DIR}/src/domain" "${PROJECT_DIR}/src/infrastructure" \
                    "${PROJECT_DIR}/features" "${PROJECT_DIR}/domain" "${PROJECT_DIR}/infrastructure"; do
