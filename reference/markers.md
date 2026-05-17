@@ -148,15 +148,15 @@ Persistent harness state lives in `plans/{slug}.state/` — written only by harn
 
 ```bash
 # Returns 0 if any uncleared block record exists; 1 if none
-bash plan-file.sh is-blocked plans/{slug}.md
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked "$CLAUDE_PROJECT_DIR/plans/{slug}.md"
 
 # Filter by kind
-bash plan-file.sh is-blocked plans/{slug}.md spec
-bash plan-file.sh is-blocked plans/{slug}.md ceiling
-bash plan-file.sh is-blocked plans/{slug}.md env
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked "$CLAUDE_PROJECT_DIR/plans/{slug}.md" spec
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked "$CLAUDE_PROJECT_DIR/plans/{slug}.md" ceiling
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked "$CLAUDE_PROJECT_DIR/plans/{slug}.md" env
 
 # Returns 0 if sidecar convergence file says converged=true; 1 otherwise
-bash plan-file.sh is-converged plans/{slug}.md implement critic-code
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" implement critic-code
 ```
 
 `is-blocked` reads `blocked.jsonl` exclusively. If `blocked.jsonl` is absent (no blocks ever written), `is-blocked` returns "not blocked". `is-converged` reads `convergence/{phase}__{agent}.json` exclusively (not `blocked.jsonl`) and returns "not converged" if the file is absent.

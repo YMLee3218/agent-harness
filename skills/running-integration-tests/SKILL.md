@@ -42,4 +42,4 @@ Use `run_in_background=true` — this script may run for minutes.
 - Fail → LLM failure categorization (one B-session), rollback, fix skill invocation, re-run once (blocks on second failure)
 - Blocked on ambiguous category → `[BLOCKED:code]` marker written to plan file
 
-After the completion notification, read `## Open Questions` for any `[BLOCKED:{kind}]` markers and report to user. Use `plan-file.sh unblock` after fixing the root cause.
+After the completion notification, read `## Open Questions` for any `[BLOCKED:{kind}]` markers and report to the user. All human-must kinds except `ceiling` (`envelope`, `docs`, `spec`, `code`, `env`, `harness`) require `plan-file.sh unblock` after fixing the root cause. Exception: for `[BLOCKED:ceiling]`, always use `reset-milestone {agent}` instead — `reset-milestone` both clears the marker and increments the milestone counter so the next run starts fresh. `unblock` alone does not increment the milestone counter and immediately re-triggers the ceiling block. See `@reference/markers.md §Clearing stop markers`.
