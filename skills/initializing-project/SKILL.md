@@ -160,7 +160,7 @@ cp src/domain/CLAUDE.md src/domain/{concept}/CLAUDE.md
 
 Generate the language-specific critic-code pattern conf (read language from `.claude/local.md`):
 ```bash
-_lang="$(grep -i 'language:' "$CLAUDE_PROJECT_DIR/.claude/local.md" | head -1 | awk -F: '{gsub(/^[[:space:]-]*/,"",$2); print $2}' | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
+_lang="$(grep -i 'language:' "$CLAUDE_PROJECT_DIR/.claude/local.md" | head -1 | awk -F: '{gsub(/^[[:space:]-]*/,"",$2); print $2}' | awk '{print $1}' | tr '[:upper:]' '[:lower:]' | sed 's/typescript.*/ts/;s/javascript.*/ts/;s/c#.*/cs/;s/ruby.*/rb/;s/kotlin.*/kotlin/;s/java.*/java/;s/python.*/python/;s/go.*/go/;s/rust.*/rust/')"
 if [ -n "$_lang" ]; then
   mkdir -p "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns"
   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns.template" "$_lang" \

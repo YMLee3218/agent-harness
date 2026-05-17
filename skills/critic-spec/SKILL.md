@@ -21,8 +21,10 @@ Substitute placeholders from the prompt you received (`{spec_path}`, `{docs_path
 
 ```bash
 _codex_prompt=$(mktemp /tmp/critic-spec-prompt-XXXXXX.txt)
-_codex_log=/tmp/critic-spec-log.txt
-cat > "$_codex_prompt" <<EOF
+# Write the Codex prompt (all text below through the verdict template) into "$_codex_prompt"
+# using the Write tool — do NOT run `cat > "$_codex_prompt" <<EOF` directly, as the
+# pretooluse hook blocks writes to variable-path destinations (rc=2).
+
 You are an adversarial spec reviewer. Find cases where implementing this spec would fail. Assume the spec is flawed until proven otherwise. Read every file you need.
 
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
@@ -159,14 +161,13 @@ FAIL — {comma-separated blocking finding labels}
 <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios. Do not FAIL for scenarios outside the declared envelope.
-EOF
 
-codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
+codex exec --full-auto - < "$_codex_prompt" > /tmp/critic-spec-log.txt 2>&1
 _codex_exit=$?
 echo "=== Codex critic-spec exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
-echo "=== full critic log retained at $_codex_log ==="
-tail -200 "$_codex_log"
+echo "=== full critic log retained at /tmp/critic-spec-log.txt ==="
+tail -200 /tmp/critic-spec-log.txt
 rm -f "$_codex_prompt"
 ```
 

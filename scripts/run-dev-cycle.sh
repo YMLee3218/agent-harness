@@ -65,6 +65,11 @@ if [[ -n "$PLAN" ]]; then
           PLAN="$_p"; current_phase="$_p_phase"; _found_next=1; break
         fi
       done
+      if [[ $_found_next -eq 1 ]]; then
+        if bash "$PF" is-blocked "$PLAN" 2>/dev/null; then
+          echo "[BLOCKED] active block marker present in next plan — resolve markers before proceeding" >&2; exit 1
+        fi
+      fi
       if [[ $_found_next -eq 0 ]]; then
         echo "[DONE] All requirements complete. Run /brainstorming to start a new requirement." >&2
         exit 0
