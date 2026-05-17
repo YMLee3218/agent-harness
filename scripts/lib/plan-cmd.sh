@@ -410,21 +410,29 @@ _resolve_output() {
   if [ -n "$agent_transcript" ]; then
     _safe_path=$(_is_safe_transcript_path "$agent_transcript") && [ -f "$_safe_path" ] && {
       _transcript_size=$(wc -c < "$_safe_path" 2>/dev/null || echo 0)
-      [ "$_transcript_size" -gt "$_size_warn" ] && \
+      if [ "$_transcript_size" -gt "$_size_warn" ]; then
         echo "[record-verdict] WARN: agent_transcript size ${_transcript_size} bytes — reading last 1MB only" >&2
-      out=$(tail -c 1048576 "$_safe_path" | tail -n +2 | \
-        jq -r 'select(.type=="assistant")|.message.content[]?|select(.type=="text")|.text//empty' \
-        2>/dev/null || true)
+        out=$(tail -c 1048576 "$_safe_path" | tail -n +2 | \
+          jq -r 'select(.type=="assistant")|.message.content[]?|select(.type=="text")|.text//empty' \
+          2>/dev/null || true)
+      else
+        out=$(jq -r 'select(.type=="assistant")|.message.content[]?|select(.type=="text")|.text//empty' \
+          < "$_safe_path" 2>/dev/null || true)
+      fi
     }
   fi
   if [ -z "$out" ] && [ -n "$transcript" ]; then
     _safe_path=$(_is_safe_transcript_path "$transcript") && [ -f "$_safe_path" ] && {
       _transcript_size=$(wc -c < "$_safe_path" 2>/dev/null || echo 0)
-      [ "$_transcript_size" -gt "$_size_warn" ] && \
+      if [ "$_transcript_size" -gt "$_size_warn" ]; then
         echo "[record-verdict] WARN: transcript size ${_transcript_size} bytes — reading last 1MB only" >&2
-      out=$(tail -c 1048576 "$_safe_path" | tail -n +2 | \
-        jq -r 'select(.type=="assistant")|.message.content[]?|select(.type=="text")|.text//empty' \
-        2>/dev/null | tail -200 || true)
+        out=$(tail -c 1048576 "$_safe_path" | tail -n +2 | \
+          jq -r 'select(.type=="assistant")|.message.content[]?|select(.type=="text")|.text//empty' \
+          2>/dev/null | tail -200 || true)
+      else
+        out=$(jq -r 'select(.type=="assistant")|.message.content[]?|select(.type=="text")|.text//empty' \
+          < "$_safe_path" 2>/dev/null | tail -200 || true)
+      fi
     }
   fi
   [ -z "$out" ] && out=$(printf '%s' "$input" | jq -r '.last_assistant_message // ""' 2>/dev/null || echo "")
