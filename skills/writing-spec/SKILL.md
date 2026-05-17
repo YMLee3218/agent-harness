@@ -62,8 +62,9 @@ Classify each component by layer using `@reference/layers.md §Layers`, then wri
 
 This is the only phase where domain concepts and infrastructure components are identified.
 
-Set plan file phase (skip if phase is already `spec` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`):
+Plan phase transition to `spec`: in autonomous mode the harness (`dev-cycle-phases.sh`) transitions `brainstorm`→`spec` before invoking this skill, so the plan is already in `spec` here. In interactive use, the agent cannot call `plan-file.sh transition` (Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`); after the skill completes, run this from a human terminal:
 ```bash
+export CLAUDE_PLAN_CAPABILITY=harness
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" spec \
   "approved plan — writing spec"
 ```

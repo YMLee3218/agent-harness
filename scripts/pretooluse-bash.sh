@@ -59,8 +59,11 @@ if [ -f "$PLAN_FILE_SH" ]; then
       echo "BLOCKED [phase-gate/bash]: agent bash writes to plans/*.md are reserved for plan-file.sh harness commands" >&2; exit 2
     fi
     if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
-      _ring_rel="${_dest_p#${CLAUDE_PROJECT_DIR}/}"
-      [[ "$_ring_rel" == "$_dest_p" ]] && _ring_rel="${_dest_p#$(pwd)/}"
+      # Mirrors phase-gate.sh:42-47: canonicalize so symlinks don't bypass Ring C guard.
+      _ring_proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _ring_proj="${CLAUDE_PROJECT_DIR}"
+      _ring_dest=$(_canon_path "$_dest_p" 2>/dev/null) || _ring_dest="$_dest_p"
+      _ring_rel="${_ring_dest#${_ring_proj}/}"
+      [[ "$_ring_rel" == "$_ring_dest" ]] && _ring_rel="${_dest_p#${CLAUDE_PROJECT_DIR}/}"
       if printf '%s' "$_ring_rel" | grep -qE "^(${_RING_C_FILES})$"; then
         echo "BLOCKED [phase-gate/bash]: Ring C file ($(basename "$_dest_p")) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2; exit 2
       fi

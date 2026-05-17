@@ -173,7 +173,7 @@ _impl_run_review_phase() {
      bash "$PF" is-converged "$PLAN" review pr-review 2>/dev/null; then
     bash "$PF" transition "$PLAN" green "pr-review converged — feature complete"
     bash "$PF" mark-implemented "$PLAN" "$feat_slug"
-    gh pr close --delete-branch --comment "Changes merged via task-by-task workflow" 2>/dev/null || true
+    gh pr close --delete-branch --comment "PR review converged — closing without merge (changes developed via task-by-task workflow on the feature branch)" 2>/dev/null || true
   fi
 }
 

@@ -20,7 +20,9 @@ You orchestrate Codex to perform the review. Build the prompt, run `codex exec`,
 Substitute the placeholders below from the prompt you received (`{spec_path}`, `{docs_paths}`, `{plan_path}`, `{language}`, `{domain_root}`, `{infra_root}`, `{features_root}`).
 
 ```bash
-cat > /tmp/critic-code-prompt.txt <<'CODEX_PROMPT'
+_critic_code_prompt=$(mktemp /tmp/critic-code-prompt.XXXXXX.txt)
+_critic_code_log=$(mktemp /tmp/critic-code-log.XXXXXX.txt)
+cat > "$_critic_code_prompt" <<'CODEX_PROMPT'
 You are an adversarial code reviewer. Find where this implementation violates the spec. Assume the code is wrong until proven otherwise. Read every file you need.
 
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
@@ -127,13 +129,13 @@ FAIL — {comma-separated blocking finding labels}
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios (false PASS for in-envelope scenarios costs 10×; out-of-envelope findings are not failures).
 CODEX_PROMPT
-codex exec --full-auto - < /tmp/critic-code-prompt.txt > /tmp/critic-code-log.txt 2>&1
+codex exec --full-auto - < "$_critic_code_prompt" > "$_critic_code_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-code exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
-echo "=== full critic log retained at /tmp/critic-code-log.txt ==="
-tail -200 /tmp/critic-code-log.txt
-rm -f /tmp/critic-code-prompt.txt
+echo "=== full critic log retained at $_critic_code_log ==="
+tail -200 "$_critic_code_log"
+rm -f "$_critic_code_prompt"
 ```
 
 The verdict markers in the tail are your final stdout. The SubagentStop hook reads `<!-- verdict: -->` and `<!-- category: -->` from there. Do not append anything after the `tail -200` output.

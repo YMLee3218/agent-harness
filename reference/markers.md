@@ -81,7 +81,7 @@ After resolving the root cause, run `unblock` then restart the autonomous run.
 **Mechanism**:
 
 1. Each `(agent, sub-kind)` pair has a counter in `plans/{slug}.state/transient_counters.json`.
-2. Below threshold K (`CLAUDE_TRANSIENT_THRESHOLD`, default 3): counter increments; no plan.md write; the caller exits 1 (harness retries on next cycle automatically).
+2. Below threshold K (`CLAUDE_TRANSIENT_THRESHOLD`, default 3): counter increments; no plan.md write; the caller exits (session-timeout exits run-critic-loop with 1; loop-lock exits with 3). Re-run the harness — no `plan-file.sh unblock` needed since no blocked marker is written.
 3. At K-th occurrence: `[BLOCKED:env] {agent}: {sub-kind} — recurred {K} times: {detail}` is written to `## Open Questions`; counter resets.
 4. Counter reset also on: any completed critic session (successful session exit), `reset-milestone` (target agent's counters only — uses `_clear_transient_for`), `reset-for-rollback` (all agents' counters — uses `_reset_all_transient_counters`).
 5. `unblock` does not touch transient counters — they have their own lifecycle.
