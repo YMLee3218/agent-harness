@@ -20,11 +20,7 @@ You orchestrate Codex to perform the review. Build the prompt, run `codex exec`,
 Substitute the placeholders below from the prompt you received (`{spec_path}`, `{docs_paths}`, `{plan_path}`, `{language}`, `{domain_root}`, `{infra_root}`, `{features_root}`).
 
 ```bash
-_codex_prompt=$(mktemp /tmp/critic-code-prompt-XXXXXX.txt)
-# Write the Codex prompt (all text below through the verdict template) into "$_codex_prompt"
-# using the Write tool — do NOT run `cat > "$_codex_prompt" <<EOF` directly, as the
-# pretooluse hook blocks writes to variable-path destinations (rc=2).
-
+cat > /tmp/critic-code-prompt.txt <<'CODEX_PROMPT'
 You are an adversarial code reviewer. Find where this implementation violates the spec. Assume the code is wrong until proven otherwise. Read every file you need.
 
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
@@ -130,14 +126,14 @@ FAIL — {comma-separated blocking finding labels}
 <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | MISSING_SCENARIO | TEST_INTEGRITY | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH} -->
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios (false PASS for in-envelope scenarios costs 10×; out-of-envelope findings are not failures).
-
-codex exec --full-auto - < "$_codex_prompt" > /tmp/critic-code-log.txt 2>&1
+CODEX_PROMPT
+codex exec --full-auto - < /tmp/critic-code-prompt.txt > /tmp/critic-code-log.txt 2>&1
 _codex_exit=$?
 echo "=== Codex critic-code exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
 echo "=== full critic log retained at /tmp/critic-code-log.txt ==="
 tail -200 /tmp/critic-code-log.txt
-rm -f "$_codex_prompt"
+rm -f /tmp/critic-code-prompt.txt
 ```
 
 The verdict markers in the tail are your final stdout. The SubagentStop hook reads `<!-- verdict: -->` and `<!-- category: -->` from there. Do not append anything after the `tail -200` output.
