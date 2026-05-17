@@ -21,7 +21,9 @@ You orchestrate Codex to perform the review. Build the prompt, run `codex exec`,
 Substitute placeholders from the prompt you received (`{all_spec_paths}`, `{docs_paths}`, `{plan_path}`).
 
 ```bash
-cat > /tmp/critic-cross-prompt.txt <<'CODEX_PROMPT'
+_critic_cross_prompt=$(mktemp /tmp/critic-cross-prompt.XXXXXX.txt)
+_critic_cross_log=$(mktemp /tmp/critic-cross-log.XXXXXX.txt)
+cat > "$_critic_cross_prompt" <<'CODEX_PROMPT'
 You are an adversarial cross-feature reviewer. Read ALL provided spec files in full.
 Assume contradictions exist until proven otherwise.
 
@@ -140,13 +142,13 @@ FAIL — {comma-separated blocking finding labels}
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope interactions. Drop cross-feature findings that only occur outside both features' declared envelopes.
 CODEX_PROMPT
-codex exec --full-auto - < /tmp/critic-cross-prompt.txt > /tmp/critic-cross-log.txt 2>&1
+codex exec --full-auto - < "$_critic_cross_prompt" > "$_critic_cross_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-cross exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
-echo "=== full critic log retained at /tmp/critic-cross-log.txt ==="
-tail -200 /tmp/critic-cross-log.txt
-rm -f /tmp/critic-cross-prompt.txt
+echo "=== full critic log retained at $_critic_cross_log ==="
+tail -200 "$_critic_cross_log"
+rm -f "$_critic_cross_prompt"
 ```
 
 The verdict markers in the tail are your final stdout. Do not append text after `tail -200`.

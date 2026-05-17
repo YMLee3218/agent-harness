@@ -61,12 +61,43 @@ for tier in domain infrastructure features; do
 
   tier_blocked=0
 
+  # Sequential tasks: execute, verify, and merge one at a time so each sees prior tasks' output.
+  for id in "${sequential_ids[@]:-}"; do
+    [[ -n "$id" ]] || continue
+    launch_task "$id" 0
+    if ! verify_task "$id"; then
+      cleanup_wt "$id"
+      tier_blocked=1
+      break
+    fi
+    if ! bash "$PF" tier-safe "$PLAN" "$id"; then
+      echo "[BLOCKED] tier merge aborted — sequential task $id is blocked" >&2
+      cleanup_wt "$id"
+      OVERALL_BLOCKED=1
+      break 2
+    fi
+    if ! merge_task "$id"; then
+      bash "$PF" update-task "$PLAN" "$id" blocked
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: merge-conflict — resolve and re-run implementing"
+      git merge --abort 2>/dev/null || true
+      cleanup_wt "$id"
+      OVERALL_BLOCKED=1
+      break 2
+    fi
+  done
+
+  if [[ $tier_blocked -eq 1 ]]; then
+    OVERALL_BLOCKED=1
+    break
+  fi
+
+  # Parallel tasks: launch all, wait, then batch verify and merge.
   for id in "${parallel_ids[@]:-}"; do [[ -n "$id" ]] && launch_task "$id" 1; done
-  for id in "${sequential_ids[@]:-}"; do [[ -n "$id" ]] && launch_task "$id" 0; done
   for id in "${parallel_ids[@]:-}"; do [[ -n "$id" ]] && wait_task "$id"; done
 
   verified_ids=()
-  for id in "${tier_ids[@]}"; do
+  for id in "${parallel_ids[@]:-}"; do
+    [[ -n "$id" ]] || continue
     if verify_task "$id"; then
       verified_ids+=("$id")
     else
@@ -81,19 +112,21 @@ for tier in domain infrastructure features; do
     break
   fi
 
-  if ! bash "$PF" tier-safe "$PLAN" "${tier_ids[@]}"; then
+  if [[ ${#parallel_ids[@]} -gt 0 ]] && ! bash "$PF" tier-safe "$PLAN" "${parallel_ids[@]:-}"; then
     echo "[BLOCKED] tier merge aborted — at least one task is blocked" >&2
-    for id in "${tier_ids[@]}"; do cleanup_wt "$id"; done
+    for id in "${parallel_ids[@]:-}"; do [[ -n "$id" ]] && cleanup_wt "$id"; done
     OVERALL_BLOCKED=1
     break
   fi
 
-  for id in "${tier_ids[@]}"; do
+  for id in "${parallel_ids[@]:-}"; do
+    [[ -n "$id" ]] || continue
     if ! merge_task "$id"; then
       bash "$PF" update-task "$PLAN" "$id" blocked
       bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: merge-conflict — resolve and re-run implementing"
       git merge --abort 2>/dev/null || true
-      for _remaining in "${tier_ids[@]}"; do
+      for _remaining in "${parallel_ids[@]:-}"; do
+        [[ -n "$_remaining" ]] || continue
         awk -v id="$_remaining" '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&$0~id{print}' "$PLAN" \
           | grep -q 'completed' || cleanup_wt "$_remaining" 2>/dev/null || true
       done

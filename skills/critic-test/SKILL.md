@@ -19,7 +19,9 @@ You orchestrate Codex to perform the review. Build the prompt, run `codex exec`,
 Substitute placeholders from the prompt you received (`{spec_path}`, `{test_files}`, `{plan_path}`, `{test_command}`).
 
 ```bash
-cat > /tmp/critic-test-prompt.txt <<'CODEX_PROMPT'
+_critic_test_prompt=$(mktemp /tmp/critic-test-prompt.XXXXXX.txt)
+_critic_test_log=$(mktemp /tmp/critic-test-log.XXXXXX.txt)
+cat > "$_critic_test_prompt" <<'CODEX_PROMPT'
 You are an adversarial test reviewer. Verify scenario coverage, correct mocking levels, and test integrity. Read every file you need.
 
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL], [MANIFEST-GAP],
@@ -155,13 +157,13 @@ FAIL — {comma-separated blocking finding labels}
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios. Do not FAIL for scenarios outside the declared envelope.
 CODEX_PROMPT
-codex exec --full-auto - < /tmp/critic-test-prompt.txt > /tmp/critic-test-log.txt 2>&1
+codex exec --full-auto - < "$_critic_test_prompt" > "$_critic_test_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-test exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
-echo "=== full critic log retained at /tmp/critic-test-log.txt ==="
-tail -200 /tmp/critic-test-log.txt
-rm -f /tmp/critic-test-prompt.txt
+echo "=== full critic log retained at $_critic_test_log ==="
+tail -200 "$_critic_test_log"
+rm -f "$_critic_test_prompt"
 ```
 
 The verdict markers in the tail are your final stdout. Do not append text after `tail -200`.
