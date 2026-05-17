@@ -25,9 +25,10 @@ _phase_spec_prepass() {
       llm_exit "writing-spec"
     fi
 
-    # writing-spec transitions the plan to "spec" phase. When writing-spec is skipped
-    # (spec pre-exists), ensure the plan is in "spec" before critic-spec runs so
-    # record-verdict stores verdicts in the correct "spec/critic-spec" scope.
+    # Ensure plan is in "spec" before critic-spec runs so record-verdict stores verdicts
+    # in the correct "spec/critic-spec" scope. writing-spec skill runs via run_llm which
+    # strips CLAUDE_PLAN_CAPABILITY; it cannot call plan-file.sh transition (Ring B).
+    # The harness does the transition here for both the new-spec and skipped-spec paths.
     local _ph; _ph=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo "")
     if [[ "$_ph" == "brainstorm" ]]; then
       bash "$PF" transition "$PLAN" spec "spec already committed — advancing to spec phase for critic-spec"
@@ -110,6 +111,9 @@ _impl_run_test_phase() {
   local phase_now; phase_now=$(bash "$PF" get-phase "$PLAN")
   [[ "$phase_now" == "spec" || "$phase_now" == "red" ]] || return 0
   bash "$PF" is-converged "$PLAN" red critic-test 2>/dev/null && return 0
+  # Transition spec→red before run_llm: writing-tests runs with CLAUDE_PLAN_CAPABILITY stripped
+  # and cannot call plan-file.sh transition (Ring B) from within the session.
+  [[ "$phase_now" == "spec" ]] && bash "$PF" transition "$PLAN" red "entering test phase for ${feature}"
   run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
   llm_exit "writing-tests"
   bash "$PF" reset-milestone "$PLAN" critic-test

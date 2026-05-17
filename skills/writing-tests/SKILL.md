@@ -20,12 +20,11 @@ paths:
 
 ## Step 1 — Read plan file + spec
 
-Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `spec`, `red` (re-entry).
+Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phase: `red`.
 
 Phase entry:
-- Phase `spec`: proceed normally.
-- Phase `red` + `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" spec critic-spec` exits 0: skip to Step 2 (no transition needed).
-- Phase `red` without spec/critic-spec converged, or any other phase: `[BLOCKED:env] writing-tests: unexpected-phase — entered from {phase}; critic-spec convergence required; re-run writing-spec`.
+- Phase `red`: proceed. The harness (dev-cycle-phases.sh `_impl_run_test_phase`) transitions spec→red before invoking this skill, so `red` is always the entry phase in autonomous mode. In interactive use, ensure the plan is in `red` before invoking.
+- Any other phase: `[BLOCKED:env] writing-tests: unexpected-phase — entered from {phase}; plan must be in red phase; run brainstorming→writing-spec→critic-spec first`.
 
 - `Read` the project `CLAUDE.md` to extract the test command
 - `Read` the target `spec.md` in full
@@ -48,12 +47,6 @@ Scenario: {name}
 Proceed directly to Step 3.
 
 ## Step 3 — Delegate test writing to Codex
-
-Set plan file phase to `red` (skip if already in `red` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`):
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" red \
-  "approved plan — writing failing tests"
-```
 
 Build a Codex prompt that folds in the full spec, the test plan from Step 2, and hard constraints. Use the Write tool to create the prompt file:
 
