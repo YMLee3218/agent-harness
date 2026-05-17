@@ -122,7 +122,7 @@ cmd_find_active() {
   elif [ "$count" -eq 0 ]; then
     exit 2
   elif [ "$count" -ge 2 ]; then
-    echo "ERROR: ${count} active plan files found with no CLAUDE_PLAN_FILE or branch-slug match. Set CLAUDE_PLAN_FILE=plans/{slug}.md or align branch name with plan file name." >&2
+    echo "ERROR: ${count} active plan files found with no CLAUDE_PLAN_FILE or branch-slug match. Set CLAUDE_PLAN_FILE=${plans_dir}/{slug}.md or align branch name with plan file name." >&2
     exit 3
   else
     echo "[plan-file] WARNING: falling back to only active plan ($found). Set CLAUDE_PLAN_FILE or use worktrees to disambiguate when running multiple features in parallel." >&2
