@@ -19,6 +19,7 @@ cmd_init() {
   if ! [[ "$slug" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]]; then
     die "cmd_init: plan slug '${slug}' contains illegal characters — must match ^[a-z0-9][a-z0-9_-]{0,63}$"
   fi
+  mkdir -p "$(dirname "$plan_file")"
   sc_dir "$plan_file" > /dev/null || die "ERROR: plan path '${plan_file}' is outside CLAUDE_PROJECT_DIR/plans/ — path-traversal rejected"
   if [ -f "$plan_file" ]; then
     if [ -n "$mode" ]; then
@@ -32,7 +33,6 @@ cmd_init() {
     sc_ensure_dir "$plan_file" || die "ERROR: sidecar dir setup failed for $plan_file"
     return 0
   fi
-  mkdir -p "$(dirname "$plan_file")"
   {
     printf -- '---\nfeature: %s\nphase: brainstorm\nschema: 2\n' "$slug"
     [ -n "$mode" ] && printf 'mode: %s\n' "$mode"
