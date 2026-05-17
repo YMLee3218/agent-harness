@@ -150,7 +150,7 @@ _with_lock() {
     return $_rc
   fi
   rmdir "$_lockdir" 2>/dev/null || true
-  unset '_SC_LOCK_STACK[-1]'
+  unset "_SC_LOCK_STACK[${#_SC_LOCK_STACK[@]}-1]"
   if [[ "${#_SC_LOCK_STACK[@]}" -eq 0 ]]; then
     _sc_lock_restore_traps
   fi

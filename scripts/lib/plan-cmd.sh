@@ -20,7 +20,10 @@ cmd_init() {
     die "cmd_init: plan slug '${slug}' contains illegal characters — must match ^[a-z0-9][a-z0-9_-]{0,63}$"
   fi
   mkdir -p "$(dirname "$plan_file")"
-  sc_dir "$plan_file" > /dev/null || die "ERROR: plan path '${plan_file}' is outside CLAUDE_PROJECT_DIR/plans/ — path-traversal rejected"
+  if ! sc_dir "$plan_file" > /dev/null; then
+    rmdir "$(dirname "$plan_file")" 2>/dev/null || true
+    die "ERROR: plan path '${plan_file}' is outside CLAUDE_PROJECT_DIR/plans/ — path-traversal rejected"
+  fi
   if [ -f "$plan_file" ]; then
     if [ -n "$mode" ]; then
       local existing
