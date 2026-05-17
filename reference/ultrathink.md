@@ -1,6 +1,6 @@
 # Ultrathink Verdict Audit
 
-Every verdict returned by a review subagent **must pass a parent-context ultrathink audit** before it is accepted. Run the audit immediately after `record-verdict` (or `append-review-verdict`) completes and **before** branching on `## Open Questions` markers (per `@reference/critics.md §Skill branching logic`).
+Every verdict returned by a review subagent **must pass a parent-context ultrathink audit** before it is accepted. Run the audit immediately after `record-verdict` completes and **before** branching on `## Open Questions` markers (per `@reference/critics.md §Skill branching logic`). Exception — pr-review: `append-review-verdict` is recorded by the shell after the session exits; the in-session equivalent checkpoint is after outputting the nonce-anchored verdict marker in step 2 of `@reference/pr-review-loop.md`. Do NOT call `append-review-verdict` in-session.
 
 ## §Ultrathink verdict audit
 
