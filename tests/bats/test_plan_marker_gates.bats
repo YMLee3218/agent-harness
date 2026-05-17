@@ -147,13 +147,7 @@ EOF
   printf '[UNVERIFIED CLAIM] some assumption\n' >> "$PLAN_FILE"
   printf '[INFO] informational log\n' >> "$PLAN_FILE"
 
-  local wrapper
-  wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
-  printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock "%s"\n' \
-    "$PLAN_BASE" "$SCRIPTS_DIR" "$PLAN_FILE" > "$wrapper"
-  chmod +x "$wrapper"
-  run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
-  rm -f "$wrapper"
+  run_unblock
   [ "$status" -eq 0 ]
 
   # All 7 human-must prefix markers must be gone
@@ -174,25 +168,13 @@ EOF
   # [BLOCKED:transient] should never appear in plan.md; but if it does, unblock ignores it.
   printf '\n[BLOCKED:transient] critic-code: session-timeout — after 3600s\n' >> "$PLAN_FILE"
 
-  local wrapper
-  wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
-  printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock "%s"\n' \
-    "$PLAN_BASE" "$SCRIPTS_DIR" "$PLAN_FILE" > "$wrapper"
-  chmod +x "$wrapper"
-  run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
-  rm -f "$wrapper"
+  run_unblock
   # unblock succeeds overall, but the transient line remains
   grep -qF '[BLOCKED:transient]' "$PLAN_FILE"
 }
 
 @test "unblock: no agent argument required — argument-less call succeeds" {
-  local wrapper
-  wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
-  printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock "%s"\n' \
-    "$PLAN_BASE" "$SCRIPTS_DIR" "$PLAN_FILE" > "$wrapper"
-  chmod +x "$wrapper"
-  run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
-  rm -f "$wrapper"
+  run_unblock
   [ "$status" -eq 0 ]
   # The [BLOCKED:code] marker from setup must be cleared
   ! grep -qF '[BLOCKED:code] critic-code: parse' "$PLAN_FILE"
@@ -212,13 +194,7 @@ EOF
   printf '{"kind":"transient","agent":"critic-code","sub_kind":"session-timeout","detail":"d","ts":"%s","cleared_at":null}\n' \
     "$ts" >> "$state_dir/blocked.jsonl"
 
-  local wrapper
-  wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
-  printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock "%s"\n' \
-    "$PLAN_BASE" "$SCRIPTS_DIR" "$PLAN_FILE" > "$wrapper"
-  chmod +x "$wrapper"
-  run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
-  rm -f "$wrapper"
+  run_unblock
   [ "$status" -eq 0 ]
 
   # All 7 human-must records should have cleared_at set
@@ -246,13 +222,7 @@ EOF
     "$ts" >> "$state_dir/blocked.jsonl"
   printf '\n[BLOCKED:code] critic-code: tests-failing — needs fix\n' >> "$PLAN_FILE"
 
-  local wrapper
-  wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
-  printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock "%s"\n' \
-    "$PLAN_BASE" "$SCRIPTS_DIR" "$PLAN_FILE" > "$wrapper"
-  chmod +x "$wrapper"
-  run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
-  rm -f "$wrapper"
+  run_unblock
   [ "$status" -eq 0 ]
 
   # code record must have cleared_at set; transient must remain null
@@ -358,13 +328,7 @@ EOF
   # Also add [BLOCKED:ceiling] line to plan.md
   printf '\n[BLOCKED:ceiling] critic-code: implement/critic-code exceeded 20 runs — manual review required\n' >> "$PLAN_FILE"
 
-  local wrapper
-  wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
-  printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock "%s"\n' \
-    "$PLAN_BASE" "$SCRIPTS_DIR" "$PLAN_FILE" > "$wrapper"
-  chmod +x "$wrapper"
-  run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
-  rm -f "$wrapper"
+  run_unblock
   [ "$status" -eq 0 ]
 
   # ceiling_blocked must be false in the convergence JSON
@@ -394,7 +358,7 @@ EOF
 @test "is-blocked kind filter: envelope+spec open; envelope=true docs=false any=true" {
   # Verifies plan-cmd.sh:929-931 kind-filter path. With [BLOCKED:envelope] emitted by
   # worker per effort.md, the shell's general is-blocked check (no kind arg) at
-  # run-critic-loop.sh:93 must catch it, and the envelope kind filter must be selective.
+  # run-critic-loop.sh:89 must catch it, and the envelope kind filter must be selective.
   local state_dir="$PLAN_DIR/test-feature.state"
   mkdir -p "$state_dir"
   local ts; ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

@@ -119,7 +119,7 @@ fi
 if [ -z "$test_cmd" ]; then
   if [ "$claude_md_exists" -eq 1 ]; then
     # CLAUDE.md exists but no test line — treat as configuration error in autonomous mode
-    # (we are already in CLAUDE_NONINTERACTIVE=1 context; see line 16).
+    # (we are already in CLAUDE_NONINTERACTIVE=1 context; see line 14).
     bash "$PLAN_FILE_SH" record-stop-block "$active_plan" "$phase" \
       "CLAUDE.md found but no '- Test: \`cmd\`' line — add test command" 2>/dev/null || true
     echo "BLOCKED [stop-check]: CLAUDE.md found but no '- Test: \`cmd\`' line detected. Add a test command to CLAUDE.md using the exact format: \`- Test: \`<command>\`\` (phase=${phase})." >&2

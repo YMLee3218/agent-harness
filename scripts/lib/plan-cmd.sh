@@ -653,6 +653,7 @@ cmd_unblock() {
         [[ -n "$_s" ]] && _ceiling_scopes+=("$_s")
       done < <(jq -r 'select(.cleared_at == null and .kind == "ceiling") | .scope' "$_bpath" 2>/dev/null || true)
     fi
+    # SYNC: HUMAN_MUST_CLEAR_MARKERS in phase-policy.sh has same 7 kinds — update both together.
     _sc_rewrite_jsonl "$_bpath" \
       'if (.cleared_at == null and (.kind | IN("envelope","docs","spec","code","env","harness","ceiling"))) then .cleared_at = $ts else . end' \
       "unblock" --arg ts "$_ts" || return 1
@@ -928,9 +929,15 @@ cmd_is_blocked() {
   local _count
   if [[ -n "$kind" ]]; then
     _count=$(jq -r --arg k "$kind" 'select(.cleared_at == null and .kind == $k) | 1' \
-      "$_bpath" 2>/dev/null | awk 'END{print NR}' || echo 0)
+      "$_bpath" 2>/dev/null | awk 'END{print NR}') || {
+      echo "[is-blocked] WARNING: corrupt blocked.jsonl (kind=${kind}) — treating as not-blocked" >&2
+      return 1
+    }
   else
-    _count=$(jq -r 'select(.cleared_at == null and .kind != "transient") | 1' "$_bpath" 2>/dev/null | awk 'END{print NR}' || echo 0)
+    _count=$(jq -r 'select(.cleared_at == null and .kind != "transient") | 1' "$_bpath" 2>/dev/null | awk 'END{print NR}') || {
+      echo "[is-blocked] WARNING: corrupt blocked.jsonl — treating as not-blocked" >&2
+      return 1
+    }
   fi
   [[ "$_count" -gt 0 ]]
 }

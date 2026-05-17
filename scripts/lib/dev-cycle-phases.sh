@@ -159,7 +159,10 @@ _impl_run_review_phase() {
   if [[ "$phase_now" == "implement" ]]; then
     bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"
     bash "$PF" reset-pr-review "$PLAN"
-    gh pr view 2>/dev/null || gh pr create --draft --title "feat: ${feature}"
+    gh pr view 2>/dev/null || gh pr create --draft --title "feat: ${feature}" --fill 2>/dev/null || {
+      bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: pr-create-failed — gh pr create failed; create PR manually then re-run"
+      exit 1
+    }
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "review" ]] && \

@@ -124,6 +124,7 @@ apply_phase_block() {
 # NOTE: [INFO] falls through to user_memos in gc-events.
 # Markers that require human intervention to clear (7 kinds — [BLOCKED:transient] excluded).
 # Clear all at once with: plan-file.sh unblock
+# SYNC: plan-cmd.sh cmd_unblock uses (.kind | IN(...)) with the same 7 kinds — update both together.
 HUMAN_MUST_CLEAR_MARKERS=(
   "[BLOCKED:envelope]"
   "[BLOCKED:docs]"

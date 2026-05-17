@@ -119,11 +119,8 @@ mode_write() {
   local file_path; file_path=$(extract_tool_input_path "$input")
   [ -z "$file_path" ] && exit 0
 
-  _guard_sidecar "$file_path"
-  _guard_human_must_clear
-  _guard_plan_phase_mutation "$input" "$file_path"
-
-  # Normalize to project-relative so is_source_path non-VSA fallback globs (lib/*, internal/*, etc.) match absolute paths.
+  # Normalize to project-relative first so symlinks are resolved before guards run.
+  # Prevents a symlink pointing into plans/*.state/ from bypassing _guard_sidecar.
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
     local _proj _file_norm _rel
     _proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _proj="${CLAUDE_PROJECT_DIR}"
@@ -132,6 +129,10 @@ mode_write() {
     [[ "$_rel" == "$_file_norm" ]] && _rel="${file_path#${CLAUDE_PROJECT_DIR}/}"
     [[ "$_rel" != "$file_path" ]] && file_path="$_rel"
   fi
+
+  _guard_sidecar "$file_path"
+  _guard_human_must_clear
+  _guard_plan_phase_mutation "$input" "$file_path"
 
   apply_phase_block "$file_path" "$phase" "phase-gate" || exit 2
 

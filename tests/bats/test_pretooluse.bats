@@ -214,6 +214,15 @@ EOF
   [[ "${output:-}${stderr:-}" == *"sidecar"* || "$status" -eq 2 ]]
 }
 
+@test "B5b: variable-expansion in redirect target is blocked when raw command contains plans/*.md path" {
+  cd "$WS_DIR"
+  # sentinel triggers plans/*.md raw-command check; blocked when literal plans/*.md visible in command text
+  # Use unquoted $VAR so the path text is visible in the raw command without breaking the JSON wrapper.
+  run run_hook 'echo evil > $PROJECT_DIR/plans/feature.md'
+  [ "$status" -ne 0 ]
+  [[ "${output:-}${stderr:-}" == *"plans/*.md"* || "$status" -eq 2 ]]
+}
+
 # ── Phase A bypass regression tests ──────────────────────────────────────────
 
 @test "A2: Write tool cannot inject [CONVERGED] marker into plan file" {

@@ -74,3 +74,15 @@ _load_plan_libs() {
     ' "$SCRIPTS_DIR" "$PLAN_FILE"
   fi
 }
+
+# run_unblock — creates a temporary human-capability wrapper and runs plan-file.sh unblock.
+# Sets $status and $output via bats `run`. Callers check [ "$status" -eq 0 ].
+run_unblock() {
+  local wrapper
+  wrapper=$(mktemp /tmp/wrapper.XXXXXX.sh)
+  printf '#!/usr/bin/env bash\nexport CLAUDE_PROJECT_DIR="%s"\nbash "%s/plan-file.sh" unblock "%s"\n' \
+    "$PLAN_BASE" "$SCRIPTS_DIR" "$PLAN_FILE" > "$wrapper"
+  chmod +x "$wrapper"
+  run env CLAUDE_PLAN_CAPABILITY=human bash "$wrapper" </dev/null 2>&1
+  rm -f "$wrapper"
+}

@@ -55,7 +55,11 @@ launch_task() {
   echo "$wt"     > "$WORK_DIR/wt-${id}.txt"
   bash "$PF" update-task "$PLAN" "$id" in_progress
   make_prompt "$id" > "$prompt"
-  git worktree add "$wt" -b "$branch" 2>/dev/null
+  if ! git worktree add "$wt" -b "$branch"; then
+    bash "$PF" update-task "$PLAN" "$id" blocked
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: worktree-add-failed — git worktree add failed (branch conflict or git error); resolve and re-run implementing"
+    return 1
+  fi
   (cd "$wt" && git rev-parse HEAD) > "$WORK_DIR/task-base-${id}.txt"
   if [[ "$bg" == "1" ]]; then
     (cd "$wt" && env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$prompt") > "$log" 2>&1 &
@@ -176,7 +180,7 @@ merge_task() {
   branch=$(cat "$WORK_DIR/branch-${id}.txt")
   wt=$(cat "$WORK_DIR/wt-${id}.txt")
   goal=$(get_field "$id" goal)
-  git merge --no-ff "$branch" -m "merge(${id}): ${goal}"
+  git merge --no-ff "$branch" -m "merge(${id}): ${goal}" || return 1
   bash "$PF" update-task "$PLAN" "$id" completed "$(git rev-parse HEAD)"
   git worktree remove --force "$wt" 2>/dev/null || true
   git branch -d "$branch" 2>/dev/null || true

@@ -24,13 +24,13 @@ _bash_dest_paths() {
     case "$_t" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t" ;; esac
   done || true
   # cp/mv destination: last non-flag token (simplified; handles common forms)
-  # Also captures -t TARGET and --target-directory=TARGET (GNU/BSD explicit-dest flags).
+  # Also captures -t TARGET, --target-directory=TARGET, and --target-directory TARGET (GNU/BSD explicit-dest flags).
   printf '%s' "$c" | grep -oE '(^|[;|&[:space:]])(cp|mv)([[:space:]]+(-[[:alpha:]]+|--[a-zA-Z-]+=?[^[:space:];|&]*|[^[:space:];|&]+))+' | while IFS= read -r _cpmv; do
     [[ -n "$_cpmv" ]] || continue
     _t=$(printf '%s' "$_cpmv" | tr ' ' '\n' | grep -vE '^-' | tail -1 | tr -d '"'"'" 2>/dev/null || true)
     case "$_t" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t" ;; esac
-    _t2=$(printf '%s' "$_cpmv" | grep -oE '(-t[[:space:]]+|--target-directory=)[^[:space:];|&]+' \
-      | sed 's/^-t[[:space:]]*//' | sed 's/^--target-directory=//' | tail -1 | tr -d '"'"'" 2>/dev/null || true)
+    _t2=$(printf '%s' "$_cpmv" | grep -oE '(-t[[:space:]]+|--target-directory[[:space:]]+|--target-directory=)[^[:space:];|&]+' \
+      | sed 's/^-t[[:space:]]*//' | sed 's/^--target-directory[[:space:]][[:space:]]*//' | sed 's/^--target-directory=//' | tail -1 | tr -d '"'"'" 2>/dev/null || true)
     [[ -n "$_t2" ]] || continue
     case "$_t2" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t2" ;; esac
   done || true
@@ -143,6 +143,10 @@ block_sidecar_writes() {
   if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?(touch|truncate)\b[^;|&<>]*\bplans/[^[:space:]]*\.md\b'; then
     echo "BLOCKED: touch/truncate targeting plans/*.md — plan files are harness-exclusive" >&2; exit 2
   fi
+  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?ln\b' && \
+     _cmd_targets_sidecar "$cmd"; then
+    echo "BLOCKED: ln targeting plans/*.state/ — sidecar is harness-exclusive" >&2; exit 2
+  fi
   if [ $# -lt 2 ]; then
     _dest_list=$(_bash_dest_paths "$cmd")
   else
@@ -151,10 +155,16 @@ block_sidecar_writes() {
   while IFS= read -r _sw_p; do
     [ -z "$_sw_p" ] && continue
     if [[ "$_sw_p" == "plans/__unexpanded__.state/__bypass__" ]]; then
-      # Sentinel for unresolvable $VAR redirects: fall back to raw-command sidecar check
-      # rather than treating the sentinel itself as a confirmed sidecar path.
+      # Sentinel for unresolvable $VAR redirects: fall back to raw-command checks for
+      # sensitive paths rather than treating the sentinel itself as a confirmed path.
       _cmd_targets_sidecar "$cmd" && {
         echo "BLOCKED: write operation to unexpandable path suggesting plans/*.state/ — sidecar is harness-exclusive" >&2; exit 2
+      }
+      # Also guard plans/*.md: catches redirects like > "$CLAUDE_PROJECT_DIR/plans/foo.md"
+      # where the plan path is visible in the raw command text even though the full token
+      # contains an unexpanded variable.
+      printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]]*\.md' && {
+        echo "BLOCKED: write operation to unexpandable path suggesting plans/*.md — plan files are harness-exclusive" >&2; exit 2
       }
       continue
     fi
