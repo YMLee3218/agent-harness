@@ -94,7 +94,7 @@ _guard_human_must_clear() {
   local _plan _phase _found
   if resolve_with_latest_fallback _plan _phase 2>/dev/null; then
     if _found=$(marker_present_human_must_clear "$_plan"); then
-      echo "BLOCKED: [$_found] present — write prohibited; human must resolve and clear the marker from terminal" >&2
+      echo "BLOCKED: $_found present — write prohibited; human must resolve and clear the marker from terminal" >&2
       exit 2
     fi
   fi

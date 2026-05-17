@@ -161,6 +161,12 @@ or
           sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
     if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
       bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv"
+    else
+      bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        "[BLOCKED:env] pr-review: no-verdict-marker — nonce-anchored marker absent from session output; check last-critic-pr-review.log" 2>/dev/null || true
+      echo "[run-critic-loop] [BLOCKED:env] pr-review: no-verdict-marker" >&2
+      rm -f "${_session_out:-}"; _session_out=""
+      exit 1
     fi
   fi
   rm -f "${_session_out:-}"; _session_out=""
