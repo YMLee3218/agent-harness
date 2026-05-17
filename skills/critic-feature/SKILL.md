@@ -31,8 +31,8 @@ Read the requirements document at the path provided.
 - Existing `features/` that could be reused?
 
 **5. Operating Envelope**
-- Does the requirements doc include an Operating Envelope with all 6 axes (Actors, Frequency, Concurrency, Persistence, Failure model, External I/O) for each candidate?
-- If absent or any axis is undeclared (not `[BLOCKED]`): `[WARN]` — writing-spec will fail without it; prompt the user to complete the envelope before writing-spec runs.
+- Brainstorming declares the Operating Envelope in the plan file (not the requirements doc). Derive the plan file path from the requirements doc path: `docs/requirements/{slug}.md` → `plans/{slug}.md`. Read the plan file and verify each candidate feature has an Operating Envelope with all 6 axes (Actors, Frequency, Concurrency, Persistence, Failure model, External I/O) declared.
+- If absent or any axis is undeclared (not `[BLOCKED]`): `[WARN]` — writing-spec (step 2) will attempt to fill the envelope from requirements context, but domain context from brainstorming may be lost; prompt the user to complete the envelope in the plan file.
 
 ## Output format
 
