@@ -39,7 +39,7 @@ Before drafting any scenario, fill in the Operating Envelope in the plan file â€
 
 - **Actors**: {1 user | N users | tenants}
 - **Frequency**: {one-shot | periodic 1/min | per-request | bursty}
-- **Concurrency**: {none | reader/writer | full multi-writer}
+- **Concurrency**: {none | reader-writer | multi-writer}
 - **Persistence**: {ephemeral | best-effort | durable | zero-loss}
 - **Failure model**: {crash-stop | crash-recover | partial-failure}
 - **External I/O**: {none | file | network | distributed}
