@@ -120,7 +120,9 @@ or
   _log_dir="$(dirname "$PLAN")/${_log_slug}.state"
   if [[ -L "$_log_dir" ]]; then
     echo "[run-critic-loop] FATAL: sidecar dir $_log_dir is a symlink — refusing" >&2
-    exit 2
+    bash "$PLAN_FILE_SH" append-note "$PLAN" \
+      "[BLOCKED:harness] run-critic-loop: sidecar-symlink — sidecar dir is a symlink, potential redirect attack; remove the symlink manually" 2>/dev/null || true
+    exit 1
   fi
   mkdir -p "$_log_dir" 2>/dev/null || true
   _cmd=()
