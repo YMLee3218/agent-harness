@@ -13,10 +13,10 @@ PREFERRED_TOOL_LABEL="ruff --select TID (banned-api / restricted-import violatio
 PREFERRED_TOOL_FN="run_ruff"
 
 DOMAIN_PATTERNS=(
-  -e "^from[[:space:]].*infrastructure"
-  -e "^import[[:space:]].*infrastructure"
-  -e "^from[[:space:]].*features"
-  -e "^import[[:space:]].*features"
+  -e "^[[:space:]]*from[[:space:]].*infrastructure"
+  -e "^[[:space:]]*import[[:space:]].*infrastructure"
+  -e "^[[:space:]]*from[[:space:]].*features"
+  -e "^[[:space:]]*import[[:space:]].*features"
 )
 STDLIB_PATTERNS=(
   -e "^import[[:space:]]*requests"
@@ -45,12 +45,12 @@ STDLIB_PATTERNS=(
   -e "^from[[:space:]]*redis"
 )
 INFRA_PATTERNS=(
-  -e "^from[[:space:]].*features"
-  -e "^import[[:space:]].*features"
+  -e "^[[:space:]]*from[[:space:]].*features"
+  -e "^[[:space:]]*import[[:space:]].*features"
 )
 FEATURE_PATTERNS=(
-  -e "^from[[:space:]].*domain"
-  -e "^import[[:space:]].*domain"
+  -e "^[[:space:]]*from[[:space:]].*domain"
+  -e "^[[:space:]]*import[[:space:]].*domain"
 )
 EOF
     ;;
