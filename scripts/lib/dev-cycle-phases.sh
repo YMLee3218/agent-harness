@@ -25,6 +25,14 @@ _phase_spec_prepass() {
       llm_exit "writing-spec"
     fi
 
+    # writing-spec transitions the plan to "spec" phase. When writing-spec is skipped
+    # (spec pre-exists), ensure the plan is in "spec" before critic-spec runs so
+    # record-verdict stores verdicts in the correct "spec/critic-spec" scope.
+    local _ph; _ph=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo "")
+    if [[ "$_ph" == "brainstorm" ]]; then
+      bash "$PF" transition "$PLAN" spec "spec already committed — advancing to spec phase for critic-spec"
+    fi
+
     _new_specs=$(git status --porcelain 2>/dev/null \
       | awk '$0 ~ /spec\.md$/{print $NF}' | tr '\n' ' ' | sed 's/[[:space:]]*$//')
     _spec_for_critic="${_new_specs:-$(find_spec_path "$feat_slug")}"
