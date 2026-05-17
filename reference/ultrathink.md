@@ -57,6 +57,6 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
   "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "ACCEPT-OVERRIDE" \
   "all {N} citations absent from files — verdict promoted to PASS"
 ```
-Proceed to `@reference/critics.md §Skill branching logic` via the PASS path (re-run for convergence confirmation). ACCEPT-OVERRIDE is only valid when the Citation Summary is present and **every** blocking finding citation is absent from its file. If any citation verifies as present, fall back to BLOCKED-AMBIGUOUS.
+Proceed to `@reference/critics.md §Skill branching logic` via the PASS path (re-run for convergence confirmation). ACCEPT-OVERRIDE is only valid when the Citation Summary is present and every blocking finding is demonstrably false per the §Audit outcomes conditions: (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If any finding cannot satisfy (a) or (b), fall back to BLOCKED-AMBIGUOUS.
 
 **Non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): BLOCKED-AMBIGUOUS still stops. REJECT-PASS automatically enters the FAIL path. ACCEPT-OVERRIDE proceeds automatically (all citations absent — no ambiguity).
