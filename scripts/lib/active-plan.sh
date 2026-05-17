@@ -178,7 +178,15 @@ bootstrap_block_if_strict() {
     # shellcheck source=../phase-policy.sh
     source "$_lib_dir/../phase-policy.sh"
   fi
-  if is_source_path "$path" || is_test_path "$path"; then
+  # Strip project-root prefix from absolute paths so relative-only globs in is_source_path match.
+  local _check_path="$path"
+  if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "$path" == /* ]]; then
+    local _proj; _proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _proj="${CLAUDE_PROJECT_DIR}"
+    local _abs; _abs=$(_canon_path "$path" 2>/dev/null) || _abs="$path"
+    local _rel="${_abs#${_proj}/}"
+    [[ "$_rel" != "$_abs" ]] && _check_path="$_rel"
+  fi
+  if is_source_path "$_check_path" || is_test_path "$_check_path"; then
     echo "BLOCKED [phase-gate]: PHASE_GATE_STRICT=1, no active plan file, and '$path' is a source/test path. Run /brainstorming first to create a plan, then advance to the appropriate phase." >&2
     return 2
   fi

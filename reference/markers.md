@@ -70,7 +70,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "$CLAUDE_PROJECT
 
 Clears all 7 human-must kinds (`envelope`, `docs`, `spec`, `code`, `env`, `harness`, `ceiling`) from `## Open Questions` in one pass and sets `cleared_at` on their open sidecar records. `[BLOCKED:transient]` is intentionally excluded — it has its own auto lifecycle. Non-stop markers (`[UNVERIFIED CLAIM]`, `[INFO]`, `[AUTO-DECIDED]`, etc.) are also left untouched.
 
-After resolving the root cause, run `unblock` then restart the autonomous run.
+After resolving the root cause, run `unblock` then restart the autonomous run. Exception: for `[BLOCKED:ceiling]`, do **not** use `unblock` alone — use `reset-milestone {agent}` instead (see the note below).
 
 > **Ceiling block only**: for `[BLOCKED:ceiling]`, always use `reset-milestone {agent}` — never `unblock` alone. `reset-milestone` both clears the ceiling marker and increments `milestone_seq` so the next run's ordinal count starts at 0. `unblock` alone does not increment `milestone_seq`, so the next run recomputes `run_ordinal` from the same verdict history, finds it still exceeds the ceiling, and immediately re-blocks.
 
