@@ -138,6 +138,7 @@ EOF
 [BLOCKED:envelope] critic-code: ENVELOPE_MISMATCH — fix spec
 [BLOCKED:docs] critic-spec: contradiction — docs stale
 [BLOCKED:spec] critic-code: ambiguous — which encoding?
+[BLOCKED:code] critic-code: ambiguous — missing null constraint
 [BLOCKED:harness] sidecar: corrupt-check — repair needed
 [BLOCKED:env] preflight:jq: not-installed — brew install jq
 [BLOCKED:ceiling] critic-code: spec/critic-code exceeded 20 runs — manual review required
