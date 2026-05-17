@@ -6,7 +6,7 @@ set -euo pipefail
 # Callers must set PLAN_FILE_SH before sourcing this file (required by plan-resolution functions).
 # Optional: set BLOCKED_LABEL to a context string for error messages (default: "active-plan").
 #
-# Hook utilities (sourced from hook-utils.sh):
+# Hook utilities (inlined from hook-utils.sh):
 #   require_jq_or_block <label> [strict]          — exits 2 (strict) or warns when jq absent
 #   extract_tool_input_path <json>                — prints file_path or notebook_path
 #   extract_tool_input_command <json>             — prints .tool_input.command
@@ -17,7 +17,7 @@ set -euo pipefail
 #   resolve_with_latest_fallback  <pvar> <phvar>  — like above but falls back to find-latest
 #   bootstrap_block_if_strict <path>              — returns 2+BLOCKED when STRICT=1 and path is src/test
 #
-# Path helpers (sourced from path-canon.sh):
+# Path helpers (inlined from path-canon.sh):
 #   _canon_path PATH                              — canonical absolute path (resolves symlinks)
 #   _is_safe_transcript_path PATH                 — validates path is inside project/home dir
 [[ -n "${_ACTIVE_PLAN_LOADED:-}" ]] && return 0

@@ -73,12 +73,8 @@ LAST_PLAN_HASH=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
 CONSECUTIVE_NOOP=0
 
 while true; do
-  # Convergence check via sidecar (authoritative source)
-  if bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; then
-    echo "CONVERGED"; exit 0
-  fi
-
   # Ceiling-blocked: check sidecar convergence file (per scope — not plan.md)
+  # Priority per critics.md: BLOCKED checks (1–4) must precede is-converged (5).
   _conv_path=$(sc_conv_path "$PLAN" "$PHASE" "$AGENT" 2>/dev/null) || {
     echo "[run-critic-loop] ERROR: sc_conv_path failed — CLAUDE_PROJECT_DIR may be unset" >&2
     exit 1
@@ -93,6 +89,10 @@ while true; do
   if bash "$PLAN_FILE_SH" is-blocked "$PLAN" 2>/dev/null; then
     echo "[BLOCKED:*] active block detected — exiting critic loop" >&2
     exit 1
+  fi
+  # Convergence check via sidecar (authoritative source) — after all BLOCKED checks
+  if bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; then
+    echo "CONVERGED"; exit 0
   fi
 
   if [[ $NESTED -eq 0 ]]; then
