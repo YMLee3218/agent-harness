@@ -50,7 +50,9 @@ trap '_cleanup_all_worktrees' EXIT
 OVERALL_BLOCKED=0
 
 for tier in domain infrastructure features; do
-  mapfile -t tier_ids < <(printf '%s' "$TASK_JSON" | jq -r --arg t "$tier" '.[] | select(.layer == $t) | .id')
+  tier_ids=()
+  while IFS= read -r _tid; do [[ -n "$_tid" ]] && tier_ids+=("$_tid"); done \
+    < <(printf '%s' "$TASK_JSON" | jq -r --arg t "$tier" '.[] | select(.layer == $t) | .id')
   [[ ${#tier_ids[@]} -eq 0 ]] && continue
 
   parallel_ids=() sequential_ids=()

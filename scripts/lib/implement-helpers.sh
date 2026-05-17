@@ -79,7 +79,7 @@ _extract_test_paths() {
     git diff "${base}..HEAD" --name-only 2>/dev/null
     git diff HEAD --name-only 2>/dev/null
     git ls-files --others --exclude-standard 2>/dev/null
-  } | sort -u | grep -E '(^|/)tests/|(^|/)test_|_test\.|\.test\.|\.spec\.|_spec\.' \
+  } | sort -u | grep -E '(^|/)tests/|(^|/)test_|_test\.|\.test\.|\.spec\.|_spec\.|(^|/)spec\.md$' \
     | grep -v '\.spec\.md$' || true)
 }
 
@@ -87,10 +87,11 @@ _extract_test_paths() {
 # Returns 1 (with BLOCKED note) if retry fails or still modifies tests.
 _restore_and_retry() {
   local id="$1" base="$2" wt="$3" test_files="$4"
-  (cd "$wt" && for f in $test_files; do
+  (cd "$wt" && while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
     if git cat-file -e "${base}:${f}" 2>/dev/null; then git checkout "$base" -- "$f"
     else rm -f "$f"; fi
-  done && git add -A && git commit -m "chore: restore test files modified by Codex" 2>/dev/null || true)
+  done <<< "$test_files" && git add -A && git commit -m "chore: restore test files modified by Codex" 2>/dev/null || true)
   restore_count=$(cd "$wt" && git rev-list --count "${base}..HEAD" 2>/dev/null || echo 0)
   local retry_log="$WORK_DIR/retry-log-${id}.txt" retry_prompt="$WORK_DIR/retry-prompt-${id}.txt"
   make_prompt "$id" > "$retry_prompt"
@@ -115,7 +116,7 @@ _run_failing_test() {
   local id="$1" wt="$2"
   local failing_test
   failing_test=$(get_field "$id" failing_test)
-  if [[ -n "$failing_test" ]] && ! (cd "$wt" && bash -c "$TEST_CMD $failing_test" 2>&1); then
+  if [[ -n "$failing_test" ]] && ! (cd "$wt" && bash -c "$TEST_CMD \"\$1\"" -- "$failing_test" 2>&1); then
     bash "$PF" update-task "$PLAN" "$id" blocked
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — after implementation"
     return 1

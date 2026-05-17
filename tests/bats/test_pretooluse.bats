@@ -30,6 +30,18 @@ run_hook() {
   [ "$status" -ne 0 ]
 }
 
+@test "plan-md: touch/truncate targeting plans/*.md is blocked" {
+  cd "$WS_DIR"
+  for cmd in \
+    "touch plans/foo.md" \
+    "truncate -s 0 plans/foo.md" \
+    "sudo touch plans/foo.md"
+  do
+    run run_hook "$cmd"
+    [ "$status" -ne 0 ] || { echo "FAIL: '$cmd' was not blocked"; return 1; }
+  done
+}
+
 # ── 2. block_capability ───────────────────────────────────────────────────────
 
 @test "capability: assignment of CLAUDE_PLAN_CAPABILITY/PROJECT_DIR/PLAN_FILE is blocked" {
@@ -59,6 +71,14 @@ run_hook() {
   run run_hook "python <<EOF
 open('plans/x.md','w').write('evil')
 EOF"
+  [ "$status" -ne 0 ]
+}
+
+@test "execution: python quoted heredoc is blocked" {
+  cd "$WS_DIR"
+  run run_hook "python3 <<'PYEOF'
+open('plans/x.md','w').write('evil')
+PYEOF"
   [ "$status" -ne 0 ]
 }
 
@@ -186,9 +206,10 @@ EOF
 
 # ── 6. B5: variable-expansion bypass ─────────────────────────────────────────
 
-@test "B5: variable-expansion in redirect target is fail-closed as sidecar" {
+@test "B5: variable-expansion in redirect target is blocked when raw command contains literal sidecar path" {
   cd "$WS_DIR"
-  run run_hook 'S=test.state; echo evil > plans/foo$S/x.json'
+  # sentinel triggers _cmd_targets_sidecar on raw command; blocked when literal plans/*.state present
+  run run_hook 'CRITIC_LOG=plans/feature.state/convergence/spec__critic-spec.json; echo evil > $CRITIC_LOG'
   [ "$status" -ne 0 ]
   [[ "${output:-}${stderr:-}" == *"sidecar"* || "$status" -eq 2 ]]
 }

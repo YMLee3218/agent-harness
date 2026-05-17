@@ -9,7 +9,8 @@ _PRETOOLUSE_BLOCKS_LOADED=1
 
 # _bash_dest_paths CMD — extracts write-destination paths from a bash command string.
 # Tokens containing unresolved variable expansion ($VAR, ${VAR}, $(...), `...`) are
-# returned as a sidecar path so callers fail-closed rather than silently bypass.
+# returned as the sentinel `plans/__unexpanded__.state/__bypass__`; block_sidecar_writes
+# handles the sentinel via raw-command check rather than is_sidecar_path.
 _bash_dest_paths() {
   local c="$1" _t
   printf '%s' "$c" | grep -oE '>{1,2} *[^[:space:];|&)(<>]+' | sed 's/^>* *//' | tr -d '"'"'" | while IFS= read -r _t; do
@@ -82,7 +83,7 @@ block_execution() {
   if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[[:space:]]+(-[A-Za-z]*[ceE]([[:space:]]|=)|--?command|--?eval)'; then
     echo "BLOCKED: inline interpreter script — use Read/Write/Edit tools instead of python/perl/ruby/node -c/-e" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[^|;&]*<<-?[[:space:]]*[A-Za-z_]'; then
+  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[^|;&]*<<-?[[:space:]]*['"'"'"\\]?[A-Za-z_]'; then
     echo "BLOCKED: interpreter heredoc detected — use Write/Edit tool instead of python/perl/ruby/node << HEREDOC" >&2; exit 2
   fi
   # awk internal redirect to src/, tests/, or plans/
@@ -139,6 +140,9 @@ block_sidecar_writes() {
       echo "BLOCKED: rm targeting plans/*.md — plan file deletion not permitted" >&2; exit 2
     fi
   fi
+  if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?(touch|truncate)\b[^;|&<>]*\bplans/[^[:space:]]*\.md\b'; then
+    echo "BLOCKED: touch/truncate targeting plans/*.md — plan files are harness-exclusive" >&2; exit 2
+  fi
   if [ $# -lt 2 ]; then
     _dest_list=$(_bash_dest_paths "$cmd")
   else
@@ -146,6 +150,14 @@ block_sidecar_writes() {
   fi
   while IFS= read -r _sw_p; do
     [ -z "$_sw_p" ] && continue
+    if [[ "$_sw_p" == "plans/__unexpanded__.state/__bypass__" ]]; then
+      # Sentinel for unresolvable $VAR redirects: fall back to raw-command sidecar check
+      # rather than treating the sentinel itself as a confirmed sidecar path.
+      _cmd_targets_sidecar "$cmd" && {
+        echo "BLOCKED: write operation to unexpandable path suggesting plans/*.state/ — sidecar is harness-exclusive" >&2; exit 2
+      }
+      continue
+    fi
     if is_sidecar_path "$_sw_p"; then
       echo "BLOCKED: write operation targeting plans/*.state/ — sidecar is harness-exclusive" >&2; exit 2
     fi
@@ -195,7 +207,7 @@ block_plan_revert() {
   _active_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) || return 0
   [[ -z "$_active_plan" ]] && return 0
   marker_present_human_must_clear "$_active_plan" >/dev/null 2>&1 || return 0
-  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+(checkout|restore|apply|am|revert|cherry-pick)[[:space:]]' && \
+  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+(checkout|restore|apply|am|revert|cherry-pick|switch)[[:space:]]' && \
      printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]]*\.md'; then
     echo "BLOCKED: git operation targeting plans/*.md while human-must-clear marker active — resolve the block first" >&2; exit 2
   fi

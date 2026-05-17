@@ -13,11 +13,11 @@ Single iteration spawned by `run-critic-loop.sh`. Do not loop — one pr-review 
    where `{nonce}` is the UUID printed in the prompt. `run-critic-loop.sh` captures this nonce-anchored marker and records the verdict via `append-review-verdict`. Do NOT call `append-review-verdict` directly — the spawned session has no `CLAUDE_PLAN_CAPABILITY` and the call would be rejected. The nonce prevents verdict spoofing via doc citations of the marker format.
 3. `@reference/ultrathink.md §Ultrathink verdict audit`
    **REJECT-PASS override**: if the audit outcome is REJECT-PASS, additionally emit `<!-- review-verdict: {nonce} FAIL -->` (using the nonce from this session's prompt) immediately after the `append-audit` call — `run-critic-loop.sh` captures the *last* occurrence of the nonce-anchored marker, so this FAIL overrides the step-2 PASS and ensures `append-review-verdict` records FAIL rather than the demoted PASS.
-4. Read `## Open Questions` and query `plan-file.sh is-converged` — apply `@reference/critics.md §Skill branching logic` (pr-review exception: steps 1→4-5→7→8 only):
+4. Read `## Open Questions` and query `plan-file.sh is-converged` — apply `@reference/critics.md §Skill branching logic` (pr-review exception: steps 1→4-5→6→7 only):
    - `[BLOCKED:ceiling]` → exit (shell loop returns exit 2)
    - `is-converged` exits 0 → exit (shell loop returns exit 0)
-   - first-turn (sidecar `first_turn=true`) + PASS, or no terminal marker + PASS → exit (shell loop re-runs)
-   - first-turn + FAIL, or no terminal marker + FAIL → apply fix chain below, then exit
+   - no terminal marker + PASS → exit (shell loop re-runs)
+   - no terminal marker + FAIL → apply fix chain below, then exit
 5. On FAIL: §Categorisation below → appropriate fix chain → §Fix-chain finisher → exit.
    Shell loop re-runs pr-review in the next iteration.
 

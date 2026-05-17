@@ -79,15 +79,11 @@ Skill reads ## Open Questions and queries sidecar, checks in priority order:
   3. [BLOCKED:docs] {agent}: ...      → stop (human decision required; apply DOCS CONTRADICTION cascade)
   4. [BLOCKED:{any kind}] ...         → stop (read reason; fix root cause; run unblock; retry)
   5. is-converged exits 0             → proceed to next step
-  6. (first real verdict — sidecar convergence json has first_turn=true)
-                                       → re-run automatically
-                                          **Only when latest verdict is PASS.**
-                                          If latest verdict is FAIL, skip to step 9.
-  7. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
+  6. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
                                 → re-run automatically (one retry allowed;
                                   second consecutive PARSE_ERROR triggers [BLOCKED:code] {agent}: parse)
-  8. (no terminal marker, PASS) → re-run automatically
-  9. (no terminal marker, FAIL; or redirected from step 6 on first-turn+FAIL) → LLM determines fix direction:
+  7. (no terminal marker, PASS) → re-run automatically
+  8. (no terminal marker, FAIL) → LLM determines fix direction:
        - direction is clear → construct Codex fix prompt (critic finding, target file,
          change to apply, test command, layer rules if applicable); write to tmp file:
            codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
@@ -150,7 +146,7 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 
 One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** loop — one critic run per session. Steps 1 and 2 execute in a single continuous turn — no turn boundary between them.
 1. `Skill("{agent}", "{prompt}")` — synchronous; `SubagentStop` fires `record-verdict-guarded` automatically when the subagent exits. Do not end the turn here.
-2. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 5/6/7 hand their re-run back to the shell loop; however step 5's FAIL branch routes to step 8, which this session does execute before exiting); exit after each branching action.
+2. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 6 and 7 hand their re-run back to the shell loop; step 8 / FAIL is executed by this session before exiting); exit after each branching action.
 
 ## Ambiguity signaling
 
