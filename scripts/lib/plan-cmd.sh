@@ -409,7 +409,7 @@ _resolve_output() {
       _transcript_size=$(wc -c < "$_safe_path" 2>/dev/null || echo 0)
       [ "$_transcript_size" -gt "$_size_warn" ] && \
         echo "[record-verdict] WARN: agent_transcript size ${_transcript_size} bytes — reading last 1MB only" >&2
-      out=$(tail -c 1048576 "$_safe_path" | \
+      out=$(tail -c 1048576 "$_safe_path" | tail -n +2 | \
         jq -r 'select(.type=="assistant")|.message.content[]?|select(.type=="text")|.text//empty' \
         2>/dev/null || true)
     }
@@ -419,7 +419,7 @@ _resolve_output() {
       _transcript_size=$(wc -c < "$_safe_path" 2>/dev/null || echo 0)
       [ "$_transcript_size" -gt "$_size_warn" ] && \
         echo "[record-verdict] WARN: transcript size ${_transcript_size} bytes — reading last 1MB only" >&2
-      out=$(tail -c 1048576 "$_safe_path" | \
+      out=$(tail -c 1048576 "$_safe_path" | tail -n +2 | \
         jq -r 'select(.type=="assistant")|.message.content[]?|select(.type=="text")|.text//empty' \
         2>/dev/null | tail -200 || true)
     }
