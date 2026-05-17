@@ -74,7 +74,7 @@ Ceiling N defaults to **20** (runs 1–20 are allowed; the 21st run triggers `[B
 After critic/review run → script records verdict + emits markers
 Skill reads ## Open Questions and queries sidecar, checks in priority order:
 
-  1. [BLOCKED:ceiling] {agent}: ...   → stop (manual review; use reset-milestone or unblock)
+  1. [BLOCKED:ceiling] {agent}: ...   → stop (manual review; use reset-milestone)
   2. [BLOCKED:spec] {agent}: ambiguous → stop (human decision required)
   3. [BLOCKED:docs] {agent}: ...      → stop (human decision required; apply DOCS CONTRADICTION cascade)
   4. [BLOCKED:{any kind}] ...         → stop (read reason; fix root cause; run unblock; retry)

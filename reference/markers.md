@@ -72,7 +72,7 @@ Clears all 7 human-must kinds (`envelope`, `docs`, `spec`, `code`, `env`, `harne
 
 After resolving the root cause, run `unblock` then restart the autonomous run.
 
-> **Ceiling block only**: if only a `[BLOCKED:ceiling]` is present and the ceiling iteration count itself is the problem (e.g., real convergence needed more runs), call `reset-milestone` instead of `unblock` — `reset-milestone` resets the streak counter so the next run starts fresh. `unblock` clears the marker but does not reset the streak.
+> **Ceiling block only**: for `[BLOCKED:ceiling]`, always use `reset-milestone {agent}` — never `unblock` alone. `reset-milestone` both clears the ceiling marker and increments `milestone_seq` so the next run's ordinal count starts at 0. `unblock` alone does not increment `milestone_seq`, so the next run recomputes `run_ordinal` from the same verdict history, finds it still exceeds the ceiling, and immediately re-blocks.
 
 ## Transient auto-handling
 
@@ -102,7 +102,7 @@ Written by scripts outside the critic convergence protocol.
 | `[BLOCKED:code] {scope}: {sub-kind} — {detail}` | Various scripts | `plan-file.sh unblock` | Yes |
 | `[BLOCKED:env] {scope}: {sub-kind} — {detail}` | `preflight.sh`, `run-critic-loop.sh`, scripts | `plan-file.sh unblock` | Yes |
 | `[BLOCKED:harness] {scope}: {sub-kind} — {detail}` | `plan-cmd.sh`, `run-critic-loop.sh` | `plan-file.sh unblock` | Yes |
-| `[BLOCKED:ceiling] {scope}: {sub-kind} — {detail}` | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` or `unblock` | Yes |
+| `[BLOCKED:ceiling] {scope}: {sub-kind} — {detail}` | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | `stop-check.sh` | Informational — survives `gc-events` | Yes |
 
 ## Integration test markers (written to `## Integration Failures`)

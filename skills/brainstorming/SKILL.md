@@ -36,7 +36,7 @@ git status --porcelain
 
 If dirty working tree (non-empty output): `[BLOCKED:env] brainstorming: dirty-working-tree — commit or stash changes first`
 
-If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars) and use `plans/{slug}.md` as the plan path throughout. If the plan file (from `CLAUDE_PLAN_FILE` or derived) does not yet exist, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "<plan-path>"` before any other `plan-file.sh` command.
+If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars) and use `$CLAUDE_PROJECT_DIR/plans/{slug}.md` as the plan path throughout. If the plan file (from `CLAUDE_PLAN_FILE` or derived) does not yet exist, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "$CLAUDE_PROJECT_DIR/plans/{slug}.md"` before any other `plan-file.sh` command.
 
 Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 

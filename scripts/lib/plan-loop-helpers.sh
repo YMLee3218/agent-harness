@@ -139,7 +139,7 @@ _record_loop_state_body() {
   # if already ceiling-blocked, return immediately.
   local prior_cb; prior_cb=$(printf '%s' "$conv_state" | jq -r '.ceiling_blocked // false')
   if [[ "$prior_cb" == "true" ]]; then
-    echo "[record-loop-state] [BLOCKED:ceiling]: ${scope} already ceiling-blocked — run reset-milestone or unblock to resume" >&2
+    echo "[record-loop-state] [BLOCKED:ceiling]: ${scope} already ceiling-blocked — run reset-milestone to resume" >&2
     return 1
   fi
   local ms; ms=$(printf '%s' "$conv_state" | jq -r '.milestone_seq // 0')
