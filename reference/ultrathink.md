@@ -24,7 +24,7 @@ Include `ultrathink` in the audit prompt and check the five items in §Audit che
 | **ACCEPT** | Verdict is sound | Adopt verdict as-is; proceed to `@reference/critics.md §Skill branching logic` |
 | **REJECT-PASS** | Subagent returned PASS but audit found a substantive gap | Call `clear-converged` (resets sidecar streak regardless of plan.md state), then record audit and enter FAIL path. **Ultrathink may demote PASS→FAIL but must never promote FAIL→PASS — except via ACCEPT-OVERRIDE when Read-tool verification confirms all cited excerpts are absent from their files (see §Audit outcomes).** |
 | **BLOCKED-AMBIGUOUS** | Audit result is inconclusive | Append `[BLOCKED:spec] {agent}: ambiguous — ultrathink audit inconclusive: {question}` to `## Open Questions` and stop |
-| **ACCEPT-OVERRIDE** | Verdict is FAIL but every blocking finding is demonstrably false: either (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If some findings are false and others are genuine, use BLOCKED-AMBIGUOUS instead. | Promote FAIL→PASS; append-audit with "ACCEPT-OVERRIDE" and list each absent citation. **Only when all blocking finding citations are absent — if some are absent but not all, use BLOCKED-AMBIGUOUS instead.** |
+| **ACCEPT-OVERRIDE** | Verdict is FAIL but every blocking finding is demonstrably false: either (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If some findings are false and others are genuine, use BLOCKED-AMBIGUOUS instead. | Exit without applying fixes (branching decision only — no sidecar state change for phase-gate critics; pr-review: additionally emit nonce marker to override recorded verdict); append-audit with "ACCEPT-OVERRIDE" and list each absent citation. **Only when all blocking finding citations are absent — if some are absent but not all, use BLOCKED-AMBIGUOUS instead.** |
 
 ### Applying the audit outcome
 
@@ -51,12 +51,12 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
 ```
 Append `[BLOCKED:spec] {agent}: ambiguous — ultrathink audit inconclusive: {question}` to `## Open Questions` and stop.
 
-**ACCEPT-OVERRIDE**: record and proceed as PASS.
+**ACCEPT-OVERRIDE**: record, then exit without applying any fix.
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
   "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "ACCEPT-OVERRIDE" \
   "all {N} citations absent from files — verdict promoted to PASS"
 ```
-Proceed to `@reference/critics.md §Skill branching logic` via the PASS path (re-run for convergence confirmation). ACCEPT-OVERRIDE is only valid when the Citation Summary is present and every blocking finding is demonstrably false per the §Audit outcomes conditions: (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If any finding cannot satisfy (a) or (b), fall back to BLOCKED-AMBIGUOUS.
+Exit this session immediately — do **not** apply step 8 (FAIL-path) fixes. For **pr-review only**: also emit `<!-- review-verdict: {nonce} PASS -->` per `@reference/pr-review-loop.md §PR-review one-shot iteration` step 3 immediately after the `append-audit` call; `run-critic-loop.sh` captures the last nonce-anchored marker, overriding the recorded FAIL. For **phase-gate critics** (`critic-code`, `critic-spec`, `critic-test`, `critic-cross`, `critic-feature`): there is no nonce mechanism — the sidecar retains the original FAIL verdict; the shell loop re-runs and should produce PASS (citations were absent). Do not look at `## Critic Verdicts` to determine the branch after ACCEPT-OVERRIDE — the explicit instruction to exit (without fix) overrides the mechanical §Skill branching logic step 8. ACCEPT-OVERRIDE is only valid when the Citation Summary is present and every blocking finding is demonstrably false per the §Audit outcomes conditions: (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If any finding cannot satisfy (a) or (b), fall back to BLOCKED-AMBIGUOUS.
 
 **Non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): BLOCKED-AMBIGUOUS still stops. REJECT-PASS automatically enters the FAIL path. ACCEPT-OVERRIDE proceeds automatically (all citations absent — no ambiguity).
