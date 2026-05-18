@@ -43,7 +43,7 @@ Read the "## Operating Envelope" section from {spec_path}. If absent, report [FA
 
 Before reporting any Angle 1 compliance failure: verify the scenario is within the declared envelope. If the scenario only occurs outside the envelope, drop the finding — it is out of scope, not a bug. If you believe the envelope is wrong (e.g. the DB is multi-tenant but envelope declares single-tenant), report [FAIL] ENVELOPE_MISMATCH: {reason} and do not expand coverage.
 
-## Angle 1 — Spec compliance
+## Angle 1 — Spec compliance → category: `SPEC_COMPLIANCE`
 
 For every Scenario in spec.md:
 1. Given condition handled correctly?
@@ -62,7 +62,7 @@ Compare against docs/*.md. If implementation or spec contradicts documented doma
 
 Test coverage and mocking are out of scope here — critic-test owns them.
 
-## Angle 2 — Layer boundary
+## Angle 2 — Layer boundary → category: `LAYER_VIOLATION`
 
 Run the language-specific boundary checker:
 \`\`\`bash
@@ -126,6 +126,8 @@ FAIL:
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | MISSING_SCENARIO | TEST_INTEGRITY | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH} -->
+
+Copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired. Do not use `CORRECTNESS` or other descriptive synonyms — they are not enum members and produce PARSE_ERROR. On PASS, X must be NONE.
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios (false PASS for in-envelope scenarios costs 10×; out-of-envelope findings are not failures).
 CODEX_PROMPT

@@ -248,6 +248,7 @@ cmd_append_note() {
 cmd_record_stop_block() {
   local plan_file="$1" phase="$2" reason="$3"
   require_file "$plan_file"
+  sc_dir "$plan_file" > /dev/null
   local ts
   ts=$(_iso_timestamp)
   _append_to_open_questions "$plan_file" \
@@ -550,6 +551,13 @@ _extract_or_handle_missing_verdict() {
     else
       echo "[record-verdict] WARN: severity.md category list empty — skipping enum check for ${_agent}" >&2
     fi
+  fi
+  # Guard: PASS must carry category NONE (or no category marker at all).
+  if [ "$verdict" = "PASS" ] && [ -n "$category" ] && [ "$category" != "NONE" ]; then
+    _handle_parse_error "$_plan" "$_phase" "$_agent" \
+      "PASS with non-NONE category '${category}' from ${_agent} — treating as PARSE_ERROR" \
+      "PASS with non-NONE category (two consecutive parse errors) — check agent output format" \
+      "first PASS-with-non-NONE-category PARSE_ERROR for ${_agent} — will retry automatically"
   fi
   # Guard: FAIL must have at least one blocking-label finding (fail-open if severity.md unparseable)
   if [ "$verdict" = "FAIL" ]; then

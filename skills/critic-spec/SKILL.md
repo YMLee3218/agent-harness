@@ -41,7 +41,7 @@ Read these reference files first — they govern your output:
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md       (naming conventions, spec-path mapping)
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/bdd-templates.md (required boundary coverage by input type)
 
-## Angle 1 — Missing scenarios
+## Angle 1 — Missing scenarios → category: `MISSING_SCENARIO` (or `DOCS_CONTRADICTION` for §doc contradictions)
 
 For every scenario:
 1. Failure paths: fails / partially succeeds / times out / external system down?
@@ -58,7 +58,7 @@ For every scenario:
 
 Compare spec against docs/*.md. If the spec contradicts documented domain knowledge, report [DOCS CONTRADICTION] (do not judge sides).
 
-## Angle 2 — Structural correctness
+## Angle 2 — Structural correctness → category: `STRUCTURAL` (or `LAYER_VIOLATION` for §6, §6b, §7)
 
 5. Placement: spec path matches the component's classified layer per layers.md §Naming conventions? Feature: features/{verb}-{noun}/spec.md? Domain: domain/{concept}/spec.md? Infrastructure: infrastructure/{concept}/spec.md? (→ [FAIL])
 6. Domain purity: domain spec mentions DB, HTTP, queue, or file system? (→ [FAIL])
@@ -66,12 +66,12 @@ Compare spec against docs/*.md. If the spec contradicts documented domain knowle
 7. Feature classification: large feature scenario implies calling domain directly? (→ [FAIL])
 8. BDD format: every scenario has Given, When, Then? Every Scenario Outline has Examples:? Feature: declaration present?
 
-## Angle 3 — Unverified claims
+## Angle 3 — Unverified claims → category: `UNVERIFIED_CLAIM`
 
 9. Domain facts: scenario asserts a domain rule, threshold, or constraint not found in docs/*.md? (→ [UNVERIFIED CLAIM])
 10. External references: scenario references a specific API, service, model, or version? Note unverified items. (→ [UNVERIFIED CLAIM])
 
-## Angle 4 — Cross-spec consistency (only if other specs provided)
+## Angle 4 — Cross-feature contradiction → category: `CROSS_FEATURE_CONTRADICTION` (only if other specs provided)
 
 If the prompt includes "Also verify consistency against existing specs:":
   Read each listed spec. For any conflict with the current spec:
@@ -79,7 +79,7 @@ If the prompt includes "Also verify consistency against existing specs:":
   - Report [FAIL] cross-spec: {brief description}
   Category: CROSS_FEATURE_CONTRADICTION
 
-## Angle 5 — Envelope Discipline
+## Angle 5 — Envelope Discipline → category: `ENVELOPE_MISMATCH` / `ENVELOPE_OVERREACH`
 
 Read the "## Operating Envelope" section from {spec_path}. Apply before any MISSING_SCENARIO finding.
 
@@ -112,7 +112,7 @@ None: "No structural issues"
 [UNVERIFIED CLAIM] {claim}: {how to verify}
 None: "No unverified claims"
 
-### Angle 4 — Cross-spec Consistency
+### Angle 4 — Cross-feature Contradiction
 [FAIL] cross-spec: {brief description}
   {spec_path}:{line}: "{excerpt}" vs {other_spec_path}:{line}: "{excerpt}"
 None: "No cross-spec conflicts"
@@ -157,6 +157,8 @@ FAIL:
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
+
+Copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired. Do not use `CONSISTENCY`, `COMPLETENESS`, or `CORRECTNESS` — these are not enum members and produce PARSE_ERROR. On PASS, X must be NONE.
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios. Do not FAIL for scenarios outside the declared envelope.
 CODEX_PROMPT

@@ -91,6 +91,7 @@ _extract_test_paths() {
 # Returns 1 (with BLOCKED note) if retry fails or still modifies tests.
 _restore_and_retry() {
   local id="$1" base="$2" wt="$3" test_files="$4"
+  pre_restore_count=$(cd "$wt" && git rev-list --count "${base}..HEAD" 2>/dev/null || echo 0)
   (cd "$wt" && while IFS= read -r f; do
     [[ -z "$f" ]] && continue
     if git cat-file -e "${base}:${f}" 2>/dev/null; then git checkout "$base" -- "$f"
@@ -142,7 +143,7 @@ verify_task() {
     return 1
   fi
 
-  local task_base restore_count=0
+  local task_base restore_count=0 pre_restore_count=0
   task_base=$(cat "$WORK_DIR/task-base-${id}.txt" 2>/dev/null || echo "$BASE_SHA")
   local test_files; test_files=$(_extract_test_paths "$task_base" "$wt")
   if [[ -n "$test_files" ]]; then
@@ -153,11 +154,16 @@ verify_task() {
   commit_count=$(cd "$wt" && git rev-list --count "${task_base}..HEAD" 2>/dev/null || echo 0)
   if [[ "$commit_count" -le "$restore_count" ]]; then
     local goal; goal=$(get_field "$id" goal)
-    (cd "$wt" && git add -A && git commit -m "feat: ${goal}" 2>/dev/null) || {
-      bash "$PF" update-task "$PLAN" "$id" blocked
-      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: no-commit — nothing to stage"
-      return 1
-    }
+    if ! (cd "$wt" && git add -A && git commit -m "feat: ${goal}" 2>/dev/null); then
+      # Only block when original Codex also made no commits. If pre_restore_count > 0,
+      # original had implementation commits; retry added none but implementation may be
+      # complete — fall through to _run_failing_test to verify.
+      if [[ "$pre_restore_count" -eq 0 ]]; then
+        bash "$PF" update-task "$PLAN" "$id" blocked
+        bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: no-commit — nothing to stage"
+        return 1
+      fi
+    fi
   fi
   _run_failing_test "$id" "$wt" || return 1
   return 0

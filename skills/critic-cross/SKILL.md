@@ -39,31 +39,31 @@ Read these reference files first — they govern your output:
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/bdd-templates.md
 
-## Angle 1 — Contradictory behaviors
+## Angle 1 — Contradictory behaviors → category: `CROSS_FEATURE_CONTRADICTION`
 Feature A says X happens, Feature B says X does not happen.
   → Cite both files+lines, quote both statements.
 
-## Angle 2 — Overlapping responsibilities
+## Angle 2 — Overlapping responsibilities → category: `LAYER_VIOLATION`
 Two features claim to own the same data mutation, event, or domain concept.
   → Cite both features' specs.
 
-## Angle 3 — Missing handoffs
+## Angle 3 — Missing handoffs → category: `MISSING_SCENARIO`
 Feature A produces output Feature B consumes, but the interface is undefined in either spec.
   → Cite the producer scenario + gap.
 
-## Angle 4 — State machine conflicts
+## Angle 4 — State machine conflicts → category: `CROSS_FEATURE_CONTRADICTION`
 Two features transition the same entity to incompatible states under similar preconditions.
   → Quote both Given/When/Then blocks.
 
-## Angle 5 — Naming inconsistencies (domain drift)
+## Angle 5 — Naming inconsistencies (domain drift) → category: `STRUCTURAL`
 Same concept named differently across specs.
   → List all variant names + files.
 
-## Angle 6 — Layer boundary cross-check
+## Angle 6 — Layer boundary cross-check → category: `LAYER_VIOLATION`
 A feature spec directly references domain concepts owned by another feature without going
 through the correct layer boundary (per layers.md).
 
-## Angle 7 — Cross-feature Envelope consistency
+## Angle 7 — Cross-feature Envelope consistency → category: `ENVELOPE_MISMATCH`
 
 For features that interact (handoffs, shared entities, state transitions): verify their Operating Envelopes are compatible.
 - Feature A declares single-tenant, Feature B (which it calls) declares multi-tenant → [FAIL] ENVELOPE_MISMATCH
@@ -139,6 +139,8 @@ FAIL:
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL | ENVELOPE_MISMATCH} -->
+
+Copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired. Do not use `CONSISTENCY`, `COMPLETENESS`, or `CORRECTNESS` — these are not enum members and produce PARSE_ERROR. On PASS, X must be NONE.
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope interactions. Drop cross-feature findings that only occur outside both features' declared envelopes.
 CODEX_PROMPT

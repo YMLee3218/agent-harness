@@ -37,7 +37,7 @@ Read these reference files first — they govern your output:
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md   (severity, PASS/FAIL, category priority)
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md     (test mocking levels per layer)
 
-## Pre-check — test file integrity
+## Pre-check — test file integrity → category: `TEST_INTEGRITY`
 
 If git is available:
 \`\`\`bash
@@ -65,7 +65,7 @@ git log --oneline \${red_sha}..HEAD -- {test_files}
 \`\`\`
 If \`red_sha\` is empty (no commits exist for the file), emit \`[SKIP] test file integrity: no commit history found for {file}\` and continue. If the second command returns commits, the test file was modified after the inferred Red commit — emit the same `[CRITICAL] test file modified after Red phase` FAIL verdict above. If git is unavailable, emit \`[SKIP] test file integrity: git unavailable\` and continue.
 
-## Envelope Discipline (evaluate before all other checks)
+## Envelope Discipline (evaluate before all other checks) → category: `ENVELOPE_MISMATCH` / `ENVELOPE_OVERREACH`
 
 Read the "## Operating Envelope" section from {spec_path}. If absent, report [FAIL] ENVELOPE_MISMATCH and stop.
 
@@ -77,16 +77,16 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
 
 ## Checks
 
-1. Scenario coverage — every Scenario has a test in {test_files}?
+1. Scenario coverage → category: `MISSING_SCENARIO` (or `STRUCTURAL` for MANIFEST-GAP) — every Scenario has a test in {test_files}?
    - If no test found in {test_files}: check ## Test Manifest in {plan_path} for a GREEN (pre-existing) entry
      that plausibly covers this scenario (grep scenario name keywords against manifest entries).
      - Match found → [MANIFEST-GAP]: covered by pre-existing test; fix = add to Test Manifest mapping
      - No match → [MISSING]: no test exists; fix = write a new test
    Every Scenario Outline row covered? Failure scenarios tested? (→ [MISSING])
 
-2. Mocking levels — apply layers.md §Test mocking levels. Each Violation column entry is [FAIL].
+2. Mocking levels → category: `LAYER_VIOLATION` — apply layers.md §Test mocking levels. Each Violation column entry is [FAIL].
 
-3. Test quality — each test maps to exactly one Scenario; names follow "should {outcome} when {condition}"; no implementation logic inside tests. (→ [FAIL])
+3. Test quality → category: `TEST_QUALITY` — each test maps to exactly one Scenario; names follow "should {outcome} when {condition}"; no implementation logic inside tests. (→ [FAIL])
 
 4. Confirm all tests fail — run the test command. Every newly written test must fail.
 
@@ -154,6 +154,8 @@ FAIL:
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
+
+Copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the check that fired. Do not use `COMPLETENESS`, `CONSISTENCY`, or `CORRECTNESS` — these are not enum members and produce PARSE_ERROR. On PASS, X must be NONE.
 
 A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios. Do not FAIL for scenarios outside the declared envelope.
 CODEX_PROMPT

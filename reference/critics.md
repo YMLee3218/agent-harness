@@ -23,7 +23,7 @@ PASS
 <!-- verdict: PASS -->
 <!-- category: NONE -->
 ```
-(`<!-- category: NONE -->` is the recommended format for PASS but is not enforced by the parser — category enforcement applies to FAIL only.)
+(`<!-- category: NONE -->` is required when a category marker is present on PASS; a PASS with no category marker at all is also accepted. A non-NONE category on PASS is a `PARSE_ERROR`.)
 
 **FAIL**
 ```
@@ -35,8 +35,11 @@ FAIL — {comma-separated list of blocking finding labels}
 
 A **FAIL** verdict must include a `<!-- category: X -->` marker. A FAIL that has a verdict marker but no category marker is recorded as PARSE_ERROR; on the second consecutive occurrence `[BLOCKED:code] {agent}: parse` is set. Verdict calibration: false PASS → production defect (cost 10×); false FAIL → one extra iteration (cost 1×). When evidence is ambiguous, FAIL.
 
+The `<!-- category: X -->` value on a FAIL MUST be copied verbatim from the `→ category:` annotation on the check/angle that fired. Descriptive synonyms (e.g. `COMPLETENESS`, `CONSISTENCY`, `CORRECTNESS`) are not enum members and produce `PARSE_ERROR`. On `PASS`, X MUST be `NONE`.
+
 **Structural validity guards** (enforced by `plan-file.sh record-verdict` — see `@reference/severity.md` for enum values):
 - **Invalid category**: `<!-- category: X -->` where X is not in the severity.md enum → `PARSE_ERROR` (auto-retry; second consecutive → `[BLOCKED:code] {agent}: parse`).
+- **Non-NONE category on PASS**: `<!-- category: X -->` where X is not `NONE` on a `<!-- verdict: PASS -->` → `PARSE_ERROR` (same escalation).
 - **`[WARN]`-only FAIL**: `<!-- verdict: FAIL -->` but no blocking-label finding (`[CRITICAL]`, `[MISSING]`, etc.) in the output → `PARSE_ERROR` (same escalation). A verdict with only `[WARN]` findings must be `PASS`, per `@reference/severity.md §PASS/FAIL threshold`.
 - **`[WARN]` visibility on PASS**: When `<!-- verdict: PASS -->`, any `[WARN]` findings in the output are written to `## Advisories` in plan.md under a `### {phase}/{agent}` block (agent-replace — latest run only, not accumulated). This makes advisory findings visible to subsequent phases without blocking. The critic's `disallowedTools` restriction is unaffected — the harness writes to plan.md, not the critic.
 

@@ -109,8 +109,9 @@ Pre-branch checks:
 
 Then (if not already on the branch): `git checkout -b feature/{name}`
 
-Set plan file phase (skip if already in `brainstorm` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`):
+Set plan file phase (skip if already in `brainstorm` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`). In autonomous mode, the plan is typically already in `brainstorm` from a prior interactive run, so this call is a no-op guard. In interactive use, Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`; if the call fails with a capability error, run from a human terminal:
 ```bash
+export CLAUDE_PLAN_CAPABILITY=harness
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" brainstorm \
   "decomposition approved — starting brainstorm phase"
 ```
@@ -135,8 +136,9 @@ Update affected `docs/*.md` (SOT) before proceeding.
 
 If `docs/requirements/{name}.md` does not already exist, create it. Apply the same git pre-check as New Feature Flow Step 3.
 
-Set phase to `brainstorm` (skip if already in `brainstorm` — do not re-transition to the same phase):
+Set phase to `brainstorm` (skip if already in `brainstorm` — do not re-transition to the same phase). Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`; if the call fails, run from a human terminal:
 ```bash
+export CLAUDE_PLAN_CAPABILITY=harness
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" brainstorm \
   "re-brainstorming"
 ```

@@ -286,6 +286,64 @@ teardown() {
   grep -A5 "^## Advisories" "$PLAN_FILE" | grep -q '\[WARN\]'
 }
 
+@test "G6: PASS with non-NONE category (CORRECTNESS) → PARSE_ERROR rc=1 with 'non-NONE category'" {
+  run bash -c '
+    source '"$SCRIPTS_DIR"'/lib/active-plan.sh
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    source '"$SCRIPTS_DIR"'/lib/sidecar.sh
+    export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
+    source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
+    export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
+    export CLAUDE_PLAN_CAPABILITY=harness
+    set +e
+    printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: PASS -->\\n<!-- category: CORRECTNESS -->"}'"'"' \
+      | cmd_record_verdict 2>&1
+    echo "rc=$?"
+  ' 2>&1
+  [[ "$output" == *"rc=1"* ]]
+  [[ "$output" == *"non-NONE category"* ]]
+}
+
+@test "G7: PASS with category NONE → rc=0 (regression guard)" {
+  run bash -c '
+    source '"$SCRIPTS_DIR"'/lib/active-plan.sh
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    source '"$SCRIPTS_DIR"'/lib/sidecar.sh
+    export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
+    source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
+    export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
+    export CLAUDE_PLAN_CAPABILITY=harness
+    set +e
+    printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: PASS -->\\n<!-- category: NONE -->"}'"'"' \
+      | cmd_record_verdict 2>&1
+    echo "rc=$?"
+  ' 2>&1
+  [[ "$output" == *"rc=0"* ]]
+}
+
+@test "G8: PASS with no category marker → rc=0 (regression guard)" {
+  run bash -c '
+    source '"$SCRIPTS_DIR"'/lib/active-plan.sh
+    source '"$SCRIPTS_DIR"'/phase-policy.sh
+    source '"$SCRIPTS_DIR"'/lib/sidecar.sh
+    export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
+    source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
+    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
+    export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
+    export CLAUDE_PLAN_CAPABILITY=harness
+    set +e
+    printf '"'"'{"agent_type":"critic-code","last_assistant_message":"### Verdict\\n<!-- verdict: PASS -->"}'"'"' \
+      | cmd_record_verdict 2>&1
+    echo "rc=$?"
+  ' 2>&1
+  [[ "$output" == *"rc=0"* ]]
+}
+
 @test "G5: _severity_categories returns 11 values; _severity_blocking_labels returns 6 values" {
   run bash -c '
     source '"$SCRIPTS_DIR"'/lib/active-plan.sh
