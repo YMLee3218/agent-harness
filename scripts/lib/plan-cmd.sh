@@ -54,6 +54,25 @@ cmd_init() {
   if ! [[ "$slug" =~ ^[a-z0-9][a-z0-9_-]{0,63}$ ]]; then
     die "cmd_init: plan slug '${slug}' contains illegal characters — must match ^[a-z0-9][a-z0-9_-]{0,63}$"
   fi
+  # Validate path BEFORE mkdir to prevent stale directory creation on traversal paths.
+  # sc_dir needs the parent dir to exist (uses cd to resolve), so we walk up to the
+  # nearest existing ancestor to reconstruct the absolute path for a pre-check.
+  # sc_dir re-validates via realpath after mkdir as defence-in-depth.
+  local _proj; _proj=$(cd "${CLAUDE_PROJECT_DIR:?cmd_init: CLAUDE_PROJECT_DIR required}" 2>/dev/null && pwd -P) \
+      || die "cmd_init: CLAUDE_PROJECT_DIR is not a valid directory: ${CLAUDE_PROJECT_DIR:-<unset>}"
+  local _pd _suffix="" _abs_pd=""
+  _pd=$(dirname "$plan_file")
+  while [[ "$_pd" != "/" && "$_pd" != "." ]]; do
+    if _abs_pd=$(cd "$_pd" 2>/dev/null && pwd -P); then break; fi
+    _suffix="/$(basename "$_pd")${_suffix}"
+    _pd=$(dirname "$_pd")
+  done
+  [[ -z "$_abs_pd" ]] && _abs_pd=$(cd "${_pd:-.}" 2>/dev/null && pwd -P) || true
+  [[ -z "$_abs_pd" ]] && die "ERROR: plan path '${plan_file}' — cannot resolve ancestor directory for path validation"
+  case "${_abs_pd}${_suffix}/$(basename "$plan_file")" in
+    "${_proj}/plans/"*.md) ;;
+    *) die "ERROR: plan path '${plan_file}' is outside CLAUDE_PROJECT_DIR/plans/ — path-traversal rejected" ;;
+  esac
   mkdir -p "$(dirname "$plan_file")"
   if ! sc_dir "$plan_file" > /dev/null; then
     rmdir "$(dirname "$plan_file")" 2>/dev/null || true
