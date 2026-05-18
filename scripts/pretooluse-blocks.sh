@@ -10,7 +10,8 @@ _PRETOOLUSE_BLOCKS_LOADED=1
 # _bash_dest_paths CMD — extracts write-destination paths from a bash command string.
 # Tokens containing unresolved variable expansion ($VAR, ${VAR}, $(...), `...`) are
 # returned as the sentinel `plans/__unexpanded__.state/__bypass__`; block_sidecar_writes
-# handles the sentinel via raw-command check rather than is_sidecar_path.
+# handles the sentinel via raw-command check rather than is_sidecar_path; pretooluse-bash.sh
+# applies the same raw-command fallback for Ring C and source/test phase protection.
 _bash_dest_paths() {
   local c="$1" _t
   printf '%s' "$c" | grep -oE '>{1,2} *[^[:space:];|&)(<>]+' | sed 's/^>* *//' | tr -d '"'"'" | while IFS= read -r _t; do

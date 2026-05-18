@@ -58,6 +58,30 @@ if [ -f "$PLAN_FILE_SH" ]; then
     if [[ "$_dest_p" == */plans/*.md || "$_dest_p" == plans/*.md ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
       echo "BLOCKED [phase-gate/bash]: agent bash writes to plans/*.md are reserved for plan-file.sh harness commands" >&2; exit 2
     fi
+    if [[ "$_dest_p" == "plans/__unexpanded__.state/__bypass__" ]]; then
+      # Sentinel: actual write destination contained an unexpanded variable.
+      # block_sidecar_writes already guarded sidecar/plan paths via raw-command checks.
+      # Apply raw-command fallbacks here for Ring C and source/test phase protection.
+      _raw_dest_tokens=$(printf '%s' "$cmd" \
+        | grep -oE '>{1,2} *[^[:space:];|&)(<>]+' | sed 's/^>* *//' | tr -d '"'"'")
+      if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
+        if printf '%s' "$_raw_dest_tokens" \
+             | grep -qE '/(CLAUDE\.md|settings\.json|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop|bdd-templates)\.md|scripts/[^/]+\.sh|scripts/lib/[^/]+\.sh|scripts/critic-code/[^/]+\.(sh|template))'; then
+          echo "BLOCKED [phase-gate/bash]: Ring C file (unexpanded path) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2; exit 2
+        fi
+      fi
+      if [ -n "$_current_phase" ]; then
+        if printf '%s' "$_raw_dest_tokens" \
+             | grep -qE '/(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/)'; then
+          apply_phase_block "src/domain/__guard__" "$_current_phase" "phase-gate/bash" || exit 2
+        fi
+        if printf '%s' "$_raw_dest_tokens" \
+             | grep -qE '(/tests/|/_test\.|/test_\.)'; then
+          apply_phase_block "tests/__guard__" "$_current_phase" "phase-gate/bash" || exit 2
+        fi
+      fi
+      continue
+    fi
     if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
       # Mirrors phase-gate.sh:42-47: canonicalize so symlinks don't bypass Ring C guard.
       _ring_proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _ring_proj="${CLAUDE_PROJECT_DIR}"
