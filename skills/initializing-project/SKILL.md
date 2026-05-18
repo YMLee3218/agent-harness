@@ -87,6 +87,7 @@ If docs/ already contains relevant files for this concept, read and preserve the
 - **Interactive**: use `AskUserQuestion` — "What are the core rules and constraints for {concept}? I'll use this to create docs/{concept}.md."
 - **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): leave the Definition / Rules / Vocabulary sections with `TODO` placeholders; append `[WARN] docs/{concept}.md has placeholder content — fill in domain rules before writing-spec runs` to `## Open Questions`.
 
+**Ring C prerequisite**: editing the project-root `CLAUDE.md` requires `CLAUDE_PLAN_CAPABILITY=human` (it is a Ring C file per `capability.sh`). If Claude reports a Ring C block on this step, stop and tell the user: "Set `export CLAUDE_PLAN_CAPABILITY=human` in the terminal that launched Claude Code, then re-run `/initializing-project`."
 Edit `CLAUDE.md` at project root — do **not** replace the file; patch specific sections
 so the harness instructions already in the file are preserved.
 
@@ -181,7 +182,6 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "plans/{project-slu
 ```
 
 Non-interactive (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`.
-
 Then stage and commit all scaffold files so the working tree is clean before brainstorming runs its dirty-tree check.
 
 If the project is not yet a git repository (`git rev-parse --git-dir` fails):
