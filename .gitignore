@@ -1,6 +1,7 @@
 # Workspace .gitignore — artifacts excluded from downstream projects
-*.state.json.XXXXXX
-*.md.XXXXXX
+*.json.??????
+*.jsonl.??????
+*.md.??????
 *.lock
 
 # Stray harness plan.md (belongs at harness root, not workspace) — never commit

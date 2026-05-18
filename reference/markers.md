@@ -31,7 +31,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 | `[BLOCKED:env]` | Environment/session/tool (persistent or recurring) | human-must | 1 |
 | `[BLOCKED:harness]` | Harness call path or sidecar integrity | human-must | 1 |
 | `[BLOCKED:ceiling]` | Critic loop ceiling exceeded → `reset-milestone` | human-must | 2 |
-| `[BLOCKED:transient]` | **1-time transient state** (session timeout, lock clash) | **auto** — harness self-retries; never requires `unblock` | 1 |
+| `[BLOCKED:transient]` | **1-time transient state** (session timeout, lock clash) | **auto** — harness self-retries; never requires `unblock` | 1,3 |
 
 > **`[BLOCKED:transient]` is sidecar-only** — it is never written to `plan.md`. If one appears in `## Open Questions`, it was written incorrectly; `unblock` intentionally does not clear it. See §Transient auto-handling.
 
