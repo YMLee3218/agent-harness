@@ -54,7 +54,7 @@ For every scenario:
    Examples row covers a boundary, search the spec for a dedicated Scenario
    covering its divergent outcome (the Outline's pointing comment, if present,
    names it). Covered by neither a row nor a dedicated Scenario → [MISSING];
-   covered by a dedicated Scenario the Outline does not point to → [WARN].
+   covered by a dedicated Scenario the Outline does not point to → [FAIL] STRUCTURAL (add a pointing comment to the Outline).
 
 Compare spec against docs/*.md. If the spec contradicts documented domain knowledge, report [DOCS CONTRADICTION] (do not judge sides).
 
@@ -100,12 +100,10 @@ Before reporting any [MISSING] scenario, verify the scenario is within the decla
   Suggestion: Given … / When … / Then …
 [DOCS CONTRADICTION] {what spec says} vs {what docs say}
   Files: {spec path} ↔ {docs path}
-[WARN] {scenario}: {what could be improved}
 None: "No missing scenarios"
 
 ### Angle 2 — Structural Issues
 [FAIL] {violation}: {fix}
-[WARN] {advisory}
 None: "No structural issues"
 
 ### Angle 3 — Unverified Claims

@@ -35,8 +35,6 @@ implement
 
 ## Verdict Audits
 
-## Advisories
-
 ## Open Questions
 EOF
   mkdir -p "$PLAN_DIR/test-feature.state/convergence"

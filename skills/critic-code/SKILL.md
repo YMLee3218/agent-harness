@@ -57,8 +57,7 @@ For every Scenario in spec.md:
 
 Compare against docs/*.md. If implementation or spec contradicts documented domain knowledge, report [DOCS CONTRADICTION] (do not auto-resolve).
 
-7. Unverified API usage: code calls an external library method not already used in the project? (→ [UNVERIFIED CLAIM])
-8. Hardcoded external facts: URLs, model names, version strings, magic numbers from outside the project? (→ [WARN])
+7. Unverified API usage: code calls an external library method not already used in the project, OR hardcodes an external fact (URL, model name, version string) not grounded in docs/*.md or a verified source? (→ [UNVERIFIED CLAIM])
 
 Test coverage and mocking are out of scope here — critic-test owns them.
 
@@ -73,7 +72,7 @@ If no language dispatcher matches, run the generic fallback:
 grep -rn "infrastructure\|features" {domain_root}/ 2>/dev/null | grep -v "^Binary"
 grep -rn "features" {infra_root}/ 2>/dev/null | grep -v "^Binary"
 \`\`\`
-For each hit, decide violation vs. acceptable per layers.md §Acceptable import exceptions. When in doubt, [WARN] not [CRITICAL].
+For each hit, decide violation vs. acceptable per layers.md §Acceptable import exceptions. When a hit is ambiguous, read the actual import to determine the violation.
 
 ## Output format
 
@@ -86,13 +85,11 @@ For each hit, decide violation vs. acceptable per layers.md §Acceptable import 
   Fix: {action}
 [DOCS CONTRADICTION] {what} vs {docs}
   Files: {path} ↔ {docs path}
-[WARN] {advisory}
 None: "All scenarios correctly implemented"
 
 ### Angle 2 — Layer Boundary
 [CRITICAL] {file}:{line} — {violation}
   Fix: {action}
-[WARN] {file}:{line} — {potential violation}
 None: "No layer boundary violations"
 
 ### Citation Summary

@@ -28,7 +28,7 @@ Read only:
 
 Do not `Read` or `Glob` anything in `src/`.
 
-If `docs/*.md` appears stale or contradictory to the requirement: log `[WARN] writing-spec: docs/{file}.md may contradict the requirement — continuing; critic-spec will flag [DOCS CONTRADICTION] if the spec needs updating`. Continue writing the spec.
+If `docs/*.md` appears stale or contradictory to the requirement: log `[INFO] writing-spec: docs/{file}.md may contradict the requirement — continuing; critic-spec will flag [DOCS CONTRADICTION] if the spec needs updating`. Continue writing the spec.
 
 ## Step 2 — Declare Operating Envelope
 

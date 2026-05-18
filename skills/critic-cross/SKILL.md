@@ -96,7 +96,7 @@ None: "No missing handoffs"
 None: "No state machine conflicts"
 
 ### Angle 5 — Naming Inconsistencies
-[WARN] {concept}: called "{name_a}" in {file_a}:{line} and "{name_b}" in {file_b}:{line}
+[FAIL] {concept}: called "{name_a}" in {file_a}:{line} and "{name_b}" in {file_b}:{line}
 None: "No naming inconsistencies"
 
 ### Angle 6 — Layer Boundary Cross-check

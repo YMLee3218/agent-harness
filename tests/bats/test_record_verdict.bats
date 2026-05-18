@@ -200,7 +200,7 @@ teardown() {
   grep -q '\[BLOCKED:code\]' "$PLAN_FILE"
 }
 
-# ── New guards: invalid category, [WARN]-only FAIL, [WARN] visibility ─────────
+# ── New guards: invalid category, FAIL-without-blocking-finding ───────────────
 
 @test "G1: FAIL with invalid category (COMPLETENESS not in enum) → PARSE_ERROR rc=1 with 'invalid category'" {
   run bash -c '
@@ -222,7 +222,7 @@ teardown() {
   [[ "$output" == *"invalid category"* ]]
 }
 
-@test "G2: FAIL with [WARN]-only output and valid category → PARSE_ERROR rc=1 with 'no blocking finding'" {
+@test "G2: FAIL with no recognizable blocking label and valid category → PARSE_ERROR rc=1 with 'blocking finding'" {
   run bash -c '
     source '"$SCRIPTS_DIR"'/lib/active-plan.sh
     source '"$SCRIPTS_DIR"'/phase-policy.sh
@@ -234,12 +234,12 @@ teardown() {
     export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
     export CLAUDE_PLAN_CAPABILITY=harness
     set +e
-    printf '"'"'{"agent_type":"critic-spec","last_assistant_message":"- [WARN] consider renaming this\\n### Verdict\\n<!-- verdict: FAIL -->\\n<!-- category: STRUCTURAL -->"}'"'"' \
+    printf '"'"'{"agent_type":"critic-spec","last_assistant_message":"- some finding with no recognized label\\n### Verdict\\n<!-- verdict: FAIL -->\\n<!-- category: STRUCTURAL -->"}'"'"' \
       | cmd_record_verdict 2>&1
     echo "rc=$?"
   ' 2>&1
   [[ "$output" == *"rc=1"* ]]
-  [[ "$output" == *"no blocking finding"* || "$output" == *"blocking finding"* ]]
+  [[ "$output" == *"blocking finding"* ]]
 }
 
 @test "G3: regression — FAIL with [CRITICAL] finding and valid category is NOT treated as PARSE_ERROR" {
@@ -265,26 +265,6 @@ teardown() {
   grep -q 'critic-code: FAIL' "$PLAN_FILE"
 }
 
-@test "G4: PASS with [WARN] findings → plan.md ## Advisories has the [WARN] line" {
-  run bash -c '
-    source '"$SCRIPTS_DIR"'/lib/active-plan.sh
-    source '"$SCRIPTS_DIR"'/phase-policy.sh
-    source '"$SCRIPTS_DIR"'/lib/sidecar.sh
-    export PLAN_FILE_SH="'"$SCRIPTS_DIR"'/plan-file.sh"
-    source '"$SCRIPTS_DIR"'/lib/plan-lib.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-loop-helpers.sh
-    source '"$SCRIPTS_DIR"'/lib/plan-cmd.sh
-    export CLAUDE_PLAN_FILE="'"$PLAN_FILE"'"
-    export CLAUDE_PLAN_CAPABILITY=harness
-    set +e
-    printf '"'"'{"agent_type":"critic-code","last_assistant_message":"- [WARN] consider adding more tests\\n### Verdict\\n<!-- verdict: PASS -->\\n<!-- category: NONE -->"}'"'"' \
-      | cmd_record_verdict 2>&1
-    echo "rc=$?"
-  ' 2>&1
-  [[ "$output" == *"rc=0"* ]]
-  grep -q '\[WARN\]' "$PLAN_FILE"
-  grep -A5 "^## Advisories" "$PLAN_FILE" | grep -q '\[WARN\]'
-}
 
 @test "G6: PASS with non-NONE category (CORRECTNESS) → PARSE_ERROR rc=1 with 'non-NONE category'" {
   run bash -c '

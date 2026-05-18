@@ -80,7 +80,7 @@ try_preferred_tool() {
 }
 
 # report_hit <severity> <message>
-# Prints a severity-tagged line. severity: FAIL or WARN.
+# Prints a severity-tagged line. severity: FAIL.
 report_hit() {
   local severity="$1"; shift
   printf '[%s] %s\n' "$severity" "$*"
@@ -94,7 +94,7 @@ check_layer() {
 }
 
 # check_layer_tagged <severity> <label> <dir> <none_msg> [-e pattern ...]
-# Like check_layer but prefixes each hit with [FAIL] or [WARN].
+# Like check_layer but prefixes each hit with [FAIL].
 check_layer_tagged() {
   local severity="$1" label="$2" dir="$3" none_msg="$4"; shift 4
   echo "--- $label ---"
@@ -118,6 +118,6 @@ run_layer_checks() {
     "$domain" "(none)" "${STDLIB_PATTERNS[@]}"
   check_layer "infrastructure/ must not import features/" \
     "$infra" "(none)" "${INFRA_PATTERNS[@]}"
-  check_layer_tagged "WARN" "features/ large feature domain direct calls (verify: small=allowed, large=violation)" \
+  check_layer "features/ large feature domain direct calls (verify: small=allowed, large=violation)" \
     "$features" "(none — verify manually if large features exist)" "${FEATURE_PATTERNS[@]}"
 }
