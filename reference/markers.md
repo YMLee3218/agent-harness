@@ -120,7 +120,6 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 | Marker | Section | Emitter | Effect |
 |--------|---------|---------|--------|
 | `[MILESTONE-BOUNDARY @ts] {scope}:` | `## Critic Verdicts` | `reset-milestone`, `reset-pr-review` | Breaks trailing-PASS streak; prior milestone verdicts do not count toward new streak |
-| `[WARN]` findings (PASS only) | `## Advisories` | `_persist_verdict` | Written as `### {phase}/{agent}` block; agent-replace; see `@reference/critics.md §Verdict format` |
 
 ## Inline plan-file markers
 
@@ -141,7 +140,7 @@ Persistent harness state lives in `plans/{slug}.state/` — written only by harn
 |------|--------|------------|---------|-----------|
 | `convergence/{phase}__{agent}.json` | JSON | `_record_loop_state` (via SubagentStop hook for phase-gate critics; via `append-review-verdict`/`run-critic-loop.sh` for pr-review — excluded from SubagentStop) | `is-converged` (`run-dev-cycle.sh`, `run-critic-loop.sh`) | Created on first verdict; reset via `reset-milestone`/`clear-converged`; `converged=true` requires ≥2 consecutive PASSes |
 | `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `_record_loop_state` (streak input) | Appended per verdict; no automatic GC |
-| `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse/category), `cmd_append_note` (BLOCKED mirror) | `is-blocked` (`stop-check.sh`, `run-critic-loop.sh`, `run-dev-cycle.sh`) | `cleared_at:null` = open; set by `unblock`; kind enum: `envelope\|docs\|spec\|code\|env\|harness\|ceiling\|transient` |
+| `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse/category), `cmd_append_note` (BLOCKED mirror), `_record_transient` (transient) | `is-blocked` (`stop-check.sh`, `run-critic-loop.sh`, `run-dev-cycle.sh`) | `cleared_at:null` = open; set by `unblock`; kind enum: `envelope\|docs\|spec\|code\|env\|harness\|ceiling\|transient` |
 | `implemented.json` | JSON | `mark-implemented` | `is-implemented` (`run-dev-cycle.sh`) | Feature slugs accumulate; never cleared |
 | `transient_counters.json` | JSON | `_record_transient` in `sidecar.sh` | `_record_transient`, `_clear_transient_for`, `_reset_all_transient_counters` | Counter per `{agent}__{sub-kind}` key; cleared on any completed session; reset-milestone clears target agent only; reset-for-rollback clears all |
 
