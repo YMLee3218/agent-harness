@@ -76,8 +76,18 @@ if [ -f "$PLAN_FILE_SH" ]; then
           apply_phase_block "src/domain/__guard__" "$_current_phase" "phase-gate/bash" || exit 2
         fi
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -qE '(/tests/|/_test\.|/test_\.)'; then
+             | grep -qE '(/tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)'; then
           apply_phase_block "tests/__guard__" "$_current_phase" "phase-gate/bash" || exit 2
+        fi
+      else
+        # No active plan — apply strict-mode guard via raw patterns for unexpanded destinations.
+        if printf '%s' "$_raw_dest_tokens" \
+             | grep -qE '/(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/)'; then
+          bootstrap_block_if_strict "src/domain/__guard__" || exit 2
+        fi
+        if printf '%s' "$_raw_dest_tokens" \
+             | grep -qE '(/tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)'; then
+          bootstrap_block_if_strict "tests/__guard__" || exit 2
         fi
       fi
       continue
