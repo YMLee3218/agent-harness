@@ -101,7 +101,7 @@ apply_phase_block() {
       red)
         echo "BLOCKED [$label]: Phase is 'red'. Writing source files in ${VSA_LAYER_PATHS_LABEL} is not allowed during Red phase. Write tests only." >&2 ;;
       done)
-        echo "BLOCKED [$label]: Phase is 'done' and '$path' is a source/test path. Run /brainstorming to start a new feature (creates a new plan file), or set CLAUDE_PLAN_FILE=plans/{new-slug}.md before writing." >&2 ;;
+        echo "BLOCKED [$label]: Phase is 'done' and '$path' is a source/test path. Run /brainstorming to start a new feature (creates a new plan file), or set CLAUDE_PLAN_FILE=\"$CLAUDE_PROJECT_DIR/plans/{new-slug}.md\" before writing." >&2 ;;
     esac
     return 2
   fi
@@ -111,7 +111,7 @@ apply_phase_block() {
       brainstorm|spec)
         echo "BLOCKED [$label]: Phase is '$phase'. Writing test files is not allowed before spec is approved. Complete /writing-spec first, then advance to Red phase with /writing-tests." >&2 ;;
       done)
-        echo "BLOCKED [$label]: Phase is 'done' and '$path' is a source/test path. Run /brainstorming to start a new feature (creates a new plan file), or set CLAUDE_PLAN_FILE=plans/{new-slug}.md before writing." >&2 ;;
+        echo "BLOCKED [$label]: Phase is 'done' and '$path' is a source/test path. Run /brainstorming to start a new feature (creates a new plan file), or set CLAUDE_PLAN_FILE=\"$CLAUDE_PROJECT_DIR/plans/{new-slug}.md\" before writing." >&2 ;;
       *)
         echo "BLOCKED [$label]: Phase is '$phase'. Test-file freeze in effect — see reference/phase-gate-config.md §Phase enforcement rules." >&2 ;;
     esac

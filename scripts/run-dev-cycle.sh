@@ -21,7 +21,7 @@ if [[ -z "$PLAN" ]]; then
   case $find_rc in
     0) ;;
     2) PLAN="" ;;
-    3) echo "[BLOCKED] Multiple active plan files — set CLAUDE_PLAN_FILE=plans/{slug}.md then re-run" >&2; exit 1 ;;
+    3) echo "[BLOCKED] Multiple active plan files — set CLAUDE_PLAN_FILE=\"$CLAUDE_PROJECT_DIR/plans/{slug}.md\" then re-run" >&2; exit 1 ;;
     4) echo "[BLOCKED] Plan file phase unreadable — check ## Phase section" >&2; exit 1 ;;
     *) PLAN="" ;;
   esac
@@ -91,7 +91,7 @@ if [[ -z "$PLAN" ]] || \
   PLAN=$(bash "$PF" find-active 2>/dev/null) || find_rc=$?
   case $find_rc in
     0) [[ -n "$PLAN" ]] || { echo "ERROR: plan file not created by brainstorming" >&2; exit 1; } ;;
-    3) echo "ERROR: multiple active plan files after brainstorming — set CLAUDE_PLAN_FILE=plans/{slug}.md" >&2; exit 1 ;;
+    3) echo "ERROR: multiple active plan files after brainstorming — set CLAUDE_PLAN_FILE=\"$CLAUDE_PROJECT_DIR/plans/{slug}.md\"" >&2; exit 1 ;;
     4) echo "ERROR: plan file phase unreadable after brainstorming — repair the ## Phase section" >&2; exit 1 ;;
     *) echo "ERROR: plan file not created by brainstorming (find-active rc=$find_rc)" >&2; exit 1 ;;
   esac

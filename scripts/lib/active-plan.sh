@@ -101,7 +101,7 @@ _assert_plan_file_inside_plans() {
 die_with_reason() {
   local _label="${BLOCKED_LABEL:-active-plan}"
   case "$1" in
-    3) echo "BLOCKED [${_label}]: multiple active plan files — set CLAUDE_PLAN_FILE=plans/{slug}.md to disambiguate" >&2; exit 2 ;;
+    3) echo "BLOCKED [${_label}]: multiple active plan files — set CLAUDE_PLAN_FILE=\"$CLAUDE_PROJECT_DIR/plans/{slug}.md\" to disambiguate" >&2; exit 2 ;;
     4) echo "BLOCKED [${_label}]: plan file exists but phase is unreadable — repair the plan file or state JSON" >&2; exit 2 ;;
   esac
 }
