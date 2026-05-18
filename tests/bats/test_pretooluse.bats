@@ -223,6 +223,15 @@ EOF
   [[ "${output:-}${stderr:-}" == *"plans/*.md"* || "$status" -eq 2 ]]
 }
 
+@test "B5c: redirect to \$CLAUDE_PLAN_FILE is blocked even when no 'plans/' literal appears" {
+  cd "$WS_DIR"
+  # sentinel triggers $CLAUDE_PLAN_FILE check: entire plan path is in one env var so
+  # 'plans/' never appears literally, but the var name is recognisable in the raw command.
+  run run_hook 'echo evil > $CLAUDE_PLAN_FILE'
+  [ "$status" -ne 0 ]
+  [[ "${output:-}${stderr:-}" == *"CLAUDE_PLAN_FILE"* || "$status" -eq 2 ]]
+}
+
 # ── Phase A bypass regression tests ──────────────────────────────────────────
 
 @test "A2: Write tool cannot inject [CONVERGED] marker into plan file" {

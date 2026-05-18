@@ -128,8 +128,12 @@ or
   _cmd=()
   [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
   _cmd+=(claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT")
+  # pr-review sessions need Ring B capability (fix chains call transition, reset-milestone, etc.)
+  # All other critic sessions have CLAUDE_PLAN_CAPABILITY stripped to prevent accidental state mutations.
+  _env_unset=()
+  [[ "$AGENT" != "pr-review" ]] && _env_unset=(-u CLAUDE_PLAN_CAPABILITY)
   CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
-    env -u CLAUDE_PLAN_CAPABILITY "${_cmd[@]}" > "$_session_out" 2>&1 &
+    env "${_env_unset[@]}" "${_cmd[@]}" > "$_session_out" 2>&1 &
   CLAUDE_PID=$!
   wait "$CLAUDE_PID" || {
     exit_code=$?

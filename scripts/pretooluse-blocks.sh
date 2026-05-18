@@ -166,6 +166,11 @@ block_sidecar_writes() {
       printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]]*\.md' && {
         echo "BLOCKED: write operation to unexpandable path suggesting plans/*.md — plan files are harness-exclusive" >&2; exit 2
       }
+      # Guard $CLAUDE_PLAN_FILE / ${CLAUDE_PLAN_FILE}: the entire plan path is in one
+      # variable so 'plans/' never appears literally, but the var name is recognisable.
+      printf '%s' "$cmd" | grep -qE '\$\{?CLAUDE_PLAN_FILE\}?' && {
+        echo "BLOCKED: write operation referencing \$CLAUDE_PLAN_FILE — plan files are harness-exclusive" >&2; exit 2
+      }
       continue
     fi
     if is_sidecar_path "$_sw_p"; then
@@ -182,7 +187,7 @@ block_sidecar_writes() {
 
 _block_var_assign() {
   local cmd="$1" var="$2" msg="$3"
-  if printf '%s' "$cmd" | grep -qE "${var}[[:space:]]*=" || \
+  if printf '%s' "$cmd" | grep -qE "\b${var}[[:space:]]*=" || \
      printf '%s' "$cmd" | grep -qE "export[[:space:]]+${var}([[:space:]]|;|$)" || \
      printf '%s' "$cmd" | grep -qE "\bread[[:space:]]+([^[:space:]<]+[[:space:]]+)*${var}([[:space:]]|<|$)" || \
      printf '%s' "$cmd" | grep -qE "(declare|typeset)[[:space:]]+(-[a-zA-Z]+[[:space:]]+)*${var}\b"; then

@@ -27,6 +27,7 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 **Phase `red` — plan task list:**
 
 - Read failing tests, `spec.md`, and existing domain/feature structure.
+- Also read the `## Advisories` section of the plan file. Its `### {phase}/{agent}` blocks hold non-blocking `[WARN]` suggestions surfaced by critics on a PASS verdict (see `@reference/critics.md §Verdict format`). Address ones relevant to the scope you are implementing opportunistically, as part of the normal task work. Do **not** add them to the `## Task Definitions` JSON or `## Task Ledger`, and do not let them delay or expand the required task.
 
 Reuse any existing adapter whose interface already matches the requirement; if none, create a minimal new adapter. Log `[AUTO-DECIDED] implementing/Step1: {decision}` to `## Open Questions`.
 

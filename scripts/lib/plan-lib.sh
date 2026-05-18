@@ -108,6 +108,7 @@ _append_to_open_questions()    { _append_to_section "$1" "Open Questions"   "$2"
 _append_to_phase_transitions() { _append_to_section "$1" "Phase Transitions" "$2"; }
 _append_to_critic_verdicts()   { _append_to_section "$1" "Critic Verdicts"  "$2" --bullet; }
 _append_to_verdict_audits()    { _append_to_section "$1" "Verdict Audits"   "$2"; }
+_append_to_advisories()        { _append_to_section "$1" "Advisories"       "$2"; }
 
 _awk_replace_phase_body() {
   local plan_file="$1" phase="$2"

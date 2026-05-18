@@ -9,6 +9,41 @@ _PLAN_CMD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_PLAN_LIB_LOADED:-}" ]]          || . "$_PLAN_CMD_DIR/plan-lib.sh"
 [[ -n "${_PLAN_LOOP_HELPERS_LOADED:-}" ]] || . "$_PLAN_CMD_DIR/plan-loop-helpers.sh"
 
+# ── Severity-rule parsers (single-source from reference/severity.md) ─────────
+
+_severity_categories() {
+  local _sev; _sev="$(cd "${_PLAN_CMD_DIR}/../.." && pwd)/reference/severity.md"
+  [[ -f "$_sev" ]] || { echo "[plan-cmd] WARN: severity.md not found at ${_sev}" >&2; return 0; }
+  awk '
+    /^## Category priority/ { in_section=1; next }
+    in_section && /^```/ { if (in_fence) exit; in_fence=1; next }
+    in_section && in_fence {
+      gsub(/[^A-Z_]/, " ")
+      for (i=1; i<=NF; i++) if ($i ~ /^[A-Z][A-Z_]+$/) printf "%s ", $i
+    }
+    in_section && !in_fence && /^## / { exit }
+  ' "$_sev" 2>/dev/null | tr -s ' ' | sed 's/ *$//'
+}
+
+_severity_blocking_labels() {
+  local _sev; _sev="$(cd "${_PLAN_CMD_DIR}/../.." && pwd)/reference/severity.md"
+  [[ -f "$_sev" ]] || { echo "[plan-cmd] WARN: severity.md not found at ${_sev}" >&2; return 0; }
+  awk -F'|' '
+    /^## Severity levels/ { in_section=1; next }
+    in_section && /^\|/ && NF>=5 {
+      label=$3; blocking=$4
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", label)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", blocking)
+      if (blocking == "Yes") {
+        gsub(/[`]/, "", label)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", label)
+        print label
+      }
+    }
+    in_section && /^## / && !/^## Severity levels/ { exit }
+  ' "$_sev" 2>/dev/null
+}
+
 # ── State management ──────────────────────────────────────────────────────────
 
 cmd_init() {
@@ -39,7 +74,7 @@ cmd_init() {
   {
     printf -- '---\nfeature: %s\nphase: brainstorm\nschema: 2\n' "$slug"
     [ -n "$mode" ] && printf 'mode: %s\n' "$mode"
-    printf -- '---\n\n## Vision\n\n## Scenarios\n\n## Test Manifest\n\n## Phase\nbrainstorm\n\n## Phase Transitions\n- brainstorm → (initial)\n\n## Critic Verdicts\n\n## Task Ledger\n\n## Integration Failures\n\n## Verdict Audits\n\n## Open Questions\n'
+    printf -- '---\n\n## Vision\n\n## Scenarios\n\n## Test Manifest\n\n## Phase\nbrainstorm\n\n## Phase Transitions\n- brainstorm → (initial)\n\n## Critic Verdicts\n\n## Task Ledger\n\n## Integration Failures\n\n## Verdict Audits\n\n## Advisories\n\n## Open Questions\n'
   } > "$plan_file"
   sc_ensure_dir "$plan_file" || die "ERROR: sidecar dir setup failed for $plan_file"
 }
@@ -499,6 +534,41 @@ _extract_or_handle_missing_verdict() {
       "FAIL without category from ${_agent} — treating as PARSE_ERROR" \
       "FAIL without category (two consecutive parse errors) — check agent output format" \
       "first FAIL-without-category for ${_agent} — will retry automatically"
+  # Guard: category must be in severity.md enum (fail-open if severity.md unparseable)
+  if [ "$verdict" = "FAIL" ] && [ -n "$category" ]; then
+    local _valid_cats; _valid_cats=$(_severity_categories)
+    if [ -n "$_valid_cats" ]; then
+      local _cat_found=0 _c
+      for _c in $_valid_cats; do
+        [ "$_c" = "$category" ] && { _cat_found=1; break; }
+      done
+      [ "$_cat_found" -eq 0 ] && \
+        _handle_parse_error "$_plan" "$_phase" "$_agent" \
+          "invalid category '${category}' from ${_agent} — not in severity.md enum; treating as PARSE_ERROR" \
+          "invalid category (two consecutive parse errors) — check agent output format" \
+          "first invalid-category PARSE_ERROR for ${_agent} — will retry automatically"
+    else
+      echo "[record-verdict] WARN: severity.md category list empty — skipping enum check for ${_agent}" >&2
+    fi
+  fi
+  # Guard: FAIL must have at least one blocking-label finding (fail-open if severity.md unparseable)
+  if [ "$verdict" = "FAIL" ]; then
+    local _sev_path; _sev_path="$(cd "${_PLAN_CMD_DIR}/../.." && pwd)/reference/severity.md"
+    if [[ -f "$_sev_path" ]]; then
+      local _blocking_found=0 _bl
+      while IFS= read -r _bl; do
+        [[ -z "$_bl" ]] && continue
+        printf '%s' "$_output" | grep -qF "$_bl" && { _blocking_found=1; break; }
+      done < <(_severity_blocking_labels)
+      [ "$_blocking_found" -eq 0 ] && \
+        _handle_parse_error "$_plan" "$_phase" "$_agent" \
+          "FAIL without blocking finding from ${_agent} (no blocking label in output) — treating as PARSE_ERROR" \
+          "FAIL without blocking finding (two consecutive parse errors) — check agent output format" \
+          "first FAIL-without-blocking-finding for ${_agent} — will retry automatically"
+    else
+      echo "[record-verdict] WARN: severity.md not found — skipping blocking-finding check for ${_agent}" >&2
+    fi
+  fi
   return 0
 }
 
@@ -518,13 +588,58 @@ _resolve_verdict_payload() {
   _agent_transcript=$(printf '%s' "$_input" | jq -r '.agent_transcript_path // empty' 2>/dev/null || true)
   _transcript=$(printf '%s' "$_input" | jq -r '.transcript_path // empty' 2>/dev/null || true)
   _resolve_plan_for_verdict "$agent_name"
-  local _output
   _output=$(_resolve_output "$_input" "$_agent_transcript" "$_transcript")
   _extract_or_handle_missing_verdict "$_output" "$_input" "$plan_file" "$current_phase" "$agent_name"
 }
 
+# _upsert_advisories PLAN SCOPE WARN_LINES — replace the ### {scope} block in ## Advisories.
+# Removes any existing block for this scope, then appends a new one if WARN_LINES is non-empty.
+_upsert_advisories() {
+  local _plan="$1" _scope="$2" _warn_lines="${3:-}"
+  local _scope_header="### ${_scope}"
+  # Remove existing block for this scope
+  _awk_inplace "$_plan" -v scope_header="$_scope_header" '
+    /^## Advisories$/ { in_adv=1; print; next }
+    in_adv && /^## /  { in_adv=0; in_block=0 }
+    in_adv && $0 == scope_header { in_block=1; next }
+    in_adv && in_block && /^### / { in_block=0 }
+    in_adv && in_block { next }
+    { print }
+  ' 2>/dev/null || return 0
+  [ -z "$_warn_lines" ] && return 0
+  local _tmp_warn; _tmp_warn=$(mktemp)
+  printf '%s\n' "$_warn_lines" > "$_tmp_warn"
+  _awk_inplace "$_plan" -v scope_header="$_scope_header" -v wfile="$_tmp_warn" '
+    /^## Advisories$/ { print; in_adv=1; found=1; next }
+    in_adv && /^## / {
+      print scope_header
+      while ((getline wl < wfile) > 0) print wl
+      close(wfile)
+      print ""
+      in_adv=0
+      print
+      next
+    }
+    { print }
+    END {
+      if (in_adv) {
+        print scope_header
+        while ((getline wl < wfile) > 0) print wl
+        close(wfile)
+      } else if (!found) {
+        print ""
+        print "## Advisories"
+        print scope_header
+        while ((getline wl < wfile) > 0) print wl
+        close(wfile)
+      }
+    }
+  ' 2>/dev/null || true
+  rm -f "$_tmp_warn"
+}
+
 _persist_verdict() {
-  local _plan="$1" _phase="$2" _agent="$3" _verdict="$4" _category="$5"
+  local _plan="$1" _phase="$2" _agent="$3" _verdict="$4" _category="$5" _output="${6:-}"
   local _label="${_phase}/${_agent}: ${_verdict}"
   [ -n "$_category" ] && _label="${_label} [category: ${_category}]"
   local _rls_rc=0
@@ -542,6 +657,11 @@ _persist_verdict() {
       2) cmd_append_verdict "$_plan" "[BLOCKED:harness] sidecar: corrupt-check — ${_label}"; exit 1 ;;
     esac
   fi
+  if [ "$_verdict" = "PASS" ]; then
+    local _warn_lines
+    _warn_lines=$(printf '%s' "${_output}" | grep -E '\[WARN\]' | sed 's/^[[:space:]]*//' | head -20 || true)
+    _upsert_advisories "$_plan" "${_phase}/${_agent}" "$_warn_lines" 2>/dev/null || true
+  fi
   cmd_append_verdict "$_plan" "$_label"
   echo "[record-verdict] verdict appended: ${_label}" >&2
   [ "$_verdict" = "FAIL" ] && exit 1 || exit 0
@@ -550,9 +670,9 @@ _persist_verdict() {
 cmd_record_verdict() {
   require_jq
   local input; input=$(cat)
-  local plan_file agent_name current_phase verdict category
+  local plan_file agent_name current_phase verdict category _output
   _resolve_verdict_payload "$input"
-  _persist_verdict "$plan_file" "$current_phase" "$agent_name" "$verdict" "$category"
+  _persist_verdict "$plan_file" "$current_phase" "$agent_name" "$verdict" "$category" "$_output"
 }
 
 cmd_record_verdict_guarded() {

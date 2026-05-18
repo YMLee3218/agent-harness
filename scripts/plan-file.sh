@@ -14,7 +14,7 @@ case "$1" in
   # Ring A — agent-callable: read-only or narrative-safe
   init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|is-blocked|is-implemented) ;;
 
-  # Ring B — harness or human: state mutators
+  # Ring B — CLAUDE_PLAN_CAPABILITY=harness required (harness scripts; human operators: export CLAUDE_PLAN_CAPABILITY=harness): state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
   reset-for-rollback|record-verdict|record-verdict-guarded|append-review-verdict|\
   gc-events|gc-verdicts|record-task-completed|record-stop-block|mark-implemented|\
@@ -32,8 +32,9 @@ case "$1" in
     ;;
 
   # Critic-loop B-session mutators — gated by .critic.lock presence only.
-  # B-session runs without CLAUDE_PLAN_CAPABILITY (run-critic-loop.sh strips it);
-  # the lock proves a genuine run-critic-loop.sh context.
+  # Regular critic sessions have CLAUDE_PLAN_CAPABILITY stripped; pr-review sessions retain it
+  # for fix chains (run-critic-loop.sh conditionally strips based on AGENT). The lock proves
+  # genuine run-critic-loop.sh context for these commands regardless of capability.
   append-audit|clear-converged)
     [ $# -ge 2 ] || die "Usage: plan-file.sh $1 <plan-file> ..."
     [ -f "$2.critic.lock" ] || die "BLOCKED: ${2##*/}.critic.lock absent — $1 requires run-critic-loop.sh context"

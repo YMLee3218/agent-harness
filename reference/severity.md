@@ -25,7 +25,7 @@ Defines how to map finding labels to severity levels, when to emit PASS vs FAIL,
 
 ## Category priority (highest → lowest)
 
-When a single FAIL contains findings from multiple categories, use the **highest-priority** category for the `<!-- category: X -->` marker so the consecutive-FAIL escalation logic tracks the most severe issue:
+When a single FAIL contains findings from multiple categories, use the **highest-priority** category for the `<!-- category: X -->` marker so the consecutive-FAIL escalation logic tracks the most severe issue. The `<!-- category: X -->` marker **must** use one of the enum values below — using a check name, section title, or any other string (e.g. `COMPLETENESS`) is invalid and will be recorded as `PARSE_ERROR`.
 
 ```
 ENVELOPE_MISMATCH
