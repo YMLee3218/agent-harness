@@ -22,8 +22,8 @@
 #     INFRA_PATTERNS   — imports that infrastructure/ must NOT contain (features refs)
 #     FEATURE_PATTERNS — domain direct calls that large features/ must NOT make
 
-# Optional preferred-tool hook — set by language conf files before sourcing common.sh
-# or before calling run_layer_checks. If PREFERRED_TOOL_CMD is non-empty,
+# Optional preferred-tool hook — set by language conf files sourced after this file,
+# or set directly before calling run_layer_checks. If PREFERRED_TOOL_CMD is non-empty,
 # run_layer_checks calls try_preferred_tool before the grep-based checks.
 PREFERRED_TOOL_CMD=""
 PREFERRED_TOOL_LABEL=""
