@@ -34,7 +34,7 @@ Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-lo
 CLAUDE_CRITIC_LOOP_CEILING=20
 ```
 
-Maximum critic loop iterations per run (runs 1–N allowed; the (N+1)th triggers `[BLOCKED:ceiling]`). Default: `20`. Must be a numeric integer ≥ 2; invalid values or values below 2 fall back to 20. See `@reference/critics.md` for how PARSE_ERROR verdicts count toward the ceiling.
+Maximum critic loop iterations per milestone (ordinals 1–N allowed; the (N+1)th triggers `[BLOCKED:ceiling]`; counter accumulates across harness restarts — resets only on `reset-milestone`). Default: `20`. Must be a numeric integer ≥ 2; invalid values or values below 2 fall back to 20. See `@reference/critics.md` for how PARSE_ERROR verdicts count toward the ceiling.
 
 ```bash
 CLAUDE_CRITIC_LOOP_MODEL=opus
@@ -46,7 +46,7 @@ Model for the orchestration session spawned by `run-critic-loop.sh`. Default: `o
 CLAUDE_STOP_CHECK_TIMEOUT=600
 ```
 
-Per-test-run timeout (seconds) for `scripts/stop-check.sh`. Default: `600` (10 minutes). Raise when test suites are expected to exceed 10 minutes. Set to `0` to disable the timeout cap — `gtimeout 0` / `timeout 0` is treated as "no timeout" by GNU coreutils, and the script's no-binary fallback also runs uncapped when `_timeout=0`. The stop-check hook runs in the `green` and `integration` phases only (non-interactive runs: `CLAUDE_NONINTERACTIVE=1`).
+Per-test-run timeout (seconds) for `scripts/stop-check.sh`. Default: `600` (10 minutes). Raise when test suites are expected to exceed 10 minutes. Set to `0` to disable the timeout cap — `gtimeout 0` / `timeout 0` is treated as "no timeout" by GNU coreutils; when neither binary is available, the fallback runs uncapped regardless of `_timeout` (no binary to enforce the cap). The stop-check hook runs in the `green` and `integration` phases only (non-interactive runs: `CLAUDE_NONINTERACTIVE=1`).
 
 ## Phase enforcement rules
 
