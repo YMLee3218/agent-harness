@@ -66,7 +66,7 @@ if [ -f "$PLAN_FILE_SH" ]; then
         | grep -oE '>{1,2} *[^[:space:];|&)(<>]+' | sed 's/^>* *//' | tr -d '"'"'")
       if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -qE '/(CLAUDE\.md|settings\.json|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop|bdd-templates)\.md|scripts/[^/]+\.sh|scripts/lib/[^/]+\.sh|scripts/critic-code/[^/]+\.(sh|template)|scripts/critic-code/lib/[^/]+\.sh|scripts/dev-tools/[^/]+\.sh)'; then
+             | grep -qE "/${_RING_C_INNER}"; then
           echo "BLOCKED [phase-gate/bash]: Ring C file (unexpanded path) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2; exit 2
         fi
       fi

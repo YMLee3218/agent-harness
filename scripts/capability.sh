@@ -7,9 +7,11 @@ _CAPABILITY_LOADED=1
 
 declare -F die >/dev/null 2>&1 || die() { echo "ERROR: $*" >&2; exit 1; }
 
-# Shared Ring C file pattern — used by phase-gate.sh (_guard_ring_c).
-# One definition sourced by both to prevent divergence.
-_RING_C_FILES='(\.claude(-harness)?/)?(CLAUDE\.md|settings\.json|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop|bdd-templates)\.md|scripts/[^/]+\.sh|scripts/lib/[^/]+\.sh|scripts/critic-code/[^/]+\.(sh|template)|scripts/critic-code/lib/[^/]+\.sh|scripts/dev-tools/[^/]+\.sh)'
+# Shared Ring C file pattern — used by phase-gate.sh (_guard_ring_c) and
+# pretooluse-bash.sh (normal and unexpanded-path paths). One inner definition
+# (_RING_C_INNER) sourced everywhere to prevent divergence.
+_RING_C_INNER='(CLAUDE\.md|settings\.json|reference/(markers|critics|phase-gate-config|layers|effort|anti-hallucination|language|severity|phase-ops|ultrathink|pr-review-loop|bdd-templates)\.md|scripts/[^/]+\.sh|scripts/lib/[^/]+\.sh|scripts/critic-code/[^/]+\.(sh|template)|scripts/critic-code/lib/[^/]+\.sh|scripts/dev-tools/[^/]+\.sh)'
+_RING_C_FILES="(\.claude(-harness)?/)?${_RING_C_INNER}"
 
 # require_capability CMD [RING]
 # RING=B (default): allow if CLAUDE_PLAN_CAPABILITY=harness.
