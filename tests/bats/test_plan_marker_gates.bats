@@ -209,7 +209,7 @@ EOF
 }
 
 @test "unblock: jq null-guard — transient record with no .message field does not crash cmd_clear_marker" {
-  # Regression: plan-cmd.sh:605-606 uses (.message // "") so transient records
+  # Regression: plan-cmd.sh:725-727 uses (.message // "") so transient records
   # (which have .detail but no .message) must not cause jq type errors.
   local state_dir="$PLAN_DIR/test-feature.state"
   mkdir -p "$state_dir"
@@ -356,7 +356,7 @@ EOF
 }
 
 @test "is-blocked kind filter: envelope+spec open; envelope=true docs=false any=true" {
-  # Verifies plan-cmd.sh:929-931 kind-filter path. With [BLOCKED:envelope] emitted by
+  # Verifies plan-cmd.sh:1051 kind-filter path. With [BLOCKED:envelope] emitted by
   # worker per effort.md, the shell's general is-blocked check (no kind arg) at
   # run-critic-loop.sh:89 must catch it, and the envelope kind filter must be selective.
   local state_dir="$PLAN_DIR/test-feature.state"

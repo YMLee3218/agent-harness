@@ -51,8 +51,12 @@ OVERALL_BLOCKED=0
 
 for tier in domain infrastructure features; do
   tier_ids=()
-  while IFS= read -r _tid; do [[ -n "$_tid" ]] && tier_ids+=("$_tid"); done \
-    < <(printf '%s' "$TASK_JSON" | jq -r --arg t "$tier" '.[] | select(.layer == $t) | .id')
+  while IFS= read -r _tid; do
+    [[ -n "$_tid" ]] || continue
+    _tid_st=$(awk -v tid="$_tid" '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/^\| /{n=split($0,a,"|"); id=a[2]; gsub(/^ +| +$/,"",id); if(id==tid){st=a[4]; gsub(/^ +| +$/,"",st); print st; exit}}' "$PLAN" 2>/dev/null || true)
+    [[ "$_tid_st" == "completed" ]] && continue
+    tier_ids+=("$_tid")
+  done < <(printf '%s' "$TASK_JSON" | jq -r --arg t "$tier" '.[] | select(.layer == $t) | .id')
   [[ ${#tier_ids[@]} -eq 0 ]] && continue
 
   parallel_ids=() sequential_ids=()
@@ -66,7 +70,11 @@ for tier in domain infrastructure features; do
   # Sequential tasks: execute, verify, and merge one at a time so each sees prior tasks' output.
   for id in "${sequential_ids[@]:-}"; do
     [[ -n "$id" ]] || continue
-    launch_task "$id" 0
+    if ! launch_task "$id" 0; then
+      cleanup_wt "$id"
+      tier_blocked=1
+      break
+    fi
     if ! verify_task "$id"; then
       cleanup_wt "$id"
       tier_blocked=1
@@ -94,12 +102,21 @@ for tier in domain infrastructure features; do
   fi
 
   # Parallel tasks: launch all, wait, then batch verify and merge.
-  for id in "${parallel_ids[@]:-}"; do [[ -n "$id" ]] && launch_task "$id" 1; done
+  for id in "${parallel_ids[@]:-}"; do
+    if [[ -n "$id" ]]; then
+      launch_task "$id" 1 || tier_blocked=1
+    fi
+  done
   for id in "${parallel_ids[@]:-}"; do [[ -n "$id" ]] && wait_task "$id"; done
 
   verified_ids=()
   for id in "${parallel_ids[@]:-}"; do
     [[ -n "$id" ]] || continue
+    if [[ ! -f "$WORK_DIR/log-${id}.txt" ]]; then
+      tier_blocked=1
+      cleanup_wt "$id" 2>/dev/null || true
+      continue
+    fi
     if verify_task "$id"; then
       verified_ids+=("$id")
     else
