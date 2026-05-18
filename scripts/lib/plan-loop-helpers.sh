@@ -97,7 +97,7 @@ _ceiling_block() {
   local _ceil_bpath; _ceil_bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
   _with_lock "${_ceil_bpath}.lock" \
     _ceiling_block_body "$_ceil_bpath" "$plan_file" "$agent" "$scope" "$ceiling" || true
-  grep -qF "[BLOCKED:ceiling] ${agent}" "$plan_file" 2>/dev/null || \
+  grep -qF "[BLOCKED:ceiling] ${agent}: ${scope}" "$plan_file" 2>/dev/null || \
     _append_to_open_questions "$plan_file" \
       "[BLOCKED:ceiling] ${agent}: ${scope} exceeded ${ceiling} runs — manual review required"
   conv_state=$(sc_read_json "$convergence_path" \
