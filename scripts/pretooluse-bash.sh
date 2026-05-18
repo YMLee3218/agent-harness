@@ -34,12 +34,11 @@ block_plan_revert "$cmd"
 if [ -f "$PLAN_FILE_SH" ]; then
   BLOCKED_LABEL="phase-gate/bash"
 
-  # Read-only / no-write commands have no phase-gated destination — bypass
-  # plan resolution so ambiguous-plan state does not block status checks,
-  # ls, echo, grep, pipes that only read, and also git checkout/switch
-  # (which mutate the working tree but produce no redirect/tee/cp/mv dest;
-  # plans/*.state/ and plans/*.md remain protected by block_sidecar_writes
-  # and block_plan_revert above).
+  # Commands with no detected redirect/tee/cp/mv/sed-i/dd/awk-i destination
+  # bypass phase checks — covers read-only commands (ls, echo, grep) and
+  # write commands that don't use redirect syntax (git checkout/switch,
+  # touch, mkdir, truncate, etc.). plans/*.state/ and plans/*.md remain
+  # protected by block_sidecar_writes and block_plan_revert above.
   if [ -z "$_dest_list" ]; then
     exit 0
   fi
