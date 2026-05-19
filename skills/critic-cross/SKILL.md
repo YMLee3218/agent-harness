@@ -38,6 +38,7 @@ Read these reference files first — they govern your output:
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md
 - ${CLAUDE_PROJECT_DIR}/.claude/reference/bdd-templates.md
+- ${CLAUDE_PROJECT_DIR}/.claude/reference/operating-envelope.md (legal axis values; filled vs placeholder definition)
 
 ## Angle 1 — Contradictory behaviors → category: `CROSS_FEATURE_CONTRADICTION`
 Feature A says X happens, Feature B says X does not happen.

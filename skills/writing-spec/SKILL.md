@@ -45,6 +45,8 @@ Before drafting any scenario, fill in the Operating Envelope in the plan file �
 - **External I/O**: {none | file | network | distributed}
 ```
 
+Legal axis values and the filled-vs-placeholder definition: `@reference/operating-envelope.md`
+
 Each axis must be declared explicitly. If an axis cannot be determined from the requirement, write `[BLOCKED:spec] writing-spec: ambiguous — axis {name} cannot be determined` and add it to `## Open Questions` — do not proceed until it is resolved.
 
 Scenarios must stay within this envelope. Do not draft scenarios that require an axis value beyond what is declared above.

@@ -37,9 +37,10 @@ Docs: {docs_paths}
 Plan: {plan_path}
 
 Read these reference files first — they govern your output:
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md     (severity, PASS/FAIL, category priority)
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md       (naming conventions, spec-path mapping)
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/bdd-templates.md (required boundary coverage by input type)
+- ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md          (severity, PASS/FAIL, category priority)
+- ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md            (naming conventions, spec-path mapping)
+- ${CLAUDE_PROJECT_DIR}/.claude/reference/bdd-templates.md     (required boundary coverage by input type)
+- ${CLAUDE_PROJECT_DIR}/.claude/reference/operating-envelope.md (legal axis values; filled vs placeholder definition)
 
 ## Angle 1 — Missing scenarios → category: `MISSING_SCENARIO` (or `DOCS_CONTRADICTION` for §doc contradictions)
 
@@ -84,7 +85,7 @@ If the prompt includes "Also verify consistency against existing specs:":
 Read the "## Operating Envelope" section from {spec_path}. Apply before any MISSING_SCENARIO finding.
 
 10. Missing envelope: spec has no Operating Envelope section → [FAIL] ENVELOPE_MISMATCH: Operating Envelope section missing
-11. Undeclared axis: any axis has a placeholder or is absent (not explicitly [BLOCKED]) → [FAIL] ENVELOPE_MISMATCH: axis {name} undeclared
+11. Undeclared axis: any axis still contains the unsubstituted curly-brace template literal `{a | b | c}`, or is absent (not explicitly [BLOCKED]) → [FAIL] ENVELOPE_MISMATCH: axis {name} undeclared. A value from operating-envelope.md §Axis table (e.g. `N users`, `periodic 1/min`) is filled — not a placeholder. Consult operating-envelope.md §Filled vs placeholder before judging.
 12. Envelope contradicts docs: declared envelope value conflicts with documented operational context in docs/*.md → [FAIL] ENVELOPE_MISMATCH: envelope declares {value} but {docs_file}:{line} states {other_value}
 13. Scenario overreach: a scenario asserts a concurrency level, actor count, persistence guarantee, or failure model that exceeds the declared envelope → [FAIL] ENVELOPE_OVERREACH: {scenario} requires {axis}={value} but envelope declares {declared_value}
 

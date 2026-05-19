@@ -64,10 +64,12 @@ If proposing domain rules or constraints not found in `docs/*.md`: mark the assu
 
 For each candidate feature, declare all 6 axes in the plan file:
 
+Legal axes and values: `@reference/operating-envelope.md §Axis table`
+
 | Axis | Value |
 |------|-------|
 | Actors | {1 user \| N users \| tenants} |
-| Frequency | {one-shot \| periodic \| per-request \| bursty} |
+| Frequency | {one-shot \| periodic 1/min \| per-request \| bursty} |
 | Concurrency | {none \| reader-writer \| multi-writer} |
 | Persistence | {ephemeral \| best-effort \| durable \| zero-loss} |
 | Failure model | {crash-stop \| crash-recover \| partial-failure} |
