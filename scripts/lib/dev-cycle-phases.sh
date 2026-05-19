@@ -6,7 +6,7 @@ set -euo pipefail
 _DEV_CYCLE_PHASES_LOADED=1
 
 # All functions use globals set by run-dev-cycle.sh:
-#   PF PLAN PROJECT_DIR SCRIPTS_DIR UNIT_CMD _lang _domain_root _infra_root _features_root
+#   PF PLAN PROJECT_DIR SCRIPTS_DIR UNIT_CMD LINT_CMD _lang _domain_root _infra_root _features_root
 
 # _phase_spec_prepass — write spec and run critic-spec for each feature (skip if converged).
 _phase_spec_prepass() {
@@ -141,7 +141,7 @@ _impl_run_implement_phase() {
       bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-implement: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md"
       exit 1
     fi
-    bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+    bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD" --lint-cmd "$LINT_CMD"
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "implement" ]] && \

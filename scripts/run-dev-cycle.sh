@@ -33,8 +33,10 @@ setup_run_context
 
 UNIT_CMD=$(grep -m1 '^\- Test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Test: *//;s/^`//;s/`.*$//' || echo "")
 INTEGRATION_CMD=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Integration test: *//;s/^`//;s/`.*$//' || echo "")
+LINT_CMD=$(grep -m1 '^\- Lint:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Lint: *//;s/^`//;s/`.*$//' || echo "")
 [[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""
 [[ "$INTEGRATION_CMD" == _\(run* ]] && INTEGRATION_CMD=""
+[[ "$LINT_CMD" == _\(run* || "$LINT_CMD" == \{* ]] && LINT_CMD=""
 
 # shellcheck source=lib/dev-cycle-phases.sh
 source "$SCRIPTS_DIR/lib/dev-cycle-phases.sh"

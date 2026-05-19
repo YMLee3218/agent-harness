@@ -6,7 +6,7 @@ set -euo pipefail
 _IMPLEMENT_HELPERS_LOADED=1
 
 # All functions use globals set by run-implement.sh:
-#   PLAN PF TASK_JSON WORK_DIR BASE_SHA TEST_CMD
+#   PLAN PF TASK_JSON WORK_DIR BASE_SHA TEST_CMD LINT_CMD
 
 # get_field ID FIELD — extracts a field from TASK_JSON for a given task id.
 get_field() {
@@ -17,12 +17,16 @@ get_field() {
 
 # make_prompt ID — prints the full task prompt for a Codex worker.
 make_prompt() {
-  local id="$1" goal layer files spec failing_test code=""
+  local id="$1" goal layer files spec failing_test code="" lint_constraint="" lint_cmd_line=""
   goal=$(get_field "$id" goal); layer=$(get_field "$id" layer)
   files=$(get_field "$id" files); spec=$(get_field "$id" spec)
   failing_test=$(get_field "$id" failing_test)
   failing_test_file="${failing_test%%::*}"
   [[ -n "$failing_test_file" && -f "$failing_test_file" ]] && code=$(cat "$failing_test_file")
+  if [[ -n "${LINT_CMD:-}" ]]; then
+    lint_constraint=$'\n- Before emitting coder-status: complete, run the lint command and fix every violation it reports. Every violation must be in a file within your task scope — if lint reports a violation outside Files to modify, emit coder-status: abort with the detail.'
+    lint_cmd_line=$'\nLint command: '"${LINT_CMD}"
+  fi
   cat <<EOF
 Task: ${goal}
 Target layer: ${layer}
@@ -33,12 +37,12 @@ Commit once after refactor. Format: {type}({scope}): {description}
 
 Hard constraints:
 - Do NOT modify files matching: tests/* *_test.* test_*.* *.test.* *.spec.* *_spec.* spec.md
-- Respect layer rules for ${layer}. If layer would be violated, STOP and emit "layer violation: {reason}".
+- Respect layer rules for ${layer}. If layer would be violated, STOP and emit "layer violation: {reason}".${lint_constraint}
 
 Failing test: ${failing_test}
 ${code}
 
-Test command: ${TEST_CMD}
+Test command: ${TEST_CMD}${lint_cmd_line}
 Spec: ${spec}
 
 When complete, emit exactly: coder-status: complete
@@ -128,6 +132,17 @@ _run_failing_test() {
   fi
 }
 
+# _run_lint ID WD — runs LINT_CMD in the worktree; returns 1 with BLOCKED on failure.
+_run_lint() {
+  local id="$1" wt="$2"
+  [[ -z "${LINT_CMD:-}" ]] && return 0
+  if ! (cd "$wt" && bash -c "$LINT_CMD" 2>&1); then
+    bash "$PF" update-task "$PLAN" "$id" blocked
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: lint-failing — after implementation"
+    return 1
+  fi
+}
+
 # verify_task ID — verify coder output, test files, and run tests. Returns 0 on success.
 verify_task() {
   local id="$1"
@@ -166,6 +181,7 @@ verify_task() {
     fi
   fi
   _run_failing_test "$id" "$wt" || return 1
+  _run_lint "$id" "$wt" || return 1
   return 0
 }
 

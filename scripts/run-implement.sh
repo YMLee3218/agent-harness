@@ -5,12 +5,13 @@ if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
 fi
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PF="$SCRIPTS_DIR/plan-file.sh"
-PLAN="" TEST_CMD=""
+PLAN="" TEST_CMD="" LINT_CMD=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --plan)     PLAN="$2";     shift 2 ;;
     --test-cmd) TEST_CMD="$2"; shift 2 ;;
+    --lint-cmd) LINT_CMD="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
