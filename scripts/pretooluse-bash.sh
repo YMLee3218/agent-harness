@@ -37,8 +37,9 @@ if [ -f "$PLAN_FILE_SH" ]; then
   # Commands with no detected redirect/tee/cp/mv/sed-i/dd/awk-i destination
   # bypass phase checks — covers read-only commands (ls, echo, grep) and
   # write commands that don't use redirect syntax (git checkout/switch,
-  # touch, mkdir, truncate, etc.). plans/*.state/ and plans/*.md remain
-  # protected by block_sidecar_writes and block_plan_revert above.
+  # touch, mkdir, truncate, etc.). plans/*.md is additionally protected by
+  # block_plan_revert above; sidecar dirs are NOT protected for no-destination
+  # commands (mkdir/touch) — same accepted bypass gap as source/test paths.
   if [ -z "$_dest_list" ]; then
     exit 0
   fi
