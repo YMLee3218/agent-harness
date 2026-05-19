@@ -100,7 +100,7 @@ if [ -f "$claude_md" ]; then
 fi
 
 # Skip if placeholder: checks both _raw_test_line (catches failed sed) and test_cmd (catches extracted placeholder).
-# {word} pattern avoids false positives from legitimate brace usage like pytest --deselect 'tests/{foo}'.
+# Requiring word chars inside braces avoids matching shell ${VAR} syntax; still catches {foo} placeholder style.
 if printf '%s' "$_raw_test_line" | grep -q "initializing-project" \
    || printf '%s' "$test_cmd" | grep -q "initializing-project" \
    || printf '%s' "$test_cmd" | grep -qE '\{[A-Za-z0-9_-]+\}' \

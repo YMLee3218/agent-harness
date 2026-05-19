@@ -26,7 +26,7 @@ llm_exit() {
   _CALL_RC=0
   case $rc in
     0) return 0 ;;
-    1) echo "[BLOCKED] ${label} failed — see ## Open Questions" >&2; exit 1 ;;
+    1) echo "[BLOCKED] ${label} failed — see ## Open Questions; if empty, a transient retry occurred (e.g. session-timeout — re-run)" >&2; exit 1 ;;
     2) echo "[BLOCKED:ceiling] ${label} — manual review required" >&2; exit 2 ;;
     3) echo "[BLOCKED] ${label}: critic loop already running — wait or remove .critic.lock" >&2; exit 1 ;;
     *) echo "Script failure: ${label} exited ${rc}" >&2

@@ -28,12 +28,15 @@ _bash_dest_paths() {
   # Also captures -t TARGET, --target-directory=TARGET, and --target-directory TARGET (GNU/BSD explicit-dest flags).
   printf '%s' "$c" | grep -oE '(^|[;|&[:space:]])(cp|mv)([[:space:]]+(-[[:alpha:]]+|--[a-zA-Z-]+=?[^[:space:];|&]*|[^[:space:];|&]+))+' | while IFS= read -r _cpmv; do
     [[ -n "$_cpmv" ]] || continue
-    _t=$(printf '%s' "$_cpmv" | tr ' ' '\n' | grep -vE '^-' | tail -1 | tr -d '"'"'" 2>/dev/null || true)
-    case "$_t" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t" ;; esac
     _t2=$(printf '%s' "$_cpmv" | grep -oE '(-t[[:space:]]+|--target-directory[[:space:]]+|--target-directory=)[^[:space:];|&]+' \
       | sed 's/^-t[[:space:]]*//' | sed 's/^--target-directory[[:space:]][[:space:]]*//' | sed 's/^--target-directory=//' | tail -1 | tr -d '"'"'" 2>/dev/null || true)
-    [[ -n "$_t2" ]] || continue
-    case "$_t2" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t2" ;; esac
+    if [[ -n "$_t2" ]]; then
+      # -t TARGET present: all remaining tokens are sources; emit only the explicit target.
+      case "$_t2" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t2" ;; esac
+    else
+      _t=$(printf '%s' "$_cpmv" | tr ' ' '\n' | grep -vE '^-' | tail -1 | tr -d '"'"'" 2>/dev/null || true)
+      case "$_t" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t" ;; esac
+    fi
   done || true
   printf '%s' "$c" | grep -oE '\bsed +-i[^ ]*( +[^[:space:];|&]+)+' | awk '{print $NF}' | while IFS= read -r _t; do
     case "$_t" in *'$'*|*'`'*) echo 'plans/__unexpanded__.state/__bypass__' ;; *) echo "$_t" ;; esac
@@ -180,6 +183,12 @@ block_sidecar_writes() {
     case "$_sw_p" in *.critic.lock)
       echo "BLOCKED: write targeting plans/*.critic.lock — critic lock is harness-exclusive" >&2; exit 2 ;;
     esac
+    # A4b: block mv/cp -r with plans/ as extracted destination (regex guard above misses second-operand form).
+    if [[ "$_sw_p" == "plans/" || "$_sw_p" == "plans" || "$_sw_p" == "./plans/" || "$_sw_p" == "./plans" ]]; then
+      if printf '%s' "$cmd" | grep -iqE '(^|[;|&[:space:]])[[:space:]]*(mv|cp[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*)'; then
+        echo "BLOCKED: mv/cp -r targeting plans/ directory — plan directory structure is harness-exclusive" >&2; exit 2
+      fi
+    fi
   done <<< "$_dest_list"
 }
 

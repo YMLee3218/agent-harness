@@ -70,7 +70,7 @@ teardown() {
 
 # ── T1: C1 regression — FAIL+category consecutive block ──────────────────────
 
-@test "T1/C1: second FAIL same category triggers BLOCKED (jq filter works)" {
+@test "T1/C1: second FAIL same category writes RECURRING advisory, not BLOCKED (jq filter works)" {
   # Pre-populate one FAIL with category=LAYER_VIOLATION for this milestone
   local state_dir="$PLAN_DIR/test-feature.state"
   mkdir -p "$state_dir/convergence"

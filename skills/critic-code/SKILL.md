@@ -137,4 +137,4 @@ tail -200 "$_critic_code_log"
 rm -f "$_critic_code_prompt"
 ```
 
-The verdict markers in the tail are your final stdout. The SubagentStop hook reads `<!-- verdict: -->` and `<!-- category: -->` from there. Do not append anything after the `tail -200` output.
+The verdict markers in the tail are your final stdout. The SubagentStop hook reads `<!-- verdict: -->` and `<!-- category: -->` from there. Do not append any commentary after the `tail -200` output.

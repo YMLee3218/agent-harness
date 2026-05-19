@@ -170,4 +170,4 @@ tail -200 "$_critic_spec_log"
 rm -f "$_critic_spec_prompt"
 ```
 
-The verdict markers in the tail are your final stdout. Do not append text after `tail -200`.
+The verdict markers in the tail are your final stdout. Do not append any commentary after `tail -200`.

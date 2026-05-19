@@ -6,7 +6,7 @@ set -euo pipefail
 _INTEGRATION_HELPERS_LOADED=1
 
 # All functions use globals set by run-integration.sh:
-#   PF PLAN PROJECT_DIR SCRIPTS_DIR UNIT_CMD _lang _domain_root _infra_root _features_root
+#   PF PLAN PROJECT_DIR SCRIPTS_DIR UNIT_CMD LINT_CMD _lang _domain_root _infra_root _features_root
 #   _all_specs _req_file
 
 _INTEGRATION_HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,7 +21,7 @@ run_llm_capture() {
     > "$outfile" 2>&1 || true
 }
 
-# _handle_spec_phase_rollback CATEGORY — full spec/test/implement rollback for spec-gap or docs-conflict
+# _handle_spec_phase_rollback CATEGORY — full spec/test/implement rollback for spec-gap
 _handle_spec_phase_rollback() {
   local _cat="$1" _sp _test_files
   bash "$PF" transition "$PLAN" spec "integration failure: ${_cat}"
@@ -53,7 +53,7 @@ _handle_spec_phase_rollback() {
   bash "$PF" inter-feature-reset "$PLAN"
   run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
   llm_exit "implementing"
-  bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+  bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD" --lint-cmd "$LINT_CMD"
   bash "$PF" reset-milestone "$PLAN" critic-code
   run_critic critic-code implement "Review integration ${_cat} fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
   llm_exit "critic-code"

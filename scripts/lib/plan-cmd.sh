@@ -856,7 +856,8 @@ cmd_reset_phase_state() {
 cmd_add_task() {
   local plan_file="$1" task_id="$2" layer="$3"
   require_file "$plan_file"
-  grep -qF "| ${task_id} |" "$plan_file" 2>/dev/null && return 0
+  awk '/^## Task Ledger$/{in_section=1;next} in_section&&/^## /{in_section=0} in_section{print}' \
+    "$plan_file" 2>/dev/null | grep -qF "| ${task_id} |" && return 0
   local row="| ${task_id} | ${layer} | pending | - |"
   if grep -q "^## Task Ledger$" "$plan_file"; then
     _awk_inplace "$plan_file" -v row="$row" '
@@ -886,7 +887,9 @@ cmd_update_task() {
   for s in $valid_statuses; do [ "$s" = "$status" ] && valid=1 && break; done
   [ "$valid" -eq 1 ] || die "invalid status: $status (must be one of: $valid_statuses)"
   _awk_inplace "$plan_file" -v tid="$task_id" -v status="$status" -v sha="$commit_sha" '
-    /^\| / {
+    /^## Task Ledger$/ { in_section=1; print; next }
+    in_section && /^## / { in_section=0 }
+    in_section && /^\| / {
       n = split($0, fields, "|")
       if (n >= 5) {
         id = fields[2]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", id)

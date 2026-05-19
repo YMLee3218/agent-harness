@@ -50,7 +50,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 [BLOCKED:env] critic-code: session-timeout — recurred 3 times: after 3600s
 [BLOCKED:harness] critic-code: protocol-violation — invoked outside run-critic-loop.sh context
 [BLOCKED:harness] sidecar: corrupt-check — manual sidecar repair required
-[BLOCKED:ceiling] critic-code: spec/critic-code exceeded 20 runs — manual review required
+[BLOCKED:ceiling] critic-code: implement/critic-code exceeded 20 runs — manual review required
 ```
 
 Transient (sidecar only, never plan.md):
@@ -97,7 +97,7 @@ Written by scripts outside the critic convergence protocol.
 | Marker | Emitter | Clear path | Survives gc? |
 |--------|---------|------------|-------------|
 | `[BLOCKED:envelope] {scope}: {sub-kind} — {detail}` | Skills (worker context — envelope itself wrong, per effort.md) | `plan-file.sh unblock` | Yes |
-| `[BLOCKED:docs] {scope}: {sub-kind} — {detail}` | Skills (parent context) | `plan-file.sh unblock` then cascade | Yes |
+| `[BLOCKED:docs] {scope}: {sub-kind} — {detail}` | Skills (parent context); `run-integration.sh` (integration `docs conflict` category) | `plan-file.sh unblock` then cascade | Yes |
 | `[BLOCKED:spec] {scope}: {sub-kind} — {detail}` | Skills (parent context) | `plan-file.sh unblock` | Yes |
 | `[BLOCKED:code] {scope}: {sub-kind} — {detail}` | Various scripts | `plan-file.sh unblock` | Yes |
 | `[BLOCKED:env] {scope}: {sub-kind} — {detail}` | `preflight.sh`, `run-critic-loop.sh`, scripts | `plan-file.sh unblock` | Yes |
@@ -133,7 +133,7 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 
 ## Sidecar control state
 
-Persistent harness state lives in `plans/{slug}.state/` — written only by harness scripts, never by agent tool calls (blocked by `settings.json` deny rules and `phase-gate.sh`). The transient critic lock file (`plans/{slug}.md.critic.lock`) is also harness-exclusive but lives adjacent to the plan file, not inside `.state/`.
+Persistent harness state lives in `plans/{slug}.state/` — written only by harness scripts, never by agent Write/Edit tool calls (blocked by `settings.json` deny rules) or redirect-type Bash writes (blocked by `pretooluse-bash.sh`'s `block_sidecar_writes`). Accepted bypass gap: no-destination Bash commands such as `mkdir` and `touch` are not intercepted — same accepted bypass gap as source and test paths (see `reference/phase-gate-config.md §Phase enforcement rules`). The transient critic lock file (`plans/{slug}.md.critic.lock`) is also harness-exclusive but lives adjacent to the plan file, not inside `.state/`.
 
 ### Key sidecar files
 

@@ -24,6 +24,8 @@ done
 # shellcheck source=lib/run-context.sh
 source "$SCRIPTS_DIR/lib/run-context.sh"
 setup_run_context
+LINT_CMD=$(grep -m1 '^\- Lint:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Lint: *//;s/^`//;s/`.*$//' || echo "")
+[[ "$LINT_CMD" == _\(run* || "$LINT_CMD" == \{* ]] && LINT_CMD=""
 # DATA delimiter wrapping for prompt injection prevention
 source "$SCRIPTS_DIR/lib/prompt-builder.sh" 2>/dev/null || true
 
@@ -137,7 +139,7 @@ After completing the above, output as the very last line of your response exactl
       run_llm "Invoke the implementing skill to replan tasks for the integration failure. Plan: $PLAN"
       llm_exit "implementing"
       if [[ -n "$UNIT_CMD" ]]; then
-        bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD"
+        bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD" --lint-cmd "$LINT_CMD"
       else
         bash "$PF" append-note "$PLAN" "[BLOCKED:env] integration: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md and re-run"
         exit 1
@@ -147,7 +149,11 @@ After completing the above, output as the very last line of your response exactl
       llm_exit "critic-code"
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;
-    "spec gap"|"docs conflict")
+    "docs conflict")
+      bash "$PF" append-note "$PLAN" "[BLOCKED:docs] integration: docs-conflict — determine ground truth per @reference/phase-ops.md §DOCS CONTRADICTION cascade step 1, then unblock and re-run"
+      exit 1
+      ;;
+    "spec gap")
       if [[ -z "$UNIT_CMD" ]]; then
         bash "$PF" append-note "$PLAN" "[BLOCKED:env] integration: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md and re-run"
         exit 1

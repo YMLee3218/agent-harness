@@ -39,7 +39,7 @@ Use `run_in_background=true` — this script may run for minutes.
 - Step 1.5: unit test pre-check with rollback on failure
 - Phase transition to `integration` before running tests
 - Pass → `done` transition
-- Fail → LLM failure categorization (one B-session), rollback, fix skill invocation, re-run once (blocks on second failure)
+- Fail → LLM failure categorization (one B-session): `implementation bug` → rollback + fix + re-run (blocks on second failure); `spec gap` → spec/test/implement rollback + re-run; `docs conflict` → `[BLOCKED:docs]` (human ground-truth determination required per @reference/phase-ops.md §DOCS CONTRADICTION cascade)
 - Blocked on ambiguous category → `[BLOCKED:code]` marker written to plan file
 
 After the completion notification, read `## Open Questions` for any `[BLOCKED:{kind}]` markers and report to the user. All human-must kinds except `ceiling` (`envelope`, `docs`, `spec`, `code`, `env`, `harness`) require `plan-file.sh unblock` after fixing the root cause. Exception: for `[BLOCKED:ceiling]`, always use `reset-milestone {agent}` instead — `reset-milestone` both clears the marker and increments the milestone counter so the next run starts fresh. `unblock` alone does not increment the milestone counter and immediately re-triggers the ceiling block. See `@reference/markers.md §Clearing stop markers`.
