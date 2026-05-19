@@ -41,7 +41,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 [BLOCKED:envelope] coder:feat-x: ENVELOPE_MISMATCH — envelope declares single-tenant but DB is multi-tenant
 [BLOCKED:docs] critic-spec: contradiction — docs may be stale, ground truth ambiguous; apply cascade
 [BLOCKED:spec] critic-code: ambiguous — which encoding should be used for foo?
-[BLOCKED:code] critic-code: category — LAYER_VIOLATION failed twice
+[BLOCKED:code] critic-code: parse — second consecutive PARSE_ERROR — fix critic output format
 [BLOCKED:code] coder:feat-x: merge-conflict — resolve and re-run implementing
 [BLOCKED:code] integration: tests-failing — failed after 2 fix attempts; manual review required
 [BLOCKED:code] smoke: tests-failing — full suite not passing after all tiers
@@ -129,6 +129,7 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 | `[AUTO-DECIDED] {skill}/{step}: {decision}` | implementing skill | No | Architectural choice made without asking |
 | `[INFO] {message}` | Various skills | Yes | Informational log entry |
 | `[IMPLEMENTED: {feat-slug}]` | `plan-file.sh mark-implemented` (Ring B) | Yes | Records a completed feature slug; authoritative state is in `plans/{slug}.state/implemented.json` |
+| `[RECURRING] {agent}: {msg}` | `plan-file.sh record-verdict` (consecutive same-category FAIL) | No | Advisory: next Codex fix must address root cause of all {category} findings, not only the latest |
 
 ## Sidecar control state
 
@@ -140,7 +141,7 @@ Persistent harness state lives in `plans/{slug}.state/` — written only by harn
 |------|--------|------------|---------|-----------|
 | `convergence/{phase}__{agent}.json` | JSON | `_record_loop_state` (via SubagentStop hook for phase-gate critics; via `append-review-verdict`/`run-critic-loop.sh` for pr-review — excluded from SubagentStop) | `is-converged` (`run-dev-cycle.sh`, `run-critic-loop.sh`) | Created on first verdict; reset via `reset-milestone`/`clear-converged`; `converged=true` requires ≥2 consecutive PASSes |
 | `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `_record_loop_state` (streak input) | Appended per verdict; no automatic GC |
-| `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse/category), `cmd_append_note` (BLOCKED mirror), `_record_transient` (transient) | `is-blocked` (`stop-check.sh`, `run-critic-loop.sh`, `run-dev-cycle.sh`) | `cleared_at:null` = open; set by `unblock`; kind enum: `envelope\|docs\|spec\|code\|env\|harness\|ceiling\|transient` |
+| `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse), `cmd_append_note` (BLOCKED mirror), `_record_transient` (transient) | `is-blocked` (`stop-check.sh`, `run-critic-loop.sh`, `run-dev-cycle.sh`) | `cleared_at:null` = open; set by `unblock`; kind enum: `envelope\|docs\|spec\|code\|env\|harness\|ceiling\|transient` |
 | `implemented.json` | JSON | `mark-implemented` | `is-implemented` (`run-dev-cycle.sh`) | Feature slugs accumulate; never cleared |
 | `transient_counters.json` | JSON | `_record_transient` in `sidecar.sh` | `_record_transient`, `_clear_transient_for`, `_reset_all_transient_counters` | Counter per `{agent}__{sub-kind}` key; cleared on any completed session; reset-milestone clears target agent only; reset-for-rollback clears all |
 

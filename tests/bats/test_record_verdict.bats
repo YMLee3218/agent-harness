@@ -94,13 +94,15 @@ teardown() {
     printf '"'"'{"agent_type":"critic-code","last_assistant_message":"[CRITICAL] boundary broken\\n### Verdict\\n<!-- verdict: FAIL -->\\n<!-- category: LAYER_VIOLATION -->"}'"'"' \
       | cmd_record_verdict 2>&1
   ' 2>&1
-  # T10b: Second FAIL same category → BLOCKED fires (exact match, not generic glob)
+  # T10b: Second FAIL same category → feedforward note written (not a hard block)
   [[ "$output" == *"consecutive same-category FAIL"* || "$output" == *"consecutive same-category"* ]]
   # No jq parse errors in output
   [[ "$output" != *"jq: error"* ]]
   [[ "$output" != *"parse error (null"* ]]
-  # Plan file should have [BLOCKED:code] category marker
-  grep -q '\[BLOCKED:code\]' "$PLAN_FILE"
+  # Plan file should have [RECURRING] advisory marker, not [BLOCKED:code] category marker
+  grep -q '\[RECURRING\]' "$PLAN_FILE"
+  run grep -q '\[BLOCKED:code\].*category' "$PLAN_FILE"
+  [ "$status" -ne 0 ]
 }
 
 # ── T4: L1 — first-FAIL non-blocking regression ───────────────────────────────
@@ -168,7 +170,7 @@ teardown() {
 
 # ── T3: C1 fix — FAIL+PARSE_ERROR+FAIL DOES block (PARSE_ERROR transparent) ──
 
-@test "T3/C1: FAIL then PARSE_ERROR then same-category FAIL triggers BLOCKED" {
+@test "T3/C1: FAIL then PARSE_ERROR then same-category FAIL writes RECURRING advisory (PARSE_ERROR transparent)" {
   # Pre-populate verdicts.jsonl: FAIL(LAYER_VIOLATION) then PARSE_ERROR — PARSE_ERROR must be transparent
   local state_dir="$PLAN_DIR/test-feature.state"
   mkdir -p "$state_dir/convergence"
@@ -194,10 +196,12 @@ teardown() {
     printf '"'"'{"agent_type":"critic-code","last_assistant_message":"[CRITICAL] boundary broken\\n### Verdict\\n<!-- verdict: FAIL -->\\n<!-- category: LAYER_VIOLATION -->"}'"'"' \
       | cmd_record_verdict 2>&1
   ' 2>&1
-  # PARSE_ERROR between two same-category FAILs is transparent — must still block
+  # PARSE_ERROR between two same-category FAILs is transparent — must still write RECURRING advisory
   [[ "$output" == *"consecutive same-category FAIL"* || "$output" == *"consecutive same-category"* ]]
   [[ "$output" != *"jq: error"* ]]
-  grep -q '\[BLOCKED:code\]' "$PLAN_FILE"
+  grep -q '\[RECURRING\]' "$PLAN_FILE"
+  run grep -q '\[BLOCKED:code\].*category' "$PLAN_FILE"
+  [ "$status" -ne 0 ]
 }
 
 # ── New guards: invalid category, FAIL-without-blocking-finding ───────────────

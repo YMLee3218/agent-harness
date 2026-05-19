@@ -371,10 +371,20 @@ _check_consecutive_and_block() {
     fi
   fi
   if [[ -n "$_prev_val" ]] && [[ "$_prev_val" == "$match_val" ]]; then
-    _append_to_open_questions "$plan_file" "[BLOCKED:code] ${agent}: ${kind} — ${msg}"
-    _record_blocked "$plan_file" "code" "$agent" "$_scope" "$msg" 2>/dev/null || true
-    echo "[record-verdict] ${log_label}" >&2
-    return 0
+    if [[ "$kind" == "category" ]]; then
+      # Non-halting feedforward: remove any prior RECURRING marker (self-supersede, max 1 per agent)
+      # and write a new advisory. No blocked.jsonl entry — loop continues normally.
+      cmd_clear_marker "$plan_file" "[RECURRING] ${agent}:"
+      _append_to_open_questions "$plan_file" "[RECURRING] ${agent}: ${msg}"
+      echo "[record-verdict] ${log_label}" >&2
+      return 1
+    else
+      # parse (and any future kinds): hard block — write [BLOCKED:code] and stop the loop.
+      _append_to_open_questions "$plan_file" "[BLOCKED:code] ${agent}: ${kind} — ${msg}"
+      _record_blocked "$plan_file" "code" "$agent" "$_scope" "$msg" 2>/dev/null || true
+      echo "[record-verdict] ${log_label}" >&2
+      return 0
+    fi
   fi
   return 1
 }
@@ -630,10 +640,10 @@ _persist_verdict() {
     local _ccb_rc=0
     _check_consecutive_and_block "$_plan" "$_phase" "$_agent" \
       '[.[] | select(.phase == $p and .agent == $a and .milestone_seq == $ms and .verdict != "PARSE_ERROR")] | .[-2] | select(.verdict == "FAIL") | .category // ""' \
-      "$_category" "category" "${_category} failed twice — fix root cause before retrying" \
-      "consecutive same-category FAIL (${_category}) from ${_agent} — blocked" || _ccb_rc=$?
+      "$_category" "category" \
+      "${_category} flagged 2× consecutively — next fix must resolve the root cause behind every ${_category} finding, not only the latest" \
+      "consecutive same-category FAIL (${_category}) from ${_agent} — feedforward note written" || _ccb_rc=$?
     case $_ccb_rc in
-      0) cmd_append_verdict "$_plan" "$_label"; exit 1 ;;
       1) : ;;
       2) cmd_append_verdict "$_plan" "[BLOCKED:harness] sidecar: corrupt-check — ${_label}"; exit 1 ;;
     esac
@@ -799,6 +809,7 @@ cmd_reset_milestone() {
   current_phase=$(_require_phase "$plan_file" "reset-milestone")
   local scope; scope=$(_scope_of "$current_phase" "$agent")
   cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] ${agent}"
+  cmd_clear_marker "$plan_file" "[RECURRING] ${agent}:"
   _clear_ceiling_sidecar_entry "$plan_file" "${scope}"
   _clear_transient_for "$plan_file" "$agent" 2>/dev/null || true
   local ts
@@ -947,6 +958,7 @@ cmd_gc_events() {
     /^## Open Questions$/ { in_section=1; print; next }
     in_section && /^## / { print ""; print; in_section=0; next }
     in_section && /\[AUTO-DECIDED\]/ { next }
+    in_section && /\[RECURRING\]/ { next }
     in_section && /^[[:space:]]*$/ { next }
     { print }
   '

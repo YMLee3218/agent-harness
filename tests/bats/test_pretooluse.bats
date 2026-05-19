@@ -92,7 +92,7 @@ run_hook_with_plan() {
   local markers=(
     "BLOCKED:ceiling] critic-code: implement/critic-code exceeded 20 runs — manual review required"
     "BLOCKED:spec] critic-code: ambiguous — should we use approach A or B?"
-    "BLOCKED:code] critic-code: category — FAIL_TYPE failed twice"
+    "BLOCKED:code] critic-code: parse — second consecutive PARSE_ERROR — fix critic output format"
   )
   local td plan_file m
   for m in "${markers[@]}"; do

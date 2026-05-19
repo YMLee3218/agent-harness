@@ -46,13 +46,13 @@ Full iteration protocol: §Loop convergence.
 
 ## Consecutive same-category escalation
 
-`plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, milestone-scoped — the streak resets on `reset-milestone` and is computed within the current phase+milestone boundary). If the same critic emits **two consecutive FAILs with the same category** (PARSE_ERROR verdicts between them are transparent — they do not reset the streak; `reset-milestone` writes a `[MILESTONE-BOUNDARY @ts]` sentinel that **does** reset the streak — streaks are therefore isolated per milestone), the script writes:
+`plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, milestone-scoped — the streak resets on `reset-milestone` and is computed within the current phase+milestone boundary). If the same critic emits **two consecutive FAILs with the same category** (PARSE_ERROR verdicts between them are transparent — they do not reset the streak; `reset-milestone` writes a `[MILESTONE-BOUNDARY @ts]` sentinel that **does** reset the streak — streaks are therefore isolated per milestone), the script writes a **non-halting advisory**:
 
 ```
-[BLOCKED:code] {agent}: category — {CATEGORY} failed twice — fix the root cause before retrying
+[RECURRING] {agent}: {CATEGORY} flagged 2× consecutively — next fix must resolve the root cause behind every {CATEGORY} finding, not only the latest
 ```
 
-to `## Open Questions` in the plan file, then exits 1. The skill reads the `[BLOCKED:code]` marker and stops. The loop cannot converge when the same structural problem recurs; human review is required.
+to `## Open Questions` (self-superseding — at most one `[RECURRING]` per agent). The loop continues normally; no `[BLOCKED:code]` is written and `blocked.jsonl` is not updated. The only hard stops are ceiling (`[BLOCKED:ceiling]` at run 21) and branch-8 honest-block (`[BLOCKED:spec] ambiguous`). `gc-events` removes stale `[RECURRING]` lines; `reset-milestone` clears them at milestone boundaries.
 
 ## Review execution rule (subagent mandate)
 
@@ -69,7 +69,7 @@ Normative implementations:
 
 Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. Convergence state is stored exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state`; `converged=true` requires 2 consecutive PASSes (see `@reference/markers.md §Sidecar control state`). A PARSE_ERROR between two PASSes resets the streak: `PASS → PARSE_ERROR → PASS` = streak 1. Query via `plan-file.sh is-converged <plan> <phase> <agent>` (exit 0 = converged). No plan.md marker mirrors this state.
 
-`plan-file.sh record-verdict` appends to `## Critic Verdicts` and updates sidecar convergence state for all normal verdict outcomes (PASS, FAIL, PARSE_ERROR); in exceptional cases it also writes a `[BLOCKED]` marker to `## Open Questions` (second consecutive PARSE_ERROR → `[BLOCKED:code] {agent}: parse`; consecutive same-category FAIL → `[BLOCKED:code] {agent}: {category}`; ceiling exceeded → `[BLOCKED:ceiling]`). Exception: if the subagent produced no output or known infrastructure error signatures are detected, record-verdict classifies the run as `[BLOCKED:env] {agent}: critic-skill-not-run` — it writes only to `## Open Questions` and `blocked.jsonl`; no Critic Verdicts entry is written and convergence state is not updated (the run is not counted against the ceiling). The skill reads `## Open Questions` for any BLOCKED markers and queries sidecar after each run, then branches per §Skill branching logic. For pr-review, `run-critic-loop.sh` extracts `<!-- review-verdict: {nonce} PASS|FAIL -->` from stdout and calls `append-review-verdict` on the parent side.
+`plan-file.sh record-verdict` appends to `## Critic Verdicts` and updates sidecar convergence state for all normal verdict outcomes (PASS, FAIL, PARSE_ERROR); in exceptional cases it also writes a `[BLOCKED]` marker to `## Open Questions` (second consecutive PARSE_ERROR → `[BLOCKED:code] {agent}: parse`; ceiling exceeded → `[BLOCKED:ceiling]`). Exception: if the subagent produced no output or known infrastructure error signatures are detected, record-verdict classifies the run as `[BLOCKED:env] {agent}: critic-skill-not-run` — it writes only to `## Open Questions` and `blocked.jsonl`; no Critic Verdicts entry is written and convergence state is not updated (the run is not counted against the ceiling). The skill reads `## Open Questions` for any BLOCKED markers and queries sidecar after each run, then branches per §Skill branching logic. For pr-review, `run-critic-loop.sh` extracts `<!-- review-verdict: {nonce} PASS|FAIL -->` from stdout and calls `append-review-verdict` on the parent side.
 
 **pr-review exception**: omits category/parse — apply steps 1 → 4–5 → 7 → 8 only (see `@reference/pr-review-loop.md`); use `plan-file.sh is-converged` for step 4. Integration pipeline markers (`@reference/markers.md §Integration test markers`) do not interact with this protocol.
 
@@ -90,7 +90,9 @@ Skill reads ## Open Questions and queries sidecar, checks in priority order:
                                 → re-run automatically (one retry allowed;
                                   second consecutive PARSE_ERROR triggers [BLOCKED:code] {agent}: parse)
   7. (no terminal marker, PASS) → re-run automatically
-  8. (no terminal marker, FAIL) → LLM determines fix direction:
+  8. (no terminal marker, FAIL) → if `[RECURRING] {agent}:` is in `## Open Questions`, the Codex
+       fix prompt must address all findings of that category at root-cause level, not only the latest.
+       LLM determines fix direction:
        - direction is clear → construct Codex fix prompt (critic finding, target file,
          change to apply, test command, layer rules if applicable); write to tmp file:
            codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
@@ -185,7 +187,7 @@ All `[BLOCKED:{kind}]` markers are cleared by `unblock` in a single pass — no 
 export CLAUDE_PLAN_CAPABILITY=human
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "$CLAUDE_PROJECT_DIR/plans/{slug}.md"
 ```
-Re-run the critic. If streak reset needed (parse or category block): switch to Ring B capability first, then call `reset-milestone` (Ring B — `CLAUDE_PLAN_CAPABILITY=harness` required, not `=human`; clears `[BLOCKED:ceiling]` and resets the ceiling counter only — does NOT clear other `[BLOCKED:{kind}]` markers):
+Re-run the critic. If streak reset needed (parse block): switch to Ring B capability first, then call `reset-milestone` (Ring B — `CLAUDE_PLAN_CAPABILITY=harness` required, not `=human`; clears `[BLOCKED:ceiling]` and resets the ceiling counter only — does NOT clear other `[BLOCKED:{kind}]` markers):
 ```bash
 export CLAUDE_PLAN_CAPABILITY=harness
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {agent}
