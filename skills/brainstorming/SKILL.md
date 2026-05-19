@@ -153,3 +153,4 @@ Do not move to `writing-spec` until:
 - Feature names comply with `@reference/layers.md §Naming conventions`
 - Every feature is classified as small or large (no layer assignment — writing-spec's responsibility)
 - Plan file `plans/{slug}.md` exists with Phase `brainstorm`
+- Operating Envelope declared for all candidate features in the plan file (all 6 axes have concrete values — no `{placeholder}` curly-brace syntax remaining)

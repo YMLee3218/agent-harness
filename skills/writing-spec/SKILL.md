@@ -30,24 +30,24 @@ Do not `Read` or `Glob` anything in `src/`.
 
 If `docs/*.md` appears stale or contradictory to the requirement: log `[INFO] writing-spec: docs/{file}.md may contradict the requirement — continuing; critic-spec will flag [DOCS CONTRADICTION] if the spec needs updating`. Continue writing the spec.
 
-## Step 2 — Declare Operating Envelope
+## Step 2 — Carry Operating Envelope into spec
 
-Before drafting any scenario, fill in the Operating Envelope in the plan file — it will become the **first section** of spec.md in Step 4:
+Brainstorming declares all 6 envelope axes per candidate in the plan file (brainstorming Step 2); critic-feature verifies them before writing-spec runs. Read the plan file and extract the declared axis values for this feature. Write them as the `## Operating Envelope` section in the plan file — it becomes the **first section** of spec.md in Step 4:
 
 ```markdown
 ## Operating Envelope
 
-- **Actors**: {1 user | N users | tenants}
-- **Frequency**: {one-shot | periodic 1/min | per-request | bursty}
-- **Concurrency**: {none | reader-writer | multi-writer}
-- **Persistence**: {ephemeral | best-effort | durable | zero-loss}
-- **Failure model**: {crash-stop | crash-recover | partial-failure}
-- **External I/O**: {none | file | network | distributed}
+- **Actors**: <value declared by brainstorming>
+- **Frequency**: <value declared by brainstorming>
+- **Concurrency**: <value declared by brainstorming>
+- **Persistence**: <value declared by brainstorming>
+- **Failure model**: <value declared by brainstorming>
+- **External I/O**: <value declared by brainstorming>
 ```
 
 Legal axis values and the filled-vs-placeholder definition: `@reference/operating-envelope.md`
 
-Each axis must be declared explicitly. If an axis cannot be determined from the requirement, write `[BLOCKED:spec] writing-spec: ambiguous — axis {name} cannot be determined` and add it to `## Open Questions` — do not proceed until it is resolved.
+If the envelope is absent from the plan file or any axis still has placeholder syntax (curly braces): `[BLOCKED:spec] writing-spec: envelope-incomplete — re-run /brainstorming to declare all axes first` and add to `## Open Questions` — do not proceed until resolved.
 
 Scenarios must stay within this envelope. Do not draft scenarios that require an axis value beyond what is declared above.
 
