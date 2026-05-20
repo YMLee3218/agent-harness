@@ -17,7 +17,7 @@ _phase_spec_prepass() {
     _spec_path=$(find_spec_path "$feat_slug")
     # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
     _rev_marker="${PLAN%.md}.state/spec-reviewed-${feat_slug}"
-    [[ -f "$_spec_path" ]] && git ls-files --error-unmatch "$_spec_path" 2>/dev/null && \
+    [[ -f "$_spec_path" ]] && git -C "$PROJECT_DIR" ls-files --error-unmatch "$_spec_path" 2>/dev/null && \
       [[ -f "$_rev_marker" ]] && continue
 
     if [[ ! -f "$_spec_path" ]]; then
@@ -48,7 +48,7 @@ _phase_spec_prepass() {
       [[ -z "$_csp" ]] && continue
       printf '%s\n' $_new_specs | grep -qxF "$_csp" && continue
       _other_specs="${_other_specs:+$_other_specs }${_csp}"
-    done < <(git ls-files '*/spec.md' 2>/dev/null)
+    done < <(git -C "$PROJECT_DIR" ls-files '*/spec.md' 2>/dev/null)
     _cross_ctx=""
     [[ -n "$_other_specs" ]] && \
       _cross_ctx=" Also verify consistency against existing specs: ${_other_specs}."
