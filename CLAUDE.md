@@ -17,6 +17,10 @@
 - Test: _(run `/initializing-project` to fill this in)_
 - Integration test: _(run `/initializing-project` to fill this in)_
 
+# Effort Policy
+
+Predictions are not status. When a backgrounded subprocess reports a block or failure, read its actual output before any user-facing message and surface what the output says. Never describe a run as "should succeed" or "transient" based on the exit message alone.
+
 # Operations
 
 Never append `&` to Bash commands. For long-running scripts, use the `run_in_background=true` Bash tool parameter instead — `&` orphans the process.
