@@ -379,3 +379,44 @@ EOF
   run env CLAUDE_PROJECT_DIR="$PLAN_BASE" bash "$SCRIPTS_DIR/plan-file.sh" is-blocked "$PLAN_FILE" </dev/null 2>&1
   [ "$status" -eq 0 ]
 }
+
+@test "append-note: JSONL write failure leaves plan.md unmarked (write-order reversal)" {
+  # Regression: before fix, plan.md was written first then _record_blocked was silenced with
+  # 2>/dev/null || true, causing divergence. After fix, JSONL must succeed before plan.md is touched.
+  local state_dir="$PLAN_DIR/test-feature.state"
+  # Pre-create convergence/ so sc_ensure_dir succeeds; then remove write on state_dir so
+  # sc_append_jsonl cannot create blocked.jsonl — _record_blocked fails with a proper error.
+  mkdir -p "$state_dir/convergence"
+  chmod a-w "$state_dir"
+  run env CLAUDE_PROJECT_DIR="$PLAN_BASE" bash "$SCRIPTS_DIR/plan-file.sh" \
+    append-note "$PLAN_FILE" "[BLOCKED:spec] critic-spec: ambiguous — foo" </dev/null 2>&1
+  chmod 755 "$state_dir"
+  local append_status="$status" append_output="$output"
+  # Must exit non-zero
+  [ "$append_status" -ne 0 ]
+  # plan.md must NOT contain the [BLOCKED:spec] marker
+  run grep -F '[BLOCKED:spec]' "$PLAN_FILE"
+  [ "$status" -ne 0 ]
+  # stderr must include the FATAL message
+  [[ "$append_output" == *"FATAL: blocked.jsonl write failed"* ]]
+}
+
+@test "is-blocked: plan.md-only divergence treated as blocked (hard divergence detector)" {
+  # Regression: blocked.jsonl absent but plan.md has a [BLOCKED:spec] line —
+  # is-blocked must return 0 (blocked) with DIVERGENCE in stderr.
+  # No blocked.jsonl created — state dir may not even exist.
+  printf '\n[BLOCKED:spec] critic-spec: ambiguous — foo\n' >> "$PLAN_FILE"
+
+  # No kind arg — any HUMAN_MUST_CLEAR_MARKERS match → exit 0 + DIVERGENCE
+  run env CLAUDE_PROJECT_DIR="$PLAN_BASE" bash "$SCRIPTS_DIR/plan-file.sh" is-blocked "$PLAN_FILE" </dev/null 2>&1
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"DIVERGENCE"* ]]
+
+  # kind=spec matches → exit 0
+  run env CLAUDE_PROJECT_DIR="$PLAN_BASE" bash "$SCRIPTS_DIR/plan-file.sh" is-blocked "$PLAN_FILE" spec </dev/null 2>&1
+  [ "$status" -eq 0 ]
+
+  # kind=docs does not match → exit 1
+  run env CLAUDE_PROJECT_DIR="$PLAN_BASE" bash "$SCRIPTS_DIR/plan-file.sh" is-blocked "$PLAN_FILE" docs </dev/null 2>&1
+  [ "$status" -eq 1 ]
+}

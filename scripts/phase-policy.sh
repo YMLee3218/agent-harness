@@ -143,7 +143,7 @@ marker_present_human_must_clear() {
   [[ -f "$plan_file" ]] || return 1
   for marker in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
     escaped=$(printf '%s' "$marker" | sed 's/[][\\.*^$(){}?+|]/\\&/g')
-    grep -qE "^[[:space:]]*${escaped}" "$plan_file" 2>/dev/null || continue
+    grep -qE "^${escaped}" "$plan_file" 2>/dev/null || continue
     printf '%s\n' "$marker"; return 0
   done
   return 1

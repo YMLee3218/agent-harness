@@ -261,15 +261,16 @@ cmd_append_note() {
       return 0
     fi
   fi
-  _append_to_open_questions "$plan_file" "$note"
-  if [[ -n "$_kind" ]]; then
-    if command -v jq >/dev/null 2>&1; then
-      sc_ensure_dir "$plan_file" || return 1
-      local _agent; _agent=$(printf '%s' "$note" | sed -n 's/^\[BLOCKED:[a-z]*\] \([^ :]*\).*/\1/p')
-      [[ -z "$_agent" ]] && _agent="harness"
-      _record_blocked "$plan_file" "$_kind" "$_agent" "$(basename "$plan_file" .md)" "$note" 2>/dev/null || true
+  if [[ -n "$_kind" ]] && command -v jq >/dev/null 2>&1; then
+    sc_ensure_dir "$plan_file" || return 1
+    local _agent; _agent=$(printf '%s' "$note" | sed -n 's/^\[BLOCKED:[a-z]*\] \([^ :]*\).*/\1/p')
+    [[ -z "$_agent" ]] && _agent="harness"
+    if ! _record_blocked "$plan_file" "$_kind" "$_agent" "$(basename "$plan_file" .md)" "$note"; then
+      echo "[append-note] FATAL: blocked.jsonl write failed — plan.md NOT marked" >&2
+      return 2
     fi
   fi
+  _append_to_open_questions "$plan_file" "$note"
 }
 
 cmd_record_stop_block() {
@@ -388,8 +389,11 @@ _check_consecutive_and_block() {
       return 1
     else
       # parse (and any future kinds): hard block — write [BLOCKED:code] and stop the loop.
+      if ! _record_blocked "$plan_file" "code" "$agent" "$_scope" "$msg"; then
+        echo "[record-verdict] FATAL: blocked.jsonl write failed for ${log_label} — plan.md NOT marked" >&2
+        return 2
+      fi
       _append_to_open_questions "$plan_file" "[BLOCKED:code] ${agent}: ${kind} — ${msg}"
-      _record_blocked "$plan_file" "code" "$agent" "$_scope" "$msg" 2>/dev/null || true
       echo "[record-verdict] ${log_label}" >&2
       return 0
     fi
@@ -539,9 +543,12 @@ _extract_or_handle_missing_verdict() {
         | head -1 | cut -c1-120 || echo "infrastructure signature detected")
     fi
     if [ -n "$_infra_detail" ]; then
+      if ! _record_blocked "$_plan" "env" "$_agent" "$(basename "$_plan" .md)" \
+          "critic-skill-not-run — ${_infra_detail}"; then
+        echo "[record-verdict] FATAL: blocked.jsonl write failed for [BLOCKED:env] ${_agent}: critic-skill-not-run — plan.md NOT marked" >&2
+        exit 2
+      fi
       _append_to_open_questions "$_plan" "[BLOCKED:env] ${_agent}: critic-skill-not-run — ${_infra_detail}"
-      _record_blocked "$_plan" "env" "$_agent" "$(basename "$_plan" .md)" \
-        "critic-skill-not-run — ${_infra_detail}" 2>/dev/null || true
       echo "[record-verdict] [BLOCKED:env] ${_agent}: critic-skill-not-run — ${_infra_detail}" >&2
       exit 1
     fi
@@ -686,8 +693,11 @@ cmd_record_verdict_guarded() {
   if [ -z "$_lock" ] || [ ! -f "$_lock" ]; then
     if [ "$_find_rc" -eq 0 ]; then
       sc_ensure_dir "$_plan" || { echo "ERROR: [record-verdict-guarded] sc_ensure_dir failed: $_plan" >&2; exit 2; }
-      _record_blocked "$_plan" "harness" "$_agent" "$(basename "$_plan" .md)" \
-        "protocol-violation — invoked outside run-critic-loop.sh context" 2>/dev/null || true
+      if ! _record_blocked "$_plan" "harness" "$_agent" "$(basename "$_plan" .md)" \
+          "protocol-violation — invoked outside run-critic-loop.sh context"; then
+        echo "[record-verdict-guarded] FATAL: blocked.jsonl write failed — plan.md NOT marked" >&2
+        exit 2
+      fi
       _append_to_open_questions "$_plan" \
         "[BLOCKED:harness] ${_agent}: protocol-violation — invoked outside run-critic-loop.sh context"
     fi
@@ -1032,33 +1042,63 @@ cmd_is_converged() {
   [[ "$converged" == "true" ]]
 }
 
+# _is_blocked_plan_md_count PLAN_FILE [KIND] — count active BLOCKED markers in ## Open Questions.
+# Uses HUMAN_MUST_CLEAR_MARKERS from phase-policy.sh for the no-kind case (no hardcoding).
+# Uses grep (not awk -v) for pattern matching to avoid awk's backslash-escape processing of -v values.
+_is_blocked_plan_md_count() {
+  local _pf="$1" _kind="${2:-}"
+  local _section _count=0
+  _section=$(awk '/^## Open Questions$/{in_s=1;next} in_s&&/^## /{in_s=0} in_s{print}' \
+    "$_pf" 2>/dev/null) || _section=""
+  [[ -z "$_section" ]] && { echo 0; return 0; }
+  if [[ -n "$_kind" ]]; then
+    # kind is [a-z]+ — safe to interpolate; \[ and \] are literal brackets in grep ERE
+    _count=$(printf '%s\n' "$_section" | grep -cE "^\[BLOCKED:${_kind}\] " 2>/dev/null || echo 0)
+  else
+    local _m _esc
+    for _m in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
+      _esc=$(printf '%s' "$_m" | sed 's/[][]/\\&/g')
+      printf '%s\n' "$_section" | grep -qE "^${_esc}[[:space:]]" 2>/dev/null && _count=$((_count + 1)) || true
+    done
+  fi
+  echo "$_count"
+}
+
 cmd_is_blocked() {
   local plan_file="$1" kind="${2:-}"
   require_file "$plan_file"
   local _bpath
   _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
-  if [[ ! -f "$_bpath" ]]; then
-    echo "[is-blocked] WARNING: blocked.jsonl absent — treating as not-blocked" >&2
-    return 1
-  fi
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "[is-blocked] jq required but not found — preflight should have blocked this run" >&2
-    return 2
-  fi
-  local _count
-  if [[ -n "$kind" ]]; then
-    _count=$(jq -r --arg k "$kind" 'select(.cleared_at == null and .kind == $k) | 1' \
-      "$_bpath" 2>/dev/null | awk 'END{print NR}') || {
-      echo "[is-blocked] WARNING: corrupt blocked.jsonl (kind=${kind}) — treating as not-blocked" >&2
+  local _count=0
+  if [[ -f "$_bpath" ]]; then
+    if ! command -v jq >/dev/null 2>&1; then
+      echo "[is-blocked] jq required but not found — preflight should have blocked this run" >&2
+      return 2
+    fi
+    local _jq_rc=0
+    if [[ -n "$kind" ]]; then
+      _count=$(jq -r --arg k "$kind" 'select(.cleared_at == null and .kind == $k) | 1' \
+        "$_bpath" 2>/dev/null | awk 'END{print NR}') || _jq_rc=$?
+    else
+      _count=$(jq -r 'select(.cleared_at == null and .kind != "transient") | 1' \
+        "$_bpath" 2>/dev/null | awk 'END{print NR}') || _jq_rc=$?
+    fi
+    if [[ "$_jq_rc" -ne 0 ]]; then
+      echo "[is-blocked] WARNING: corrupt blocked.jsonl${kind:+ (kind=${kind})} — treating as not-blocked" >&2
       return 1
-    }
+    fi
   else
-    _count=$(jq -r 'select(.cleared_at == null and .kind != "transient") | 1' "$_bpath" 2>/dev/null | awk 'END{print NR}') || {
-      echo "[is-blocked] WARNING: corrupt blocked.jsonl — treating as not-blocked" >&2
-      return 1
-    }
+    echo "[is-blocked] WARNING: blocked.jsonl absent — treating as not-blocked" >&2
   fi
-  [[ "$_count" -gt 0 ]]
+  [[ "$_count" -gt 0 ]] && return 0
+  # Divergence check: JSONL has 0 active records — verify plan.md agrees (hard divergence only).
+  local _plan_md_active
+  _plan_md_active=$(_is_blocked_plan_md_count "$plan_file" "$kind")
+  if [[ "$_plan_md_active" -gt 0 ]]; then
+    echo "[is-blocked] DIVERGENCE: plan.md has ${_plan_md_active} active [BLOCKED:*] line(s) but blocked.jsonl has 0 active records — treating as blocked" >&2
+    return 0
+  fi
+  return 1
 }
 
 cmd_is_implemented() {

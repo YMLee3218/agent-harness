@@ -69,7 +69,7 @@ phase_runs_stop_check "$phase" || exit 0
 
 # if integration phase and a [BLOCKED:code] integration marker is already recorded,
 # allow the stop without re-running tests to avoid infinite Stop-hook block loops.
-# Reads from sidecar blocked.jsonl exclusively (no plan.md fallback).
+# Uses is-blocked (sidecar-primary; plan.md consulted only on divergence).
 if [ "$phase" = "integration" ]; then
   if bash "$PLAN_FILE_SH" is-blocked "$active_plan" code 2>/dev/null; then
     echo "[stop-check] [BLOCKED:code] already recorded — allowing stop (sidecar self-halt)" >&2

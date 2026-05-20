@@ -160,7 +160,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked "$CLAUDE_PROJ
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" implement critic-code
 ```
 
-`is-blocked` reads `blocked.jsonl` exclusively. If `blocked.jsonl` is absent (no blocks ever written), `is-blocked` returns "not blocked". `is-converged` reads `convergence/{phase}__{agent}.json` exclusively (not `blocked.jsonl`) and returns "not converged" if the file is absent.
+`is-blocked` reads `blocked.jsonl` as its primary source. If `blocked.jsonl` is absent (no blocks ever written) or corrupt, `is-blocked` returns "not blocked". Exception (divergence safety): if `blocked.jsonl` reports 0 active records but `## Open Questions` in the plan file still contains active `[BLOCKED:*]` lines, `is-blocked` treats the state as blocked and logs a DIVERGENCE warning. `is-converged` reads `convergence/{phase}__{agent}.json` exclusively (not `blocked.jsonl`) and returns "not converged" if the file is absent.
 
 ## HTML verdict envelopes
 

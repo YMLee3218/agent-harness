@@ -80,7 +80,7 @@ _ceiling_block_body() {
     local _co _cr=0
     _co=$(jq -r --arg s "${scope}" \
       'select(.cleared_at==null and .kind=="ceiling" and .scope==$s)|1' \
-      "$_ceil_bpath" 2>/dev/null) || _cr=$?
+      "$_ceil_bpath") || _cr=$?
     [[ $_cr -eq 0 ]] && _cout=$(printf '%s' "${_co:-}" | awk 'END{print NR}')
   fi
   [[ "$_cout" -eq 0 ]] && _record_blocked "$plan_file" "ceiling" "$agent" "${scope}" \

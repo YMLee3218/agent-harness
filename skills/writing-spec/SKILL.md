@@ -62,6 +62,8 @@ Proceed directly to Step 4.
 Read `docs/requirements/*.md` and identify ALL components implied by the feature requirements.
 Classify each component by layer using `@reference/layers.md §Layers`, then write to the spec path from `@reference/layers.md §Naming conventions` (§Layer-to-spec-path mapping is canonical).
 
+Start spec.md with the `## Operating Envelope` section copied verbatim from the plan file (the values written in Step 2). It must be the first section before any scenarios.
+
 This is the only phase where domain concepts and infrastructure components are identified.
 
 Plan phase transition to `spec`: in autonomous mode the harness (`dev-cycle-phases.sh`) transitions `brainstorm`→`spec` **after** this skill completes, so the plan is still in `brainstorm` during skill execution and advances to `spec` immediately after. In interactive use, the agent cannot call `plan-file.sh transition` (Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`); after the skill completes, run this from a human terminal:

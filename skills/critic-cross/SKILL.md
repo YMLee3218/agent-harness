@@ -67,7 +67,7 @@ through the correct layer boundary (per layers.md).
 ## Angle 7 — Cross-feature Envelope consistency → category: `ENVELOPE_MISMATCH`
 
 For features that interact (handoffs, shared entities, state transitions): verify their Operating Envelopes are compatible.
-- Feature A declares single-tenant, Feature B (which it calls) declares multi-tenant → [FAIL] ENVELOPE_MISMATCH
+- Feature A declares Actors=`N users`, Feature B (which it calls) declares Actors=`tenants` → [FAIL] ENVELOPE_MISMATCH
 - Feature A declares Concurrency=none, Feature B (concurrent consumer) declares multi-writer → [FAIL] ENVELOPE_MISMATCH
 Quote both features' Operating Envelope sections.
 

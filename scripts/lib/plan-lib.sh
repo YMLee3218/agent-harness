@@ -130,7 +130,12 @@ _awk_replace_phase_body() {
 # Appends to blocked.jsonl (kind=harness) AND open questions simultaneously.
 _record_blocked_runtime() {
   local _plan="$1" _agent="$2" _scope="$3" _msg="$4"
-  _record_blocked "$_plan" "harness" "$_agent" "$_scope" "$_msg" 2>/dev/null || true
+  local _rc=0
+  _record_blocked "$_plan" "harness" "$_agent" "$_scope" "$_msg" || _rc=$?
+  if [[ "$_rc" -ne 0 ]]; then
+    echo "[record-blocked-runtime] FATAL: blocked.jsonl write failed — plan.md NOT marked" >&2
+    return "$_rc"
+  fi
   _append_to_open_questions "$_plan" "[BLOCKED:harness] ${_agent}: runtime — ${_msg}"
 }
 
