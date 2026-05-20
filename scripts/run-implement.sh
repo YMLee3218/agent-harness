@@ -31,6 +31,14 @@ while IFS=$'\t' read -r id layer _; do
   bash "$PF" add-task "$PLAN" "$id" "$layer" 2>/dev/null || true
 done < <(printf '%s' "$TASK_JSON" | jq -r '.[] | [.id, .layer, "x"] | @tsv')
 
+while IFS=$'\t' read -r _id _lyr; do
+  case "$_lyr" in
+    domain|infrastructure|features) ;;
+    *) bash "$PF" append-note "$PLAN" "[BLOCKED:env] implement: invalid-layer — task ${_id} has unknown layer '${_lyr}'; valid values: domain|infrastructure|features; fix task definitions and re-run"
+       exit 1 ;;
+  esac
+done < <(printf '%s' "$TASK_JSON" | jq -r '.[] | [.id, .layer] | @tsv')
+
 if [[ "$(bash "$PF" get-phase "$PLAN")" != "implement" ]]; then
   bash "$PF" transition "$PLAN" implement "task list registered — advancing to implement"
   bash "$PF" commit-phase "$PLAN" "chore(phase): advance to implement — task list registered"

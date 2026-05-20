@@ -52,7 +52,7 @@ _bash_dest_paths() {
 }
 
 # ── 1. block_destructive ──────────────────────────────────────────────────────
-# Combines: rm, truncate/clobber, disk, git-clean, git-amend, cp-clobber, find-exec-rm
+# Combines: rm (-rf/-fr and separated -r -f), find-delete, disk (dd/mkfs), find-exec-rm
 block_destructive() {
   local cmd="$1" _rm_frag
   # rm -rf/-fr variants (merged regex)
@@ -230,8 +230,9 @@ block_capability() {
 }
 
 # ── 5. block_plan_revert ─────────────────────────────────────────────────────
-# Blocks git revert/stash/reset operations targeting plan files when a
-# HUMAN_MUST_CLEAR_MARKERS entry is active (marker-conditional).
+# Blocks git operations targeting plans/*.md (checkout/restore/apply/am/revert/cherry-pick/switch)
+# and git reset --soft/--mixed (any target) when a HUMAN_MUST_CLEAR_MARKERS entry is active.
+# Note: git stash is blocked globally by settings.json, not here.
 block_plan_revert() {
   local cmd="$1"
   [[ -z "${PLAN_FILE_SH:-}" ]] && return 0

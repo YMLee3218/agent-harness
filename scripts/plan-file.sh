@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dispatcher — exit codes: 0=success 1=error 2=not-found/blocked 3=ambiguous(find-active) 4=malformed(find-active)
+# Dispatcher — exit codes: 0=success 1=error 2=not-found/blocked 3=ambiguous(find-active) 4=malformed(find-active); query commands (is-blocked, is-converged): 0=true 1=false 2=jq-missing|plan-not-found
 # Marker side-effects: reference/markers.md §Stop marker taxonomy
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

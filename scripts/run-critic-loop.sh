@@ -164,7 +164,15 @@ or
     _rv=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "$_session_out" | tail -1 | \
           sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
     if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
-      bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv"
+      _arv_rc=0
+      bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv" || _arv_rc=$?
+      if [[ $_arv_rc -ne 0 ]]; then
+        if [[ -f "$_conv_path" ]] && jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
+          echo "[BLOCKED:ceiling] pr-review: exceeded critic ceiling — manual review required" >&2
+          exit 2
+        fi
+        exit 1
+      fi
     else
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
         "[BLOCKED:env] pr-review: no-verdict-marker — nonce-anchored marker absent from session output; check last-critic-pr-review.log" 2>/dev/null || true
