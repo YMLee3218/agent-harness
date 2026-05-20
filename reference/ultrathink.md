@@ -12,19 +12,20 @@ Every verdict returned by a review subagent **must pass a parent-context ultrath
 3. **Fix direction** — on FAIL, does the proposed fix target the root cause or is it a workaround?
 4. **False positive/negative risk** — is a PASS genuinely comprehensive, or is it a conventional rubber-stamp?
 5. **Category accuracy** — does `<!-- category: X -->` reflect the true highest-severity finding per `@reference/severity.md §Category priority`?
+6. **Per-finding decidability** — classify each blocking FAIL finding as one of: GENUINE (correct, fix direction determinable from audit evidence), FALSE-POSITIVE (citation absent or [MISSING] keyword present per item 1), AMBIGUOUS (plausibly correct but fix direction requires evidence outside the spec under review).
 
 ### Audit prompt
 
-Include `ultrathink` in the audit prompt and check the five items in §Audit checklist against the spec and source paths.
+Include `ultrathink` in the audit prompt and check all items in §Audit checklist against the spec and source paths.
 
 ### Audit outcomes
 
 | Outcome | Condition | Action |
 |---------|-----------|--------|
-| **ACCEPT** | Verdict is sound | Adopt verdict as-is; proceed to `@reference/critics.md §Skill branching logic` |
+| **ACCEPT** | All findings GENUINE, or GENUINE + FALSE-POSITIVE mix with no AMBIGUOUS (item 6) | Adopt verdict; fix only GENUINE findings (FALSE-POSITIVE findings excluded from fix scope); proceed to `@reference/critics.md §Skill branching logic` |
 | **REJECT-PASS** | Subagent returned PASS but audit found a substantive gap | Call `clear-converged` (resets sidecar streak regardless of plan.md state), then record audit and enter FAIL path. **Ultrathink may demote PASS→FAIL but must never promote FAIL→PASS — except via ACCEPT-OVERRIDE when Read-tool verification confirms all cited excerpts are absent from their files (see §Audit outcomes).** |
-| **BLOCKED-AMBIGUOUS** | Audit result is inconclusive | Append `[BLOCKED:spec] {agent}: ambiguous — ultrathink audit inconclusive: {question}` to `## Open Questions` and stop |
-| **ACCEPT-OVERRIDE** | Verdict is FAIL but every blocking finding is demonstrably false: either (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If some findings are false and others are genuine, use BLOCKED-AMBIGUOUS instead. | Exit without applying fixes (branching decision only — no sidecar state change for phase-gate critics; pr-review: additionally emit nonce marker to override recorded verdict); append-audit with "ACCEPT-OVERRIDE" and list each absent citation. **Only when all blocking finding citations are absent — if some are absent but not all, use BLOCKED-AMBIGUOUS instead.** |
+| **BLOCKED-AMBIGUOUS** | AMBIGUOUS ≥ 1 (per item 6) | Emit one `[BLOCKED:spec] {agent}: ambiguous — {finding-excerpt}: {audit-question}` marker per AMBIGUOUS finding. If GENUINE findings are also present, apply Codex fix for GENUINE findings only, then stop. |
+| **ACCEPT-OVERRIDE** | Verdict is FAIL and ALL blocking findings are demonstrably false: every finding satisfies either (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. | Exit without applying fixes (branching decision only — no sidecar state change for phase-gate critics; pr-review: additionally emit nonce marker to override recorded verdict); append-audit with "ACCEPT-OVERRIDE" and list each absent citation. |
 
 ### Applying the audit outcome
 
@@ -44,12 +45,21 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit "$CLAUDE_PR
 ```
 Enter the FAIL path. (`clear-converged` writes a `REJECT-PASS` streak-reset entry to `## Critic Verdicts` and resets the sidecar — excluded from ceiling counts.)
 
-**BLOCKED-AMBIGUOUS**: record, then stop.
+**BLOCKED-AMBIGUOUS**: emit per-finding markers, apply GENUINE fixes if any, then stop.
+
+1. Record audit with GENUINE and AMBIGUOUS finding IDs (use "Finding N" labels from the audit body):
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
-  "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "BLOCKED-AMBIGUOUS" "{one-line summary}"
+  "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "BLOCKED-AMBIGUOUS" \
+  "{one-line summary} | GENUINE: [Finding N, ...] | AMBIGUOUS: [Finding M, ...]"
 ```
-Append `[BLOCKED:spec] {agent}: ambiguous — ultrathink audit inconclusive: {question}` to `## Open Questions` and stop.
+2. For each AMBIGUOUS finding, check whether the exact marker text already exists in `## Open Questions`; if not, append:
+   `[BLOCKED:spec] {agent}: ambiguous — {finding-excerpt}: {audit-question}`
+3. If GENUINE findings exist, build a Codex fix prompt scoped to **only** those findings (exclude AMBIGUOUS findings from fix scope) and apply before stopping:
+```bash
+codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
+```
+4. Stop — do not re-run the critic. The `[BLOCKED:spec]` markers halt the loop at `@reference/critics.md §Skill branching logic` step 2.
 
 **ACCEPT-OVERRIDE**: record, then exit without applying any fix.
 ```bash
@@ -57,6 +67,6 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
   "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "ACCEPT-OVERRIDE" \
   "all {N} citations absent from files — verdict promoted to PASS"
 ```
-Exit this session immediately — do **not** apply step 8 (FAIL-path) fixes. For **pr-review only**: also emit `<!-- review-verdict: {nonce} PASS -->` per `@reference/pr-review-loop.md §PR-review one-shot iteration` step 3 immediately after the `append-audit` call; `run-critic-loop.sh` captures the last nonce-anchored marker, overriding the recorded FAIL. For **phase-gate critics** (`critic-code`, `critic-spec`, `critic-test`, `critic-cross`, `critic-feature`): there is no nonce mechanism — the sidecar retains the original FAIL verdict; the shell loop re-runs and should produce PASS (citations were absent). Do not look at `## Critic Verdicts` to determine the branch after ACCEPT-OVERRIDE — the explicit instruction to exit (without fix) overrides the mechanical §Skill branching logic step 8. ACCEPT-OVERRIDE is only valid when the Citation Summary is present and every blocking finding is demonstrably false per the §Audit outcomes conditions: (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If any finding cannot satisfy (a) or (b), fall back to BLOCKED-AMBIGUOUS.
+Exit this session immediately — do **not** apply step 8 (FAIL-path) fixes. For **pr-review only**: also emit `<!-- review-verdict: {nonce} PASS -->` per `@reference/pr-review-loop.md §PR-review one-shot iteration` step 3 immediately after the `append-audit` call; `run-critic-loop.sh` captures the last nonce-anchored marker, overriding the recorded FAIL. For **phase-gate critics** (`critic-code`, `critic-spec`, `critic-test`, `critic-cross`, `critic-feature`): there is no nonce mechanism — the sidecar retains the original FAIL verdict; the shell loop re-runs and should produce PASS (citations were absent). Do not look at `## Critic Verdicts` to determine the branch after ACCEPT-OVERRIDE — the explicit instruction to exit (without fix) overrides the mechanical §Skill branching logic step 8. ACCEPT-OVERRIDE is only valid when the Citation Summary is present and every blocking finding satisfies (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If any finding is GENUINE, use ACCEPT. If any finding is AMBIGUOUS, use BLOCKED-AMBIGUOUS.
 
 **Non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): BLOCKED-AMBIGUOUS still stops. REJECT-PASS automatically enters the FAIL path. ACCEPT-OVERRIDE proceeds automatically (all citations absent — no ambiguity).

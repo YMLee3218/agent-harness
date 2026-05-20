@@ -253,6 +253,14 @@ cmd_append_note() {
         ;;
     esac
   fi
+  # Idempotency: skip if exact same [BLOCKED:*] marker already present in ## Open Questions.
+  if [[ -n "$_kind" ]]; then
+    if awk -v note="$note" '/^## Open Questions$/{s=1;next} s&&/^## /{s=0} s&&$0==note{found=1;exit} END{exit !found}' \
+        "$plan_file" 2>/dev/null; then
+      echo "[cmd_append_note] INFO: duplicate [BLOCKED:${_kind}] marker suppressed" >&2
+      return 0
+    fi
+  fi
   _append_to_open_questions "$plan_file" "$note"
   if [[ -n "$_kind" ]]; then
     if command -v jq >/dev/null 2>&1; then
