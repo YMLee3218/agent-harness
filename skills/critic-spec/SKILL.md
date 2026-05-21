@@ -91,6 +91,24 @@ Read the "## Operating Envelope" section from {spec_path}. Apply before any MISS
 
 Before reporting any [MISSING] scenario, verify the scenario is within the declared envelope. If the scenario would only occur outside the envelope, do NOT report it as [MISSING] — drop it silently.
 
+## Label discipline (read before writing any finding)
+
+The bracket prefix on each finding line **must** be one of the six severity labels from `severity.md §Severity levels`:
+`[CRITICAL]` · `[MISSING]` · `[MANIFEST-GAP]` · `[FAIL]` · `[DOCS CONTRADICTION]` · `[UNVERIFIED CLAIM]`
+
+Category enum names (`MISSING_SCENARIO`, `ENVELOPE_MISMATCH`, `ENVELOPE_OVERREACH`, `STRUCTURAL`, `LAYER_VIOLATION`, …) belong **only** inside `<!-- category: X -->`. They must never appear as the bracket label on a finding line.
+
+```
+WRONG: [MISSING_SCENARIO] no retry scenario covered
+WRONG: [ENVELOPE_MISMATCH] Operating Envelope section missing
+WRONG: [STRUCTURAL] BDD format broken
+RIGHT: [MISSING] no retry scenario covered
+RIGHT: [FAIL] envelope mismatch: Operating Envelope section missing
+RIGHT: [FAIL] BDD format broken
+```
+
+The parser that processes your output uses `grep -qF` to verify that at least one severity label appears in the body. A FAIL whose body contains only category enum tokens in brackets — rather than severity labels — is recorded as PARSE_ERROR.
+
 ## Output format
 
 \`\`\`
@@ -117,9 +135,9 @@ None: "No unverified claims"
 None: "No cross-spec conflicts"
 
 ### Angle 5 — Envelope Discipline
-[FAIL] ENVELOPE_MISMATCH: {what is wrong}
+[FAIL] envelope mismatch: {what is wrong}
   File: {spec_path}:{line}
-[FAIL] ENVELOPE_OVERREACH: {scenario}: requires {axis}={value}, envelope declares {declared_value}
+[FAIL] envelope overreach: {scenario}: requires {axis}={value}, envelope declares {declared_value}
   File: {spec_path}:{line}
 None: "Operating Envelope present and scenarios within bounds"
 
@@ -159,7 +177,7 @@ FAIL — {comma-separated blocking finding labels}
 
 Copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired. Do not use `CONSISTENCY`, `COMPLETENESS`, `CORRECTNESS`, or `CONTRACT` — these are not enum members and produce PARSE_ERROR. On PASS, X must be NONE. Your output is parsed by regex — text outside the HTML comment markers is ignored by the parser.
 
-A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope scenarios. Do not FAIL for scenarios outside the declared envelope.
+A FAIL without a category marker is recorded as PARSE_ERROR. A FAIL whose body uses category enum tokens (`[MISSING_SCENARIO]`, `[ENVELOPE_MISMATCH]`, `[ENVELOPE_OVERREACH]`, `[STRUCTURAL]`, `[LAYER_VIOLATION]`, …) as bracket labels instead of severity labels (`[MISSING]`, `[FAIL]`, …) is also recorded as PARSE_ERROR — the parser searches for severity labels in the body, not category enum names. When evidence is ambiguous, FAIL — but only for in-envelope scenarios. Do not FAIL for scenarios outside the declared envelope.
 CODEX_PROMPT
 codex exec --full-auto - < "$_critic_spec_prompt" > "$_critic_spec_log" 2>&1
 _codex_exit=$?
