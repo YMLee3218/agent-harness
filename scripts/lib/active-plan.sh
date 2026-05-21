@@ -164,12 +164,15 @@ resolve_with_latest_fallback() { _resolve_plan_core "$1" "$2" 1; }
 
 # bootstrap_block_if_strict <path>
 # When PHASE_GATE_STRICT=1 and no active plan exists, blocks writes to src/test paths.
-# Returns 0 (allowed) when STRICT is unset/0, or when path is neither source nor test.
+# Returns 0 (allowed) when STRICT is unset/0, when path is neither source nor test,
+# or when CLAUDE_PLAN_CAPABILITY=human (human override — e.g. /initializing-project Step 3
+# writes layer CLAUDE.md files to src/ before the plan file is created in Step 4).
 # Returns 2 (blocked) and prints a BLOCKED message when the path is src/test.
 # Callers in phase-gate.sh and pretooluse-bash.sh use this to eliminate duplicated bootstrap logic.
 bootstrap_block_if_strict() {
   local path="$1"
   [ "${PHASE_GATE_STRICT:-1}" = "1" ] || return 0
+  [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && return 0
   [ -n "$path" ] || return 0
   # Source phase-policy.sh if functions are not yet available (standalone invocation guard).
   if ! declare -f is_source_path >/dev/null 2>&1; then

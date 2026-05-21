@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared setup for all bats tests — sourced via `load setup` in each .bats file.
+# Shared setup for bats tests that use shared plan-dir fixtures — source via `load setup`.
 
 # Create a temporary plan dir with sidecar and minimal plan file.
 # PLAN_DIR points to the plans/ subdirectory so sc_dir's */plans/*.md check passes.

@@ -12,8 +12,8 @@
 #   codex                   — run-implement.sh delegates implementation via codex exec --full-auto
 #   codex-auth              — Codex requires OPENAI_API_KEY or ~/.codex/auth.json
 # Required files:
-#   .claude/local.md        — language, runtime, test/lint/integration-test commands
-#   CLAUDE.md (project)     — created by initializing-project; absence triggers re-init
+#   .claude/local.md        — language, runtime (test/lint/integration-test commands live in project CLAUDE.md, written by initializing-project)
+#   CLAUDE.md (project)     — test/lint/integration-test commands; created by initializing-project; absence triggers re-init
 #
 # Exit 2 = block the session (missing prerequisites)
 # Exit 0 = allow
@@ -83,7 +83,7 @@ fi
 
 # Check: .claude/local.md
 if [ -z "${CLAUDE_PROJECT_DIR:-}" ] || [ ! -f "${CLAUDE_PROJECT_DIR}/.claude/local.md" ]; then
-  _append_blocked "local.md" "create .claude/local.md with language, test command, and lint command"
+  _append_blocked "local.md" "create .claude/local.md with the project language and runtime (see examples/local.md); test/lint/integration-test commands go in project CLAUDE.md, written by /initializing-project"
 fi
 
 # Check: project CLAUDE.md
