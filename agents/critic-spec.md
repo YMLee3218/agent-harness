@@ -26,7 +26,7 @@ If Codex's tail does not contain a `<!-- verdict: -->` marker:
 <!-- category: STRUCTURAL -->
 ```
 
-If Codex's tail contains a `<!-- category: X -->` where X is not one of the eight valid enum values (`LAYER_VIOLATION`, `DOCS_CONTRADICTION`, `UNVERIFIED_CLAIM`, `MISSING_SCENARIO`, `STRUCTURAL`, `CROSS_FEATURE_CONTRADICTION`, `ENVELOPE_MISMATCH`, `ENVELOPE_OVERREACH`):
+If Codex's tail contains a `<!-- category: X -->` where X is not one of the eleven valid enum values (`LAYER_VIOLATION`, `DOCS_CONTRADICTION`, `UNVERIFIED_CLAIM`, `MISSING_SCENARIO`, `STRUCTURAL`, `CROSS_FEATURE_CONTRADICTION`, `ENVELOPE_MISMATCH`, `ENVELOPE_OVERREACH`, `SPEC_COMPLIANCE`, `TEST_INTEGRITY`, `TEST_QUALITY`):
 - Output the tail verbatim up to (but not including) the invalid `<!-- category: X -->` line.
 - Append: `Codex emitted non-enum category [X]; mapping to nearest enum [Y].`
 - Emit the corrected marker as the last line using this mapping: COMPLETENESS → MISSING_SCENARIO, CONSISTENCY → DOCS_CONTRADICTION, CORRECTNESS → STRUCTURAL, CONTRACT → STRUCTURAL.
