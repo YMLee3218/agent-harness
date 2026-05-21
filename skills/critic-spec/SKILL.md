@@ -15,6 +15,8 @@ BDD templates: @reference/bdd-templates.md
 
 You orchestrate Codex to perform the review. Build the prompt, run `codex exec`, echo the tail. Do not read sources yourself.
 
+IMPORTANT: Use only the bash heredoc + `codex exec --full-auto -` pattern shown below. Do NOT use `codex-companion review`, `/codex:review`, or `codex review` — these forms reject custom focus text since the 2026-05 plugin update.
+
 ## Build and run the Codex prompt
 
 Substitute placeholders from the prompt you received (`{spec_path}`, `{docs_paths}`, `{plan_path}`).
@@ -148,6 +150,7 @@ None: "Operating Envelope present and scenarios within bounds"
 
 ## Category mapping
 
+- Completeness gaps (when "completeness" is the natural fit) → MISSING_SCENARIO
 - Domain/infra purity, feature classification (Angle 2 §6, §6b, §7) → LAYER_VIOLATION
 - Docs contradiction                                                  → DOCS_CONTRADICTION
 - Unverified claim (Angle 3)                                          → UNVERIFIED_CLAIM
@@ -158,6 +161,8 @@ None: "Operating Envelope present and scenarios within bounds"
 - Scenario exceeds declared envelope (Angle 5 §13)                   → ENVELOPE_OVERREACH
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
+
+**Self-validation**: before emitting verdict, confirm `<!-- category: X -->` is one of the eight enum values below. Map: completeness→MISSING_SCENARIO, consistency→DOCS_CONTRADICTION, correctness/contract→STRUCTURAL.
 
 ## Verdict format (strict — parsed by SubagentStop hook)
 
@@ -174,6 +179,7 @@ FAIL:
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
+# FORBIDDEN (will be recorded as PARSE_ERROR): COMPLETENESS, CONSISTENCY, CORRECTNESS, CONTRACT
 
 Copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired. Do not use `CONSISTENCY`, `COMPLETENESS`, `CORRECTNESS`, or `CONTRACT` — these are not enum members and produce PARSE_ERROR. On PASS, X must be NONE. Your output is parsed by regex — text outside the HTML comment markers is ignored by the parser.
 
