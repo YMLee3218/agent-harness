@@ -62,8 +62,29 @@ if [ -f "$PLAN_FILE_SH" ]; then
       # Sentinel: actual write destination contained an unexpanded variable.
       # block_sidecar_writes already guarded sidecar/plan paths via raw-command checks.
       # Apply raw-command fallbacks here for Ring C and source/test phase protection.
-      _raw_dest_tokens=$(printf '%s' "$cmd" \
-        | grep -oE '>{1,2} *[^[:space:];|&)(<>]+' | sed 's/^>* *//' | tr -d '"'"'")
+      _raw_dest_tokens=$(
+        # Shell redirects
+        printf '%s' "$cmd" | grep -oE '>{1,2} *[^[:space:];|&)(<>]+' | sed 's/^>* *//' | tr -d '"'"'"
+        # tee destinations
+        printf '%s' "$cmd" | grep -oE '\btee( +[^[:space:]]+)+' | sed 's/^tee *//' | tr ' ' '\n' | grep -v '^-' | tr -d '"'"'" || true
+        # sed -i destinations
+        printf '%s' "$cmd" | grep -oE '\bsed +-i[^ ]*( +[^[:space:];|&]+)+' | awk '{print $NF}' | tr -d '"'"'" || true
+        # dd of= destinations
+        printf '%s' "$cmd" | grep -oE '\bdd\b[^|]*\bof=[^[:space:]]+' | grep -oE '\bof=[^[:space:]]+' | sed 's/^of=//' | tr -d '"'"'" || true
+        # awk -i inplace destinations
+        printf '%s' "$cmd" | grep -oE 'awk[[:space:]]+-i[[:space:]]*(in-?place)?[^|;&]*' | awk '{print $NF}' | tr -d '"'"'" || true
+        # cp/mv destinations
+        printf '%s' "$cmd" | grep -oE '(^|[;|&[:space:]])(cp|mv)([[:space:]]+(-[[:alpha:]]+|--[a-zA-Z-]+=?[^[:space:];|&]*|[^[:space:];|&]+))+' | while IFS= read -r _cpmv; do
+          [[ -n "$_cpmv" ]] || continue
+          _t2=$(printf '%s' "$_cpmv" | grep -oE '(-t[[:space:]]+|--target-directory[[:space:]]+|--target-directory=)[^[:space:];|&]+' \
+            | sed 's/^-t[[:space:]]*//' | sed 's/^--target-directory[[:space:]][[:space:]]*//' | sed 's/^--target-directory=//' | tail -1 | tr -d '"'"'" 2>/dev/null || true)
+          if [[ -n "$_t2" ]]; then
+            printf '%s\n' "$_t2"
+          else
+            printf '%s' "$_cpmv" | tr ' ' '\n' | grep -vE '^-' | tail -1 | tr -d '"'"'" 2>/dev/null || true
+          fi
+        done || true
+      )
       if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
         if printf '%s' "$_raw_dest_tokens" \
              | grep -qE "/${_RING_C_INNER}"; then
@@ -72,21 +93,23 @@ if [ -f "$PLAN_FILE_SH" ]; then
       fi
       if [ -n "$_current_phase" ]; then
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -qE '/(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/)'; then
+             | grep -qE '/(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/|packages/[^/]+/src/)'; then
           apply_phase_block "src/domain/__guard__" "$_current_phase" "phase-gate/bash" || exit 2
         fi
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -qE '(/tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)'; then
+             | grep -E '(/tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)' \
+             | grep -qv '\.spec\.md$'; then
           apply_phase_block "tests/__guard__" "$_current_phase" "phase-gate/bash" || exit 2
         fi
       else
         # No active plan — apply strict-mode guard via raw patterns for unexpanded destinations.
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -qE '/(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/)'; then
+             | grep -qE '/(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/|packages/[^/]+/src/)'; then
           bootstrap_block_if_strict "src/domain/__guard__" || exit 2
         fi
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -qE '(/tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)'; then
+             | grep -E '(/tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)' \
+             | grep -qv '\.spec\.md$'; then
           bootstrap_block_if_strict "tests/__guard__" || exit 2
         fi
       fi

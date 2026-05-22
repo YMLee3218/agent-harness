@@ -22,7 +22,15 @@ One-paragraph description of what this project does and who it serves.
 
 # Shell commands
 
-- Test: `<command>`  _(invoked as `{cmd} {file}` during implementation — must accept a file path as a positional arg, e.g. `pytest`, `jest`, `go test`)_
+<!--
+NOTE: The harness scripts (`run-dev-cycle.sh`, `run-integration.sh`, `stop-check.sh`) read
+Test, Lint, and Integration-test commands from the project-root `CLAUDE.md` `# Commands`
+section — not from this file. Run `/initializing-project` to fill those in automatically,
+or edit project CLAUDE.md directly. These fields below are for project documentation only
+and are not read by any harness script at runtime.
+-->
+
+- Test: `<command>`
 - Lint: `<command>`
 - Build: `<command>`
 - Integration test: `<command>`

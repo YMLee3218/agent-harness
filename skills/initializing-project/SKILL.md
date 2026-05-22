@@ -20,9 +20,9 @@ If docs/ is absent:
 - Interactive: `AskUserQuestion` for core business concepts, actions, tech stack, and commands.
 - Non-interactive: `[BLOCKED:spec] initializing-project: no-docs — create at least one docs/{concept}.md and populate .claude/local.md before re-running`
 
-If docs/ is present but `.claude/local.md` is absent or missing commands:
+If docs/ is present but `.claude/local.md` is absent or missing language info:
 - Interactive: `AskUserQuestion` — "What are the tech stack, test command, and lint command?"
-- Non-interactive: `[BLOCKED:env] initializing-project: missing-local-md — fill in language, test command, and lint command`
+- Non-interactive: `[BLOCKED:env] initializing-project: missing-local-md — create .claude/local.md with language and runtime info (from examples/local.md); test/lint commands belong in project CLAUDE.md # Commands section (edit directly or re-run /initializing-project interactively)`
 
 ## Step 2 — Propose structure
 

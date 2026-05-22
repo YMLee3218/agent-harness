@@ -58,12 +58,13 @@ FAIL — [CRITICAL] test file modified after Red phase: {file}
 
 Stop. Do not run other checks.
 
-If no test(red): commit exists, take the oldest commit touching the file as the inferred Red baseline:
+If no test(red): commit exists, first guard against pre-existing files (cross-feature false positives):
 \`\`\`bash
+_plan_t=\$(git log --format='%ct' -- {plan_path} 2>/dev/null | tail -1); _file_t=\$(git log --format='%ct' HEAD -- {test_files} 2>/dev/null | tail -1)
 red_sha=\$(git log --format='%H' HEAD -- {test_files} | tail -1)
 git log --oneline \${red_sha}..HEAD -- {test_files}
 \`\`\`
-If \`red_sha\` is empty (no commits exist for the file), emit \`[SKIP] test file integrity: no commit history found for {file}\` and continue. If the second command returns commits, the test file was modified after the inferred Red commit — emit the same `[CRITICAL] test file modified after Red phase` FAIL verdict above. If git is unavailable, emit \`[SKIP] test file integrity: git unavailable\` and continue.
+If \`_plan_t\` and \`_file_t\` are both non-empty and \`_file_t\` < \`_plan_t\`, the file predates the current plan — emit \`[SKIP] test file integrity: pre-existing file, Red baseline unreliable for {file}\` and continue. If \`red_sha\` is empty, emit \`[SKIP] test file integrity: no commit history for {file}\` and continue. If the last command returns commits, the file was modified after the inferred Red commit — emit the same \`[CRITICAL] test file modified after Red phase\` FAIL verdict above. If git is unavailable, emit \`[SKIP] test file integrity: git unavailable\` and continue.
 
 ## Envelope Discipline (evaluate before all other checks) → category: `ENVELOPE_MISMATCH` / `ENVELOPE_OVERREACH`
 

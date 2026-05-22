@@ -22,7 +22,7 @@ paths:
 Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected phases: `brainstorm`, `spec`.
 On unexpected phase: apply **## Phase rollback** at the bottom of this skill (except phase `done`: `[BLOCKED:env] writing-spec: unexpected-phase — entered from done; run /brainstorming to start a new feature`).
 
-Read only:
+Content sources:
 1. `docs/requirements/*.md` — brainstorming output
 2. `docs/*.md` — domain knowledge
 
