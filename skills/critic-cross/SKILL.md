@@ -70,6 +70,12 @@ For features that interact (handoffs, shared entities, state transitions): verif
 - Feature A declares Actors=`N users`, Feature B (which it calls) declares Actors=`tenants` → [FAIL] ENVELOPE_MISMATCH
 - Feature A declares Concurrency=none, Feature B (concurrent consumer) declares multi-writer → [FAIL] ENVELOPE_MISMATCH
 Quote both features' Operating Envelope sections.
+For each axis, apply the rule in `${CLAUDE_PROJECT_DIR}/.claude/reference/operating-envelope.md §Envelope axis compatibility`:
+- First identify caller-callee direction from spec text (handoff, composition, state-transition). If no clear direction (bidirectional handoff via shared store): apply the bidirectional variant per axis.
+- Frequency, Concurrency, Persistence, Failure model: `callee.value ≥ caller.value` per the per-axis partial order. Violation → ENVELOPE_MISMATCH.
+- Actors: consult the (caller, callee) lookup table; CONTEXT outcomes require examining whether the tenant/user boundary is preserved in the spec text.
+- External I/O: parse as set; apply direction-aware subset (`callee.surfaces ⊆ caller.surfaces`).
+- Bidirectional handoff: use the symmetric variant per axis (equality for partial-order axes and Actors; non-empty intersection for External I/O).
 
 Before reporting any [FAIL] for cross-feature issues (Angles 1–4), verify the interaction scenario is within the declared envelope of both features. Drop findings that only occur outside either feature's envelope.
 

@@ -70,10 +70,10 @@ Legal axes and values: `@reference/operating-envelope.md §Axis table`
 |------|-------|
 | Actors | {1 user \| N users \| tenants \| concurrent instances} |
 | Frequency | {one-shot \| periodic 1/min \| per-request \| bursty} |
-| Concurrency | {none \| reader-writer \| multi-writer} |
+| Concurrency | {none \| reader-writer \| multi-writer \| exclusive-writer} |
 | Persistence | {ephemeral \| best-effort \| durable \| zero-loss} |
 | Failure model | {crash-stop \| crash-recover \| partial-failure} |
-| External I/O | {none \| file \| network \| distributed} |
+| External I/O | {none \| file \| network \| distributed} (compound: comma-separated when feature touches multiple surfaces, e.g. `network, file`) |
 
 **Enum verbatim rule**: use each axis value **exactly as written** in `operating-envelope.md §Axis table` — no paraphrasing, no sub-variants (e.g. `full multi-writer` is not `multi-writer`; `reader/writer` is not `reader-writer`; `disk` is not `file`). If a synonym maps to an existing enum value, write the enum value, not the synonym.
 
