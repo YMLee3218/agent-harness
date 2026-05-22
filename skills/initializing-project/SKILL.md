@@ -85,7 +85,7 @@ Feature: {concept name}
 
 If docs/ already contains relevant files for this concept, read and preserve them. If no relevant docs/{concept}.md exists yet and the user provided no domain documentation:
 - **Interactive**: use `AskUserQuestion` — "What are the core rules and constraints for {concept}? I'll use this to create docs/{concept}.md."
-- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): leave the Definition / Rules / Vocabulary sections with `TODO` placeholders; append `[INFO] docs/{concept}.md has placeholder content — fill in domain rules before writing-spec runs` to `## Open Questions`.
+- **Non-interactive** (`CLAUDE_NONINTERACTIVE=1`): leave the Definition / Rules / Vocabulary sections with `TODO` placeholders; append `[INFO] docs/{concept}.md has placeholder content — fill in domain rules before writing-spec runs` to `## Open Questions` (if no active plan exists yet, defer this note to Step 4 — append after `plan-file.sh init` creates the plan file).
 
 **Ring C prerequisite**: editing the project-root `CLAUDE.md` requires `CLAUDE_PLAN_CAPABILITY=human` (it is a Ring C file per `capability.sh`). If Claude reports a Ring C block on this step, stop and tell the user: "Set `export CLAUDE_PLAN_CAPABILITY=human` in the terminal that launched Claude Code, then re-run `/initializing-project`."
 Edit `CLAUDE.md` at project root — do **not** replace the file; patch specific sections

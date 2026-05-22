@@ -24,7 +24,7 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 
 Phase entry:
 - Phase `brainstorm`: proceed normally (re-entry after `/compact` or session interruption).
-- Phase `done`: proceed normally (new feature after previous feature is complete).
+- Phase `done`: proceed normally (new feature after previous feature is complete). If `CLAUDE_PLAN_FILE` is set to the completed (done) plan, ignore it — treat `CLAUDE_PLAN_FILE` as unset and derive a fresh slug from the new feature name. Do not reuse the done plan file for the new feature.
 - No plan file (CLAUDE_PLAN_FILE unset or file does not exist): proceed normally — Step 1 initialises it.
 - Any other phase: `[BLOCKED:env] brainstorming: unexpected-phase — entered from {phase}; finish the current feature first, or unset CLAUDE_PLAN_FILE to start a fresh plan for the new feature`.
 

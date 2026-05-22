@@ -197,6 +197,4 @@ Cleared per scope by `plan-file.sh reset-milestone {agent}` (invokes `cmd_reset_
 | `implement` | `critic-code` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature test/implement loop) |
 | `review` | `pr-review` | `scripts/run-dev-cycle.sh` (always called with `--phase review`; `reset-pr-review` also clears `implement/pr-review` defensively) |
 
-Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase.
-
-`review/critic-code` has no active invocation site — the cleanup in `cmd_reset_phase_state` (`scripts/lib/plan-cmd.sh`) defensively clears stale markers that would arise if `critic-code` ever ran while the plan phase was `review`.
+Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase. (`review/critic-code` has no active invocation site — `cmd_reset_phase_state` defensively clears stale markers that would arise if `critic-code` ever ran while the plan phase was `review`.)
