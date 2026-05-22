@@ -93,24 +93,6 @@ Read the "## Operating Envelope" section from {spec_path}. Apply before any MISS
 
 Before reporting any [MISSING] scenario, verify the scenario is within the declared envelope. If the scenario would only occur outside the envelope, do NOT report it as [MISSING] — drop it silently.
 
-## Label discipline (read before writing any finding)
-
-The bracket prefix on each finding line **must** be one of the six severity labels from `severity.md §Severity levels`:
-`[CRITICAL]` · `[MISSING]` · `[MANIFEST-GAP]` · `[FAIL]` · `[DOCS CONTRADICTION]` · `[UNVERIFIED CLAIM]`
-
-Category enum names (`MISSING_SCENARIO`, `ENVELOPE_MISMATCH`, `ENVELOPE_OVERREACH`, `STRUCTURAL`, `LAYER_VIOLATION`, …) belong **only** inside `<!-- category: X -->`. They must never appear as the bracket label on a finding line.
-
-```
-WRONG: [MISSING_SCENARIO] no retry scenario covered
-WRONG: [ENVELOPE_MISMATCH] Operating Envelope section missing
-WRONG: [STRUCTURAL] BDD format broken
-RIGHT: [MISSING] no retry scenario covered
-RIGHT: [FAIL] envelope mismatch: Operating Envelope section missing
-RIGHT: [FAIL] BDD format broken
-```
-
-The parser that processes your output uses `grep -qF` to verify that at least one severity label appears in the body. A FAIL whose body contains only category enum tokens in brackets — rather than severity labels — is recorded as PARSE_ERROR.
-
 ## Output format
 
 \`\`\`
@@ -148,25 +130,44 @@ None: "Operating Envelope present and scenarios within bounds"
 - {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
 \`\`\`
 
-## Category mapping
-
-- Completeness gaps (when "completeness" is the natural fit) → MISSING_SCENARIO
-- Domain/infra purity, feature classification (Angle 2 §6, §6b, §7) → LAYER_VIOLATION
-- Docs contradiction                                                  → DOCS_CONTRADICTION
-- Unverified claim (Angle 3)                                          → UNVERIFIED_CLAIM
-- Missing scenario / boundary (Angle 1 §1–4)                          → MISSING_SCENARIO
-- Placement / BDD format (Angle 2 §5, §8)                             → STRUCTURAL
-- Cross-spec conflicts (Angle 4)                                       → CROSS_FEATURE_CONTRADICTION
-- Envelope missing / undeclared / contradicts docs (Angle 5 §10–12)  → ENVELOPE_MISMATCH
-- Scenario exceeds declared envelope (Angle 5 §13)                   → ENVELOPE_OVERREACH
-
-When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
-
-**Self-validation**: before emitting verdict, confirm `<!-- category: X -->` is one of the eight enum values below. Map: completeness→MISSING_SCENARIO, consistency→DOCS_CONTRADICTION, correctness/contract→STRUCTURAL.
-
 ## Verdict format (strict — parsed by SubagentStop hook)
 
-End your output with exactly one of these blocks. Nothing after.
+End your output with exactly one PASS or FAIL block below. The SubagentStop hook
+parses only the two HTML-comment markers; text outside them is ignored.
+
+### Rule 1 — PASS pairs only with NONE (most common failure mode)
+
+If verdict is PASS, the category marker MUST be exactly `NONE`. No exceptions.
+- Inspected SPEC_COMPLIANCE area but found nothing blocking? → PASS + NONE.
+- Inspected LAYER_VIOLATION area but found nothing blocking? → PASS + NONE.
+- Found a cosmetic/typo/style observation? → Do NOT report it. PASS + NONE.
+
+A PASS paired with any non-NONE category (SPEC_COMPLIANCE, STRUCTURAL, …) is
+recorded as PARSE_ERROR. Two consecutive PARSE_ERRORs halt the run.
+
+### Rule 2 — Advisory severity labels do not exist
+
+Per `@reference/severity.md`, only these labels are valid and ALL are blocking:
+`[CRITICAL]`, `[MISSING]`, `[MANIFEST-GAP]`, `[FAIL]`, `[DOCS CONTRADICTION]`,
+`[UNVERIFIED CLAIM]`. Inventing `[MINOR]`, `[NIT]`, `[INFO]`, `[ADVISORY]`,
+`[STYLE]`, `[SUGGESTION]` is forbidden. If an observation does not warrant one
+of the six blocking labels, omit it entirely — do not relabel it.
+
+Corollary: if your `Findings:` list contains no blocking labels, verdict is
+PASS and category is NONE. Period.
+
+### Rule 3 — FAIL category enum (only when Rule 1 does not apply)
+
+On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:`
+annotation on the angle/check that fired. Allowed enum (this critic):
+`LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH`.
+
+FORBIDDEN substitutes (recorded as PARSE_ERROR): `COMPLETENESS`, `CONSISTENCY`,
+`CORRECTNESS`, `CONTRACT`, any descriptive synonym, any section title.
+A FAIL without a `<!-- category: -->` marker is recorded as PARSE_ERROR.
+- A FAIL whose body uses category enum tokens (`[MISSING_SCENARIO]`, `[ENVELOPE_MISMATCH]`, `[ENVELOPE_OVERREACH]`, `[STRUCTURAL]`, `[LAYER_VIOLATION]`, …) as bracket labels instead of severity labels (`[MISSING]`, `[FAIL]`, …) is also recorded as PARSE_ERROR.
+
+### Blocks
 
 PASS:
 ### Verdict
@@ -179,11 +180,6 @@ FAIL:
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
-# FORBIDDEN (will be recorded as PARSE_ERROR): COMPLETENESS, CONSISTENCY, CORRECTNESS, CONTRACT
-
-Copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired. Do not use `CONSISTENCY`, `COMPLETENESS`, `CORRECTNESS`, or `CONTRACT` — these are not enum members and produce PARSE_ERROR. On PASS, X must be NONE. Your output is parsed by regex — text outside the HTML comment markers is ignored by the parser.
-
-A FAIL without a category marker is recorded as PARSE_ERROR. A FAIL whose body uses category enum tokens (`[MISSING_SCENARIO]`, `[ENVELOPE_MISMATCH]`, `[ENVELOPE_OVERREACH]`, `[STRUCTURAL]`, `[LAYER_VIOLATION]`, …) as bracket labels instead of severity labels (`[MISSING]`, `[FAIL]`, …) is also recorded as PARSE_ERROR — the parser searches for severity labels in the body, not category enum names. When evidence is ambiguous, FAIL — but only for in-envelope scenarios. Do not FAIL for scenarios outside the declared envelope.
 CODEX_PROMPT
 codex exec --full-auto - < "$_critic_spec_prompt" > "$_critic_spec_log" 2>&1
 _codex_exit=$?

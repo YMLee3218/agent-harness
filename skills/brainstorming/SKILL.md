@@ -68,14 +68,22 @@ Legal axes and values: `@reference/operating-envelope.md §Axis table`
 
 | Axis | Value |
 |------|-------|
-| Actors | {1 user \| N users \| tenants} |
+| Actors | {1 user \| N users \| tenants \| concurrent instances} |
 | Frequency | {one-shot \| periodic 1/min \| per-request \| bursty} |
 | Concurrency | {none \| reader-writer \| multi-writer} |
 | Persistence | {ephemeral \| best-effort \| durable \| zero-loss} |
 | Failure model | {crash-stop \| crash-recover \| partial-failure} |
 | External I/O | {none \| file \| network \| distributed} |
 
+**Enum verbatim rule**: use each axis value **exactly as written** in `operating-envelope.md §Axis table` — no paraphrasing, no sub-variants (e.g. `full multi-writer` is not `multi-writer`; `reader/writer` is not `reader-writer`; `disk` is not `file`). If a synonym maps to an existing enum value, write the enum value, not the synonym.
+
 If an axis cannot be determined: write `[BLOCKED:spec] brainstorming: ambiguous — axis {name} cannot be determined` and add it to `## Open Questions`. Do not proceed to Step 3 until all axes are declared or the block is resolved.
+
+If no enum value covers the feature's meaning (genuine semantic gap, not a wording variant): do **not** invent a new value. Instead write to `## Open Questions`:
+```
+[BLOCKED:harness] brainstorming: reference-extension — axis {name} has no value covering {meaning}; proposed addition: '{value}' ({rationale}). Feature: {slug}.
+```
+This is distinct from the `ambiguous` block above (which means the feature semantics are unclear, not that the enum is missing a category). Clearance is the same as all `[BLOCKED:harness]` markers: human-must, via `plan-file.sh unblock`.
 
 List each candidate as small or large with its envelope. Write decomposition to plan file. Proceed to Step 3.
 

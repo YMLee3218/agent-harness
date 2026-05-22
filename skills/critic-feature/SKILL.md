@@ -46,13 +46,52 @@ None: "No missing features"
 ### Citation Summary
 (one line per blocking finding — omit if PASS)
 - {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
+```
 
+## Verdict format (strict — parsed by SubagentStop hook)
+
+End your output with exactly one PASS or FAIL block below. The SubagentStop hook
+parses only the two HTML-comment markers; text outside them is ignored.
+
+### Rule 1 — PASS pairs only with NONE (most common failure mode)
+
+If verdict is PASS, the category marker MUST be exactly `NONE`. No exceptions.
+- Inspected LAYER_VIOLATION area but found nothing blocking? → PASS + NONE.
+- Found a cosmetic/typo/style observation? → Do NOT report it. PASS + NONE.
+
+A PASS paired with any non-NONE category (STRUCTURAL, MISSING_SCENARIO, …) is
+recorded as PARSE_ERROR. Two consecutive PARSE_ERRORs halt the run.
+
+### Rule 2 — Advisory severity labels do not exist
+
+Per `@reference/severity.md`, only these labels are valid and ALL are blocking:
+`[CRITICAL]`, `[MISSING]`, `[MANIFEST-GAP]`, `[FAIL]`, `[DOCS CONTRADICTION]`,
+`[UNVERIFIED CLAIM]`. Inventing `[MINOR]`, `[NIT]`, `[INFO]`, `[ADVISORY]`,
+`[STYLE]`, `[SUGGESTION]` is forbidden. If an observation does not warrant one
+of the six blocking labels, omit it entirely — do not relabel it.
+
+Corollary: if your `Findings:` list contains no blocking labels, verdict is
+PASS and category is NONE. Period.
+
+### Rule 3 — FAIL category enum (only when Rule 1 does not apply)
+
+On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:`
+annotation on the check that fired. Allowed enum (this critic):
+`LAYER_VIOLATION | STRUCTURAL | MISSING_SCENARIO | ENVELOPE_MISMATCH`.
+
+FORBIDDEN substitutes (recorded as PARSE_ERROR): `COMPLETENESS`, `CONSISTENCY`,
+`CORRECTNESS`, `CONTRACT`, any descriptive synonym, any section title.
+A FAIL without a `<!-- category: -->` marker is recorded as PARSE_ERROR.
+
+PASS:
+```
 ### Verdict
 PASS
 <!-- verdict: PASS -->
 <!-- category: NONE -->
 ```
-or (FAIL):
+
+FAIL:
 ```
 ### Verdict
 FAIL — {comma-separated blocking finding labels}
@@ -60,9 +99,7 @@ FAIL — {comma-separated blocking finding labels}
 <!-- category: {one of LAYER_VIOLATION | STRUCTURAL | MISSING_SCENARIO | ENVELOPE_MISMATCH} -->
 ```
 
-Copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the check that fired. Do not substitute descriptive synonyms (e.g. `COMPLETENESS` is not an enum member).
-
-End with exactly one `### Verdict` block (PASS or FAIL). Verdict & blocking rules: @reference/critics.md §Verdict format. On FAIL blocks progress to `writing-spec`.
+On FAIL blocks progress to `writing-spec`.
 
 Category mapping (per `@reference/severity.md §Category priority`):
 

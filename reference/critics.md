@@ -35,7 +35,7 @@ FAIL — {comma-separated list of blocking finding labels}
 
 A **FAIL** verdict must include a `<!-- category: X -->` marker. A FAIL that has a verdict marker but no category marker is recorded as PARSE_ERROR; on the second consecutive occurrence `[BLOCKED:code] {agent}: parse` is set. Verdict calibration: false PASS → production defect (cost 10×); false FAIL → one extra iteration (cost 1×). When evidence is ambiguous, FAIL.
 
-The `<!-- category: X -->` value on a FAIL MUST be copied verbatim from the `→ category:` annotation on the check/angle that fired. Descriptive synonyms (e.g. `COMPLETENESS`, `CONSISTENCY`, `CORRECTNESS`) are not enum members and produce `PARSE_ERROR`. On `PASS`, X MUST be `NONE`.
+The `<!-- category: X -->` value on a FAIL MUST be copied verbatim from the `→ category:` annotation on the check/angle that fired. Descriptive synonyms (e.g. `COMPLETENESS`, `CONSISTENCY`, `CORRECTNESS`) are not enum members and produce `PARSE_ERROR`. On `PASS`, X MUST be `NONE`. If a finding genuinely has no matching enum value (not a synonym), do not invent a category — emit closest-fit in the verdict and append `[BLOCKED:harness] {critic-name}: reference-extension — ...` to `## Open Questions`. Full procedure: `@reference/severity.md §Enum-extension escape`.
 
 **Structural validity guards** (enforced by `plan-file.sh record-verdict` — see `@reference/severity.md` for enum values):
 - **Invalid category**: `<!-- category: X -->` where X is not in the severity.md enum → `PARSE_ERROR` (auto-retry; second consecutive → `[BLOCKED:code] {agent}: parse`).

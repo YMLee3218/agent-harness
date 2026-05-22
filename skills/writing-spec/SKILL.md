@@ -49,6 +49,12 @@ Legal axis values and the filled-vs-placeholder definition: `@reference/operatin
 
 If the envelope is absent from the plan file or any axis still has placeholder syntax (curly braces): `[BLOCKED:spec] writing-spec: envelope-incomplete — re-run /brainstorming to declare all axes first` and add to `## Open Questions` — do not proceed until resolved.
 
+If an axis value in the plan file is not a **verbatim match** for a value in `operating-envelope.md §Axis table` (i.e. the value was not in the enum when brainstorming ran, or brainstorming produced a wording variant): do not silently carry the non-conforming value into spec.md. If brainstorming already emitted a `[BLOCKED:harness] … reference-extension` marker for this axis, halt without re-emitting. Otherwise emit:
+```
+[BLOCKED:harness] writing-spec: reference-extension — axis {name} value '{value}' is not a verbatim match for operating-envelope.md; proposed addition or correction needed. Feature: {slug}.
+```
+Add to `## Open Questions` and halt.
+
 Scenarios must stay within this envelope. Do not draft scenarios that require an axis value beyond what is declared above.
 
 ## Step 3 — Draft scenarios

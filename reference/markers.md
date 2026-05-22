@@ -29,7 +29,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 | `[BLOCKED:spec]` | Spec gap or ambiguity — human answer needed | human-must | 1 |
 | `[BLOCKED:code]` | Code/test root cause (coder, integration, smoke) | human-must | 1 |
 | `[BLOCKED:env]` | Environment/session/tool (persistent or recurring) | human-must | 1 |
-| `[BLOCKED:harness]` | Harness call path or sidecar integrity | human-must | 1 |
+| `[BLOCKED:harness]` | Harness call path, sidecar integrity, or reference data (enum/axis) extension | human-must | 1 |
 | `[BLOCKED:ceiling]` | Critic loop ceiling exceeded → `reset-milestone` | human-must | 2 |
 | `[BLOCKED:transient]` | **1-time transient state** (session timeout, lock clash) | **auto** — harness self-retries; never requires `unblock` | 1,3 |
 
@@ -50,6 +50,8 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 [BLOCKED:env] critic-code: session-timeout — recurred 3 times: after 3600s
 [BLOCKED:harness] critic-code: protocol-violation — invoked outside run-critic-loop.sh context
 [BLOCKED:harness] sidecar: corrupt-check — manual sidecar repair required
+[BLOCKED:harness] writing-spec: reference-extension — axis Actors has no value for autonomous scheduled process; proposed addition: 'concurrent instances'
+[BLOCKED:harness] critic-code: reference-extension — category enum has no value covering "performance regression"; proposed addition: 'PERFORMANCE'
 [BLOCKED:ceiling] critic-code: implement/critic-code exceeded 20 runs — manual review required
 ```
 

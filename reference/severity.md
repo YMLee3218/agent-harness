@@ -43,6 +43,14 @@ ENVELOPE_MISMATCH
   > STRUCTURAL
 ```
 
+## Enum-extension escape
+
+**Enum-extension escape**. If a finding's meaning is genuinely not covered by any enum value (not merely a wording question), do **not** invent a new category. Emit the closest-fit category in the verdict (to avoid PARSE_ERROR), and additionally append to `## Open Questions`:
+```
+[BLOCKED:harness] {critic-name}: reference-extension — category enum has no value covering "{meaning}"; proposed addition: '{value}' ({rationale}). Finding ref: {summary}.
+```
+Distinct from PARSE_ERROR (verdict-format violation): reference-extension is a request to expand the enum, raised by a critic that found a real issue but no enum value fits.
+
 ## Boundary-case guidance
 
 | Situation | Decision |

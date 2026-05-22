@@ -127,7 +127,41 @@ When multiple FAILs fire, pick the highest-priority category per severity.md §C
 
 ## Verdict format (strict — parsed by SubagentStop hook)
 
-End your output with exactly one of these blocks. Nothing after.
+End your output with exactly one PASS or FAIL block below. The SubagentStop hook
+parses only the two HTML-comment markers; text outside them is ignored.
+
+### Rule 1 — PASS pairs only with NONE (most common failure mode)
+
+If verdict is PASS, the category marker MUST be exactly `NONE`. No exceptions.
+- Inspected CROSS_FEATURE_CONTRADICTION area but found nothing blocking? → PASS + NONE.
+- Inspected LAYER_VIOLATION area but found nothing blocking? → PASS + NONE.
+- Found a cosmetic/typo/style observation? → Do NOT report it. PASS + NONE.
+
+A PASS paired with any non-NONE category (STRUCTURAL, MISSING_SCENARIO, …) is
+recorded as PARSE_ERROR. Two consecutive PARSE_ERRORs halt the run.
+
+### Rule 2 — Advisory severity labels do not exist
+
+Per `@reference/severity.md`, only these labels are valid and ALL are blocking:
+`[CRITICAL]`, `[MISSING]`, `[MANIFEST-GAP]`, `[FAIL]`, `[DOCS CONTRADICTION]`,
+`[UNVERIFIED CLAIM]`. Inventing `[MINOR]`, `[NIT]`, `[INFO]`, `[ADVISORY]`,
+`[STYLE]`, `[SUGGESTION]` is forbidden. If an observation does not warrant one
+of the six blocking labels, omit it entirely — do not relabel it.
+
+Corollary: if your `Findings:` list contains no blocking labels, verdict is
+PASS and category is NONE. Period.
+
+### Rule 3 — FAIL category enum (only when Rule 1 does not apply)
+
+On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:`
+annotation on the angle/check that fired. Allowed enum (this critic):
+`CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL | ENVELOPE_MISMATCH`.
+
+FORBIDDEN substitutes (recorded as PARSE_ERROR): `COMPLETENESS`, `CONSISTENCY`,
+`CORRECTNESS`, `CONTRACT`, any descriptive synonym, any section title.
+A FAIL without a `<!-- category: -->` marker is recorded as PARSE_ERROR.
+
+### Blocks
 
 PASS:
 ### Verdict
@@ -140,10 +174,6 @@ FAIL:
 FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL | ENVELOPE_MISMATCH} -->
-
-Copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired. Do not use `CONSISTENCY`, `COMPLETENESS`, or `CORRECTNESS` — these are not enum members and produce PARSE_ERROR. On PASS, X must be NONE.
-
-A FAIL without a category marker is recorded as PARSE_ERROR. When evidence is ambiguous, FAIL — but only for in-envelope interactions. Drop cross-feature findings that only occur outside both features' declared envelopes.
 CODEX_PROMPT
 codex exec --full-auto - < "$_critic_cross_prompt" > "$_critic_cross_log" 2>&1
 _codex_exit=$?
