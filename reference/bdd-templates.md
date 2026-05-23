@@ -63,3 +63,16 @@ configured, not a string passed directly into the system under test.
 Document the exemption with a comment in the spec file (e.g.,
 `# initial_state is a closed enum whose rows enumerate the only shapes the
 loader can observe; string-input boundary rows do not apply`).
+
+**Cardinality-column exemption:** A column whose values are non-negative
+integer counts of items in a collection (e.g., list length, set size, count
+of entries in a persisted store, count of items in a returned response) is
+categorised as Collection / list — *not* Numeric. Rationale: list cardinality
+cannot be `-1` (unreachable), and `MAX_INT` falls into the same equivalence
+class as any "many" representative, so Numeric boundary rows yield no new
+information for such columns. Required boundary: `0` (the empty case). If the
+domain documents a cardinality cap (per-collection, per-context, or system-
+wide), the documented cap is an additional required boundary; otherwise no
+upper boundary is required. Document the exemption with a comment in the
+spec file (e.g., `# entry_count is a collection-cardinality column; Collection
+rule applies — empty boundary covered by the 0 row`).
