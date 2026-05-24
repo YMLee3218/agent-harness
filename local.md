@@ -22,10 +22,6 @@ against the live tree or its archive.
 
 | Term | Definition |
 |------|-----------|
-| InboundAlert | Raw alert received from an external monitoring source; distinct from the internal `alert` concept |
-| WatermarkStore | Atomic local state persisting the last-processed timestamp and processed-id set for dedup |
-| InboundAlertStore | Infrastructure adapter querying the external alert source for alerts since a watermark |
 | scene | Atomic narrative unit within a chapter; basic storage and retrieval unit |
 | tree_node | Node in the hierarchical summary tree; leaf = scene, internal = compressed summary |
 | chapter_order | Immutable integer assigned at upload time; ordering key for chapters |
-| processed-id set | Set of alert IDs already handled; used to suppress duplicate alerts across polls |

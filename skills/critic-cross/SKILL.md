@@ -67,13 +67,13 @@ through the correct layer boundary (per layers.md).
 ## Angle 7 — Cross-feature Envelope consistency → category: `ENVELOPE_MISMATCH`
 
 For features that interact (handoffs, shared entities, state transitions): verify their Operating Envelopes are compatible.
-- Feature A declares Actors=`N users`, Feature B (which it calls) declares Actors=`tenants` → [FAIL] ENVELOPE_MISMATCH
-- Feature A declares Concurrency=none, Feature B (concurrent consumer) declares multi-writer → [FAIL] ENVELOPE_MISMATCH
+- Feature A declares Actors=`tenants`, Feature B (which it calls) declares Actors=`N users` → [FAIL] ENVELOPE_MISMATCH
+- Feature A declares Concurrency=`multi-writer`, Feature B (which it calls) declares Concurrency=`none` → [FAIL] ENVELOPE_MISMATCH
 Quote both features' Operating Envelope sections.
 For each axis, apply the rule in `${CLAUDE_PROJECT_DIR}/.claude/reference/operating-envelope.md §Envelope axis compatibility`:
 - First identify caller-callee direction from spec text (handoff, composition, state-transition). If no clear direction (bidirectional handoff via shared store): apply the bidirectional variant per axis.
-- Frequency, Concurrency: `callee.value ≥ caller.value` per the per-axis partial order. Violation → ENVELOPE_MISMATCH.
-- Persistence / Failure model: identify the load-bearing callee from caller's spec text (the callee through which caller's promised-durable data flows, or whose failure would invalidate caller's promise). Apply `callee.value ≥ caller.value` to that callee only. If the current pair under check is not the load-bearing callee for this guarantee, do not report MISMATCH; emit `[NOTE]` citing the spec line that shows the caller's promise is carried by a different callee. If the load-bearing callee cannot be identified from spec text, emit `[BLOCKED:spec] {scope}: ambiguous — load-bearing callee for {axis} not identified`.
+- Frequency, Concurrency: `callee.value ≥ caller.value` per the per-axis partial order. Violation → ENVELOPE_MISMATCH. Exception (Concurrency only): `exclusive-writer` callee is CONTEXT (not automatic MISMATCH) when caller is `reader-writer` or `multi-writer` — verify the caller handles `lock-unavailable` in spec text before reporting MISMATCH.
+- Persistence / Failure model: identify the load-bearing callee from caller's spec text (the callee through which caller's promised-durable data flows, or whose failure would invalidate caller's promise). Apply `callee.value ≥ caller.value` to that callee only. If the current pair under check is not the load-bearing callee for this guarantee, do not report MISMATCH; emit `[NOTE]` citing the spec line that shows the caller's promise is carried by a different callee. If the load-bearing callee cannot be identified from spec text, emit `[FAIL] ENVELOPE_MISMATCH: {scope}: load-bearing callee for {axis} ambiguous — update spec to identify which callee carries the durability guarantee`.
 - Actors: consult the (caller, callee) lookup table; CONTEXT outcomes require examining whether the tenant/user boundary is preserved in the spec text.
 - External I/O: parse as set; apply direction-aware subset (`callee.surfaces ⊆ caller.surfaces`).
 - Bidirectional handoff: use the symmetric variant per axis (equality for partial-order axes and Actors; non-empty intersection for External I/O).
@@ -115,7 +115,7 @@ None: "No layer boundary violations"
 [FAIL] ENVELOPE_MISMATCH: {feature_a} envelope {axis}={value_a} incompatible with {feature_b} envelope {axis}={value_b}
   {feature_a_spec}:{line}: "{envelope_a_excerpt}" vs {feature_b_spec}:{line}: "{envelope_b_excerpt}"
 [NOTE] {feature_b} is not the load-bearing callee for {axis} — caller's promise carried by {other_callee}: {spec}:{line}: "{excerpt}"
-[BLOCKED:spec] {scope}: ambiguous — load-bearing callee for {axis} not identified
+[FAIL] ENVELOPE_MISMATCH: {scope}: load-bearing callee for {axis} ambiguous — spec must identify which callee carries the durability guarantee
 None: "All envelope axes compatible across interacting features"
 
 ### Citation Summary

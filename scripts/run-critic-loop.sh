@@ -85,7 +85,7 @@ while true; do
       exit 2
     fi
   fi
-  # General blocked check: sidecar blocked.jsonl only
+  # General blocked check: blocked.jsonl (+ plan.md divergence fallback)
   if bash "$PLAN_FILE_SH" is-blocked "$PLAN" 2>/dev/null; then
     echo "[BLOCKED:*] active block detected — exiting critic loop" >&2
     exit 1
