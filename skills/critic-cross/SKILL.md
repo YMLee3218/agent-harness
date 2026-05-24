@@ -72,7 +72,8 @@ For features that interact (handoffs, shared entities, state transitions): verif
 Quote both features' Operating Envelope sections.
 For each axis, apply the rule in `${CLAUDE_PROJECT_DIR}/.claude/reference/operating-envelope.md §Envelope axis compatibility`:
 - First identify caller-callee direction from spec text (handoff, composition, state-transition). If no clear direction (bidirectional handoff via shared store): apply the bidirectional variant per axis.
-- Frequency, Concurrency, Persistence, Failure model: `callee.value ≥ caller.value` per the per-axis partial order. Violation → ENVELOPE_MISMATCH.
+- Frequency, Concurrency: `callee.value ≥ caller.value` per the per-axis partial order. Violation → ENVELOPE_MISMATCH.
+- Persistence / Failure model: identify the load-bearing callee from caller's spec text (the callee through which caller's promised-durable data flows, or whose failure would invalidate caller's promise). Apply `callee.value ≥ caller.value` to that callee only. If the current pair under check is not the load-bearing callee for this guarantee, do not report MISMATCH; emit `[NOTE]` citing the spec line that shows the caller's promise is carried by a different callee. If the load-bearing callee cannot be identified from spec text, emit `[BLOCKED:spec] {scope}: ambiguous — load-bearing callee for {axis} not identified`.
 - Actors: consult the (caller, callee) lookup table; CONTEXT outcomes require examining whether the tenant/user boundary is preserved in the spec text.
 - External I/O: parse as set; apply direction-aware subset (`callee.surfaces ⊆ caller.surfaces`).
 - Bidirectional handoff: use the symmetric variant per axis (equality for partial-order axes and Actors; non-empty intersection for External I/O).
@@ -113,6 +114,8 @@ None: "No layer boundary violations"
 ### Angle 7 — Cross-feature Envelope Consistency
 [FAIL] ENVELOPE_MISMATCH: {feature_a} envelope {axis}={value_a} incompatible with {feature_b} envelope {axis}={value_b}
   {feature_a_spec}:{line}: "{envelope_a_excerpt}" vs {feature_b_spec}:{line}: "{envelope_b_excerpt}"
+[NOTE] {feature_b} is not the load-bearing callee for {axis} — caller's promise carried by {other_callee}: {spec}:{line}: "{excerpt}"
+[BLOCKED:spec] {scope}: ambiguous — load-bearing callee for {axis} not identified
 None: "All envelope axes compatible across interacting features"
 
 ### Citation Summary

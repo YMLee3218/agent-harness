@@ -48,12 +48,14 @@ These four axes have natural ordering. Rule: `callee.value ≥ caller.value` (th
 callee must withstand or honor at least the level the caller demands). Violation
 → ENVELOPE_MISMATCH.
 
+**Promise distribution**: Frequency and Concurrency apply uniformly to every callee — being called at rate R or under N-concurrency is intrinsic to being called at all. Persistence and Failure model are different: the caller's promise is satisfied by a specific load-bearing callee per data flow, and other callees handling distinct data streams do not need to honor it. For Persistence and Failure model, the critic must identify which callee carries caller's promised guarantee from spec text before applying the partial-order comparison.
+
 | Axis | Partial order (low → high) | Rationale |
 |------|-----------------------------|-----------|
 | Frequency | `one-shot < periodic 1/min < per-request < bursty` | callee must withstand caller's invocation rate |
 | Concurrency | `none < exclusive-writer < reader-writer < multi-writer` | callee must accept caller's concurrency level (exclusive-writer accepts concurrent calls but serializes via skip; reader-writer accepts concurrent reads; multi-writer accepts concurrent writes). Exception: `exclusive-writer` callee is CONTEXT (not automatic MISMATCH) when caller is `reader-writer` or `multi-writer` — the callee gates concurrent callers via skip signal; verify the caller handles `lock-unavailable` in the spec text before reporting MISMATCH. |
-| Persistence | `ephemeral < best-effort < durable < zero-loss` | callee must preserve data at least as strongly as caller's promise |
-| Failure model | `crash-stop < crash-recover < partial-failure` | callee must handle failure at least as robustly as caller assumes |
+| Persistence | `ephemeral < best-effort < durable < zero-loss` | the **load-bearing** callee (the one through which caller's promised-durable data flows) must preserve data at least as strongly as caller's promise. Other callees that handle distinct data streams (telemetry, observability, transform, validate) are not constrained by this rule. |
+| Failure model | `crash-stop < crash-recover < partial-failure` | the **load-bearing** callee (whose failure would invalidate caller's promise) must handle failure at least as robustly as caller assumes. Side-channel callees whose failure is independent of caller's promise are not constrained by this rule. |
 
 Bidirectional handoff variant: require `caller.value == callee.value` (no
 direction → no broader/narrower distinction).
