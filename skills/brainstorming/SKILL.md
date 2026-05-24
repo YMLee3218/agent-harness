@@ -60,6 +60,13 @@ Do NOT identify domain concepts, infrastructure components, or assign anything t
 
 If proposing domain rules or constraints not found in `docs/*.md`: mark the assumption `[UNVERIFIED CLAIM]` in the plan file and include it provisionally; critic-spec will independently flag unverified claims in the spec.
 
+**Entry-point / internal classification (required for each candidate)**
+
+Declare each candidate as `entry-point` or `internal`:
+- `entry-point`: at least one external invocation source named in `docs/requirements/*.md` or plan text (scheduler, HTTP request, user trigger, message queue). Quote the source verbatim (e.g. "invoked via /schedule per docs/requirements/X.md:42"). Cannot classify as entry-point if no external source is named.
+- `internal`: at least one other candidate invokes it (visible in the compose graph).
+- Neither: `[BLOCKED:spec] brainstorming: classification-indeterminate — {name} has no named external source and no compose-graph caller`.
+
 **Operating Envelope (required for each candidate before Step 3)**
 
 For each candidate feature, declare all 6 axes in the plan file:
@@ -75,6 +82,8 @@ Legal axes and values: `@reference/operating-envelope.md §Axis table`
 | Failure model | {crash-stop \| crash-recover \| partial-failure} |
 | External I/O | {none \| file \| network \| distributed} (compound: comma-separated when feature touches multiple surfaces, e.g. `network, file`) |
 
+For `internal` features: leave **Frequency** and **Concurrency** blank — mark as `(propagated)`. Fill computed values in the Propagation sub-step below. Declare all other axes normally.
+
 **Enum verbatim rule**: use each axis value **exactly as written** in `operating-envelope.md §Axis table` — no paraphrasing, no sub-variants (e.g. `full multi-writer` is not `multi-writer`; `reader/writer` is not `reader-writer`; `disk` is not `file`). If a synonym maps to an existing enum value, write the enum value, not the synonym.
 
 If an axis cannot be determined: write `[BLOCKED:spec] brainstorming: ambiguous — axis {name} cannot be determined` and add it to `## Open Questions`. Do not proceed to Step 3 until all axes are declared or the block is resolved.
@@ -84,6 +93,16 @@ If no enum value covers the feature's meaning (genuine semantic gap, not a wordi
 [BLOCKED:harness] brainstorming: reference-extension — axis {name} has no value covering {meaning}; proposed addition: '{value}' ({rationale}). Feature: {slug}.
 ```
 This is distinct from the `ambiguous` block above (which means the feature semantics are unclear, not that the enum is missing a category). Clearance is the same as all `[BLOCKED:harness]` markers: human-must, via `plan-file.sh unblock`.
+
+**Propagation sub-step (run after all candidates are classified and compose graph is closed)**
+
+For each `internal` feature, compute:
+- `Frequency = max(callers' Frequency)` using the partial order `one-shot < periodic 1/min < per-request < bursty`.
+- `Concurrency = max(callers' Concurrency)` using `none < exclusive-writer < reader-writer < multi-writer`.
+
+If the caller chain contains no entry-point ancestor: `[BLOCKED:spec] brainstorming: compose-graph-open — internal feature {name} has no entry-point ancestor`.
+
+Fill computed values into the envelope table with annotation `{value} (propagated from: {caller list})`.
 
 List each candidate as small or large with its envelope. Write decomposition to plan file. Proceed to Step 3.
 
@@ -101,7 +120,9 @@ If `docs/requirements/{name}.md` does not already exist, create it:
 - `{verb}-{noun}`: {description}
 
 ## Large Features
-- `{verb}-{noun}`: {which small features it composes}
+- `{verb}-{noun}` (entry-point|internal):
+  - composes: {feature-a}, {feature-b}
+  - calls infrastructure: {infra-component}
 
 ## Reused Existing Features
 - {list or "none"}
@@ -162,3 +183,4 @@ Do not move to `writing-spec` until:
 - Every feature is classified as small or large (no layer assignment — writing-spec's responsibility)
 - Plan file `plans/{slug}.md` exists with Phase `brainstorm`
 - Operating Envelope declared for all candidate features in the plan file (all 6 axes have concrete values — no `{placeholder}` curly-brace syntax remaining)
+- Compose graph is closed (every `internal` feature has at least one caller) and all internal features' Frequency/Concurrency axes are filled with propagated values (no `(propagated)` placeholder remains)

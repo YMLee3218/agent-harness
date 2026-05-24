@@ -42,6 +42,30 @@ rules assume the caller-callee direction has been identified from spec text. For
 bidirectional handoff (no strict direction, e.g. shared store), apply the
 direction-symmetric variant noted per axis.
 
+### Axis semantic types
+
+The four partial-order axes split into two semantic types:
+
+- **Intrinsic axes** (Persistence, Failure model): the feature's value reflects its
+  data-handling and failure-handling design. Per-feature design choice. Subject to the
+  load-bearing exemption defined in §Promise distribution.
+
+- **Propagated axes** (Frequency, Concurrency): a value is intrinsic only for **entry-point
+  features** — features invoked from outside the system by an external invocation source
+  (scheduler, HTTP request, user trigger, message queue). For **internal features** — those
+  invoked only by other features in the system — these axes have no independent design
+  freedom; their values are defined as `max(caller.value for each caller)` under the
+  per-axis partial order in the table below. Authoring such a feature with any other value
+  is a definition error, not a design tradeoff. Violation → `PROPAGATED_VALUE_OUT_OF_SYNC`
+  (not `ENVELOPE_MISMATCH`).
+
+A feature is **entry-point** iff at least one external invocation source is named in its
+spec or in its grounding doc (docs/requirements/*.md). A feature is **internal** iff
+invoked only by other features with no external invocation source. Mixed (both internal
+callers and external sources) → treat as entry-point; the external source sets the
+Frequency/Concurrency floor, and propagation applies as an additional lower bound
+(`max(external, callers)`).
+
 ### Partial-order axes (Frequency, Concurrency, Persistence, Failure model)
 
 These four axes have natural ordering. Rule: `callee.value ≥ caller.value` (the
@@ -52,8 +76,8 @@ callee must withstand or honor at least the level the caller demands). Violation
 
 | Axis | Partial order (low → high) | Rationale |
 |------|-----------------------------|-----------|
-| Frequency | `one-shot < periodic 1/min < per-request < bursty` | callee must withstand caller's invocation rate |
-| Concurrency | `none < exclusive-writer < reader-writer < multi-writer` | callee must accept caller's concurrency level (exclusive-writer accepts concurrent calls but serializes via skip; reader-writer accepts concurrent reads; multi-writer accepts concurrent writes). Exception: `exclusive-writer` callee is CONTEXT (not automatic MISMATCH) when caller is `reader-writer` or `multi-writer` — the callee gates concurrent callers via skip signal; verify the caller handles `lock-unavailable` in the spec text before reporting MISMATCH. |
+| Frequency | `one-shot < periodic 1/min < per-request < bursty` | callee must withstand caller's invocation rate (propagated axis — for internal features the value is defined, not chosen; see §Axis semantic types) |
+| Concurrency | `none < exclusive-writer < reader-writer < multi-writer` | callee must accept caller's concurrency level (propagated axis — for internal features the value is defined, not chosen; see §Axis semantic types). Exception: `exclusive-writer` callee is CONTEXT (not automatic MISMATCH) when caller is `reader-writer` or `multi-writer` — the callee gates concurrent callers via skip signal; verify the caller handles `lock-unavailable` in the spec text before reporting MISMATCH. |
 | Persistence | `ephemeral < best-effort < durable < zero-loss` | the **load-bearing** callee (the one through which caller's promised-durable data flows) must preserve data at least as strongly as caller's promise. Other callees that handle distinct data streams (telemetry, observability, transform, validate) are not constrained by this rule. |
 | Failure model | `crash-stop < crash-recover < partial-failure` | the **load-bearing** callee (whose failure would invalidate caller's promise) must handle failure at least as robustly as caller assumes. Side-channel callees whose failure is independent of caller's promise are not constrained by this rule. |
 

@@ -57,6 +57,13 @@ Add to `## Open Questions` and halt.
 
 Scenarios must stay within this envelope. Do not draft scenarios that require an axis value beyond what is declared above.
 
+If the feature is classified `internal` in the plan file's brainstorm output: carry the `(propagated from: ...)` annotation into spec.md as a comment line immediately after the `## Operating Envelope` block:
+```markdown
+# Frequency and Concurrency propagated from callers: {caller-list}
+# (per @reference/operating-envelope.md §Axis semantic types).
+```
+Entry-point features omit this comment. If Frequency or Concurrency show `(propagated)` in the plan file without a computed value (propagation sub-step not completed): `[BLOCKED:spec] writing-spec: envelope-propagation-incomplete — re-run /brainstorming Step 2 propagation sub-step`.
+
 ## Step 3 — Draft scenarios
 
 Write the full scenario structure to the plan file. Cover all Angle 1 checks in `critic-spec`.
