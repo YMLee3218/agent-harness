@@ -116,7 +116,7 @@ if [ -f "$PLAN_FILE_SH" ]; then
       continue
     fi
     if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
-      # Mirrors phase-gate.sh:42-47: canonicalize so symlinks don't bypass Ring C guard.
+      # Mirrors phase-gate.sh:42-52: canonicalize so symlinks don't bypass Ring C guard.
       _ring_proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _ring_proj="${CLAUDE_PROJECT_DIR}"
       _ring_dest=$(_canon_path "$_dest_p" 2>/dev/null) || _ring_dest="$_dest_p"
       _ring_rel="${_ring_dest#${_ring_proj}/}"
@@ -127,7 +127,7 @@ if [ -f "$PLAN_FILE_SH" ]; then
     fi
     if [ -n "$_current_phase" ]; then
       # Normalize to project-relative so is_source_path non-VSA fallback globs (lib/*, internal/*, etc.) match absolute paths.
-      # Mirrors phase-gate.sh:124-131 which performs identical normalization for Write/Edit paths.
+      # Mirrors phase-gate.sh:128-134 which performs identical normalization for Write/Edit paths.
       _phase_dest="$_dest_p"
       if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
         _proj_abs="$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null)" || _proj_abs="${CLAUDE_PROJECT_DIR}"

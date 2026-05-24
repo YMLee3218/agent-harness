@@ -45,7 +45,11 @@ _guard_ring_c() {
   # symlinks in /tmp (e.g. macOS /tmp → /private/tmp) when target doesn't exist.
   _rel="${_file_norm#${_proj}/}"
   [[ "$_rel" == "$_file_norm" ]] && _rel="${_file#${CLAUDE_PROJECT_DIR}/}"
-  [[ "$_rel" == "$_file" ]] && return 0
+  # Only return early when the path is genuinely outside the project (still absolute).
+  # Prior check was `_rel == _file`: a relative input like "CLAUDE.md" resolves to
+  # _rel="CLAUDE.md" (correctly stripped) but also equals the original relative $_file,
+  # causing a false "outside project" bypass of the Ring C check.
+  [[ "$_rel" == /* ]] && return 0
   if printf '%s' "$_rel" | grep -qE "^(${_RING_C_FILES})$"; then
     echo "BLOCKED [phase-gate]: Ring C file ($(basename "$_file")) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2
     exit 2

@@ -129,6 +129,15 @@ EOF
   done
 }
 
+@test "ring_c: relative-path Write to Ring C files is blocked (regression: was bypassed via _rel==_file)" {
+  for path in scripts/run-critic-loop.sh CLAUDE.md; do
+    local json="{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$path\",\"content\":\"evil\"}}"
+    run bash -c "cd '$WS_DIR' && printf '%s' '$json' | CLAUDE_PROJECT_DIR='$WS_DIR' bash '$SCRIPTS_DIR/phase-gate.sh' write" 2>&1
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"BLOCKED"* ]]
+  done
+}
+
 # ── unblock: clears 7 human-must prefixes in one pass ────────────────────────
 
 @test "unblock: clears all 7 human-must prefix markers in one pass" {

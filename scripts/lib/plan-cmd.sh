@@ -93,7 +93,7 @@ cmd_init() {
   {
     printf -- '---\nfeature: %s\nphase: brainstorm\nschema: 2\n' "$slug"
     [ -n "$mode" ] && printf 'mode: %s\n' "$mode"
-    printf -- '---\n\n## Vision\n\n## Scenarios\n\n## Test Manifest\n\n## Phase\nbrainstorm\n\n## Phase Transitions\n- brainstorm → (initial)\n\n## Critic Verdicts\n\n## Task Ledger\n\n## Integration Failures\n\n## Verdict Audits\n\n## Open Questions\n'
+    printf -- '---\n\n## Vision\n\n## Scenarios\n\n## Test Manifest\n\n## Phase\nbrainstorm\n\n## Phase Transitions\n- brainstorm → (initial)\n\n## Critic Verdicts\n\n## Task Ledger\n| task-id | layer | status | commit-sha |\n|---------|-------|--------|------------|\n## Integration Failures\n\n## Verdict Audits\n\n## Open Questions\n'
   } > "$plan_file"
   sc_ensure_dir "$plan_file" || die "ERROR: sidecar dir setup failed for $plan_file"
 }
@@ -882,6 +882,7 @@ cmd_add_task() {
       /^## Task Ledger$/ { print; in_section=1; next }
       in_section && /^\| task-id/ { print; next }
       in_section && /^\|---/ { print; next }
+      in_section && /^[[:space:]]*$/ { next }
       in_section && /^## / { print row; print ""; print; in_section=0; next }
       { print }
       END { if (in_section) print row }
