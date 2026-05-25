@@ -53,6 +53,12 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE
 ```
 → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 
+→ Reset critic-cross milestone and re-run cross-feature consistency check (spec changes may affect cross-feature envelope compatibility):
+```bash
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" critic-cross
+```
+→ `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-cross --phase spec --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Cross-feature consistency review after spec gap fix. All specs: [all spec-paths]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
+
 → Apply `@reference/phase-ops.md §Phase Rollback Procedure`: target-phase=`red`, critic=`critic-test`
 → Write failing test → `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-test --phase red --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Review tests at [paths] against spec at [path]. Test command: [command]."` (§Phase Rollback already reset the milestone.) — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 → Advance to `implement`:

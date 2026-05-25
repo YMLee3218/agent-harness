@@ -48,7 +48,7 @@ is_source_path() {
 
 is_test_path() {
   local p="$1"
-  case "$p" in *.spec.md) return 1 ;; esac
+  case "$p" in *.spec.md) return 1 ;; esac  # harness spec documents — always excluded, PHASE_GATE_TEST_GLOB does not override
   if [ -n "${PHASE_GATE_TEST_GLOB:-}" ]; then
     local pattern
     while IFS= read -r pattern; do

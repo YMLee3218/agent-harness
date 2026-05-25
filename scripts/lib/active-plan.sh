@@ -3,7 +3,7 @@ set -euo pipefail
 # Shared helpers: stdin-JSON hook utilities and active-plan resolution.
 # Source this file; do not execute directly.
 #
-# Callers must set PLAN_FILE_SH before sourcing this file (required by plan-resolution functions).
+# Callers must set PLAN_FILE_SH before calling plan-resolution functions (used by resolve_active_plan_and_phase and related).
 # Optional: set BLOCKED_LABEL to a context string for error messages (default: "active-plan").
 #
 # Hook utilities (inlined from hook-utils.sh):

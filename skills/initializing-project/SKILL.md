@@ -181,8 +181,8 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "plans/{project-slu
 # Then edit plans/{project-slug}.md to fill in the ## Vision section
 ```
 
-Non-interactive (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`.
-Then stage and commit all scaffold files so the working tree is clean before brainstorming runs its dirty-tree check.
+Non-interactive (`CLAUDE_NONINTERACTIVE=1`): skip `ExitPlanMode`. Stage and commit all scaffold files (working tree must be clean for brainstorming dirty-tree check).
+**Non-interactive only**: if Step 3 wrote `TODO` placeholders and no plan existed then, append the deferred `[INFO] docs/{concept}.md has placeholder content — fill in domain rules before writing-spec runs` to `## Open Questions` via `plan-file.sh append-note`.
 
 If the project is not yet a git repository (`git rev-parse --git-dir` fails):
 - **Interactive**: use `AskUserQuestion` — "No git repository found. Run `git init && git add .gitignore` first, then re-run initializing-project."
@@ -190,8 +190,8 @@ If the project is not yet a git repository (`git rev-parse --git-dir` fails):
 
 Stage and commit if there is anything to stage:
 ```bash
-git add CLAUDE.md
-git add src/ docs/ plans/ features/ domain/
+git add CLAUDE.md src/ docs/ plans/ features/ domain/
+git add .claude/scripts/critic-code/patterns/ 2>/dev/null || true
 if git diff --cached --quiet; then
   echo "[SKIP] nothing to commit — scaffold already present"
 else

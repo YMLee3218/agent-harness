@@ -42,6 +42,8 @@ _handle_spec_phase_rollback() {
   rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
   run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
   llm_exit "critic-spec"
+  run_critic critic-cross spec "Cross-feature consistency review after integration spec fix. All specs: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
+  llm_exit "critic-cross"
   bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
   bash "$PF" reset-milestone "$PLAN" critic-test
   run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"

@@ -84,9 +84,13 @@ fi
 MODE="feature"
 
 # ── Step 1: Brainstorming ─────────────────────────────────────────────────────
-if [[ -z "$PLAN" ]] || \
-   { [[ -n "${current_phase:-}" ]] && [[ "$current_phase" == "brainstorm" ]] && \
-     ! bash "$PF" is-converged "$PLAN" brainstorm critic-feature 2>/dev/null; }; then
+if [[ -z "$PLAN" ]]; then
+  echo "[BLOCKED:env] run-dev-cycle: no active plan — run /brainstorming first to create a plan, then re-run" >&2
+  exit 1
+fi
+
+if [[ -n "${current_phase:-}" ]] && [[ "$current_phase" == "brainstorm" ]] && \
+   ! bash "$PF" is-converged "$PLAN" brainstorm critic-feature 2>/dev/null; then
   run_llm "Invoke the brainstorming skill." opus
   llm_exit "brainstorming"
   find_rc=0

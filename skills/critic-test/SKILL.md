@@ -60,9 +60,9 @@ Stop. Do not run other checks.
 
 If no test(red): commit exists, first guard against pre-existing files (cross-feature false positives):
 \`\`\`bash
-_plan_t=\$(git log --format='%ct' -- {plan_path} 2>/dev/null | tail -1); _file_t=\$(git log --format='%ct' HEAD -- {test_files} 2>/dev/null | tail -1)
-red_sha=\$(git log --format='%H' HEAD -- {test_files} | tail -1)
-git log --oneline \${red_sha}..HEAD -- {test_files}
+_plan_t=$(git log --format='%ct' -- {plan_path} 2>/dev/null | tail -1); _file_t=$(git log --format='%ct' HEAD -- {test_files} 2>/dev/null | tail -1)
+red_sha=$(git log --format='%H' HEAD -- {test_files} | tail -1)
+git log --oneline ${red_sha}..HEAD -- {test_files}
 \`\`\`
 If \`_plan_t\` and \`_file_t\` are both non-empty and \`_file_t\` < \`_plan_t\`, the file predates the current plan — emit \`[SKIP] test file integrity: pre-existing file, Red baseline unreliable for {file}\` and continue. If \`red_sha\` is empty, emit \`[SKIP] test file integrity: no commit history for {file}\` and continue. If the last command returns commits, the file was modified after the inferred Red commit — emit the same \`[CRITICAL] test file modified after Red phase\` FAIL verdict above. If git is unavailable, emit \`[SKIP] test file integrity: git unavailable\` and continue.
 
@@ -93,8 +93,8 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
 
    Exception: a test marked \`GREEN (pre-existing)\` in the Test Manifest is allowed to pass. For each GREEN entry, verify with git that the test file predates the Red-phase commit:
    \`\`\`bash
-   red_commit_ts=\$(git log --grep='^test(red):' --format='%H %at' -- {test_files} | head -1 | awk '{print \$2}')
-   create_ts=\$(git log --follow --diff-filter=A --format='%at' -- "\$test_file" | tail -1)
+   red_commit_ts=$(git log --grep='^test(red):' --format='%H %at' -- {test_files} | head -1 | awk '{print $2}')
+   create_ts=$(git log --follow --diff-filter=A --format='%at' -- "$test_file" | tail -1)
    \`\`\`
    If \`create_ts >= red_commit_ts\`, emit:
    [FAIL] category: TEST_INTEGRITY — {file}: marked GREEN (pre-existing) but was created in the Red phase commit.
