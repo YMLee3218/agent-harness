@@ -103,6 +103,24 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/pretooluse-bash.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/pretooluse-agent.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/scripts/pretooluse-skill.sh\""
+          }
+        ]
       }
     ],
     "SubagentStop": [

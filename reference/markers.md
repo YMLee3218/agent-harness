@@ -3,7 +3,7 @@
 Single source of truth for all machine-readable markers used in plan files.
 Includes per-marker Write/Read/Clear/gc lifecycle and operation→marker reverse lookup.
 
-> **Single source of truth**: which markers Claude cannot clear is defined by the `HUMAN_MUST_CLEAR_MARKERS` array in `scripts/phase-policy.sh`. `plan-file.sh` Ring C blocks `unblock` without `CLAUDE_PLAN_CAPABILITY=human`. When adding a new human-must-clear kind, update the array first, then update the table below. Enforcement uses the `marker_present_human_must_clear` helper (also in `phase-policy.sh`), called by `scripts/phase-gate.sh` (`_guard_human_must_clear`) and `scripts/pretooluse-bash.sh` to block Write/Edit and Bash writes respectively.
+> **Single source of truth**: which markers Claude cannot clear is defined by the `HUMAN_MUST_CLEAR_MARKERS` array in `scripts/phase-policy.sh`. `plan-file.sh` Ring C blocks `unblock` without `CLAUDE_PLAN_CAPABILITY=human`. When adding a new human-must-clear kind, update the array first, then update the table below. Enforcement uses the `marker_present_human_must_clear` helper (also in `phase-policy.sh`), called by `scripts/phase-gate.sh` (`_guard_human_must_clear`, Write/Edit/MultiEdit/NotebookEdit), `scripts/pretooluse-bash.sh` (Bash writes and codex invocations), `scripts/pretooluse-agent.sh` (Agent subagent spawning), and `scripts/pretooluse-skill.sh` (Skill invocations targeting codex:*).
 
 ## Stop marker taxonomy
 

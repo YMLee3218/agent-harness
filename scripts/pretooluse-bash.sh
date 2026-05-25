@@ -34,6 +34,20 @@ block_plan_revert "$cmd"
 if [ -f "$PLAN_FILE_SH" ]; then
   BLOCKED_LABEL="phase-gate/bash"
 
+  # ── Codex invocation block (before early-exit so destination-less codex exec is caught) ──
+  if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
+    if printf '%s' "$cmd" | grep -qE '(^|[;|&]|&&|\|\|)[[:space:]]*(env([[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+|-u[[:space:]]+[A-Za-z_][A-Za-z0-9_]*))*[[:space:]]+)?codex([[:space:]]+|$)'; then
+      _codex_plan=""; _codex_phase=""
+      resolve_active_plan_and_phase _codex_plan _codex_phase 2>/dev/null || _codex_plan=""
+      if [ -n "$_codex_plan" ]; then
+        _codex_hmc=$(marker_present_human_must_clear "$_codex_plan" 2>/dev/null) || _codex_hmc=""
+        if [ -n "$_codex_hmc" ]; then
+          echo "BLOCKED [phase-gate/bash]: $_codex_hmc present — codex invocation prohibited; human must resolve and clear the marker from terminal" >&2; exit 2
+        fi
+      fi
+    fi
+  fi
+
   # Commands with no detected redirect/tee/cp/mv/sed-i/dd/awk-i destination
   # bypass phase checks — covers read-only commands (ls, echo, grep) and
   # write commands that don't use redirect syntax (git checkout/switch,
