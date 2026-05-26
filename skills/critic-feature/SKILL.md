@@ -7,7 +7,6 @@ user-invocable: false
 context: fork
 agent: critic-feature
 allowed-tools: [Read, Glob]
-paths: ["docs/**", "features/**", "plans/**"]
 ---
 
 @reference/critics.md

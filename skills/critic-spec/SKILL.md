@@ -7,7 +7,6 @@ user-invocable: false
 context: fork
 agent: critic-spec
 allowed-tools: [Bash]
-paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 ---
 
 @reference/critics.md
