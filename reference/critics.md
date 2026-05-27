@@ -154,6 +154,7 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 ## §Critic one-shot iteration
 
 One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** loop — one critic run per session. Steps 1 and 2 execute in a single continuous turn — no turn boundary between them.
+0. **Pre-fix** (only when `prior_fail_log={path}` in prompt): read the log; for each FAIL finding, apply a Codex fix if direction is clear — skip findings where direction is ambiguous (those will re-surface in step 1). Run one fix prompt per clear finding group. Proceed to step 1 regardless of Codex outcome.
 1. `Skill("{agent}", "{prompt}")` — synchronous; `SubagentStop` fires `record-verdict-guarded` automatically when the subagent exits. Do not end the turn here.
 2. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 6 and 7 hand their re-run back to the shell loop; step 8 / FAIL is executed by this session before exiting); exit after each branching action.
 

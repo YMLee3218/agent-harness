@@ -72,6 +72,14 @@ iter=0
 LAST_PLAN_HASH=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
 CONSECUTIVE_NOOP=0
 
+_log_slug_pre=$(basename "$PLAN" .md)
+_log_dir_pre="$(dirname "$PLAN")/${_log_slug_pre}.state"
+PRIOR_FAIL_LOG=""
+_prior_log="${_log_dir_pre}/last-critic-${AGENT}.log"
+if [[ -f "$_prior_log" ]] && grep -q '<!-- verdict: FAIL -->' "$_prior_log" 2>/dev/null; then
+  PRIOR_FAIL_LOG="$_prior_log"
+fi
+
 while true; do
   # Ceiling-blocked: check sidecar convergence file (per scope — not plan.md)
   # Priority per critics.md: BLOCKED checks (1–4) must precede is-converged (5).
@@ -101,7 +109,9 @@ while true; do
 
   iter=$((iter + 1))
   _wrapped_plan_ref=$(printf 'agent=%s phase=%s plan=%s prompt: %s' "$AGENT" "$PHASE" "$PLAN" "$PROMPT")
-  ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=${AGENT} phase=${PHASE} prompt: ${PROMPT} ${_wrapped_plan_ref}"
+  _prefill=""
+  [[ $iter -eq 1 && -n "$PRIOR_FAIL_LOG" ]] && _prefill=" prior_fail_log=${PRIOR_FAIL_LOG}"
+  ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=${AGENT} phase=${PHASE} plan=${PLAN} prompt: ${PROMPT} ${_wrapped_plan_ref}${_prefill}"
 
   CRITIC_LOOP_MODEL="${CLAUDE_CRITIC_LOOP_MODEL:-opus}"
   # Capture all B-session output; for pr-review also extract nonce-anchored verdict.
