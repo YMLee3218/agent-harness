@@ -54,20 +54,7 @@ _bash_dest_paths() {
 # ── 1. block_destructive ──────────────────────────────────────────────────────
 # Combines: rm (-rf/-fr and separated -r -f), find-delete, disk (dd/mkfs), find-exec-rm
 block_destructive() {
-  local cmd="$1" _rm_frag
-  # rm -rf/-fr variants (merged regex)
-  if printf '%s' "$cmd" | grep -iqE \
-    '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+-[a-zA-Z]*(rf|fr)[a-zA-Z]*([[:space:]/]|$)'; then
-    echo "BLOCKED: destructive rm detected" >&2; exit 2
-  fi
-  # rm -r -f (separated recursive + force flags, any order)
-  _rm_frag=$(printf '%s' "$cmd" | grep -oiE '(^|[;|&[:space:]])[[:space:]]*(sudo[[:space:]]+)?rm[[:space:]]+[^;|&]*' \
-    | head -1 || true)
-  if [[ -n "$_rm_frag" ]] && \
-     printf '%s' "$_rm_frag" | grep -qiE '[[:space:]]-[a-zA-Z]*r([[:space:]]|$)|[[:space:]]--recursive([[:space:]]|$)' && \
-     printf '%s' "$_rm_frag" | grep -qiE '[[:space:]]-[a-zA-Z]*f([[:space:]]|$)|[[:space:]]--force([[:space:]]|$)'; then
-    echo "BLOCKED: destructive rm detected" >&2; exit 2
-  fi
+  local cmd="$1"
   if printf '%s' "$cmd" | grep -iqE '\bfind\b[[:space:]].*\-delete\b'; then
     echo "BLOCKED: find -delete detected — use rm on specific paths instead" >&2; exit 2
   fi

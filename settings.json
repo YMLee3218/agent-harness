@@ -23,7 +23,11 @@
       "Bash(gh pr create *)",
       "Bash(sed *)",
       "Bash(grep *)",
-      "Bash(test *)"
+      "Bash(test *)",
+      "Bash(rm *)",
+      "Bash(rm -r *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -f *)"
     ],
     "deny": [
       "Read(~/.ssh/**)",
