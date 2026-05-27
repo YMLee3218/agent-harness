@@ -52,7 +52,10 @@ _bash_dest_paths() {
 }
 
 # ── 1. block_destructive ──────────────────────────────────────────────────────
-# Combines: rm (-rf/-fr and separated -r -f), find-delete, disk (dd/mkfs), find-exec-rm
+# Combines: find-delete, disk (dd/mkfs), find-exec-rm
+# Note: rm -rf/-fr is intentionally NOT blocked here — allow list in settings.json permits rm;
+# harness-exclusive paths (plans/*.md, plans/*.state/, plans/*.critic.lock) remain protected
+# by block_sidecar_writes() and the deny list in settings.json.
 block_destructive() {
   local cmd="$1"
   if printf '%s' "$cmd" | grep -iqE '\bfind\b[[:space:]].*\-delete\b'; then

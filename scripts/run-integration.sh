@@ -50,6 +50,14 @@ if [[ -f "$_req_file" ]]; then
   done < <(_features_block "$_req_file")
 fi
 [[ -z "$_all_specs" ]] && _all_specs=$(find_spec_path "$_feat_slug")
+# Also include domain and infrastructure specs so critic-cross sees all layers (consistent with dev-cycle-phases.sh)
+for _spec_dir in "${PROJECT_DIR}/src/domain" "${PROJECT_DIR}/src/infrastructure" \
+                 "${PROJECT_DIR}/domain" "${PROJECT_DIR}/infrastructure"; do
+  [[ -d "$_spec_dir" ]] || continue
+  while IFS= read -r _sp; do
+    [[ " $_all_specs " != *" $_sp "* ]] && _all_specs="${_all_specs:+$_all_specs }${_sp}"
+  done < <(find "$_spec_dir" -name "spec.md" 2>/dev/null)
+done
 
 # _validate_integration_preconditions — run unit tests before integration; block on failure.
 _validate_integration_preconditions() {
