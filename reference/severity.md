@@ -16,7 +16,7 @@ Advisory/non-blocking finding labels do not exist. Every reported finding is blo
 | **Manifest gap** | `[MANIFEST-GAP]` | Yes | Scenario covered by pre-existing test but Test Manifest mapping is absent |
 | **Fail** | `[FAIL]` | Yes | Structural violation: BDD format error, naming convention broken, test maps multiple scenarios |
 | **Docs contradiction** | `[DOCS CONTRADICTION]` | Yes | Code or spec contradicts `docs/*.md` (source of truth) |
-| **Unverified** | `[UNVERIFIED CLAIM]` | Yes | Factual claim not grounded in docs/*.md, context7, or verified source |
+| **Unverified** | `[UNVERIFIED CLAIM]` | Yes | Factual claim not grounded in docs/*.md, context7, @reference/*.md, or verified source |
 
 ## PASS/FAIL threshold
 

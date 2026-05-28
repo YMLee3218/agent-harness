@@ -70,7 +70,7 @@ Compare spec against docs/*.md. If the spec contradicts documented domain knowle
 
 ## Angle 3 — Unverified claims → category: `UNVERIFIED_CLAIM`
 
-9. Domain facts: scenario asserts a domain rule, threshold, or constraint not found in docs/*.md? (→ [UNVERIFIED CLAIM])
+9. Domain facts: scenario asserts a domain rule, threshold, or constraint not found in docs/*.md or @reference/*.md? (→ [UNVERIFIED CLAIM])
 10. External references: scenario references a specific API, service, model, or version? Note unverified items. (→ [UNVERIFIED CLAIM])
 
 ## Angle 4 — Cross-feature contradiction → category: `CROSS_FEATURE_CONTRADICTION` (only if other specs provided)
