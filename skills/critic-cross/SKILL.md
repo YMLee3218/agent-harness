@@ -66,6 +66,8 @@ through the correct layer boundary (per layers.md).
 
 ## Angle 7 — Cross-feature Envelope consistency → category: `ENVELOPE_MISMATCH`
 
+Scope guard: only process spec paths under `features/`. Exclude `domain/` and `infrastructure/` specs from Angle 7 entirely — they do not carry Operating Envelopes and must not be classified as "internal callee" for propagation checks.
+
 For features that interact (handoffs, shared entities, state transitions): verify Operating Envelopes are compatible. Quote both envelopes.
 For each axis, apply the rule in `${CLAUDE_PROJECT_DIR}/.claude/reference/operating-envelope.md §Envelope axis compatibility`:
 - First identify caller-callee direction from spec text (handoff, composition, state-transition). If no clear direction (bidirectional handoff via shared store): apply the bidirectional variant per axis.

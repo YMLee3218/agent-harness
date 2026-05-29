@@ -3,6 +3,16 @@
 Single source of truth for the six envelope axes and their legal values.
 Referenced by writing-spec, brainstorming, critic-spec, and critic-cross.
 
+## Scope
+
+Operating Envelope declarations and all compatibility rules in this file apply to
+**features only** (`features/{verb}-{noun}/spec.md`).
+
+Domain concepts (`domain/{concept}/spec.md`) and infrastructure components
+(`infrastructure/{concept}/spec.md`) do **not** carry Operating Envelope sections.
+All §Axis semantic types, §Partial-order axes, §Actors lookup, and §External I/O
+checks are skipped for any spec path not under `features/`.
+
 ## Axis table
 
 | Axis | Legal values |

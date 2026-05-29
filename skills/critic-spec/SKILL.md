@@ -83,6 +83,9 @@ If the prompt includes "Also verify consistency against existing specs:":
 
 ## Angle 5 — Envelope Discipline → category: `ENVELOPE_MISMATCH` / `ENVELOPE_OVERREACH`
 
+Scope guard: if `{spec_path}` does not begin with `features/`, skip Angle 5 entirely —
+Operating Envelope rules apply to features only (see operating-envelope.md §Scope).
+
 Read the "## Operating Envelope" section from {spec_path}. Apply before any MISSING_SCENARIO finding.
 
 10. Missing envelope: spec has no Operating Envelope section → [FAIL] ENVELOPE_MISMATCH: Operating Envelope section missing

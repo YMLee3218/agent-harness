@@ -72,6 +72,11 @@ Proceed directly to Step 4.
 
 ## Step 4 — Write spec.md
 
+The `## Operating Envelope` section (Step 2) is written **only** into the feature spec
+(`features/{verb}-{noun}/spec.md`). Domain concept specs and infrastructure component
+specs do NOT include an Operating Envelope section — start them directly with the
+`## Scenarios` or first BDD scenario block.
+
 Read `docs/requirements/*.md` and identify ALL components implied by the feature requirements.
 Classify each component by layer using `@reference/layers.md §Layers`, then write to the spec path from `@reference/layers.md §Naming conventions` (§Layer-to-spec-path mapping is canonical).
 
