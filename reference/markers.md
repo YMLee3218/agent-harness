@@ -182,8 +182,6 @@ Detected by `run-implement.sh` via `grep -q 'coder-status: complete'`.
 
 Written by parent-context ultrathink audit to `## Verdict Audits` via `plan-file.sh append-audit`. Full protocol and outcome table: `@reference/ultrathink.md §Audit outcomes`.
 
-## Category enum values
-
 Category enum values and priority: `@reference/severity.md §Category priority`
 
 ## Phase-scoped convergence markers

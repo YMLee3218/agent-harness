@@ -183,12 +183,12 @@ Then tell the interactive Claude the decision; it will restart the autonomous ru
 
 ## Resuming from a BLOCKED marker
 
-All `[BLOCKED:{kind}]` markers are cleared by `unblock` in a single pass — no marker text input needed. `[BLOCKED:transient]` is intentionally excluded (auto lifecycle; not a human-must marker). After fixing the root cause, **run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required; see `@reference/markers.md`):
+All `[BLOCKED:{kind}]` markers **except `ceiling`** are cleared by `unblock` in a single pass — no marker text input needed. `[BLOCKED:transient]` is intentionally excluded (auto lifecycle; not a human-must marker). After fixing the root cause, **run from a human terminal** (Ring C — `CLAUDE_PLAN_CAPABILITY=human` required; see `@reference/markers.md`):
 ```bash
 export CLAUDE_PLAN_CAPABILITY=human
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "$CLAUDE_PROJECT_DIR/plans/{slug}.md"
 ```
-Re-run the critic. If streak reset needed (parse block): switch to Ring B capability first, then call `reset-milestone` (Ring B — `CLAUDE_PLAN_CAPABILITY=harness` required, not `=human`; clears `[BLOCKED:ceiling]` and resets the ceiling counter only — does NOT clear other `[BLOCKED:{kind}]` markers):
+Re-run the critic. **Exception: for `[BLOCKED:ceiling]`, never use `unblock` alone** — use `reset-milestone {agent}` instead (Ring B — `CLAUDE_PLAN_CAPABILITY=harness` required, not `=human`; `unblock` alone does not increment `milestone_seq` and immediately re-triggers the ceiling block):
 ```bash
 export CLAUDE_PLAN_CAPABILITY=harness
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {agent}
