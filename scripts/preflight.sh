@@ -40,6 +40,7 @@ _blocked=0
 _append_blocked() {
   local tool="$1" fix="$2"
   local marker="[BLOCKED:env] preflight:${tool}: not-installed — ${fix}"
+  _blocked=1
   if [ -n "$_active_plan" ] && [ -f "$_active_plan" ]; then
     if grep -qF "[BLOCKED:env] preflight:${tool}:" "$_active_plan" 2>/dev/null; then
       return
@@ -48,7 +49,6 @@ _append_blocked() {
   else
     echo "$marker" >&2
   fi
-  _blocked=1
 }
 
 # Check: gh CLI authenticated (skipped in B-sessions — critic/pr-review never call gh)
