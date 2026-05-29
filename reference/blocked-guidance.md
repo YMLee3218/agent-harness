@@ -8,8 +8,8 @@ follow this protocol exactly — write all user-facing output in Korean (per `@r
 ## Presentation format
 
 1. **Quote the marker** — verbatim, as it appears in the plan file
-2. **Explain the block** — one sentence in Korean: what this kind means and what needs to change
-3. **Resolution path** — in Korean: root-cause fix first (recommend regardless of scope); workaround second (label as "temporary workaround" only)
+2. **Explain the block** — in Korean: describe the situation in detail — what this kind means, what specifically went wrong, and what needs to change
+3. **Resolution path** — in Korean: list all available options; then recommend the root-cause fix and state explicitly why it is the correct direction; label any workaround as "temporary workaround" only — never cite scope or effort as a reason to recommend
 4. **Decision required** — if scope or root cause is ambiguous, use `AskUserQuestion` with choices
 
 > **Output language**: every word in steps 2–4 must be in Korean. The per-kind table below is in English for file-content policy compliance — translate all cell content to Korean before presenting it to the user. Never output English table text verbatim in user-facing responses.
