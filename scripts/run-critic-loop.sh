@@ -156,6 +156,14 @@ or
       _record_transient "$PLAN" "$AGENT" session-timeout \
         "after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" "$PLAN_FILE_SH" 2>/dev/null || true
       echo "[transient] session-timeout after ${SESSION_TIMEOUT}s" >&2; exit 1
+    elif [[ $exit_code -eq 1 ]] && grep -q "thinking.*blocks.*cannot be modified\|redacted_thinking.*cannot be modified" \
+        "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null; then
+      if _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
+          "Claude API 400: thinking blocks modified in multi-turn session — will retry" "$PLAN_FILE_SH" 2>/dev/null; then
+        echo "[transient] thinking-block-api-error promoted to [BLOCKED:env] after threshold" >&2; exit 1
+      else
+        echo "[transient] thinking-block-api-error — retrying session" >&2; continue
+      fi
     else
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
         "[BLOCKED:env] ${AGENT}: script-failure — exit ${exit_code}; check session logs" 2>/dev/null || true

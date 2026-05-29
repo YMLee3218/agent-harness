@@ -59,6 +59,7 @@ Transient (sidecar only, never plan.md):
 ```
 [BLOCKED:transient] critic-code: session-timeout — after 3600s
 [BLOCKED:transient] critic-code: loop-lock — critic loop already running
+[BLOCKED:transient] critic-code: thinking-block-api-error — Claude API 400: thinking blocks modified in multi-turn session
 ```
 
 ## Clearing stop markers
@@ -83,7 +84,7 @@ After resolving the root cause, run `unblock` then restart the autonomous run. E
 **Mechanism**:
 
 1. Each `(agent, sub-kind)` pair has a counter in `plans/{slug}.state/transient_counters.json`.
-2. Below threshold K (`CLAUDE_TRANSIENT_THRESHOLD`, default 3): counter increments; no plan.md write; the caller exits (session-timeout exits run-critic-loop with 1; loop-lock exits with 3). Re-run the harness — no `plan-file.sh unblock` needed since no blocked marker is written.
+2. Below threshold K (`CLAUDE_TRANSIENT_THRESHOLD`, default 3): counter increments; no plan.md write; the caller retries or exits (session-timeout exits run-critic-loop with 1; loop-lock exits with 3; thinking-block-api-error retries the session via loop continue). Re-run the harness — no `plan-file.sh unblock` needed since no blocked marker is written.
 3. At K-th occurrence: `[BLOCKED:env] {agent}: {sub-kind} — recurred {K} times: {detail}` is written to `## Open Questions`; counter resets.
 4. Counter reset also on: any completed critic session (successful session exit), `reset-milestone` (target agent's counters only — uses `_clear_transient_for`), `reset-for-rollback` (all agents' counters — uses `_reset_all_transient_counters`).
 5. `unblock` does not touch transient counters — they have their own lifecycle.
@@ -91,6 +92,7 @@ After resolving the root cause, run `unblock` then restart the autonomous run. E
 **Transient sub-kinds** (closed set — additions require explicit policy review):
 - `session-timeout` — critic session hit `CLAUDE_CRITIC_SESSION_TIMEOUT` wall
 - `loop-lock` — critic loop already running (lock file conflict)
+- `thinking-block-api-error` — Claude API 400: thinking/redacted_thinking blocks modified between turns; session retried automatically
 
 ## Non-loop stop markers (written to `## Open Questions`)
 

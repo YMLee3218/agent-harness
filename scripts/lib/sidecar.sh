@@ -232,8 +232,8 @@ sc_make_conv_state() {
 }
 
 # ── Transient mechanism ────────────────────────────────────────────────────────
-# Transient sub-kind enum (closed set): session-timeout loop-lock
-_TRANSIENT_SUB_KINDS="session-timeout loop-lock"
+# Transient sub-kind enum (closed set): session-timeout loop-lock thinking-block-api-error
+_TRANSIENT_SUB_KINDS="session-timeout loop-lock thinking-block-api-error"
 
 # _record_transient PLAN_FILE AGENT SUB_KIND DETAIL [PLAN_FILE_SH]
 # Records a one-time transient state without writing to plan.md.
