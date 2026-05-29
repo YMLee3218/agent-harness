@@ -9,15 +9,18 @@ follow this protocol exactly — write all user-facing output in Korean (per `@r
 
 1. **Quote the marker** — verbatim, as it appears in the plan file
 2. **Explain the block** — one sentence in Korean: what this kind means and what needs to change
-3. **Resolution path** — in Korean: recommended path (fix root cause) first, workaround second
+3. **Resolution path** — in Korean: root-cause fix first (recommend regardless of scope); workaround second (label as "temporary workaround" only)
 4. **Decision required** — if scope or root cause is ambiguous, use `AskUserQuestion` with choices
 
-> Output language: all user-facing responses per this guide must be written in Korean.
-> The `language.md` "Default: Korean" rule applies to all explanations, choices, and recommendations that follow the verbatim marker output.
+> **Output language**: every word in steps 2–4 must be in Korean. The per-kind table below is in English for file-content policy compliance — translate all cell content to Korean before presenting it to the user. Never output English table text verbatim in user-facing responses.
+>
+> **Scope-bias prohibition**: recommend based on correctness of direction, not size of change. "Fewer modifications", "smaller scope", "faster", "resolves it immediately" are not valid reasons to recommend an option. Always recommend the root-cause fix (option A) first; present workarounds as temporary only (see §Recommendation policy below).
 
 ---
 
 ## Per-kind guidance
+
+> **Translation required**: the cells below are English for file-content compliance. Translate 'Meaning' and 'Recommended resolution' to Korean when presenting to the user.
 
 | Kind | Meaning | Recommended resolution (root-cause first) | Anti-pattern |
 |------|---------|-------------------------------------------|--------------|
