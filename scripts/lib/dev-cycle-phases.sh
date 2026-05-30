@@ -67,6 +67,56 @@ _phase_spec_prepass() {
   done < <(get_features)
 }
 
+# _phase_domain_infra_spec_review — run critic-spec independently for each domain/infra spec.md.
+_phase_domain_infra_spec_review() {
+  local _di_specs _spec_rel _spec _layer _slug _rev_marker _ph
+
+  # Collect domain/ + infrastructure/ spec.md from both untracked/modified and committed files.
+  _di_specs=$(
+    {
+      git -C "$PROJECT_DIR" status --porcelain 2>/dev/null \
+        | awk '$0 ~ /spec\.md$/{print $NF}' \
+        | grep -E '^(src/)?(domain|infrastructure)/' || true
+      git -C "$PROJECT_DIR" ls-files '*/spec.md' 2>/dev/null \
+        | grep -E '^(src/)?(domain|infrastructure)/' || true
+    } | sort -u
+  )
+
+  [[ -z "$_di_specs" ]] && return 0
+
+  while IFS= read -r _spec_rel; do
+    [[ -z "$_spec_rel" ]] && continue
+    _spec="${PROJECT_DIR}/${_spec_rel}"
+    _layer=$(printf '%s' "$_spec_rel" | sed 's|^src/||' | cut -d/ -f1)
+    _slug=$(printf '%s' "$_spec_rel"  | sed 's|^src/||' | cut -d/ -f2)
+    _rev_marker="${PLAN%.md}.state/spec-reviewed-${_layer}-${_slug}"
+
+    # Skip if spec is already committed AND review marker exists.
+    git -C "$PROJECT_DIR" ls-files --error-unmatch "$_spec_rel" 2>/dev/null && \
+      [[ -f "$_rev_marker" ]] && continue
+
+    # Ensure plan is in spec phase before critic-spec runs.
+    _ph=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo "")
+    if [[ "$_ph" == "brainstorm" ]]; then
+      bash "$PF" transition "$PLAN" spec "advancing to spec phase for ${_layer}/${_slug} critic-spec"
+    elif [[ "$_ph" != "spec" ]]; then
+      touch "$_rev_marker" 2>/dev/null || true
+      continue
+    fi
+
+    bash "$PF" reset-milestone "$PLAN" critic-spec
+    rm -f "$_rev_marker" 2>/dev/null || true
+    run_critic critic-spec spec \
+      "Review spec for ${_layer} concept: ${_slug}. Spec: ${_spec}. Docs: $(docs_paths). Plan: ${PLAN}."
+    llm_exit "critic-spec"
+    touch "$_rev_marker" 2>/dev/null || true
+
+    git -C "$PROJECT_DIR" add "$_spec_rel" 2>/dev/null || true
+    git -C "$PROJECT_DIR" diff --cached --quiet || \
+      git -C "$PROJECT_DIR" commit -m "feat(spec): add BDD scenarios for ${_layer}/${_slug}"
+  done <<< "$_di_specs"
+}
+
 # _phase_cross_spec_review — run critic-cross once across all spec files.
 _phase_cross_spec_review() {
   bash "$PF" is-converged "$PLAN" spec critic-cross 2>/dev/null && return 0

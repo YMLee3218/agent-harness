@@ -140,6 +140,7 @@ fi
 
 # ── Feature-slice phases ──────────────────────────────────────────────────────
 _phase_spec_prepass
+_phase_domain_infra_spec_review
 _phase_cross_spec_review
 _phase_implement_cycle
 
