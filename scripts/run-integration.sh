@@ -50,6 +50,7 @@ if [[ -f "$_req_file" ]]; then
   done < <(_features_block "$_req_file")
 fi
 [[ -z "$_all_specs" ]] && _all_specs=$(find_spec_path "$_feat_slug")
+_feature_specs="$_all_specs"  # feature specs only (no domain/infra); used for critic-code which requires Operating Envelope
 # Also include domain and infrastructure specs so critic-cross sees all layers (consistent with dev-cycle-phases.sh)
 for _spec_dir in "${PROJECT_DIR}/src/domain" "${PROJECT_DIR}/src/infrastructure" \
                  "${PROJECT_DIR}/domain" "${PROJECT_DIR}/infrastructure"; do
@@ -153,7 +154,7 @@ After completing the above, output as the very last line of your response exactl
         exit 1
       fi
       bash "$PF" reset-milestone "$PLAN" critic-code
-      run_critic critic-code implement "Review integration bug fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+      run_critic critic-code implement "Review integration bug fix implementation. Spec: ${_feature_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       llm_exit "critic-code"
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;

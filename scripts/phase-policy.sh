@@ -139,11 +139,14 @@ HUMAN_MUST_CLEAR_MARKERS=(
 # (plan file path). Returns 1 if none found.
 # All markers begin with '[BLOCKED:' and must appear at line start (line-anchored ERE).
 marker_present_human_must_clear() {
-  local plan_file="$1" marker escaped
+  local plan_file="$1" marker escaped _oq_section
   [[ -f "$plan_file" ]] || return 1
+  _oq_section=$(awk '/^## Open Questions$/{in_s=1;next} in_s&&/^## /{in_s=0} in_s{print}' \
+    "$plan_file" 2>/dev/null) || _oq_section=""
+  [[ -z "$_oq_section" ]] && return 1
   for marker in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do
     escaped=$(printf '%s' "$marker" | sed 's/[][\\.*^$(){}?+|]/\\&/g')
-    grep -qE "^${escaped}" "$plan_file" 2>/dev/null || continue
+    printf '%s\n' "$_oq_section" | grep -qE "^${escaped}" 2>/dev/null || continue
     printf '%s\n' "$marker"; return 0
   done
   return 1

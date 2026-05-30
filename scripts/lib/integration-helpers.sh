@@ -7,7 +7,7 @@ _INTEGRATION_HELPERS_LOADED=1
 
 # All functions use globals set by run-integration.sh:
 #   PF PLAN PROJECT_DIR SCRIPTS_DIR UNIT_CMD LINT_CMD _lang _domain_root _infra_root _features_root
-#   _all_specs _req_file
+#   _all_specs _feature_specs _req_file
 
 _INTEGRATION_HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=llm-runner.sh
@@ -57,7 +57,7 @@ _handle_spec_phase_rollback() {
   llm_exit "implementing"
   bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD" --lint-cmd "$LINT_CMD"
   bash "$PF" reset-milestone "$PLAN" critic-code
-  run_critic critic-code implement "Review integration ${_cat} fix implementation. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
+  run_critic critic-code implement "Review integration ${_cat} fix implementation. Spec: ${_feature_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
   llm_exit "critic-code"
   bash "$PF" transition "$PLAN" integration "re-entering integration after ${_cat} fix"
 }
