@@ -68,7 +68,7 @@ _validate_integration_preconditions() {
   bash "$PF" reset-for-rollback "$PLAN" implement
   bash "$PF" transition "$PLAN" red "unit tests failing at integration entry — fresh task planning needed"
   bash "$PF" reset-milestone "$PLAN" critic-test
-  bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: unit-tests-failing — resolve via /implementing before re-running"
+  bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: unit-tests-failing — fix unit tests, unblock, then re-run /running-dev-cycle from red phase"
   exit 1
 }
 
