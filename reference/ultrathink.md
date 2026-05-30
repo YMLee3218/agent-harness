@@ -45,7 +45,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit "$CLAUDE_PR
 ```
 Enter the FAIL path. (`clear-converged` writes a `REJECT-PASS` streak-reset entry to `## Critic Verdicts` and resets the sidecar — excluded from ceiling counts.)
 
-**BLOCKED-AMBIGUOUS**: emit per-finding markers, apply GENUINE fixes if any, then stop.
+**BLOCKED-AMBIGUOUS**: apply GENUINE fixes first, then emit per-finding markers, then stop.
 
 1. Record audit with GENUINE and AMBIGUOUS finding IDs (use "Finding N" labels from the audit body):
 ```bash
@@ -53,20 +53,21 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
   "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "BLOCKED-AMBIGUOUS" \
   "{one-line summary} | GENUINE: [Finding N, ...] | AMBIGUOUS: [Finding M, ...]"
 ```
-2. For each AMBIGUOUS finding, check whether the exact marker text already exists in `## Open Questions`; if not, append:
-   `[BLOCKED:spec] {agent}: ambiguous — {finding-excerpt}: {audit-question}`
-3. If GENUINE findings exist, build a Codex fix prompt scoped to **only** those findings (exclude AMBIGUOUS findings from fix scope) and apply before stopping:
+2. If GENUINE findings exist, build a Codex fix prompt scoped to **only** those findings (exclude AMBIGUOUS findings from fix scope) and apply now — before emitting any `[BLOCKED:spec]` markers (the pre-tool hook blocks Bash writes once a `[BLOCKED:spec]` marker is present):
 ```bash
 codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
 ```
+3. For each AMBIGUOUS finding, check whether the exact marker text already exists in `## Open Questions`; if not, append:
+   `[BLOCKED:spec] {agent}: ambiguous — {finding-excerpt}: {audit-question}`
 4. Stop — do not re-run the critic. The `[BLOCKED:spec]` markers halt the loop at `@reference/critics.md §Skill branching logic` step 2.
 
-**ACCEPT-OVERRIDE**: record, then exit without applying any fix.
+**ACCEPT-OVERRIDE**: record, re-run once (phase-gate critics only), then exit without applying any fix.
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
   "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "ACCEPT-OVERRIDE" \
   "all {N} citations absent from files — verdict promoted to PASS"
 ```
-Exit this session immediately — do **not** apply step 8 (FAIL-path) fixes. For **pr-review only**: also emit `<!-- review-verdict: {nonce} PASS -->` per `@reference/pr-review-loop.md §PR-review one-shot iteration` step 3 immediately after the `append-audit` call; `run-critic-loop.sh` captures the last nonce-anchored marker, overriding the recorded FAIL. For **phase-gate critics** (`critic-code`, `critic-spec`, `critic-test`, `critic-cross`, `critic-feature`): there is no nonce mechanism — the sidecar retains the original FAIL verdict; the shell loop re-runs and should produce PASS (citations were absent). Do not look at `## Critic Verdicts` to determine the branch after ACCEPT-OVERRIDE — the explicit instruction to exit (without fix) overrides the mechanical §Skill branching logic step 8. ACCEPT-OVERRIDE is only valid when the Citation Summary is present and every blocking finding satisfies (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If any finding is GENUINE, use ACCEPT. If any finding is AMBIGUOUS, use BLOCKED-AMBIGUOUS.
+For **phase-gate critics** (`critic-code`, `critic-spec`, `critic-test`, `critic-cross`, `critic-feature`): immediately re-run `Skill("{agent}", "{prompt}")` once within this session before exiting. This avoids a wasted loop iteration when citations were hallucinated. If the re-run produces FAIL again with all citations still absent, treat as ACCEPT-OVERRIDE again and exit without a second re-run.
+Exit this session immediately after the (optional) re-run — do **not** apply step 8 (FAIL-path) fixes. For **pr-review only**: also emit `<!-- review-verdict: {nonce} PASS -->` per `@reference/pr-review-loop.md §PR-review one-shot iteration` step 3 immediately after the `append-audit` call; `run-critic-loop.sh` captures the last nonce-anchored marker, overriding the recorded FAIL. For **phase-gate critics** (`critic-code`, `critic-spec`, `critic-test`, `critic-cross`, `critic-feature`): there is no nonce mechanism — the sidecar retains the original FAIL verdict; the shell loop re-runs and should produce PASS (citations were absent). Do not look at `## Critic Verdicts` to determine the branch after ACCEPT-OVERRIDE — the explicit instruction to exit (without fix) overrides the mechanical §Skill branching logic step 8. ACCEPT-OVERRIDE is only valid when the Citation Summary is present and every blocking finding satisfies (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. If any finding is GENUINE, use ACCEPT. If any finding is AMBIGUOUS, use BLOCKED-AMBIGUOUS.
 
 **Non-interactive mode** (`CLAUDE_NONINTERACTIVE=1`): BLOCKED-AMBIGUOUS still stops. REJECT-PASS automatically enters the FAIL path. ACCEPT-OVERRIDE proceeds automatically (all citations absent — no ambiguity).
