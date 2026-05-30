@@ -80,7 +80,7 @@ specs do NOT include an Operating Envelope section — start them directly with 
 Read `docs/requirements/*.md` and identify ALL components implied by the feature requirements.
 Classify each component by layer using `@reference/layers.md §Layers`, then write to the spec path from `@reference/layers.md §Naming conventions` (§Layer-to-spec-path mapping is canonical).
 
-Start spec.md with the `## Operating Envelope` section copied verbatim from the plan file (the values written in Step 2). It must be the first section before any scenarios.
+For the feature spec (`features/{verb}-{noun}/spec.md`): start with the `## Operating Envelope` section copied verbatim from the plan file (the values written in Step 2). It must be the first section before any scenarios.
 
 This is the only phase where domain concepts and infrastructure components are identified.
 

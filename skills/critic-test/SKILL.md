@@ -67,7 +67,7 @@ If \`_plan_t\` and \`_file_t\` are both non-empty and \`_file_t\` < \`_plan_t\`,
 
 ## Envelope Discipline (evaluate before all other checks) → category: `ENVELOPE_MISMATCH` / `ENVELOPE_OVERREACH`
 
-Read the "## Operating Envelope" section from {spec_path}. If absent, report [FAIL] ENVELOPE_MISMATCH and stop.
+For **feature specs** (`features/` path): read the "## Operating Envelope" section from {spec_path}. If absent, report [FAIL] ENVELOPE_MISMATCH and stop. For **domain and infrastructure specs** (`domain/` or `infrastructure/` path): skip this check — those specs do not carry an Operating Envelope by design.
 
 Before reporting any [MISSING] scenario coverage gap:
 - Verify the scenario is within the spec's declared Operating Envelope.
