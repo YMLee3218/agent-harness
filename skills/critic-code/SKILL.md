@@ -39,7 +39,7 @@ Read these reference files first — they govern your output:
 
 ## Envelope Discipline (evaluate before Angle 1)
 
-Read the "## Operating Envelope" section from {spec_path}. If absent, report [FAIL] ENVELOPE_MISMATCH and stop Angle 1 checks.
+For **feature specs** (`features/` path): read the "## Operating Envelope" section from {spec_path}. If absent, report [FAIL] ENVELOPE_MISMATCH and stop Angle 1 checks. For **domain and infrastructure specs** (`domain/` or `infrastructure/` path): skip this check — those specs do not carry an Operating Envelope by design.
 
 Before reporting any Angle 1 compliance failure: verify the scenario is within the declared envelope. If the scenario only occurs outside the envelope, drop the finding — it is out of scope, not a bug. If you believe the envelope is wrong (e.g. the DB is multi-tenant but envelope declares single-tenant), report [FAIL] ENVELOPE_MISMATCH: {reason} and do not expand coverage.
 
