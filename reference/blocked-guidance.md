@@ -25,7 +25,7 @@ follow this protocol exactly — write all user-facing output in Korean (per `@r
 | Kind | Meaning | Recommended resolution (root-cause first) | Anti-pattern |
 |------|---------|-------------------------------------------|--------------|
 | `envelope` | Operating Envelope in spec is incorrectly declared | 1. Fix the Envelope section → 2. `unblock` | Running `unblock` without fixing the Envelope |
-| `docs` | Ground-truth contradiction between docs and spec/tests | 1. Decide which is correct (docs, spec, or tests) → 2. Fix → 3. `unblock` | Running `unblock` without resolving the contradiction |
+| `docs` | Ground-truth contradiction between docs and spec/tests | Follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade` — unblock first (required to enable cascade sub-runs that would otherwise exit 1), then determine ground truth → fix → re-run critics | Running `unblock` and abandoning the resolution cascade without completing the fix |
 | `spec` | Spec gap or ambiguity — human decision required | 1. Clarify the ambiguous spec item → 2. `unblock` | Running `unblock` with spec left as-is |
 | `code` | Root-cause bug in code or tests | 1. Fix the actual defect in code/tests → 2. `unblock` | Running `unblock` without reviewing the code |
 | `env` | Environment/session/tooling issue (persistent or recurring) | 1. Install missing tool or fix environment → 2. `unblock` | Bypassing with `unblock` without fixing the environment |
