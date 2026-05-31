@@ -53,6 +53,17 @@ This rule applies to each `Scenario Outline` whose `Examples` parameterise an in
 | Nullable / optional | `null` / `None` / absent |
 | Boolean | `true`, `false` |
 
+**Undocumented-max string:** When a String field has no documented maximum
+length, the required "max-length" boundary is satisfied by a scenario that
+asserts an extremely long string is accepted — its purpose is to verify that
+the system imposes no undocumented cap. Write it as a dedicated `Scenario:`
+(divergent intent from a normal-value Outline) with a `Then` of the form
+"the input is accepted without truncation or rejection". This pattern is
+**not** a DOCS_CONTRADICTION; it is an affirmative test of the absence of
+an undocumented constraint. Document the absence with a comment in the spec
+file (e.g., `# dedupe_key has no documented max length; extremely-long-string
+scenario verifies no undisclosed cap is enforced`).
+
 **Closed-enum exemption:** A column whose values form a closed enumeration
 (i.e., every valid member is explicitly listed and no arbitrary string is a
 valid input) is exempt from the String boundary rows, provided all three
