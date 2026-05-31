@@ -965,7 +965,7 @@ cmd_record_task_completed() {
   task_id=$(printf '%s' "$input" | jq -r '.task_id // "unknown"' 2>/dev/null || echo "unknown")
   [[ "$task_id" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "[record-task-completed] invalid task_id: ${task_id}" >&2; exit 0; }
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
-  cmd_update_task "$plan_file" "$task_id" "completed" || true
+  (cmd_update_task "$plan_file" "$task_id" "completed") || true
   echo "[record-task-completed] marked task (${task_id}) completed in ${plan_file}" >&2
 }
 

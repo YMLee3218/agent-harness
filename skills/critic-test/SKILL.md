@@ -93,7 +93,7 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
    Exception: a test marked \`GREEN (pre-existing)\` in the Test Manifest is allowed to pass. For each GREEN entry, verify with git that the test file predates the Red-phase commit:
    \`\`\`bash
    red_commit_ts=$(git log --grep='^test(red):' --format='%H %at' -- {test_files} | head -1 | awk '{print $2}')
-   create_ts=$(git log --follow --diff-filter=A --format='%at' -- "$test_file" | tail -1)
+   create_ts=$(git log --follow --diff-filter=A --format='%at' -- {test_file} | tail -1)
    \`\`\`
    If \`create_ts >= red_commit_ts\`, emit:
    [FAIL] category: TEST_INTEGRITY — {file}: marked GREEN (pre-existing) but was created in the Red phase commit.

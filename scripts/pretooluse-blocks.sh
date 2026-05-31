@@ -236,7 +236,7 @@ block_plan_revert() {
      printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]]*\.md'; then
     echo "BLOCKED: git operation targeting plans/*.md while human-must-clear marker active — resolve the block first" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+reset[[:space:]]+--[[:space:]]*(soft|mixed)[[:space:]]'; then
+  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+reset[[:space:]]+--[[:space:]]*(soft|mixed)([[:space:]]|$)'; then
     echo "BLOCKED: git reset --soft/--mixed while human-must-clear marker active — resolve the block first" >&2; exit 2
   fi
 }

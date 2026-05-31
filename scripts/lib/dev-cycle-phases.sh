@@ -18,6 +18,7 @@ _phase_spec_prepass() {
     # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
     _rev_marker="${PLAN%.md}.state/spec-reviewed-${feat_slug}"
     [[ -f "$_spec_path" ]] && git -C "$PROJECT_DIR" ls-files --error-unmatch "$_spec_path" 2>/dev/null && \
+      [[ -z "$(git -C "$PROJECT_DIR" status --porcelain "$_spec_path" 2>/dev/null)" ]] && \
       [[ -f "$_rev_marker" ]] && continue
 
     if [[ ! -f "$_spec_path" ]]; then
@@ -91,8 +92,9 @@ _phase_domain_infra_spec_review() {
     _slug=$(printf '%s' "$_spec_rel"  | sed 's|^src/||' | cut -d/ -f2)
     _rev_marker="${PLAN%.md}.state/spec-reviewed-${_layer}-${_slug}"
 
-    # Skip if spec is already committed AND review marker exists.
+    # Skip if spec is already committed (clean, no uncommitted changes) AND review marker exists.
     git -C "$PROJECT_DIR" ls-files --error-unmatch "$_spec_rel" 2>/dev/null && \
+      [[ -z "$(git -C "$PROJECT_DIR" status --porcelain "$_spec_rel" 2>/dev/null)" ]] && \
       [[ -f "$_rev_marker" ]] && continue
 
     # Ensure plan is in spec phase before critic-spec runs.
