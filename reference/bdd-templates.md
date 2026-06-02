@@ -75,6 +75,20 @@ Document the exemption with a comment in the spec file (e.g.,
 `# initial_state is a closed enum whose rows enumerate the only shapes the
 loader can observe; string-input boundary rows do not apply`).
 
+**Undocumented-max numeric:** When an integer field has no documented maximum
+and the platform imposes no upper bound (e.g., Python `int`), the required
+"maximum" boundary is satisfied by a scenario that asserts an extremely large
+integer is accepted — its purpose is to verify that the system imposes no
+undocumented application-level cap. Write it as a dedicated `Scenario:` with a
+`Then` of the form "the input is accepted without rejection or overflow". This
+pattern is **not** a DOCS_CONTRADICTION; it is an affirmative test of the
+absence of an undocumented constraint. Document the absence with a comment in
+the spec file (e.g., `# quantity has no documented max; extremely-large-integer
+scenario verifies no undisclosed cap is enforced`).
+Note: if this scenario fails because the system does enforce a cap, the correct
+resolution is to document that cap in the spec (add it as the domain max) and
+reclassify the boundary — not to remove the scenario.
+
 **Cardinality-column exemption:** A column whose values are non-negative
 integer counts of items in a collection (e.g., list length, set size, count
 of entries in a persisted store, count of items in a returned response) is
