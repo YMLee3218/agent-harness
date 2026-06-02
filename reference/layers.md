@@ -10,6 +10,13 @@ This file is the single source of truth for layer rules. CLAUDE.md, skills, and 
 | **Domain** | `src/domain/` | Business rules and decisions; pure logic only | Nothing — no external dependencies |
 | **Infrastructure** | `src/infrastructure/` | Technical execution: DB, HTTP, queues, file I/O | `src/domain/` (interfaces only) |
 
+## Value object equality
+
+Domain value objects compare equal when all fields compare equal (field-wise equality).
+Domain specs for a value object must include:
+- A `Scenario:` asserting two instances constructed with identical fields compare equal.
+- A `Scenario Outline:` asserting two instances differing in any single field do not compare equal, with one Example row per field.
+
 ## Forbidden imports
 
 - `src/domain/` must **never** import from `src/infrastructure/` or `src/features/`
