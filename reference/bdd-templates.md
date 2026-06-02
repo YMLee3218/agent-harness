@@ -8,7 +8,7 @@ Used by `skills/writing-spec/SKILL.md §Rules` and `§Scenario templates`; revie
 - Every `Scenario Outline` must have `Examples:`
 - No technology names (no DB engines, HTTP libraries, framework names)
 - No implementation details in Given/When/Then steps
-- Domain specs: no DB, HTTP, queue, or file system references
+- Domain specs: no infrastructure operations in steps (DB, HTTP, queue, file I/O)
 - One `Scenario:` per distinct flow; same flow + different values → `Scenario Outline`
 
 ## Basic scenario
