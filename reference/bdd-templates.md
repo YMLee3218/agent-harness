@@ -101,3 +101,12 @@ wide), the documented cap is an additional required boundary; otherwise no
 upper boundary is required. Document the exemption with a comment in the
 spec file (e.g., `# entry_count is a collection-cardinality column; Collection
 rule applies — empty boundary covered by the 0 row`).
+
+**Sibling-Outline coverage:** When a divergent boundary's flow is already
+covered by a sibling `Scenario Outline`'s `Examples` row in the same spec
+file — such that adding a dedicated `Scenario:` would duplicate existing
+coverage and violate §Rules "One `Scenario:` per distinct flow" — a pointing
+comment in the referencing Outline satisfies the boundary coverage requirement.
+The sibling Outline's row is the de facto coverage; do not add a redundant
+dedicated `Scenario:`. Use the form:
+`# {value} boundary covered by Scenario Outline "{sibling title}" (Examples row) — divergent flow`

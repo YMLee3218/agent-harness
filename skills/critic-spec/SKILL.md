@@ -49,14 +49,13 @@ For every scenario:
 1. Failure paths: fails / partially succeeds / times out / external system down?
 2. Concurrent state: same request while processing? Prior step incomplete when next starts?
 3. Ordering: events out of order? Duplicate events?
-4. Boundaries: for every Scenario Outline whose Examples parameterise an input
-   type listed in bdd-templates.md, each required boundary value is covered —
-   as a row in its Examples table, or as a dedicated Scenario when the boundary
-   triggers a divergent Then (per bdd-templates.md's coverage clause). When no
-   Examples row covers a boundary, search the spec for a dedicated Scenario
-   covering its divergent outcome (the Outline's pointing comment, if present,
-   names it). Covered by neither a row nor a dedicated Scenario → [MISSING];
-   covered by a dedicated Scenario the Outline does not point to → [FAIL] STRUCTURAL (add a pointing comment to the Outline).
+4. Boundaries: enforce §Required boundary coverage from bdd-templates.md
+   exactly — read that section for all valid coverage forms (Examples row,
+   dedicated Scenario:, sibling-Outline row, and all exemptions). For each
+   Scenario Outline with a typed input, verify every required boundary value
+   is covered in one of the valid forms. Covered by none → [MISSING]; covered
+   but the Outline lacks a pointing comment naming the covering element →
+   [FAIL] STRUCTURAL.
 
 Compare spec against docs/*.md. If the spec contradicts documented domain knowledge, report [DOCS CONTRADICTION] (do not judge sides).
 
