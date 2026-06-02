@@ -63,7 +63,7 @@ Compare spec against docs/*.md. If the spec contradicts documented domain knowle
 ## Angle 2 — Structural correctness → category: `STRUCTURAL` (or `LAYER_VIOLATION` for §6, §6b, §7)
 
 5. Placement: spec path matches the component's classified layer per layers.md §Naming conventions? Feature: features/{verb}-{noun}/spec.md? Domain: domain/{concept}/spec.md? Infrastructure: infrastructure/{concept}/spec.md? (→ [FAIL])
-6. Domain purity: domain spec mentions DB, HTTP, queue, or file system? (→ [FAIL])
+6. Domain purity: does any Given/When/Then step perform a DB query, HTTP call, queue operation, or file I/O (read, write, check existence)? Comments explaining field semantics (e.g., `# target_file_path is a string identifier, not an I/O handle`) and path-typed fields or parameters are NOT violations. (→ [FAIL])
 6b. Infrastructure purity: infrastructure spec describes pure business logic with no I/O? (→ [FAIL])
 7. Feature classification: large feature scenario implies calling domain directly? (→ [FAIL])
 8. BDD format: every scenario has Given, When, Then? Every Scenario Outline has Examples:? Feature: declaration present?
