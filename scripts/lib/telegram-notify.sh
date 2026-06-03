@@ -42,16 +42,23 @@ telegram_send_human_must_clear() {
     [[ "$_chat" =~ ^-?[0-9]+$ ]] || { echo "[stop-check] WARNING: invalid chat_id shape — skipping Telegram" >&2; _chat=""; }
   fi
   [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${_chat:-}" ] || return 1
-  local _prefix _msg
+  local _prefix _msg _resume_cmd _agent
   _prefix=$(printf '%s' "$_question" | grep -oE '^\[BLOCKED:[a-z]+\]' || echo '[BLOCKED:spec]')
+  if [[ "$_prefix" == "[BLOCKED:ceiling]" ]]; then
+    _agent=$(printf '%s' "$_question" | sed -E 's/^\[BLOCKED:ceiling\] ([^ :]+).*/\1/' 2>/dev/null || echo '{agent}')
+    _resume_cmd="export CLAUDE_PLAN_CAPABILITY=harness
+bash \"${CLAUDE_PROJECT_DIR}/.claude/scripts/plan-file.sh\" reset-milestone \"${CLAUDE_PROJECT_DIR}/plans/${_slug}.md\" ${_agent}"
+  else
+    _resume_cmd="export CLAUDE_PLAN_CAPABILITY=human
+bash \"${CLAUDE_PROJECT_DIR}/.claude/scripts/plan-file.sh\" unblock \"${CLAUDE_PROJECT_DIR}/plans/${_slug}.md\""
+  fi
   _msg="${_prefix} Autonomous run paused — human decision required
 
 Plan: ${_slug}
 ${_question}
 
 To resume, run in terminal:
-export CLAUDE_PLAN_CAPABILITY=human
-bash .claude/scripts/plan-file.sh unblock"
+${_resume_cmd}"
   curl -s -X POST \
     "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
     --data-urlencode "chat_id=${_chat}" \

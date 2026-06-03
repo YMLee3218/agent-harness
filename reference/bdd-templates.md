@@ -110,3 +110,17 @@ comment in the referencing Outline satisfies the boundary coverage requirement.
 The sibling Outline's row is the de facto coverage; do not add a redundant
 dedicated `Scenario:`. Use the form:
 `# {value} boundary covered by Scenario Outline "{sibling title}" (Examples row) — divergent flow`
+
+**Runtime-type exemption:** Domain specs do not require boundary rows for
+runtime type mismatches (e.g., an integer passed where a boolean is expected,
+or a list passed where a scalar is expected). Type enforcement is the
+responsibility of the upper parsing boundary — the feature or infrastructure
+layer that receives raw input (e.g., `parse-telegram-reply`, serialization
+adapters). Within the domain layer, an out-of-type value cannot reach the
+system under test because it is rejected or coerced before entering.
+Value boundary coverage (closed-enum, numeric zero/negative/max, etc.) already
+subsumes any type-mismatch cases that have distinct domain outcomes; no
+separate type-rejection row is required. Document this boundary assignment with
+a comment when a reviewer might question the omission (e.g.,
+`# status is a closed enum; integer/string type-mismatch rows are a parsing
+# boundary concern — see parse-telegram-reply spec`).

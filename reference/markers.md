@@ -43,7 +43,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 [BLOCKED:spec] critic-code: ambiguous — which encoding should be used for foo?
 [BLOCKED:code] critic-code: parse — second consecutive PARSE_ERROR — fix critic output format
 [BLOCKED:code] coder:feat-x: merge-conflict — resolve and re-run implementing
-[BLOCKED:code] integration: tests-failing — failed after 2 fix attempts; manual review required
+[BLOCKED:code] integration: tests-failing — after 1 fix attempt(s); manual review required
 [BLOCKED:code] smoke: tests-failing — full suite not passing after all tiers
 [BLOCKED:env] preflight:jq: not-installed — install via brew install jq
 [BLOCKED:env] critic-code: no-timeout-binary — install GNU coreutils (brew install coreutils)

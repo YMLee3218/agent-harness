@@ -1,18 +1,18 @@
 # Blocked Guidance
 
 When a dev-cycle or integration-test skill surfaces a `[BLOCKED:{kind}]` marker,
-follow this protocol exactly — write all user-facing output in Korean (per `@reference/language.md` default).
+follow this protocol exactly — write all user-facing output in the conversation language (Korean by default — per `@reference/language.md`).
 
 ---
 
 ## Presentation format
 
 1. **Quote the marker** — verbatim, as it appears in the plan file
-2. **Explain the block** — in Korean: describe the situation in detail — what this kind means, what specifically went wrong, and what needs to change
-3. **Resolution path** — in Korean: list all available options; then recommend the root-cause fix and state explicitly why it is the correct direction; label any workaround as "temporary workaround" only — never cite scope or effort as a reason to recommend
-4. **Decision required** — if scope or root cause is ambiguous, use `AskUserQuestion` with choices — all question text and every option label must be in Korean
+2. **Explain the block** — in the conversation language (Korean by default): describe the situation in detail — what this kind means, what specifically went wrong, and what needs to change
+3. **Resolution path** — in the conversation language (Korean by default): list all available options; then recommend the root-cause fix and state explicitly why it is the correct direction; label any workaround as "temporary workaround" only — never cite scope or effort as a reason to recommend
+4. **Decision required** — if scope or root cause is ambiguous, use `AskUserQuestion` with choices — all question text and every option label must be in the conversation language (Korean by default)
 
-> **Output language**: every word in steps 2–4 must be in Korean. The per-kind table below is in English for file-content policy compliance — translate all cell content to Korean before presenting it to the user. Never output English table text verbatim in user-facing responses.
+> **Output language**: every word in steps 2–4 must be in the conversation language (Korean by default — see `@reference/language.md`). The per-kind table below is in English for file-content policy compliance — translate all cell content to the conversation language before presenting it to the user. Never output English table text verbatim in user-facing responses.
 >
 > **Scope-bias prohibition**: recommend based on correctness of direction, not size of change. "Fewer modifications", "smaller scope", "faster", "resolves it immediately" are not valid reasons to recommend an option. Always recommend the root-cause fix (option A) first; present workarounds as temporary only (see §Recommendation policy below).
 
@@ -20,7 +20,7 @@ follow this protocol exactly — write all user-facing output in Korean (per `@r
 
 ## Per-kind guidance
 
-> **Translation required**: the cells below are English for file-content compliance. Translate 'Meaning' and 'Recommended resolution' to Korean when presenting to the user.
+> **Translation required**: the cells below are English for file-content compliance. Translate 'Meaning' and 'Recommended resolution' to the conversation language (Korean by default) when presenting to the user.
 
 | Kind | Meaning | Recommended resolution (root-cause first) | Anti-pattern |
 |------|---------|-------------------------------------------|--------------|

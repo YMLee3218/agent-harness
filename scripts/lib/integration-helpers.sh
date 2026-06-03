@@ -40,7 +40,7 @@ _handle_spec_phase_rollback() {
   git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
   bash "$PF" reset-milestone "$PLAN" critic-spec
   rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
-  run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
+  run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_feature_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
   llm_exit "critic-spec"
   run_critic critic-cross spec "Cross-feature consistency review after integration spec fix. All specs: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
   llm_exit "critic-cross"
@@ -49,7 +49,7 @@ _handle_spec_phase_rollback() {
   run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
   llm_exit "writing-tests"
   _test_files=$(_recent_test_files)
-  run_critic critic-test red "Review updated tests for integration fix. Spec: ${_all_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
+  run_critic critic-test red "Review updated tests for integration fix. Spec: ${_feature_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
   bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
   bash "$PF" inter-feature-reset "$PLAN"

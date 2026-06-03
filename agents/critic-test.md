@@ -23,5 +23,5 @@ If Codex's tail does not contain a `<!-- verdict: -->` marker:
 ### Verdict
 [FAIL] Codex did not emit a verdict marker
 <!-- verdict: FAIL -->
-<!-- category: TEST_QUALITY -->
+<!-- category: STRUCTURAL -->
 ```
