@@ -32,7 +32,7 @@ echo -e "${BAR_COLOR}${BAR}${RESET} ${PCT}% | ${YELLOW}${COST_FMT}${RESET} | ⏱
 
 SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 _fa_rc=0
-plan_file=$("$SCRIPTS_DIR/plan-file.sh" find-active 2>/dev/null) || _fa_rc=$?
+plan_file=$(CLAUDE_PROJECT_DIR="$DIR" "$SCRIPTS_DIR/plan-file.sh" find-active 2>/dev/null) || _fa_rc=$?
 if [ $_fa_rc -eq 3 ]; then
   echo "plan: ambiguous"
 elif [ $_fa_rc -eq 4 ]; then
