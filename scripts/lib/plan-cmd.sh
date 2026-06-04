@@ -58,8 +58,13 @@ cmd_init() {
   # sc_dir needs the parent dir to exist (uses cd to resolve), so we walk up to the
   # nearest existing ancestor to reconstruct the absolute path for a pre-check.
   # sc_dir re-validates via realpath after mkdir as defence-in-depth.
-  local _proj; _proj=$(cd "${CLAUDE_PROJECT_DIR:?cmd_init: CLAUDE_PROJECT_DIR required}" 2>/dev/null && pwd -P) \
-      || die "cmd_init: CLAUDE_PROJECT_DIR is not a valid directory: ${CLAUDE_PROJECT_DIR:-<unset>}"
+  local _git_root
+  _git_root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _git_root=""
+  # Only adopt git root if it is under CLAUDE_PROJECT_DIR (worktrees outside are not supported).
+  [[ -n "$_git_root" && -n "${CLAUDE_PROJECT_DIR:-}" && "$_git_root/" == "${CLAUDE_PROJECT_DIR:-}/"* ]] || \
+    _git_root="${CLAUDE_PROJECT_DIR:?cmd_init: CLAUDE_PROJECT_DIR required}"
+  local _proj; _proj=$(cd "$_git_root" 2>/dev/null && pwd -P) \
+      || die "cmd_init: project root is not a valid directory: ${_git_root}"
   local _pd _suffix="" _abs_pd=""
   _pd=$(dirname "$plan_file")
   while [[ "$_pd" != "/" && "$_pd" != "." ]]; do
@@ -71,12 +76,12 @@ cmd_init() {
   [[ -z "$_abs_pd" ]] && die "ERROR: plan path '${plan_file}' — cannot resolve ancestor directory for path validation"
   case "${_abs_pd}${_suffix}/$(basename "$plan_file")" in
     "${_proj}/plans/"*.md) ;;
-    *) die "ERROR: plan path '${plan_file}' is outside CLAUDE_PROJECT_DIR/plans/ — path-traversal rejected" ;;
+    *) die "ERROR: plan path '${plan_file}' is outside project plans/ — path-traversal rejected" ;;
   esac
   mkdir -p "$(dirname "$plan_file")"
   if ! sc_dir "$plan_file" > /dev/null; then
     rmdir "$(dirname "$plan_file")" 2>/dev/null || true
-    die "ERROR: plan path '${plan_file}' is outside CLAUDE_PROJECT_DIR/plans/ — path-traversal rejected"
+    die "ERROR: plan path '${plan_file}' is outside project plans/ — path-traversal rejected"
   fi
   if [ -f "$plan_file" ]; then
     if [ -n "$mode" ]; then
@@ -131,7 +136,11 @@ _read_phase_quick() {
 }
 
 cmd_find_active() {
-  local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
+  local _git_root
+  _git_root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _git_root=""
+  [[ -n "$_git_root" && -n "${CLAUDE_PROJECT_DIR:-}" && "$_git_root/" == "${CLAUDE_PROJECT_DIR:-}/"* ]] || _git_root="${CLAUDE_PROJECT_DIR:-$PWD}"
+
+  local plans_dir="${_git_root}/plans"
 
   if [ -n "${CLAUDE_PLAN_FILE:-}" ]; then
     if [ -f "$CLAUDE_PLAN_FILE" ]; then
@@ -151,7 +160,7 @@ cmd_find_active() {
 
   # branch slug matching
   local branch
-  branch=$(git -C "${CLAUDE_PROJECT_DIR:-$PWD}" symbolic-ref --short HEAD 2>/dev/null \
+  branch=$(git -C "$_git_root" symbolic-ref --short HEAD 2>/dev/null \
            | sed 's|^feature/||; s|/|-|g; s|[^A-Za-z0-9_-]|-|g' || true)
   if [ -n "$branch" ] && [ -f "$plans_dir/${branch}.md" ]; then
     local bphase
@@ -202,7 +211,10 @@ _find_latest_by_mtime() {
 }
 
 cmd_find_latest() {
-  local plans_dir="${CLAUDE_PROJECT_DIR:-$PWD}/plans"
+  local _git_root
+  _git_root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _git_root=""
+  [[ -n "$_git_root" && -n "${CLAUDE_PROJECT_DIR:-}" && "$_git_root/" == "${CLAUDE_PROJECT_DIR:-}/"* ]] || _git_root="${CLAUDE_PROJECT_DIR:-$PWD}"
+  local plans_dir="${_git_root}/plans"
   [ -d "$plans_dir" ] || return 2
   local f
   f=$(_find_latest_by_mtime "$plans_dir" '*.md' || true)

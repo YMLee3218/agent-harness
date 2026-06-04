@@ -23,11 +23,16 @@ sc_conv_path() {
 }
 
 # sc_dir PLAN → absolute path to plans/{slug}.state/
-# Anchors check to $CLAUDE_PROJECT_DIR/plans/ to prevent path-traversal.
+# Anchors check to the git root (or CLAUDE_PROJECT_DIR fallback) /plans/ to prevent path-traversal.
+# Note: worktree git roots are accepted only when they are subdirectories of CLAUDE_PROJECT_DIR.
 sc_dir() {
-  local _plan="$1" _real _root _proj
-  _proj=$(cd "${CLAUDE_PROJECT_DIR:?[sidecar] CLAUDE_PROJECT_DIR is required and must be set}" 2>/dev/null && pwd -P) || {
-    echo "[sidecar] FATAL: CLAUDE_PROJECT_DIR not a valid directory: ${CLAUDE_PROJECT_DIR:-<unset>}" >&2; return 2
+  local _plan="$1" _real _root _proj _git_root
+  _git_root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _git_root=""
+  # Only adopt git root if it is under CLAUDE_PROJECT_DIR (worktrees outside are not supported).
+  [[ -n "$_git_root" && -n "${CLAUDE_PROJECT_DIR:-}" && "$_git_root/" == "${CLAUDE_PROJECT_DIR:-}/"* ]] || \
+    _git_root="${CLAUDE_PROJECT_DIR:?[sidecar] CLAUDE_PROJECT_DIR is required and must be set}"
+  _proj=$(cd "$_git_root" 2>/dev/null && pwd -P) || {
+    echo "[sidecar] FATAL: project root not a valid directory: ${_git_root}" >&2; return 2
   }
   _root="${_proj}/plans"
   if command -v realpath >/dev/null 2>&1; then
@@ -38,7 +43,7 @@ sc_dir() {
   fi
   case "$_real" in
     "$_root"/*.md) ;;
-    *) echo "[sidecar] FATAL: plan path outside \$CLAUDE_PROJECT_DIR/plans/: $_plan" >&2; return 2 ;;
+    *) echo "[sidecar] FATAL: plan path outside project plans/: $_plan" >&2; return 2 ;;
   esac
   echo "$(dirname "$_real")/$(basename "$_real" .md).state"
 }
