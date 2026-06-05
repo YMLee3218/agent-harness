@@ -8,7 +8,7 @@
 #   gh CLI (authenticated)  — running-dev-cycle runs gh pr create before pr-review; without auth PR step fails (skipped in B-sessions: CLAUDE_CRITIC_SESSION=1)
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
 #   context7-plugin         — orchestrating Claude uses context7 to resolve [UNVERIFIED CLAIM] findings from critics
-#   pr-review-toolkit       — running-dev-cycle calls pr-review-toolkit:review-pr per feature (review phase)
+#   pr-review-toolkit       — running-dev-cycle calls pr-review-toolkit:review-pr per feature (review phase); skipped in B-sessions: CLAUDE_CRITIC_SESSION=1
 #   codex                   — run-implement.sh delegates implementation via codex exec --full-auto
 #   codex-auth              — Codex requires OPENAI_API_KEY or ~/.codex/auth.json
 # Required files:
@@ -66,8 +66,8 @@ if ! claude plugin list 2>/dev/null | grep -q 'context7-plugin'; then
   _append_blocked "context7-plugin" "install via settings.json enabledPlugins or 'claude plugin install'"
 fi
 
-# Check: pr-review-toolkit
-if ! claude plugin list 2>/dev/null | grep -q 'pr-review-toolkit'; then
+# Check: pr-review-toolkit (skipped in B-sessions — critic loops never call pr-review-toolkit:review-pr)
+if [ "${CLAUDE_CRITIC_SESSION:-0}" != "1" ] && ! claude plugin list 2>/dev/null | grep -q 'pr-review-toolkit'; then
   _append_blocked "pr-review-toolkit" "install via settings.json enabledPlugins or 'claude plugin install'"
 fi
 

@@ -311,7 +311,7 @@ cmd_context() {
   local blocked_items other_items questions
   blocked_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && (/\[BLOCKED/ || /\[STOP-BLOCKED/){print}' \
     "$plan_file" 2>/dev/null | head -3 | tr '\n' '|' | sed 's/|$//' || true)
-  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[AUTO-DECIDED/{print}' \
+  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[AUTO-DECIDED/ && !/\[IMPLEMENTED/{print}' \
     "$plan_file" 2>/dev/null | head -2 | tr '\n' '|' | sed 's/|$//' || true)
 
   if [ -n "$blocked_items" ] && [ -n "$other_items" ]; then
@@ -864,6 +864,7 @@ cmd_reset_pr_review() {
       "[MILESTONE-BOUNDARY @${ts}] ${phase}/pr-review:"
     _sc_reset_convergence_for_scope "$plan_file" "$phase" "pr-review"
   done
+  cmd_clear_marker "$plan_file" "[RECURRING] pr-review:"
   _clear_transient_for "$plan_file" "pr-review" 2>/dev/null || true
   echo "[reset-pr-review] cleared pr-review convergence markers for implement and review phases" >&2
 }
@@ -1097,8 +1098,8 @@ cmd_is_blocked() {
         "$_bpath" 2>/dev/null | awk 'END{print NR}') || _jq_rc=$?
     fi
     if [[ "$_jq_rc" -ne 0 ]]; then
-      echo "[is-blocked] WARNING: corrupt blocked.jsonl${kind:+ (kind=${kind})} — treating as not-blocked" >&2
-      return 1
+      echo "[is-blocked] WARNING: corrupt blocked.jsonl${kind:+ (kind=${kind})} — falling back to plan.md divergence check" >&2
+      _count=0
     fi
   else
     echo "[is-blocked] WARNING: blocked.jsonl absent — treating as not-blocked" >&2

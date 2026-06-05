@@ -21,7 +21,7 @@ done
 TASK_JSON=$(awk '/<!-- task-definitions-start -->/{f=1;next} /<!-- task-definitions-end -->/{f=0} f' "$PLAN")
 [[ -z "$TASK_JSON" ]] && { echo "ERROR: Task Definitions block missing in $PLAN" >&2; exit 1; }
 if ! printf '%s' "$TASK_JSON" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
-  bash "$PF" append-note "$PLAN" "[BLOCKED:env] implement: empty-or-invalid-task-list — task definitions block must be a non-empty JSON array; fix brainstorming output and re-run"
+  bash "$PF" append-note "$PLAN" "[BLOCKED:env] implement: empty-or-invalid-task-list — task definitions block must be a non-empty JSON array; re-run the implementing skill to regenerate the task list"
   exit 1
 fi
 

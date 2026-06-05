@@ -6,7 +6,6 @@ description: >
   Scaffolds src/features, src/domain, src/infrastructure, tests/integration, docs/requirements, plans/.
 disable-model-invocation: true
 ---
-
 **Non-interactive handling**: emit `[BLOCKED:spec] {scope}: {reason}` or `[BLOCKED:env] {scope}: {reason}` per the inline conditions below; do not ask questions.
 
 # Project Initialisation

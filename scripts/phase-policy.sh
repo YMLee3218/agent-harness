@@ -123,7 +123,7 @@ apply_phase_block() {
 
 # NOTE: [INFO] falls through to user_memos in gc-events.
 # Markers that require human intervention to clear (7 kinds — [BLOCKED:transient] excluded).
-# Clear all at once with: plan-file.sh unblock
+# Clear all at once with: plan-file.sh unblock. Exception: [BLOCKED:ceiling] requires reset-milestone {agent} — never unblock alone (see @reference/markers.md §Ceiling block handling).
 # SYNC: plan-cmd.sh cmd_unblock uses (.kind | IN(...)) with the same 7 kinds — update both together.
 HUMAN_MUST_CLEAR_MARKERS=(
   "[BLOCKED:envelope]"

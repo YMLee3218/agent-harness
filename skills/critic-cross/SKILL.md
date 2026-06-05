@@ -1,7 +1,7 @@
 ---
 name: critic-cross
 description: >
-  Cross-feature spec consistency review. Reads all feature specs simultaneously
+  Cross-feature spec consistency review. Reads all spec files simultaneously (feature, domain, and infrastructure)
   and reports contradictions, overlapping ownership, missing handoffs, state machine
   conflicts, domain drift, and layer boundary mismatches.
   Triggered once after all specs are written, before any implementation begins.
@@ -78,7 +78,7 @@ For each axis, apply the rule in `${CLAUDE_PROJECT_DIR}/.claude/reference/operat
 - First identify caller-callee direction from spec text (handoff, composition, state-transition). If no clear direction (bidirectional handoff via shared store): apply the bidirectional variant per axis.
 - Frequency, Concurrency **(entry-point callee)**: `callee.value ≥ caller.value` per the per-axis partial order. Violation → ENVELOPE_MISMATCH. Exception (Concurrency only): `exclusive-writer` callee is CONTEXT (not automatic MISMATCH) when caller is `reader-writer` or `multi-writer` — verify caller handles `lock-unavailable` in spec text before reporting MISMATCH.
 - Frequency, Concurrency **(internal callee)**: declared value must equal `max(callers' value)`. Mismatch → `[FAIL] PROPAGATED_VALUE_OUT_OF_SYNC: {callee} {axis}={declared}; defined as max(callers)={expected} — mechanical fix: set {callee} {axis} = {expected}`. Classify callee from plan file brainstorm output. Fallback (no plan or no classification): callee named in any other spec's compose text → internal; else → entry-point. Inferred classification: append "(classification inferred — annotate brainstorm output to confirm)" to verdict.
-- Persistence / Failure model: identify the load-bearing callee from caller's spec text (the callee through which caller's promised-durable data flows, or whose failure would invalidate caller's promise). Apply `callee.value ≥ caller.value` to that callee only. If the current pair under check is not the load-bearing callee for this guarantee, do not report MISMATCH; emit `[NOTE]` citing the spec line that shows the caller's promise is carried by a different callee. If the load-bearing callee cannot be identified from spec text, emit `[FAIL] ENVELOPE_MISMATCH: {scope}: load-bearing callee for {axis} ambiguous — update spec to identify which callee carries the durability guarantee`.
+- Persistence / Failure model: identify the load-bearing callee from caller's spec text (the callee through which caller's promised-durable data flows, or whose failure would invalidate caller's promise). Apply `callee.value ≥ caller.value` to that callee only. If the current pair under check is not the load-bearing callee for this guarantee, do not report MISMATCH; skip this pair silently. If the load-bearing callee cannot be identified from spec text, emit `[FAIL] ENVELOPE_MISMATCH: {scope}: load-bearing callee for {axis} ambiguous — update spec to identify which callee carries the durability guarantee`.
 - Actors: consult the (caller, callee) lookup table; CONTEXT outcomes require examining whether the tenant/user boundary is preserved in the spec text.
 - External I/O: parse as set; apply direction-aware subset (`callee.surfaces ⊆ caller.surfaces`).
 - Bidirectional handoff: use the symmetric variant per axis (equality for partial-order axes and Actors; non-empty intersection for External I/O).
@@ -121,7 +121,6 @@ None: "No layer boundary violations"
   {feature_a_spec}:{line}: "{envelope_a_excerpt}" vs {feature_b_spec}:{line}: "{envelope_b_excerpt}"
 [FAIL] PROPAGATED_VALUE_OUT_OF_SYNC: {callee_spec}:{line} {axis}={declared}; defined as max(callers)={expected} from {caller_a}:{line}, {caller_b}:{line}
   suggested fix: change {callee_spec}:{line} {axis} → {expected}
-[NOTE] {feature_b} is not the load-bearing callee for {axis} — caller's promise carried by {other_callee}: {spec}:{line}: "{excerpt}"
 [FAIL] ENVELOPE_MISMATCH: {scope}: load-bearing callee for {axis} ambiguous — spec must identify which callee carries the durability guarantee
 None: "All envelope axes compatible across interacting features"
 
@@ -178,18 +177,8 @@ FORBIDDEN substitutes (recorded as PARSE_ERROR): `COMPLETENESS`, `CONSISTENCY`,
 A FAIL without a `<!-- category: -->` marker is recorded as PARSE_ERROR.
 
 ### Blocks
-
-PASS:
-### Verdict
-PASS
-<!-- verdict: PASS -->
-<!-- category: NONE -->
-
-FAIL:
-### Verdict
-FAIL — {comma-separated blocking finding labels}
-<!-- verdict: FAIL -->
-<!-- category: {one of CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL | ENVELOPE_MISMATCH} -->
+PASS: `### Verdict / PASS / <!-- verdict: PASS --> / <!-- category: NONE -->`
+FAIL: `### Verdict / FAIL — {labels} / <!-- verdict: FAIL --> / <!-- category: {one of CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL | ENVELOPE_MISMATCH} -->`
 CODEX_PROMPT
 sed \
   -e "s|{all_spec_paths}|${_all_spec_paths}|g" \

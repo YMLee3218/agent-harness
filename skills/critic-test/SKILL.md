@@ -152,13 +152,7 @@ parses only the two HTML-comment markers; text outside them is ignored.
 
 ### Rule 1 — PASS pairs only with NONE (most common failure mode)
 
-If verdict is PASS, the category marker MUST be exactly `NONE`. No exceptions.
-- Inspected TEST_INTEGRITY area but found nothing blocking? → PASS + NONE.
-- Inspected LAYER_VIOLATION area but found nothing blocking? → PASS + NONE.
-- Found a cosmetic/typo/style observation? → Do NOT report it. PASS + NONE.
-
-A PASS paired with any non-NONE category (SPEC_COMPLIANCE, STRUCTURAL, …) is
-recorded as PARSE_ERROR. Two consecutive PARSE_ERRORs halt the run.
+If verdict is PASS, the category marker MUST be exactly `NONE`. No exceptions. Any inspected area with no blocking findings → PASS + NONE. A PASS paired with any non-NONE category is recorded as PARSE_ERROR. Two consecutive PARSE_ERRORs halt the run.
 
 ### Rule 2 — Advisory severity labels do not exist
 
@@ -182,16 +176,8 @@ FORBIDDEN substitutes (recorded as PARSE_ERROR): `COMPLETENESS`, `CONSISTENCY`,
 A FAIL without a `<!-- category: -->` marker is recorded as PARSE_ERROR.
 
 ### Blocks
-PASS:
-### Verdict
-PASS
-<!-- verdict: PASS -->
-<!-- category: NONE -->
-FAIL:
-### Verdict
-FAIL — {comma-separated blocking finding labels}
-<!-- verdict: FAIL -->
-<!-- category: {one of TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
+PASS: `### Verdict / PASS / <!-- verdict: PASS --> / <!-- category: NONE -->`
+FAIL: `### Verdict / FAIL — {labels} / <!-- verdict: FAIL --> / <!-- category: {one of TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->`
 CODEX_PROMPT
 sed \
   -e "s|{spec_path}|${_spec_path}|g" \

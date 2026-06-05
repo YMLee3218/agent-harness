@@ -34,9 +34,7 @@ You are an adversarial spec reviewer. Find cases where implementing this spec wo
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
 [DOCS CONTRADICTION], [UNVERIFIED CLAIM]), read the exact file:line and confirm the
 text is present. If not present, drop the finding. No uncited findings.
-For [MISSING] specifically: before reporting, grep {spec_path} for the scenario's core
-keywords (scenario title, key domain terms). If any match is found anywhere in the spec,
-the scenario exists — drop the [MISSING] finding silently.
+For [MISSING] specifically: before reporting, grep only the specific spec file where the gap was identified (not all paths in {spec_path}) for the scenario's core keywords (scenario title, key domain terms). If any match is found in that spec file, the scenario exists — drop the [MISSING] finding silently.
 
 Spec: {spec_path}
 Docs: {docs_paths}
@@ -87,10 +85,11 @@ If the prompt includes "Also verify consistency against existing specs:":
 
 ## Angle 5 — Envelope Discipline → category: `ENVELOPE_MISMATCH` / `ENVELOPE_OVERREACH`
 
-Scope guard: if `{spec_path}` does not contain `features/` in its path, skip Angle 5 entirely —
-Operating Envelope rules apply to features only (see operating-envelope.md §Scope).
+Scope guard: `{spec_path}` may be a single path or a space-separated list of paths.
+- Skip Angle 5 entirely for any individual spec path that does not contain `features/` — Operating Envelope rules apply to features only (see operating-envelope.md §Scope).
+- When multiple paths are provided, apply Angle 5 only to paths containing `features/`; do NOT apply it to `domain/` or `infrastructure/` paths even if a feature spec is also present.
 
-Read the "## Operating Envelope" section from {spec_path}. Apply before any MISSING_SCENARIO finding.
+For the feature spec path (the one containing `features/`): read its "## Operating Envelope" section. Apply before any MISSING_SCENARIO finding.
 
 10. Missing envelope: spec has no Operating Envelope section → [FAIL] ENVELOPE_MISMATCH: Operating Envelope section missing
 11. Undeclared axis: any axis still contains the unsubstituted curly-brace template literal `{a | b | c}`, or is absent (not explicitly [BLOCKED]) → [FAIL] ENVELOPE_MISMATCH: axis {name} undeclared. A value from operating-envelope.md §Axis table (e.g. `N users`, `periodic 1/min`) is filled — not a placeholder. Consult operating-envelope.md §Filled vs placeholder before judging.
@@ -174,18 +173,8 @@ A FAIL without a `<!-- category: -->` marker is recorded as PARSE_ERROR.
 - A FAIL whose body uses category enum tokens (`[MISSING_SCENARIO]`, `[ENVELOPE_MISMATCH]`, `[ENVELOPE_OVERREACH]`, `[STRUCTURAL]`, `[LAYER_VIOLATION]`, …) as bracket labels instead of severity labels (`[MISSING]`, `[FAIL]`, …) is also recorded as PARSE_ERROR.
 
 ### Blocks
-
-PASS:
-### Verdict
-PASS
-<!-- verdict: PASS -->
-<!-- category: NONE -->
-
-FAIL:
-### Verdict
-FAIL — {comma-separated blocking finding labels}
-<!-- verdict: FAIL -->
-<!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
+PASS: `### Verdict / PASS / <!-- verdict: PASS --> / <!-- category: NONE -->`
+FAIL: `### Verdict / FAIL — {labels} / <!-- verdict: FAIL --> / <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->`
 CODEX_PROMPT
 sed \
   -e "s|{spec_path}|${_spec_path}|g" \

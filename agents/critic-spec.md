@@ -16,7 +16,7 @@ You delegate the actual review to Codex via `codex exec --full-auto`. Workflow:
 3. Do not paraphrase or add commentary after the verdict markers. They must be the last lines of your reply.
 
 If Codex's tail does not contain a `<!-- verdict: -->` marker:
-- If the tail contains `=== CODEX-INFRA-FAILURE:` or is empty or contains only error/infrastructure output (e.g. a non-zero `=== Codex critic-spec exit:` line with no review content), output the tail verbatim and stop — do **not** append a synthetic verdict. The infra sentinel causes `plan-cmd.sh` to record `[BLOCKED:env]` instead of `PARSE_ERROR`.
+- If the tail contains `=== CODEX-INFRA-FAILURE:` or is empty or contains only error/infrastructure output (e.g. a non-zero `=== Codex critic-spec exit:` line with no review content), output the tail verbatim and stop — do **not** append a synthetic verdict. The infra sentinel causes `plan-file.sh record-verdict-guarded` to record `[BLOCKED:env]` instead of `PARSE_ERROR`.
 - Otherwise (tail has real review content but the marker is missing), output the tail verbatim followed by:
 
 ```

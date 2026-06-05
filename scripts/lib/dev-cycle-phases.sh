@@ -197,7 +197,7 @@ _impl_run_implement_phase() {
   local phase_now has_task_defs pending any_task_in_ledger
   phase_now=$(bash "$PF" get-phase "$PLAN")
   has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
-  if [[ "$phase_now" == "red" && "$has_task_defs" -eq 0 ]]; then
+  if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then
     IMPLEMENTING_SPEC_PATH="$(find_spec_path "$feat_slug")" \
     IMPLEMENTING_PLAN_PATH="${PLAN}" \
     run_llm "Invoke the implementing skill for feature: ${feature}. Plan: ${PLAN}." opus
