@@ -17,12 +17,21 @@ You orchestrate Codex to perform the review. Build the prompt, run `codex exec`,
 
 ## Build and run the Codex prompt
 
-Substitute the placeholders below from the prompt you received (`{spec_path}`, `{docs_paths}`, `{plan_path}`, `{language}`, `{domain_root}`, `{infra_root}`, `{features_root}`).
+The variable assignments at the top of the bash block read from environment variables
+injected by the harness. Run the bash block as-is — do not modify any values.
 
 ```bash
-_critic_code_prompt=$(mktemp /tmp/critic-code-prompt.XXXXXX.txt)
-_critic_code_log=$(mktemp /tmp/critic-code-log.XXXXXX.txt)
-cat > "$_critic_code_prompt" <<'CODEX_PROMPT'
+_spec_path="${CRITIC_SPEC_PATH:?CRITIC_SPEC_PATH not set}"
+_docs_paths="${CRITIC_DOCS_PATHS:?CRITIC_DOCS_PATHS not set}"
+_plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
+_language="${CRITIC_LANGUAGE:?CRITIC_LANGUAGE not set}"
+_domain_root="${CRITIC_DOMAIN_ROOT:?CRITIC_DOMAIN_ROOT not set}"
+_infra_root="${CRITIC_INFRA_ROOT:?CRITIC_INFRA_ROOT not set}"
+_features_root="${CRITIC_FEATURES_ROOT:?CRITIC_FEATURES_ROOT not set}"
+_critic_code_template=$(mktemp /tmp/critic-code-tmpl.XXXXXX)
+_critic_code_prompt=$(mktemp /tmp/critic-code-prompt.XXXXXX)
+_critic_code_log=$(mktemp /tmp/critic-code-log.XXXXXX)
+cat > "$_critic_code_template" <<'CODEX_PROMPT'
 You are an adversarial code reviewer. Find where this implementation violates the spec. Assume the code is wrong until proven otherwise. Read every file you need.
 
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
@@ -158,13 +167,23 @@ FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | MISSING_SCENARIO | TEST_INTEGRITY | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH} -->
 CODEX_PROMPT
+sed \
+  -e "s|{spec_path}|${_spec_path}|g" \
+  -e "s|{docs_paths}|${_docs_paths}|g" \
+  -e "s|{plan_path}|${_plan_path}|g" \
+  -e "s|{language}|${_language}|g" \
+  -e "s|{domain_root}|${_domain_root}|g" \
+  -e "s|{infra_root}|${_infra_root}|g" \
+  -e "s|{features_root}|${_features_root}|g" \
+  "$_critic_code_template" > "$_critic_code_prompt"
+rm -f "$_critic_code_template"
 codex exec --full-auto - < "$_critic_code_prompt" > "$_critic_code_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-code exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
 echo "=== full critic log retained at $_critic_code_log ==="
 tail -200 "$_critic_code_log"
-rm -f "$_critic_code_prompt"
+rm -f "$_critic_code_prompt" "$_critic_code_template"
 ```
 
 The verdict markers in the tail are your final stdout. The SubagentStop hook reads `<!-- verdict: -->` and `<!-- category: -->` from there. Do not append any commentary after the `tail -200` output.

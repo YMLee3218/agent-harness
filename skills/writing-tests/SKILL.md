@@ -26,7 +26,6 @@ Phase entry:
 - Phase `red`: proceed. The harness (dev-cycle-phases.sh `_impl_run_test_phase`) transitions spec→red before invoking this skill, so `red` is always the entry phase in autonomous mode. In interactive use, ensure the plan is in `red` before invoking.
 - Any other phase: `[BLOCKED:env] writing-tests: unexpected-phase — entered from {phase}; plan must be in red phase; run brainstorming→writing-spec→critic-spec first`.
 
-- `Read` the project `CLAUDE.md` to extract the test command
 - `Read` the target `spec.md` in full
 - `Glob` `src/` to find existing file structure and naming conventions
 - `Grep` for existing test patterns to match project test style
@@ -48,19 +47,22 @@ Proceed directly to Step 3.
 
 ## Step 3 — Delegate test writing to Codex
 
-Build a Codex prompt that folds in the full spec, the test plan from Step 2, and hard constraints. Use the Write tool to create the prompt file:
+Build a Codex prompt that references the spec and test plan by path, and substitutes the test command. Use the bash block below as-is — do not modify any values.
 
-```
+```bash
+_spec_path="${WRITING_TESTS_SPEC_PATH:?WRITING_TESTS_SPEC_PATH not set}"
+_plan_path="${WRITING_TESTS_PLAN_PATH:?WRITING_TESTS_PLAN_PATH not set}"
+_test_command="${WRITING_TESTS_COMMAND:?WRITING_TESTS_COMMAND not set}"
+_tw_template=$(mktemp /tmp/test-writer-tmpl.XXXXXX)
+_codex_prompt=$(mktemp /tmp/test-writer-prompt.XXXXXX)
+_codex_log=$(mktemp /tmp/test-writer-log.XXXXXX)
+cat > "$_tw_template" <<'CODEX_PROMPT'
 Task: write Red-phase failing tests for every Scenario in the spec below.
 
-Spec (verbatim):
-{paste full contents of spec.md}
+Spec: {spec_path}
+Test plan (read ## Test Plan section from the plan file): {plan_path}
 
-Test plan (one entry per Scenario, from Step 2):
-{paste the Step 2 plan entries}
-
-Mocking levels per layer (verbatim from reference/layers.md §Test mocking levels):
-{paste the mocking level table}
+Mocking levels per layer: read ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md §Test mocking levels
 
 Hard constraints:
 - Each test maps to exactly one Scenario.
@@ -70,23 +72,22 @@ Hard constraints:
 - Write tests only at the test file paths listed in the plan; do not create files elsewhere.
 - Every newly written test must FAIL when the test command runs. The only exception is a scenario already fully satisfied by existing code AND the test is being added to a test file that predates this Red-phase commit — in that case leave the test asserting the real behaviour and tag it GREEN_PRE_EXISTING in a trailing comment on the test. If the test file itself is newly created in the Red phase, ALL tests in it must FAIL (critic-test rejects GREEN_PRE_EXISTING in new files).
 
-After writing all tests, run: {test command}
+After writing all tests, run: {test_command}
 Print the test results, then for each test file you created or modified emit one line:
   TEST_OUTCOME: {file}::{test_name} -> RED | GREEN_PRE_EXISTING
 End with: === TEST-WRITER DONE ===
-```
-
-Run Codex; capture the tail only:
-
-```bash
-_codex_prompt=$(mktemp /tmp/test-writer-prompt-XXXXXX.txt)
-_codex_log=$(mktemp /tmp/test-writer-log-XXXXXX.txt)
-# Write the prompt above into "$_codex_prompt" with the Write tool
+CODEX_PROMPT
+sed \
+  -e "s|{spec_path}|${_spec_path}|g" \
+  -e "s|{plan_path}|${_plan_path}|g" \
+  -e "s|{test_command}|${_test_command}|g" \
+  "$_tw_template" > "$_codex_prompt"
+rm -f "$_tw_template"
 codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1
 _codex_exit=$?
 echo "=== Codex exit: $_codex_exit ==="
 tail -200 "$_codex_log"
-rm -f "$_codex_prompt" "$_codex_log"
+rm -f "$_codex_prompt" "$_tw_template" "$_codex_log"
 ```
 
 ## Step 4 — Verify and record

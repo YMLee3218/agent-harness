@@ -24,13 +24,18 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 
 ## Run
 
-Read project `CLAUDE.md` for the unit test command and integration test command. Then:
+Run the block below as-is — do not modify any values:
 
 ```bash
+_active_plan=$(bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')
+_unit_cmd=$(grep -m1 '^\- Test:' "$CLAUDE_PROJECT_DIR/CLAUDE.md" 2>/dev/null \
+  | sed 's/^- Test: *//;s/^`//;s/`.*$//' || echo '')
+_integration_cmd=$(grep -m1 '^\- Integration test:' "$CLAUDE_PROJECT_DIR/CLAUDE.md" 2>/dev/null \
+  | sed 's/^- Integration test: *//;s/^`//;s/`.*$//' || echo '')
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-integration.sh" \
-  --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" \
-  --unit-cmd "{unit test command}" \
-  --integration-cmd "{integration test command}"
+  --plan "${_active_plan}" \
+  --unit-cmd "${_unit_cmd}" \
+  --integration-cmd "${_integration_cmd}"
 ```
 
 Use `run_in_background=true` — this script may run for minutes.

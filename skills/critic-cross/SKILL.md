@@ -18,12 +18,17 @@ You orchestrate Codex to perform the review. Build the prompt, run `codex exec`,
 
 ## Build and run the Codex prompt
 
-Substitute placeholders from the prompt you received (`{all_spec_paths}`, `{docs_paths}`, `{plan_path}`).
+The variable assignments at the top of the bash block read from environment variables
+injected by the harness. Run the bash block as-is — do not modify any values.
 
 ```bash
-_critic_cross_prompt=$(mktemp /tmp/critic-cross-prompt.XXXXXX.txt)
-_critic_cross_log=$(mktemp /tmp/critic-cross-log.XXXXXX.txt)
-cat > "$_critic_cross_prompt" <<'CODEX_PROMPT'
+_all_spec_paths="${CRITIC_ALL_SPEC_PATHS:?CRITIC_ALL_SPEC_PATHS not set}"
+_docs_paths="${CRITIC_DOCS_PATHS:?CRITIC_DOCS_PATHS not set}"
+_plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
+_critic_cross_template=$(mktemp /tmp/critic-cross-tmpl.XXXXXX)
+_critic_cross_prompt=$(mktemp /tmp/critic-cross-prompt.XXXXXX)
+_critic_cross_log=$(mktemp /tmp/critic-cross-log.XXXXXX)
+cat > "$_critic_cross_template" <<'CODEX_PROMPT'
 You are an adversarial cross-feature reviewer. Read ALL provided spec files in full.
 Assume contradictions exist until proven otherwise.
 
@@ -186,13 +191,19 @@ FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL | ENVELOPE_MISMATCH} -->
 CODEX_PROMPT
+sed \
+  -e "s|{all_spec_paths}|${_all_spec_paths}|g" \
+  -e "s|{docs_paths}|${_docs_paths}|g" \
+  -e "s|{plan_path}|${_plan_path}|g" \
+  "$_critic_cross_template" > "$_critic_cross_prompt"
+rm -f "$_critic_cross_template"
 codex exec --full-auto - < "$_critic_cross_prompt" > "$_critic_cross_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-cross exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
 echo "=== full critic log retained at $_critic_cross_log ==="
 tail -200 "$_critic_cross_log"
-rm -f "$_critic_cross_prompt"
+rm -f "$_critic_cross_prompt" "$_critic_cross_template"
 ```
 
 The verdict markers in the tail are your final stdout. Do not append any commentary after `tail -200`.

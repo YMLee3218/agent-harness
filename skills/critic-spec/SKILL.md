@@ -18,12 +18,17 @@ IMPORTANT: Use only the bash heredoc + `codex exec --full-auto -` pattern shown 
 
 ## Build and run the Codex prompt
 
-Substitute placeholders from the prompt you received (`{spec_path}`, `{docs_paths}`, `{plan_path}`).
+The variable assignments at the top of the bash block read from environment variables
+injected by the harness. Run the bash block as-is — do not modify any values.
 
 ```bash
-_critic_spec_prompt=$(mktemp /tmp/critic-spec-prompt.XXXXXX.txt)
-_critic_spec_log=$(mktemp /tmp/critic-spec-log.XXXXXX.txt)
-cat > "$_critic_spec_prompt" <<'CODEX_PROMPT'
+_spec_path="${CRITIC_SPEC_PATH:?CRITIC_SPEC_PATH not set}"
+_docs_paths="${CRITIC_DOCS_PATHS:?CRITIC_DOCS_PATHS not set}"
+_plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
+_critic_spec_template=$(mktemp /tmp/critic-spec-tmpl.XXXXXX)
+_critic_spec_prompt=$(mktemp /tmp/critic-spec-prompt.XXXXXX)
+_critic_spec_log=$(mktemp /tmp/critic-spec-log.XXXXXX)
+cat > "$_critic_spec_template" <<'CODEX_PROMPT'
 You are an adversarial spec reviewer. Find cases where implementing this spec would fail. Assume the spec is flawed until proven otherwise. Read every file you need.
 
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
@@ -182,13 +187,19 @@ FAIL — {comma-separated blocking finding labels}
 <!-- verdict: FAIL -->
 <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->
 CODEX_PROMPT
+sed \
+  -e "s|{spec_path}|${_spec_path}|g" \
+  -e "s|{docs_paths}|${_docs_paths}|g" \
+  -e "s|{plan_path}|${_plan_path}|g" \
+  "$_critic_spec_template" > "$_critic_spec_prompt"
+rm -f "$_critic_spec_template"
 codex exec --full-auto - < "$_critic_spec_prompt" > "$_critic_spec_log" 2>&1
 _codex_exit=$?
 echo "=== Codex critic-spec exit: $_codex_exit ==="
 [[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
 echo "=== full critic log retained at $_critic_spec_log ==="
 tail -200 "$_critic_spec_log"
-rm -f "$_critic_spec_prompt"
+rm -f "$_critic_spec_prompt" "$_critic_spec_template"
 ```
 
 The verdict markers in the tail are your final stdout. Do not append any commentary after `tail -200`.

@@ -56,6 +56,9 @@ _phase_spec_prepass() {
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
     rm -f "$_rev_marker" 2>/dev/null || true
+    CRITIC_SPEC_PATH="${_spec_for_critic}" \
+    CRITIC_DOCS_PATHS="$(docs_paths)" \
+    CRITIC_PLAN_PATH="${PLAN}" \
     run_critic critic-spec spec \
       "Review spec for feature: ${feature}. Spec: ${_spec_for_critic}. Docs: $(docs_paths). Plan: ${PLAN}.${_cross_ctx}"
     llm_exit "critic-spec"
@@ -108,6 +111,9 @@ _phase_domain_infra_spec_review() {
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
     rm -f "$_rev_marker" 2>/dev/null || true
+    CRITIC_SPEC_PATH="${_spec}" \
+    CRITIC_DOCS_PATHS="$(docs_paths)" \
+    CRITIC_PLAN_PATH="${PLAN}" \
     run_critic critic-spec spec \
       "Review spec for ${_layer} concept: ${_slug}. Spec: ${_spec}. Docs: $(docs_paths). Plan: ${PLAN}."
     llm_exit "critic-spec"
@@ -140,6 +146,9 @@ _phase_cross_spec_review() {
   done
   if [[ -n "$_all_specs" ]]; then
     bash "$PF" reset-milestone "$PLAN" critic-cross
+    CRITIC_ALL_SPEC_PATHS="${_all_specs}" \
+    CRITIC_DOCS_PATHS="$(docs_paths)" \
+    CRITIC_PLAN_PATH="${PLAN}" \
     run_critic critic-cross spec \
       "Cross-feature consistency review. All specs: ${_all_specs}. Docs: $(docs_paths). Plan: ${PLAN}."
     llm_exit "critic-cross"
@@ -166,10 +175,17 @@ _impl_run_test_phase() {
   # Transition spec→red before run_llm: writing-tests runs with CLAUDE_PLAN_CAPABILITY stripped
   # and cannot call plan-file.sh transition (Ring B) from within the session.
   [[ "$phase_now" == "spec" ]] && bash "$PF" transition "$PLAN" red "entering test phase for ${feature}"
+  WRITING_TESTS_SPEC_PATH="$(find_spec_path "$feat_slug")" \
+  WRITING_TESTS_PLAN_PATH="${PLAN}" \
+  WRITING_TESTS_COMMAND="${UNIT_CMD}" \
   run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
   llm_exit "writing-tests"
   bash "$PF" reset-milestone "$PLAN" critic-test
   local _test_files; _test_files=$(_recent_test_files)
+  CRITIC_SPEC_PATH="$(find_spec_path "$feat_slug")" \
+  CRITIC_TEST_FILES="${_test_files:-tests/}" \
+  CRITIC_PLAN_PATH="${PLAN}" \
+  CRITIC_TEST_COMMAND="${UNIT_CMD}" \
   run_critic critic-test red "Review tests for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Test files: ${_test_files:-tests/}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
 }
@@ -199,6 +215,13 @@ _impl_run_implement_phase() {
   if [[ "$phase_now" == "implement" ]] && \
      ! bash "$PF" is-converged "$PLAN" implement critic-code 2>/dev/null; then
     bash "$PF" reset-milestone "$PLAN" critic-code
+    CRITIC_SPEC_PATH="$(find_spec_path "$feat_slug")" \
+    CRITIC_DOCS_PATHS="$(docs_paths)" \
+    CRITIC_PLAN_PATH="${PLAN}" \
+    CRITIC_LANGUAGE="${_lang}" \
+    CRITIC_DOMAIN_ROOT="${_domain_root}" \
+    CRITIC_INFRA_ROOT="${_infra_root}" \
+    CRITIC_FEATURES_ROOT="${_features_root}" \
     run_critic critic-code implement "Review changed files for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
     llm_exit "critic-code"
   fi
