@@ -26,7 +26,7 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 
 **Phase `red` — plan task list:**
 
-- Read failing tests, `spec.md`, and existing domain/feature structure.
+- The harness pre-resolves the primary spec path; it is available in `${IMPLEMENTING_SPEC_PATH}`. If unset (interactive mode), locate it from `${IMPLEMENTING_PLAN_PATH:-$CLAUDE_PLAN_FILE}` via the feature slug. Read failing tests, the spec file, and existing domain/feature structure.
 
 Reuse any existing adapter whose interface already matches the requirement; if none, create a minimal new adapter. Log `[AUTO-DECIDED] implementing/Step1: {decision}` to `## Open Questions`.
 

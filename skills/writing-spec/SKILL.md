@@ -32,7 +32,13 @@ If `docs/*.md` appears stale or contradictory to the requirement: log `[INFO] wr
 
 ## Step 2 — Carry Operating Envelope into spec
 
-Brainstorming declares all 6 envelope axes per candidate in the plan file (brainstorming Step 2); critic-feature verifies them before writing-spec runs. Read the plan file and extract the declared axis values for this feature. Write them as the `## Operating Envelope` section in the plan file — it becomes the **first section** of spec.md in Step 4:
+Brainstorming declares all 6 envelope axes per candidate in the plan file (brainstorming Step 2); critic-feature verifies them before writing-spec runs.
+The harness pre-extracts the declared axis values; they are available in
+`${WRITING_SPEC_ENVELOPE}`. If the variable is unset or empty (interactive mode),
+read the plan file at `${WRITING_SPEC_PLAN_PATH:-$CLAUDE_PLAN_FILE}` and extract
+the Operating Envelope table rows manually.
+
+Write the extracted axes as the `## Operating Envelope` section in the plan file — it becomes the **first section** of spec.md in Step 4:
 
 ```markdown
 ## Operating Envelope

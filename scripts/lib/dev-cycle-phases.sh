@@ -22,6 +22,8 @@ _phase_spec_prepass() {
       [[ -f "$_rev_marker" ]] && continue
 
     if [[ ! -f "$_spec_path" ]]; then
+      WRITING_SPEC_PLAN_PATH="${PLAN}" \
+      WRITING_SPEC_ENVELOPE="$(bash "$PF" get-envelope "$PLAN" 2>/dev/null || echo '')" \
       run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
       llm_exit "writing-spec"
     fi
@@ -196,6 +198,8 @@ _impl_run_implement_phase() {
   phase_now=$(bash "$PF" get-phase "$PLAN")
   has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
   if [[ "$phase_now" == "red" && "$has_task_defs" -eq 0 ]]; then
+    IMPLEMENTING_SPEC_PATH="$(find_spec_path "$feat_slug")" \
+    IMPLEMENTING_PLAN_PATH="${PLAN}" \
     run_llm "Invoke the implementing skill for feature: ${feature}. Plan: ${PLAN}." opus
     llm_exit "implementing (Step 1)"
   fi

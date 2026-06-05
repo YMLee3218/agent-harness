@@ -26,7 +26,7 @@ Read the requirements document at the path provided.
 - Existing `features/` that could be reused?
 
 **4. Operating Envelope** → category: `ENVELOPE_MISMATCH`
-- Brainstorming declares the Operating Envelope in the plan file (not the requirements doc). Derive the plan file path from the requirements doc path: `docs/requirements/{slug}.md` → `plans/{slug}.md`. Read the plan file and verify each candidate feature has an Operating Envelope with all 6 axes (Actors, Frequency, Concurrency, Persistence, Failure model, External I/O) declared.
+- Brainstorming declares the Operating Envelope in the plan file (not the requirements doc). Read the plan file at `${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}` and verify each candidate feature has an Operating Envelope with all 6 axes (Actors, Frequency, Concurrency, Persistence, Failure model, External I/O) declared.
 - If absent or any axis is undeclared (not `[BLOCKED]`): `[FAIL]` ENVELOPE_MISMATCH — writing-spec (step 2) cannot determine the envelope; the Operating Envelope must be declared in the plan file before spec writing begins.
 
 ## Output format

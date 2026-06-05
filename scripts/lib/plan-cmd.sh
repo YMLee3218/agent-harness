@@ -1148,6 +1148,19 @@ cmd_mark_implemented() {
   echo "[mark-implemented] ${feat_slug} marked implemented in ${plan_file}" >&2
 }
 
+cmd_get_envelope() {
+  local plan_file="$1"
+  [[ -f "$plan_file" ]] || die "plan file not found: $plan_file"
+  awk -F'|' '
+    /^\| *(Actors|Frequency|Concurrency|Persistence|Failure model|External I\/O) *\|/ {
+      axis=$2; val=$3
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", axis)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+      print "- **" axis "**: " val
+    }
+  ' "$plan_file"
+}
+
 cmd_inter_feature_reset() {
   local plan_file="$1"
   require_file "$plan_file"

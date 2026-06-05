@@ -108,6 +108,7 @@ if [[ -n "${current_phase:-}" ]] && [[ "$current_phase" == "brainstorm" ]] && \
       "$PLAN" > "${PLAN}.tmp" && mv "${PLAN}.tmp" "$PLAN" 2>/dev/null || true
   fi
   bash "$PF" reset-milestone "$PLAN" critic-feature
+  CRITIC_PLAN_PATH="${PLAN}" \
   run_critic critic-feature brainstorm \
     "Review docs/requirements/$(basename "$PLAN" .md).md."
   llm_exit "critic-feature"
