@@ -7,7 +7,7 @@ Used by `skills/writing-spec/SKILL.md §Rules` and `§Scenario templates`; revie
 - One `Feature:` block per file
 - Every `Scenario Outline` must have `Examples:`
 - No technology names (no DB engines, HTTP libraries, framework names)
-- No implementation details in Given/When/Then steps
+- No internal implementation specifics in steps: no SQL queries, no ORM/HTTP client calls, no queue driver APIs, no tracer SDK methods, no file paths
 - Domain specs: no infrastructure operations in steps (DB, HTTP, queue, file I/O)
 - One `Scenario:` per distinct flow; same flow + different values → `Scenario Outline`
 
