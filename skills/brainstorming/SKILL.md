@@ -155,7 +155,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJ
 
 - `Read` relevant `docs/requirements/*.md` and `docs/*.md`
 - `Glob` `src/features/` and `src/domain/`
-- `Read` `features/*/spec.md` for any features affected by the modification
+- `Read` `features/*/spec.md`, `domain/*/spec.md`, and `infrastructure/*/spec.md` for any specs of components affected by the modification
 
 Do not read `src/` implementation. If the modification conflicts with `docs/*.md`, list required doc updates. Write impact list to plan file. Proceed to Step 2.
 
