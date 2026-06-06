@@ -36,7 +36,7 @@ llm_exit() {
 }
 
 _recent_test_files() {
-  git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | tr '\n' ' ' || true
+  git -C "$PROJECT_DIR" diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | tr '\n' ' ' || true
 }
 
 find_spec_path() {
@@ -56,5 +56,6 @@ find_spec_path() {
 
 docs_paths() {
   local _req="${1:-${REQ_FILE:-}}"
-  [[ -f "$_req" ]] && echo "${_req} ${PROJECT_DIR}/docs/" || echo "${PROJECT_DIR}/docs/"
+  local _docs_root="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  [[ -f "$_req" ]] && echo "${_req} ${_docs_root}/docs/" || echo "${_docs_root}/docs/"
 }

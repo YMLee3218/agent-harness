@@ -145,9 +145,11 @@ if [ -f "$PLAN_FILE_SH" ]; then
       _phase_dest="$_dest_p"
       if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
         _proj_abs="$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null)" || _proj_abs="${CLAUDE_PROJECT_DIR}"
+        _git_root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _git_root=""
+        [[ -n "$_git_root" && "$_git_root/" == "${_proj_abs}/"* ]] && _proj_abs="$_git_root"
         _dest_abs="$(_canon_path "$_dest_p" 2>/dev/null)" || _dest_abs="$_dest_p"
         _dest_rel="${_dest_abs#${_proj_abs}/}"
-        [[ "$_dest_rel" == "$_dest_abs" ]] && _dest_rel="${_dest_p#${CLAUDE_PROJECT_DIR}/}"
+        [[ "$_dest_rel" == "$_dest_abs" ]] && _dest_rel="${_dest_p#${_proj_abs}/}"
         [[ "$_dest_rel" != "$_dest_p" ]] && _phase_dest="$_dest_rel"
       fi
       apply_phase_block "$_phase_dest" "$_current_phase" "phase-gate/bash" || exit 2

@@ -240,8 +240,9 @@ cmd_transition() {
 
 cmd_commit_phase() {
   local plan_file="$1" message="$2"
-  git add "$plan_file"
-  git diff --cached --quiet || git commit -m "$message"
+  local _repo_dir; _repo_dir="$(dirname "$plan_file")"
+  git -C "$_repo_dir" add "$plan_file"
+  git -C "$_repo_dir" diff --cached --quiet || git -C "$_repo_dir" commit -m "$message"
 }
 
 # ── Notes / stop-block / context ──────────────────────────────────────────────

@@ -126,11 +126,13 @@ mode_write() {
   # Normalize to project-relative first so symlinks are resolved before guards run.
   # Prevents a symlink pointing into plans/*.state/ from bypassing _guard_sidecar.
   if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-    local _proj _file_norm _rel
+    local _proj _file_norm _rel _git_root
     _proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _proj="${CLAUDE_PROJECT_DIR}"
+    _git_root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _git_root=""
+    [[ -n "$_git_root" && "$_git_root/" == "${_proj}/"* ]] && _proj="$_git_root"
     _file_norm=$(_canon_path "$file_path" 2>/dev/null) || _file_norm="$file_path"
     _rel="${_file_norm#${_proj}/}"
-    [[ "$_rel" == "$_file_norm" ]] && _rel="${file_path#${CLAUDE_PROJECT_DIR}/}"
+    [[ "$_rel" == "$_file_norm" ]] && _rel="${file_path#${_proj}/}"
     [[ "$_rel" != "$file_path" ]] && file_path="$_rel"
   fi
 

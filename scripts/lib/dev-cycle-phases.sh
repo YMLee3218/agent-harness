@@ -42,7 +42,7 @@ _phase_spec_prepass() {
       continue
     fi
 
-    _new_specs=$(git status --porcelain 2>/dev/null \
+    _new_specs=$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null \
       | awk '$0 ~ /spec\.md$/{print $NF}' | tr '\n' ' ' | sed 's/[[:space:]]*$//')
     _spec_for_critic="${_new_specs:-$(find_spec_path "$feat_slug")}"
 
@@ -67,9 +67,10 @@ _phase_spec_prepass() {
     touch "$_rev_marker" 2>/dev/null || true
 
     while IFS= read -r _sp_file; do
-      [[ -n "$_sp_file" ]] && git add "$_sp_file"
-    done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
-    git diff --cached --quiet || git commit -m "feat(spec): add BDD scenarios for ${feature}"
+      [[ -n "$_sp_file" ]] && git -C "$PROJECT_DIR" add "$_sp_file"
+    done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
+    git -C "$PROJECT_DIR" diff --cached --quiet || \
+      git -C "$PROJECT_DIR" commit -m "feat(spec): add BDD scenarios for ${feature}"
   done < <(get_features)
 }
 

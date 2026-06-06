@@ -35,9 +35,10 @@ _handle_spec_phase_rollback() {
   run_llm "Invoke the writing-spec skill to fix the ${_cat}. Plan: $PLAN"
   llm_exit "writing-spec"
   while IFS= read -r _sp; do
-    [[ -n "$_sp" ]] && git add "$_sp"
-  done < <(git status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
-  git diff --cached --quiet || git commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
+    [[ -n "$_sp" ]] && git -C "$PROJECT_DIR" add "$_sp"
+  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
+  git -C "$PROJECT_DIR" diff --cached --quiet || \
+    git -C "$PROJECT_DIR" commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
   bash "$PF" reset-milestone "$PLAN" critic-spec
   rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
   run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_feature_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
