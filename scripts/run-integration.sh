@@ -160,7 +160,7 @@ After completing the above, output as the very last line of your response exactl
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"
       ;;
     "docs conflict")
-      bash "$PF" append-note "$PLAN" "[BLOCKED:docs] integration: docs-conflict — determine ground truth per @reference/phase-ops.md §DOCS CONTRADICTION cascade step 1, then unblock and re-run"
+      bash "$PF" append-note "$PLAN" "[BLOCKED:docs] integration: docs-conflict — unblock first (required to enable cascade sub-runs; active block causes them to exit 1), then follow @reference/phase-ops.md §DOCS CONTRADICTION cascade"
       exit 1
       ;;
     "spec gap")
