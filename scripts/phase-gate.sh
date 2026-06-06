@@ -38,13 +38,14 @@ _guard_ring_c() {
   local _file
   _file=$(extract_tool_input_path "$_input")
   [[ -z "$_file" ]] && return 0
+  _resolve_project_dir
   local _proj _file_norm _rel
-  _proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _proj="${CLAUDE_PROJECT_DIR}"
+  _proj=$(_canon_path "${PROJECT_DIR}" 2>/dev/null) || _proj="${PROJECT_DIR}"
   _file_norm=$(_canon_path "$_file" 2>/dev/null) || _file_norm="$_file"
   # Try canonical prefix strip first; fall back to raw paths to handle
   # symlinks in /tmp (e.g. macOS /tmp → /private/tmp) when target doesn't exist.
   _rel="${_file_norm#${_proj}/}"
-  [[ "$_rel" == "$_file_norm" ]] && _rel="${_file#${CLAUDE_PROJECT_DIR}/}"
+  [[ "$_rel" == "$_file_norm" ]] && _rel="${_file#${PROJECT_DIR}/}"
   # Only return early when the path is genuinely outside the project (still absolute).
   # Prior check was `_rel == _file`: a relative input like "CLAUDE.md" resolves to
   # _rel="CLAUDE.md" (correctly stripped) but also equals the original relative $_file,

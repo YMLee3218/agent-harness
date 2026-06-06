@@ -36,7 +36,7 @@ git status --porcelain
 
 If dirty working tree (non-empty output): `[BLOCKED:env] brainstorming: dirty-working-tree — commit or stash changes first`
 
-If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars) and use `$CLAUDE_PROJECT_DIR/plans/{slug}.md` as the plan path throughout. If the plan file (from `CLAUDE_PLAN_FILE` or derived) does not yet exist, run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "$CLAUDE_PROJECT_DIR/plans/{slug}.md"` before any other `plan-file.sh` command.
+If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars) and use `$PROJECT_DIR/plans/{slug}.md` as the plan path throughout. If the plan file (from `CLAUDE_PLAN_FILE` or derived) does not yet exist, run `bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" init "$PROJECT_DIR/plans/{slug}.md"` before any other `plan-file.sh` command.
 
 Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 
@@ -142,8 +142,10 @@ Then (if not already on the branch): `git checkout -b feature/{name}`
 
 Set plan file phase (skip if already in `brainstorm` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`). In autonomous mode, the plan is typically already in `brainstorm` from a prior interactive run, so this call is a no-op guard. In interactive use, Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`; if the call fails with a capability error, run from a human terminal:
 ```bash
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 export CLAUDE_PLAN_CAPABILITY=harness
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" brainstorm \
+bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$PROJECT_DIR/plans/{slug}.md" brainstorm \
   "decomposition approved — starting brainstorm phase"
 ```
 
@@ -169,8 +171,10 @@ If `docs/requirements/{name}.md` does not already exist, create it. Apply the sa
 
 Set phase to `brainstorm` (skip if already in `brainstorm` — do not re-transition to the same phase). Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`; if the call fails, run from a human terminal:
 ```bash
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 export CLAUDE_PLAN_CAPABILITY=harness
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" brainstorm \
+bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$PROJECT_DIR/plans/{slug}.md" brainstorm \
   "re-brainstorming"
 ```
 

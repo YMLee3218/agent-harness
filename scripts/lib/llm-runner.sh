@@ -56,6 +56,6 @@ find_spec_path() {
 
 docs_paths() {
   local _req="${1:-${REQ_FILE:-}}"
-  local _docs_root="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+  local _docs_root="${PROJECT_DIR}"
   [[ -f "$_req" ]] && echo "${_req} ${_docs_root}/docs/" || echo "${_docs_root}/docs/"
 }

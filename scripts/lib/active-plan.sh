@@ -22,6 +22,8 @@ set -euo pipefail
 #   _is_safe_transcript_path PATH                 — validates path is inside project/home dir
 [[ -n "${_ACTIVE_PLAN_LOADED:-}" ]] && return 0
 _ACTIVE_PLAN_LOADED=1
+source "$(dirname "${BASH_SOURCE[0]}")/run-context.sh"
+_resolve_project_dir
 
 # ── Hook utilities (inlined from hook-utils.sh) ──────────────────────────────
 
@@ -72,7 +74,7 @@ _is_safe_transcript_path() {
   [[ -z "$canon" ]] && return 1
   home_canon=$(_canon_path "${HOME}/.claude/projects") || home_canon="${HOME}/.claude/projects"
   case "$canon" in "${home_canon}/"*) printf '%s' "$canon"; return 0 ;; esac
-  local _proj_dir="${CLAUDE_PROJECT_DIR:-}"
+  local _proj_dir="${PROJECT_DIR:-}"
   if [[ -n "$_proj_dir" ]]; then
     proj_canon=$(_canon_path "$_proj_dir") || proj_canon="$_proj_dir"
     [[ -n "$proj_canon" ]] && case "$canon" in "${proj_canon}/"*) printf '%s' "$canon"; return 0 ;; esac
@@ -85,10 +87,10 @@ _is_safe_transcript_path() {
 # _assert_plan_file_inside_plans — exits 2 if CLAUDE_PLAN_FILE resolves outside plans/.
 # No-op if CLAUDE_PLAN_FILE or CLAUDE_PROJECT_DIR is unset/empty, or the plan file doesn't exist.
 _assert_plan_file_inside_plans() {
-  [[ -n "${CLAUDE_PLAN_FILE:-}" && -f "${CLAUDE_PLAN_FILE}" && -n "${CLAUDE_PROJECT_DIR:-}" ]] || return 0
+  [[ -n "${CLAUDE_PLAN_FILE:-}" && -f "${CLAUDE_PLAN_FILE}" && -n "${PROJECT_DIR:-}" ]] || return 0
   local _canon _plans_canon
   _canon=$(_canon_path "$CLAUDE_PLAN_FILE" 2>/dev/null) || _canon="$CLAUDE_PLAN_FILE"
-  _plans_canon=$(_canon_path "${CLAUDE_PROJECT_DIR}/plans" 2>/dev/null) || _plans_canon="${CLAUDE_PROJECT_DIR}/plans"
+  _plans_canon=$(_canon_path "${PROJECT_DIR}/plans" 2>/dev/null) || _plans_canon="${PROJECT_DIR}/plans"
   case "$_canon" in
     "${_plans_canon}/"*) return 0 ;;
     *) echo "BLOCKED [${BLOCKED_LABEL:-active-plan}]: CLAUDE_PLAN_FILE resolves outside plans/ — env hijack rejected" >&2; exit 2 ;;
@@ -183,8 +185,8 @@ bootstrap_block_if_strict() {
   fi
   # Strip project-root prefix from absolute paths so relative-only globs in is_source_path match.
   local _check_path="$path"
-  if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "$path" == /* ]]; then
-    local _proj; _proj=$(_canon_path "${CLAUDE_PROJECT_DIR}" 2>/dev/null) || _proj="${CLAUDE_PROJECT_DIR}"
+  if [[ -n "${PROJECT_DIR:-}" && "$path" == /* ]]; then
+    local _proj; _proj=$(_canon_path "${PROJECT_DIR}" 2>/dev/null) || _proj="${PROJECT_DIR}"
     local _abs; _abs=$(_canon_path "$path" 2>/dev/null) || _abs="$path"
     local _rel="${_abs#${_proj}/}"
     [[ "$_rel" != "$_abs" ]] && _check_path="$_rel"

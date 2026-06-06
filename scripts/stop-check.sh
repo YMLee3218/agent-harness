@@ -91,7 +91,7 @@ if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
 fi
 test_cmd=""
 _raw_test_line=""
-claude_md="${CLAUDE_PROJECT_DIR}/CLAUDE.md"
+claude_md="${PROJECT_DIR}/CLAUDE.md"
 claude_md_exists=0
 if [ -f "$claude_md" ]; then
   claude_md_exists=1

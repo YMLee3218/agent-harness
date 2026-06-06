@@ -92,8 +92,10 @@ This is the only phase where domain concepts and infrastructure components are i
 
 Plan phase transition to `spec`: in autonomous mode the harness (`dev-cycle-phases.sh`) transitions `brainstorm`→`spec` **after** this skill completes, so the plan is still in `brainstorm` during skill execution and advances to `spec` immediately after. In interactive use, the agent cannot call `plan-file.sh transition` (Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`); after the skill completes, run this from a human terminal:
 ```bash
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 export CLAUDE_PLAN_CAPABILITY=harness
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" spec \
+bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$PROJECT_DIR/plans/{slug}.md" spec \
   "approved plan — writing spec"
 ```
 

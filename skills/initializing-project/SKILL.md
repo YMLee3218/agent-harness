@@ -141,7 +141,9 @@ editing files in each layer's directory. The template at `rules/src-layer.md.tem
 is rendered for each layer (includes `paths:` frontmatter for Claude Code path scoping):
 
 ```bash
-tmpl="$CLAUDE_PROJECT_DIR/.claude/rules/src-layer.md.template"
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
+tmpl="$PROJECT_DIR/.claude/rules/src-layer.md.template"
 [ -f "$tmpl" ] || { echo "[init] ERROR: rules template not found: $tmpl" >&2; exit 1; }
 for layer in domain features infrastructure; do
   case "$layer" in
@@ -160,11 +162,13 @@ cp src/domain/CLAUDE.md src/domain/{concept}/CLAUDE.md
 
 Generate the language-specific critic-code pattern conf (read language from `.claude/local.md`):
 ```bash
-_lang="$(grep -i 'language:' "$CLAUDE_PROJECT_DIR/.claude/local.md" | head -1 | awk -F: '{gsub(/^[[:space:]-]*/,"",$2); print $2}' | awk '{print $1}' | tr '[:upper:]' '[:lower:]' | sed 's/typescript.*/ts/;s/javascript.*/ts/;s/c#.*/cs/;s/ruby.*/rb/;s/kotlin.*/kotlin/;s/java.*/java/;s/python.*/python/;s/go.*/go/;s/rust.*/rust/')"
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
+_lang="$(grep -i 'language:' "$PROJECT_DIR/.claude/local.md" | head -1 | awk -F: '{gsub(/^[[:space:]-]*/,"",$2); print $2}' | awk '{print $1}' | tr '[:upper:]' '[:lower:]' | sed 's/typescript.*/ts/;s/javascript.*/ts/;s/c#.*/cs/;s/ruby.*/rb/;s/kotlin.*/kotlin/;s/java.*/java/;s/python.*/python/;s/go.*/go/;s/rust.*/rust/')"
 if [ -n "$_lang" ]; then
-  mkdir -p "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns"
-  bash "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns.template" "$_lang" \
-    > "$CLAUDE_PROJECT_DIR/.claude/scripts/critic-code/patterns/${_lang}.conf" \
+  mkdir -p "$PROJECT_DIR/.claude/scripts/critic-code/patterns"
+  bash "$PROJECT_DIR/.claude/scripts/critic-code/patterns.template" "$_lang" \
+    > "$PROJECT_DIR/.claude/scripts/critic-code/patterns/${_lang}.conf" \
     || { echo "[init] ERROR: failed to generate patterns conf for language '${_lang}'" >&2; exit 1; }
 else
   echo "[init] NOTE: .claude/local.md absent or missing 'language:' field — skipping language-specific critic-code patterns; create .claude/local.md from examples/local.md and re-run /initializing-project to generate them" >&2
@@ -176,7 +180,9 @@ fi
 Create the initial plan file `plans/{project-slug}.md` **before** committing so it is included in the scaffold commit (brainstorming's dirty-tree check runs after this commit and must see a clean tree):
 
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" init "plans/{project-slug}.md"
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
+bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" init "plans/{project-slug}.md"
 # Then edit plans/{project-slug}.md to fill in the ## Vision section
 ```
 

@@ -27,12 +27,14 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 Run the block below as-is — do not modify any values:
 
 ```bash
-_active_plan=$(bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')
-_unit_cmd=$(grep -m1 '^\- Test:' "$CLAUDE_PROJECT_DIR/CLAUDE.md" 2>/dev/null \
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
+_active_plan=$(bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')
+_unit_cmd=$(grep -m1 '^\- Test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null \
   | sed 's/^- Test: *//;s/^`//;s/`.*$//' || echo '')
-_integration_cmd=$(grep -m1 '^\- Integration test:' "$CLAUDE_PROJECT_DIR/CLAUDE.md" 2>/dev/null \
+_integration_cmd=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null \
   | sed 's/^- Integration test: *//;s/^`//;s/`.*$//' || echo '')
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-integration.sh" \
+bash "$PROJECT_DIR/.claude/scripts/run-integration.sh" \
   --plan "${_active_plan}" \
   --unit-cmd "${_unit_cmd}" \
   --integration-cmd "${_integration_cmd}"

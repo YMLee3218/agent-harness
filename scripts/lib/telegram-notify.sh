@@ -47,10 +47,10 @@ telegram_send_human_must_clear() {
   if [[ "$_prefix" == "[BLOCKED:ceiling]" ]]; then
     _agent=$(printf '%s' "$_question" | sed -E 's/^\[BLOCKED:ceiling\] ([^ :]+).*/\1/' 2>/dev/null || echo '{agent}')
     _resume_cmd="export CLAUDE_PLAN_CAPABILITY=harness
-bash \"${CLAUDE_PROJECT_DIR}/.claude/scripts/plan-file.sh\" reset-milestone \"${CLAUDE_PROJECT_DIR}/plans/${_slug}.md\" ${_agent}"
+bash \"${PROJECT_DIR}/.claude/scripts/plan-file.sh\" reset-milestone \"${PROJECT_DIR}/plans/${_slug}.md\" ${_agent}"
   else
     _resume_cmd="export CLAUDE_PLAN_CAPABILITY=human
-bash \"${CLAUDE_PROJECT_DIR}/.claude/scripts/plan-file.sh\" unblock \"${CLAUDE_PROJECT_DIR}/plans/${_slug}.md\""
+bash \"${PROJECT_DIR}/.claude/scripts/plan-file.sh\" unblock \"${PROJECT_DIR}/plans/${_slug}.md\""
   fi
   _msg="${_prefix} Autonomous run paused — human decision required
 

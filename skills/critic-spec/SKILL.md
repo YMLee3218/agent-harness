@@ -22,6 +22,8 @@ The variable assignments at the top of the bash block read from environment vari
 injected by the harness. Run the bash block as-is — do not modify any values.
 
 ```bash
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 _spec_path="${CRITIC_SPEC_PATH:?CRITIC_SPEC_PATH not set}"
 _docs_paths="${CRITIC_DOCS_PATHS:?CRITIC_DOCS_PATHS not set}"
 _plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
@@ -41,10 +43,10 @@ Docs: {docs_paths}
 Plan: {plan_path}
 
 Read these reference files first — they govern your output:
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md          (severity, PASS/FAIL, category priority)
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md            (naming conventions, spec-path mapping)
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/bdd-templates.md     (required boundary coverage by input type)
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/operating-envelope.md (legal axis values; filled vs placeholder definition)
+- ${PROJECT_DIR}/.claude/reference/severity.md          (severity, PASS/FAIL, category priority)
+- ${PROJECT_DIR}/.claude/reference/layers.md            (naming conventions, spec-path mapping)
+- ${PROJECT_DIR}/.claude/reference/bdd-templates.md     (required boundary coverage by input type)
+- ${PROJECT_DIR}/.claude/reference/operating-envelope.md (legal axis values; filled vs placeholder definition)
 
 ## Angle 1 — Missing scenarios → category: `MISSING_SCENARIO` (or `DOCS_CONTRADICTION` for §doc contradictions)
 

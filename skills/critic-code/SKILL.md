@@ -21,6 +21,8 @@ The variable assignments at the top of the bash block read from environment vari
 injected by the harness. Run the bash block as-is — do not modify any values.
 
 ```bash
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 _spec_path="${CRITIC_SPEC_PATH:?CRITIC_SPEC_PATH not set}"
 _docs_paths="${CRITIC_DOCS_PATHS:?CRITIC_DOCS_PATHS not set}"
 _plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
@@ -43,8 +45,8 @@ Docs: {docs_paths}
 Plan: {plan_path}
 
 Read these reference files first — they govern your output:
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md   (severity levels, PASS/FAIL threshold, category priority)
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md     (forbidden imports, acceptable exceptions)
+- ${PROJECT_DIR}/.claude/reference/severity.md   (severity levels, PASS/FAIL threshold, category priority)
+- ${PROJECT_DIR}/.claude/reference/layers.md     (forbidden imports, acceptable exceptions)
 
 ## Envelope Discipline (evaluate before Angle 1)
 
@@ -74,7 +76,7 @@ Test coverage and mocking are out of scope here — critic-test owns them.
 
 Run the language-specific boundary checker:
 \`\`\`bash
-bash "${CLAUDE_PROJECT_DIR}/.claude/scripts/critic-code/run.sh" {language} {domain_root} {infra_root} {features_root}
+bash "${PROJECT_DIR}/.claude/scripts/critic-code/run.sh" {language} {domain_root} {infra_root} {features_root}
 \`\`\`
 If no language dispatcher matches, run the generic fallback:
 \`\`\`bash

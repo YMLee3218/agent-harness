@@ -27,6 +27,9 @@ PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 BLOCKED_LABEL="preflight"
 # shellcheck source=lib/active-plan.sh
 source "$(dirname "$0")/lib/active-plan.sh"
+# shellcheck source=lib/run-context.sh
+source "$(dirname "$0")/lib/run-context.sh"
+_resolve_project_dir
 
 # Locate active plan for [BLOCKED:env] preflight: writes; non-fatal if none found.
 _active_plan="" _active_plan_phase=""
@@ -82,12 +85,12 @@ if [ -z "${OPENAI_API_KEY:-}" ] && [ ! -f "${HOME}/.codex/auth.json" ]; then
 fi
 
 # Check: .claude/local.md
-if [ -z "${CLAUDE_PROJECT_DIR:-}" ] || [ ! -f "${CLAUDE_PROJECT_DIR}/.claude/local.md" ]; then
+if [ -z "${CLAUDE_PROJECT_DIR:-}" ] || [ ! -f "${PROJECT_DIR}/.claude/local.md" ]; then
   _append_blocked "local.md" "create .claude/local.md with the project language and runtime (see examples/local.md); test/lint/integration-test commands go in project CLAUDE.md, written by /initializing-project"
 fi
 
 # Check: project CLAUDE.md
-if [ -z "${CLAUDE_PROJECT_DIR:-}" ] || [ ! -f "${CLAUDE_PROJECT_DIR}/CLAUDE.md" ]; then
+if [ -z "${CLAUDE_PROJECT_DIR:-}" ] || [ ! -f "${PROJECT_DIR}/CLAUDE.md" ]; then
   _append_blocked "CLAUDE.md" "run /initializing-project to create the project CLAUDE.md"
 fi
 

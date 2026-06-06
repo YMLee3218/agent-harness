@@ -22,6 +22,8 @@ The variable assignments at the top of the bash block read from environment vari
 injected by the harness. Run the bash block as-is — do not modify any values.
 
 ```bash
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 _all_spec_paths="${CRITIC_ALL_SPEC_PATHS:?CRITIC_ALL_SPEC_PATHS not set}"
 _docs_paths="${CRITIC_DOCS_PATHS:?CRITIC_DOCS_PATHS not set}"
 _plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
@@ -40,10 +42,10 @@ Evidence rule: before reporting any blocking finding ([FAIL]), read the exact fi
 and confirm the text is present. If not present, drop the finding. No uncited findings.
 
 Read these reference files first — they govern your output:
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/bdd-templates.md
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/operating-envelope.md (legal axis values; filled vs placeholder definition)
+- ${PROJECT_DIR}/.claude/reference/severity.md
+- ${PROJECT_DIR}/.claude/reference/layers.md
+- ${PROJECT_DIR}/.claude/reference/bdd-templates.md
+- ${PROJECT_DIR}/.claude/reference/operating-envelope.md (legal axis values; filled vs placeholder definition)
 
 ## Angle 1 — Contradictory behaviors → category: `CROSS_FEATURE_CONTRADICTION`
 Feature A says X happens, Feature B says X does not happen.
@@ -74,7 +76,7 @@ through the correct layer boundary (per layers.md).
 Scope guard: only process spec paths under `features/`. Exclude `domain/` and `infrastructure/` specs from Angle 7 entirely — they do not carry Operating Envelopes and must not be classified as "internal callee" for propagation checks.
 
 For features that interact (handoffs, shared entities, state transitions): verify Operating Envelopes are compatible. Quote both envelopes.
-For each axis, apply the rule in `${CLAUDE_PROJECT_DIR}/.claude/reference/operating-envelope.md §Envelope axis compatibility`:
+For each axis, apply the rule in `${PROJECT_DIR}/.claude/reference/operating-envelope.md §Envelope axis compatibility`:
 - First identify caller-callee direction from spec text (handoff, composition, state-transition). If no clear direction (bidirectional handoff via shared store): apply the bidirectional variant per axis.
 - Frequency, Concurrency **(entry-point callee)**: `callee.value ≥ caller.value` per the per-axis partial order. Violation → ENVELOPE_MISMATCH. Exception (Concurrency only): `exclusive-writer` callee is CONTEXT (not automatic MISMATCH) when caller is `reader-writer` or `multi-writer` — verify caller handles `lock-unavailable` in spec text before reporting MISMATCH.
 - Frequency, Concurrency **(internal callee)**: declared value must equal `max(callers' value)`. Mismatch → `[FAIL] PROPAGATED_VALUE_OUT_OF_SYNC: {callee} {axis}={declared}; defined as max(callers)={expected} — mechanical fix: set {callee} {axis} = {expected}`. Classify callee from plan file brainstorm output. Fallback (no plan or no classification): callee named in any other spec's compose text → internal; else → entry-point. Inferred classification: append "(classification inferred — annotate brainstorm output to confirm)" to verdict.

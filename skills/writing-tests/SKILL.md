@@ -50,6 +50,8 @@ Proceed directly to Step 3.
 Build a Codex prompt that references the spec and test plan by path, and substitutes the test command. Use the bash block below as-is — do not modify any values.
 
 ```bash
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 _spec_path="${WRITING_TESTS_SPEC_PATH:?WRITING_TESTS_SPEC_PATH not set}"
 _plan_path="${WRITING_TESTS_PLAN_PATH:?WRITING_TESTS_PLAN_PATH not set}"
 _test_command="${WRITING_TESTS_COMMAND:?WRITING_TESTS_COMMAND not set}"
@@ -62,7 +64,7 @@ Task: write Red-phase failing tests for every Scenario in the spec below.
 Spec: {spec_path}
 Test plan (read ## Test Plan section from the plan file): {plan_path}
 
-Mocking levels per layer: read ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md §Test mocking levels
+Mocking levels per layer: read ${PROJECT_DIR}/.claude/reference/layers.md §Test mocking levels
 
 Hard constraints:
 - Each test maps to exactly one Scenario.

@@ -5,11 +5,16 @@ set -euo pipefail
 [[ -n "${_RUN_CONTEXT_LOADED:-}" ]] && return 0
 _RUN_CONTEXT_LOADED=1
 
-setup_run_context() {
+_resolve_project_dir() {
   PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-  local _git_root
-  _git_root=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _git_root=""
-  [[ -n "$_git_root" && "$_git_root/" == "${PROJECT_DIR}/"* ]] && PROJECT_DIR="$_git_root"
+  local _gr
+  _gr=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _gr=""
+  [[ -n "$_gr" && "$_gr/" == "${PROJECT_DIR}/"* ]] && PROJECT_DIR="$_gr"
+  export PROJECT_DIR
+}
+
+setup_run_context() {
+  _resolve_project_dir
   _lang=$(grep -m1 '^- Language:' "$PROJECT_DIR/.claude/local.md" 2>/dev/null \
     | sed 's/^- Language: *//;s/ .*//' | tr '[:upper:]' '[:lower:]' \
     | sed 's/python.*/python/;s/typescript.*/ts/;s/javascript.*/ts/;s/kotlin.*/kotlin/;s/java.*/java/;s/go.*/go/;s/rust.*/rust/;s/c#.*/cs/;s/ruby.*/rb/') || true

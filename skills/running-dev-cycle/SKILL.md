@@ -10,8 +10,10 @@ description: >
 Resolve the active plan file, then run:
 
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-dev-cycle.sh" \
-  --plan "$(bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')"
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
+bash "$PROJECT_DIR/.claude/scripts/run-dev-cycle.sh" \
+  --plan "$(bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')"
 ```
 
 Use `run_in_background=true` (script may run for hours).
@@ -19,8 +21,10 @@ Use `run_in_background=true` (script may run for hours).
 After the completion notification, run the block check:
 
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked \
-  "$(bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')"
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
+bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked \
+  "$(bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')"
 ```
 
 **If the command exits 0 (`[BLOCKED]`)**: surface its exact output verbatim, then immediately follow `@reference/blocked-guidance.md` to present the block in the conversation language (Korean by default) with root-cause-first recommendations. Do not retry the dev cycle, do not predict outcomes ("this should pass", "a clean run is expected"), do not spawn a fresh `claude -p` invocation. A `HUMAN_MUST_CLEAR_MARKERS` entry means the human owns the next step — the orchestrator's role is to relay status and guide resolution, not to act past the marker.

@@ -19,6 +19,8 @@ The variable assignments at the top of the bash block read from environment vari
 injected by the harness. Run the bash block as-is — do not modify any values.
 
 ```bash
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 _spec_path="${CRITIC_SPEC_PATH:?CRITIC_SPEC_PATH not set}"
 _test_files="${CRITIC_TEST_FILES:?CRITIC_TEST_FILES not set}"
 _plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
@@ -39,8 +41,8 @@ Plan: {plan_path}
 Test command: {test_command}
 
 Read these reference files first — they govern your output:
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/severity.md   (severity, PASS/FAIL, category priority)
-- ${CLAUDE_PROJECT_DIR}/.claude/reference/layers.md     (test mocking levels per layer)
+- ${PROJECT_DIR}/.claude/reference/severity.md   (severity, PASS/FAIL, category priority)
+- ${PROJECT_DIR}/.claude/reference/layers.md     (test mocking levels per layer)
 
 ## Pre-check — test file integrity → category: `TEST_INTEGRITY`
 
