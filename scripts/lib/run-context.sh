@@ -19,9 +19,9 @@ setup_run_context() {
     | sed 's/^- Language: *//;s/ .*//' | tr '[:upper:]' '[:lower:]' \
     | sed 's/python.*/python/;s/typescript.*/ts/;s/javascript.*/ts/;s/kotlin.*/kotlin/;s/java.*/java/;s/go.*/go/;s/rust.*/rust/;s/c#.*/cs/;s/ruby.*/rb/') || true
   _lang="${_lang:-python}"
-  _domain_root="${PROJECT_DIR}/src/domain";    [[ -d "$_domain_root" ]] || _domain_root="${PROJECT_DIR}/domain"
-  _infra_root="${PROJECT_DIR}/src/infrastructure"; [[ -d "$_infra_root" ]] || _infra_root="${PROJECT_DIR}/infrastructure"
-  _features_root="${PROJECT_DIR}/src/features";  [[ -d "$_features_root" ]] || _features_root="${PROJECT_DIR}/features"
+  _domain_root="${PROJECT_DIR}/src/domain"
+  _infra_root="${PROJECT_DIR}/src/infrastructure"
+  _features_root="${PROJECT_DIR}/src/features"
 }
 
 _features_block() {

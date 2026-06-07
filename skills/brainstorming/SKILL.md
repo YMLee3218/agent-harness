@@ -56,7 +56,7 @@ If `docs/requirements/{name}.md` does **not** exist: proceed — Step 3 will cre
 
 Classify each candidate as Small or Large feature per @reference/layers.md §Feature size classification. Name format per @reference/layers.md §Naming conventions.
 
-Do NOT identify domain concepts, infrastructure components, or assign anything to `domain/` or `infrastructure/` — those are architectural decisions made by writing-spec.
+Do NOT assign code or concepts to `domain/` or `infrastructure/` — those are architectural decisions made by writing-spec. Naming infrastructure dependencies in the compose graph (`calls infrastructure: {infra-component}`) is required for large features and does not constitute a layer assignment.
 
 If proposing domain rules or constraints not found in `docs/*.md`: mark the assumption `[UNVERIFIED CLAIM]` in the plan file and include it provisionally; critic-spec will independently flag unverified claims in the spec.
 

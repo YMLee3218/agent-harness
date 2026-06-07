@@ -26,7 +26,7 @@ Phase entry:
 - Phase `red`: proceed. The harness (dev-cycle-phases.sh `_impl_run_test_phase`) transitions spec→red before invoking this skill, so `red` is always the entry phase in autonomous mode. In interactive use, ensure the plan is in `red` before invoking.
 - Any other phase: `[BLOCKED:env] writing-tests: unexpected-phase — entered from {phase}; plan must be in red phase; run brainstorming→writing-spec→critic-spec first`.
 
-- `Read` the target `spec.md` in full
+- `Read` the target spec(s) in full (`WRITING_TESTS_SPEC_PATH` may be a space-separated list of paths in the integration rollback path — read each file)
 - `Glob` `src/` to find existing file structure and naming conventions
 - `Grep` for existing test patterns to match project test style
 
@@ -61,7 +61,7 @@ _codex_log=$(mktemp /tmp/test-writer-log.XXXXXX)
 cat > "$_tw_template" <<'CODEX_PROMPT'
 Task: write Red-phase failing tests for every Scenario in the spec below.
 
-Spec: {spec_path}
+Spec(s) — {spec_path} may be a space-separated list of paths; read each file in full before writing tests:
 Test plan (read ## Test Plan section from the plan file): {plan_path}
 
 Mocking levels per layer: read ${PROJECT_DIR}/.claude/reference/layers.md §Test mocking levels

@@ -55,10 +55,7 @@ After approval, create the directory structure:
 mkdir -p src/features src/domain src/infrastructure tests/integration docs/requirements plans features domain infrastructure
 ```
 
-For each approved domain concept:
-```bash
-mkdir -p src/domain/{concept} domain/{concept}
-```
+Per approved domain concept: `mkdir -p src/domain/{concept} domain/{concept}`
 
 Write draft `domain/{concept}/spec.md` (empty Feature block):
 ```gherkin
@@ -155,10 +152,7 @@ for layer in domain features infrastructure; do
 done
 ```
 
-For each domain concept directory:
-```bash
-cp src/domain/CLAUDE.md src/domain/{concept}/CLAUDE.md
-```
+Per domain concept directory: `cp src/domain/CLAUDE.md src/domain/{concept}/CLAUDE.md`
 
 Generate the language-specific critic-code pattern conf (read language from `.claude/local.md`):
 ```bash

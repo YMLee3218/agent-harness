@@ -59,7 +59,7 @@ When option A (fix root cause, may be large scope) and option B (workaround, sma
 
 `unblock` and `reset-milestone` are **follow-on commands to run after fixing the root cause**.
 Running these commands without reviewing and fixing the underlying issue is an anti-pattern.
-When presenting them as an option, always label them "temporary workaround".
+When presenting them without an accompanying root-cause fix, label them "temporary workaround".
 
 ```
 Recommended order: [identify cause] → [fix] → [unblock or reset-milestone]

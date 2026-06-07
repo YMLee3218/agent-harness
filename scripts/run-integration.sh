@@ -155,6 +155,13 @@ After completing the above, output as the very last line of your response exactl
         exit 1
       fi
       bash "$PF" reset-milestone "$PLAN" critic-code
+      CRITIC_SPEC_PATH="${_feature_specs}" \
+      CRITIC_DOCS_PATHS="$(docs_paths "${_req_file:-}")" \
+      CRITIC_PLAN_PATH="${PLAN}" \
+      CRITIC_LANGUAGE="${_lang}" \
+      CRITIC_DOMAIN_ROOT="${_domain_root}" \
+      CRITIC_INFRA_ROOT="${_infra_root}" \
+      CRITIC_FEATURES_ROOT="${_features_root}" \
       run_critic critic-code implement "Review integration bug fix implementation. Spec: ${_feature_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
       llm_exit "critic-code"
       bash "$PF" transition "$PLAN" integration "re-entering integration after implementation bug fix"

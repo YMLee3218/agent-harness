@@ -41,15 +41,28 @@ _handle_spec_phase_rollback() {
     git -C "$PROJECT_DIR" commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
   bash "$PF" reset-milestone "$PLAN" critic-spec
   rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
+  CRITIC_SPEC_PATH="${_feature_specs}" \
+  CRITIC_DOCS_PATHS="$(docs_paths "${_req_file:-}")" \
+  CRITIC_PLAN_PATH="${PLAN}" \
   run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_feature_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
   llm_exit "critic-spec"
+  CRITIC_ALL_SPEC_PATHS="${_all_specs}" \
+  CRITIC_DOCS_PATHS="$(docs_paths "${_req_file:-}")" \
+  CRITIC_PLAN_PATH="${PLAN}" \
   run_critic critic-cross spec "Cross-feature consistency review after integration spec fix. All specs: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
   llm_exit "critic-cross"
   bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
   bash "$PF" reset-milestone "$PLAN" critic-test
+  WRITING_TESTS_SPEC_PATH="${_feature_specs}" \
+  WRITING_TESTS_PLAN_PATH="${PLAN}" \
+  WRITING_TESTS_COMMAND="${UNIT_CMD}" \
   run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
   llm_exit "writing-tests"
   _test_files=$(_recent_test_files)
+  CRITIC_SPEC_PATH="${_feature_specs}" \
+  CRITIC_TEST_FILES="${_test_files:-tests/}" \
+  CRITIC_PLAN_PATH="${PLAN}" \
+  CRITIC_TEST_COMMAND="${UNIT_CMD}" \
   run_critic critic-test red "Review updated tests for integration fix. Spec: ${_feature_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
   bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
@@ -58,6 +71,13 @@ _handle_spec_phase_rollback() {
   llm_exit "implementing"
   bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD" --lint-cmd "$LINT_CMD"
   bash "$PF" reset-milestone "$PLAN" critic-code
+  CRITIC_SPEC_PATH="${_feature_specs}" \
+  CRITIC_DOCS_PATHS="$(docs_paths "${_req_file:-}")" \
+  CRITIC_PLAN_PATH="${PLAN}" \
+  CRITIC_LANGUAGE="${_lang}" \
+  CRITIC_DOMAIN_ROOT="${_domain_root}" \
+  CRITIC_INFRA_ROOT="${_infra_root}" \
+  CRITIC_FEATURES_ROOT="${_features_root}" \
   run_critic critic-code implement "Review integration ${_cat} fix implementation. Spec: ${_feature_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
   llm_exit "critic-code"
   bash "$PF" transition "$PLAN" integration "re-entering integration after ${_cat} fix"

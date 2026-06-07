@@ -175,6 +175,10 @@ _impl_run_test_phase() {
   local phase_now; phase_now=$(bash "$PF" get-phase "$PLAN")
   [[ "$phase_now" == "spec" || "$phase_now" == "red" ]] || return 0
   bash "$PF" is-converged "$PLAN" red critic-test 2>/dev/null && return 0
+  if [[ -z "$UNIT_CMD" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md"
+    exit 1
+  fi
   # Transition spec→red before run_llm: writing-tests runs with CLAUDE_PLAN_CAPABILITY stripped
   # and cannot call plan-file.sh transition (Ring B) from within the session.
   [[ "$phase_now" == "spec" ]] && bash "$PF" transition "$PLAN" red "entering test phase for ${feature}"
