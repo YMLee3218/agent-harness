@@ -1,8 +1,9 @@
 ---
 name: critic-test
 description: >
-  Decision agent for critic-test FAIL audits. Invoked once per FAIL by run-critic-loop.sh
-  to verify citations, classify findings, and produce a comprehensive FIX-PLAN.
+  Skill wrapper agent for the critic-test loop. The actual review is delegated to Codex
+  via run-critic-loop.sh; FAIL audit and FIX-PLAN logic are in build_decision_prompt
+  (scripts/lib/critic-helpers.sh), not in this agent's system prompt.
 model: sonnet
 color: yellow
 ---

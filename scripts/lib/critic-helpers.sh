@@ -93,7 +93,10 @@ Apply all 6 §Audit checklist items:
 3. Fix direction: does the proposed fix target the root cause?
 4. False positive/negative risk.
 5. Category accuracy — does \`<!-- category: X -->\` use the highest-priority enum value present (ENVELOPE_MISMATCH > ENVELOPE_OVERREACH > LAYER_VIOLATION > CROSS_FEATURE_CONTRADICTION > DOCS_CONTRADICTION > UNVERIFIED_CLAIM > SPEC_COMPLIANCE > MISSING_SCENARIO > TEST_INTEGRITY > TEST_QUALITY > STRUCTURAL)?
-6. Per-finding: GENUINE / FALSE-POSITIVE / AMBIGUOUS.
+6. Per-finding classification:
+   - GENUINE: cited excerpt IS present at file:line AND fix direction is determinable from the reviewed files (spec, docs, review log)
+   - FALSE-POSITIVE: (a) excerpt absent from cited file:line, OR (b) [MISSING] finding whose scenario keywords are confirmed present in the spec
+   - AMBIGUOUS: excerpt present and finding real, but correct fix requires evidence NOT available in the reviewed files — use BLOCKED-AMBIGUOUS
 
 Output (shell-parsed exactly):
 AUDIT: ACCEPT
@@ -160,10 +163,11 @@ PASS_PROMPT
 }
 
 # parse_audit_outcome DECISION_OUTPUT → prints ACCEPT | ACCEPT-OVERRIDE | BLOCKED-AMBIGUOUS
+# Returns empty string on parse failure — caller must check and handle.
 parse_audit_outcome() {
   local _out="$1"
   printf '%s' "$_out" | grep -oE '^AUDIT:[[:space:]]*(ACCEPT-OVERRIDE|BLOCKED-AMBIGUOUS|ACCEPT)' | \
-    head -1 | sed 's/AUDIT:[[:space:]]*//' || echo "ACCEPT"
+    head -1 | sed 's/AUDIT:[[:space:]]*//' || true
 }
 
 # parse_fix_plan DECISION_OUTPUT → prints FIX-PLAN section to stdout

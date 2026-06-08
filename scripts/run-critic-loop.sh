@@ -254,6 +254,13 @@ while true; do
 
       _audit_outcome=$(parse_audit_outcome "$_decision_out")
 
+      if [[ -z "$_audit_outcome" ]]; then
+        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          "[BLOCKED:env] ${AGENT}: decision-parse-failure — claude decision agent produced no AUDIT: line; check decision prompt output" 2>/dev/null || true
+        echo "[run-critic-loop] [BLOCKED:env] ${AGENT}: decision-parse-failure" >&2
+        exit 1
+      fi
+
       bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "$_audit_outcome" \
         "$(printf '%s' "$_decision_out" | head -3 | tr '\n' ' ' | cut -c1-120)" 2>/dev/null || true
 
