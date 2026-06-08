@@ -218,6 +218,12 @@ _impl_run_implement_phase() {
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
+  # Guard: implementing skill ran but produced no JSON marker block
+  if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then
+    bash "$PF" append-note "$PLAN" \
+      "[BLOCKED:code] implement: missing-task-definitions-markers — implementing skill ran but did not write <!-- task-definitions-start --> JSON block; re-run the implementing skill"
+    exit 1
+  fi
   pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]|\| blocked[ |]/' "$PLAN" 2>/dev/null || true)
   any_task_in_ledger=$(awk '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/\| (pending|in_progress|completed|blocked)[ |]/{print;exit}' "$PLAN" 2>/dev/null || true)
   if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && \
