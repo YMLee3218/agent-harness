@@ -57,6 +57,7 @@ _phase_spec_prepass() {
       _cross_ctx=" Also verify consistency against existing specs: ${_other_specs}."
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
+    bash "$PF" clear-converged "$PLAN" critic-cross 2>/dev/null || true
     rm -f "$_rev_marker" 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec_for_critic}" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
@@ -65,6 +66,7 @@ _phase_spec_prepass() {
       "Review spec for feature: ${feature}. Spec: ${_spec_for_critic}. Docs: $(docs_paths). Plan: ${PLAN}.${_cross_ctx}"
     llm_exit "critic-spec"
     touch "$_rev_marker" 2>/dev/null || true
+    git -C "$PROJECT_DIR" add "$_rev_marker" 2>/dev/null || true
 
     while IFS= read -r _sp_file; do
       [[ -n "$_sp_file" ]] && git -C "$PROJECT_DIR" add "$_sp_file"
@@ -113,6 +115,7 @@ _phase_domain_infra_spec_review() {
     fi
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
+    bash "$PF" clear-converged "$PLAN" critic-cross 2>/dev/null || true
     rm -f "$_rev_marker" 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec}" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
@@ -122,7 +125,7 @@ _phase_domain_infra_spec_review() {
     llm_exit "critic-spec"
     touch "$_rev_marker" 2>/dev/null || true
 
-    git -C "$PROJECT_DIR" add "$_spec_rel" 2>/dev/null || true
+    git -C "$PROJECT_DIR" add "$_spec_rel" "$_rev_marker" 2>/dev/null || true
     git -C "$PROJECT_DIR" diff --cached --quiet || \
       git -C "$PROJECT_DIR" commit -m "feat(spec): add BDD scenarios for ${_layer}/${_slug}"
   done <<< "$_di_specs"
