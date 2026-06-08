@@ -119,6 +119,7 @@ Fix the following issues found by critic-${_agent}. Apply ALL items in the fix p
 
 Plan: ${_plan}
 Spec reference: ${_spec_ref}
+Review log (evidence): ${_log}
 
 ## Fix plan — address every item below
 
