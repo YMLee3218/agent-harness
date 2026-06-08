@@ -176,7 +176,7 @@ Create the initial plan file `plans/{project-slug}.md` **before** committing so 
 ```bash
 _boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
-bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" init "plans/{project-slug}.md"
+bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" init "$PROJECT_DIR/plans/{project-slug}.md"
 # Then edit plans/{project-slug}.md to fill in the ## Vision section
 ```
 
