@@ -16,7 +16,8 @@ case "$1" in
 
   # Ring B — CLAUDE_PLAN_CAPABILITY=harness required (harness scripts; human operators: export CLAUDE_PLAN_CAPABILITY=harness): state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
-  reset-for-rollback|record-verdict|record-verdict-guarded|append-review-verdict|\
+  reset-for-rollback|record-verdict|record-verdict-guarded|record-verdict-direct|\
+  append-review-verdict|\
   gc-events|gc-verdicts|record-task-completed|record-stop-block|mark-implemented|\
   inter-feature-reset)
     require_capability "$1" B
@@ -28,6 +29,10 @@ case "$1" in
       if [ -n "$_rv_plan" ] && [ ! -f "${_rv_plan}.critic.lock" ]; then
         die "BLOCKED: ${_rv_plan##*/}.critic.lock absent — record-verdict requires run-critic-loop.sh context"
       fi
+    fi
+    if [ "$1" = "record-verdict-direct" ]; then
+      [ $# -ge 2 ] || die "Usage: plan-file.sh record-verdict-direct <plan-file> <agent> <phase> <verdict> [category]"
+      [ -f "$2.critic.lock" ] || die "BLOCKED: ${2##*/}.critic.lock absent — record-verdict-direct requires run-critic-loop.sh context"
     fi
     ;;
 
@@ -58,6 +63,7 @@ case "$1" in
   find-latest)          cmd_find_latest ;;
   record-verdict)         cmd_record_verdict ;;
   record-verdict-guarded)   cmd_record_verdict_guarded ;;
+  record-verdict-direct) [ $# -ge 5 ] || die "Usage: plan-file.sh record-verdict-direct <plan-file> <agent> <phase> <verdict> [category]"; cmd_record_verdict_direct "$2" "$3" "$4" "$5" "${6:-}" ;;
   record-task-completed)  cmd_record_task_completed ;;
   context)              cmd_context ;;
   gc-events)            cmd_gc_events ;;

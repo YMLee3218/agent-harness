@@ -1,34 +1,13 @@
 ---
 name: critic-test
 description: >
-  Review failing tests for scenario coverage and correct mocking levels.
-  Trigger: after writing-tests completes, before implementing starts.
+  Codex prompt template for test coverage and mocking review.
+  Invoked by run-critic-loop.sh (shell-driven) via build_review_prompt.
 user-invocable: false
 context: fork
 agent: critic-test
 allowed-tools: [Bash]
 ---
-
-@reference/critics.md
-
-You orchestrate Codex to perform the review. Build the prompt, run `codex exec`, echo the tail. Do not read sources yourself.
-
-## Build and run the Codex prompt
-
-The variable assignments at the top of the bash block read from environment variables
-injected by the harness. Run the bash block as-is — do not modify any values.
-
-```bash
-_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
-_spec_path="${CRITIC_SPEC_PATH:?CRITIC_SPEC_PATH not set}"
-_test_files="${CRITIC_TEST_FILES:?CRITIC_TEST_FILES not set}"
-_plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
-_test_command="${CRITIC_TEST_COMMAND:?CRITIC_TEST_COMMAND not set}"
-_critic_test_template=$(mktemp /tmp/critic-test-tmpl.XXXXXX)
-_critic_test_prompt=$(mktemp /tmp/critic-test-prompt.XXXXXX)
-_critic_test_log=$(mktemp /tmp/critic-test-log.XXXXXX)
-cat > "$_critic_test_template" <<'CODEX_PROMPT'
 You are an adversarial test reviewer. Verify scenario coverage, correct mocking levels, and test integrity. Read every file you need.
 
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL], [MANIFEST-GAP],
@@ -44,16 +23,50 @@ Read these reference files first — they govern your output:
 - ${PROJECT_DIR}/.claude/reference/severity.md   (severity, PASS/FAIL, category priority)
 - ${PROJECT_DIR}/.claude/reference/layers.md     (test mocking levels per layer)
 
+## Verdict format (read first — output these markers at the end)
+
+End your output with exactly one PASS or FAIL block. The shell parses only the two HTML-comment markers.
+
+### Rule 1 — PASS pairs only with NONE
+If verdict is PASS, `<!-- category: NONE -->` is required. A PASS with any non-NONE category is a PARSE_ERROR.
+
+### Rule 2 — Advisory labels do not exist
+Only these blocking labels are valid: `[CRITICAL]`, `[MISSING]`, `[MANIFEST-GAP]`, `[FAIL]`, `[DOCS CONTRADICTION]`, `[UNVERIFIED CLAIM]`. Do not invent `[MINOR]`, `[NIT]`, `[INFO]`, `[ADVISORY]`, `[STYLE]`, `[SUGGESTION]`. If an observation doesn't warrant a blocking label, omit it entirely.
+Corollary: no blocking labels → PASS + NONE. Period.
+
+### Rule 3 — FAIL category enum
+On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the check that fired.
+Allowed: `TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH`.
+A FAIL without a category marker or with an invalid category is a PARSE_ERROR.
+
+PASS block:
+```
+### Verdict
+PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
+```
+
+FAIL block:
+```
+### Verdict
+FAIL — {labels}
+<!-- verdict: FAIL -->
+<!-- category: {one of the enum above} -->
+```
+
+---
+
 ## Pre-check — test file integrity → category: `TEST_INTEGRITY`
 
 If git is available:
-\`\`\`bash
+```bash
 git log --grep='^test(red):' --format='%H %s' -- {test_files} | head -1
-\`\`\`
+```
 Find the Red-phase commit. Then:
-\`\`\`bash
+```bash
 git log --oneline <red-commit-sha>..HEAD -- {test_files}
-\`\`\`
+```
 If this returns commits, the test file was modified after Red. Emit immediately:
 
 [CRITICAL] test file modified after Red phase: {file}
@@ -66,12 +79,12 @@ FAIL — [CRITICAL] test file modified after Red phase: {file}
 Stop. Do not run other checks.
 
 If no test(red): commit exists, first guard against pre-existing files (cross-feature false positives):
-\`\`\`bash
+```bash
 _plan_t=$(git log --format='%ct' -- {plan_path} 2>/dev/null | tail -1); _file_t=$(git log --format='%ct' HEAD -- {test_files} 2>/dev/null | tail -1)
 red_sha=$(git log --format='%H' HEAD -- {test_files} | tail -1)
 git log --oneline ${red_sha}..HEAD -- {test_files}
-\`\`\`
-If \`_plan_t\` and \`_file_t\` are both non-empty and \`_file_t\` < \`_plan_t\`, the file predates the current plan — emit \`[SKIP] test file integrity: pre-existing file, Red baseline unreliable for {file}\` and continue. If \`red_sha\` is empty, emit \`[SKIP] test file integrity: no commit history for {file}\` and continue. If the last command returns commits, the file was modified after the inferred Red commit — emit the same \`[CRITICAL] test file modified after Red phase\` FAIL verdict above. If git is unavailable, emit \`[SKIP] test file integrity: git unavailable\` and continue.
+```
+If `_plan_t` and `_file_t` are both non-empty and `_file_t` < `_plan_t`, the file predates the current plan — emit `[SKIP] test file integrity: pre-existing file, Red baseline unreliable for {file}` and continue. If `red_sha` is empty, emit `[SKIP] test file integrity: no commit history for {file}` and continue. If the last command returns commits, the file was modified after the inferred Red commit — emit the same `[CRITICAL] test file modified after Red phase` FAIL verdict above. If git is unavailable, emit `[SKIP] test file integrity: git unavailable` and continue.
 
 ## Envelope Discipline (evaluate before all other checks) → category: `ENVELOPE_MISMATCH` / `ENVELOPE_OVERREACH`
 
@@ -98,21 +111,21 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
 
 4. Confirm all tests fail — run the test command. Every newly written test must fail.
 
-   Exception: a test marked \`GREEN (pre-existing)\` in the Test Manifest is allowed to pass. For each GREEN entry, verify with git that the test file predates the Red-phase commit:
-   \`\`\`bash
+   Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed to pass. For each GREEN entry, verify with git that the test file predates the Red-phase commit:
+   ```bash
    red_commit_ts=$(git log --grep='^test(red):' --format='%H %at' -- {test_files} | head -1 | awk '{print $2}')
    create_ts=$(git log --follow --diff-filter=A --format='%at' -- {test_file} | tail -1)
-   \`\`\`
-   If \`create_ts >= red_commit_ts\`, emit:
+   ```
+   If `create_ts >= red_commit_ts`, emit:
    [FAIL] category: TEST_INTEGRITY — {file}: marked GREEN (pre-existing) but was created in the Red phase commit.
 
-   If git is unavailable or the test(red): commit cannot be found, emit \`[SKIP] GREEN integrity check: {reason}\` and continue.
+   If git is unavailable or the test(red): commit cannot be found, emit `[SKIP] GREEN integrity check: {reason}` and continue.
 
    Flag any test that passes but is NOT marked GREEN (pre-existing). (→ [FAIL])
 
 ## Output format
 
-\`\`\`
+```
 ## critic-test Review
 
 ### Coverage Gaps
@@ -133,7 +146,7 @@ GREEN integrity violations: {list or "none"}
 ### Citation Summary
 (one line per blocking finding — omit if PASS)
 - {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
-\`\`\`
+```
 
 ## Category mapping
 
@@ -146,55 +159,3 @@ GREEN integrity violations: {list or "none"}
 - Test verifies out-of-envelope scenario              → ENVELOPE_OVERREACH
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
-
-## Verdict format (strict — parsed by SubagentStop hook)
-
-End your output with exactly one PASS or FAIL block below. The SubagentStop hook
-parses only the two HTML-comment markers; text outside them is ignored.
-
-### Rule 1 — PASS pairs only with NONE (most common failure mode)
-
-If verdict is PASS, the category marker MUST be exactly `NONE`. No exceptions. Any inspected area with no blocking findings → PASS + NONE. A PASS paired with any non-NONE category is recorded as PARSE_ERROR. Two consecutive PARSE_ERRORs halt the run.
-
-### Rule 2 — Advisory severity labels do not exist
-
-Per `@reference/severity.md`, only these labels are valid and ALL are blocking:
-`[CRITICAL]`, `[MISSING]`, `[MANIFEST-GAP]`, `[FAIL]`, `[DOCS CONTRADICTION]`,
-`[UNVERIFIED CLAIM]`. Inventing `[MINOR]`, `[NIT]`, `[INFO]`, `[ADVISORY]`,
-`[STYLE]`, `[SUGGESTION]` is forbidden. If an observation does not warrant one
-of the six blocking labels, omit it entirely — do not relabel it.
-
-Corollary: if your `Findings:` list contains no blocking labels, verdict is
-PASS and category is NONE. Period.
-
-### Rule 3 — FAIL category enum (only when Rule 1 does not apply)
-
-On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:`
-annotation on the angle/check that fired. Allowed enum (this critic):
-`TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH`.
-
-FORBIDDEN substitutes (recorded as PARSE_ERROR): `COMPLETENESS`, `CONSISTENCY`,
-`CORRECTNESS`, `CONTRACT`, any descriptive synonym, any section title.
-A FAIL without a `<!-- category: -->` marker is recorded as PARSE_ERROR.
-
-### Blocks
-PASS: `### Verdict / PASS / <!-- verdict: PASS --> / <!-- category: NONE -->`
-FAIL: `### Verdict / FAIL — {labels} / <!-- verdict: FAIL --> / <!-- category: {one of TEST_INTEGRITY | LAYER_VIOLATION | MISSING_SCENARIO | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->`
-CODEX_PROMPT
-sed \
-  -e "s|{spec_path}|${_spec_path}|g" \
-  -e "s|{test_files}|${_test_files}|g" \
-  -e "s|{plan_path}|${_plan_path}|g" \
-  -e "s|{test_command}|${_test_command}|g" \
-  "$_critic_test_template" > "$_critic_test_prompt"
-rm -f "$_critic_test_template"
-codex exec --full-auto - < "$_critic_test_prompt" > "$_critic_test_log" 2>&1
-_codex_exit=$?
-echo "=== Codex critic-test exit: $_codex_exit ==="
-[[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
-echo "=== full critic log retained at $_critic_test_log ==="
-tail -200 "$_critic_test_log"
-rm -f "$_critic_test_prompt" "$_critic_test_template"
-```
-
-The verdict markers in the tail are your final stdout. Do not append any commentary after `tail -200`.

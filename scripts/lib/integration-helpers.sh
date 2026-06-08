@@ -17,7 +17,7 @@ source "$_INTEGRATION_HELPERS_DIR/llm-runner.sh"
 run_llm_capture() {
   local prompt="$1" outfile="$2"
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
-    env -u CLAUDE_PLAN_CAPABILITY claude --model opus --permission-mode auto --dangerously-skip-permissions -p "$prompt" \
+    env -u CLAUDE_PLAN_CAPABILITY claude --model sonnet --permission-mode auto --dangerously-skip-permissions -p "$prompt" \
     > "$outfile" 2>&1 || true
 }
 
@@ -32,7 +32,7 @@ _handle_spec_phase_rollback() {
   bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"
   bash "$PF" reset-milestone "$PLAN" critic-test
   bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
-  run_llm "Invoke the writing-spec skill to fix the ${_cat}. Plan: $PLAN"
+  run_llm "Invoke the writing-spec skill to fix the ${_cat}. Plan: $PLAN" opus
   llm_exit "writing-spec"
   while IFS= read -r _sp; do
     [[ -n "$_sp" ]] && git -C "$PROJECT_DIR" add "$_sp"
@@ -56,7 +56,7 @@ _handle_spec_phase_rollback() {
   WRITING_TESTS_SPEC_PATH="${_feature_specs}" \
   WRITING_TESTS_PLAN_PATH="${PLAN}" \
   WRITING_TESTS_COMMAND="${UNIT_CMD}" \
-  run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN"
+  run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN" sonnet
   llm_exit "writing-tests"
   _test_files=$(_recent_test_files)
   CRITIC_SPEC_PATH="${_feature_specs}" \
@@ -67,7 +67,7 @@ _handle_spec_phase_rollback() {
   llm_exit "critic-test"
   bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
   bash "$PF" inter-feature-reset "$PLAN"
-  run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN"
+  run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN" opus
   llm_exit "implementing"
   bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD" --lint-cmd "$LINT_CMD"
   bash "$PF" reset-milestone "$PLAN" critic-code

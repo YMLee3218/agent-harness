@@ -54,16 +54,16 @@ Full iteration protocol: §Loop convergence.
 
 to `## Open Questions` (self-superseding — at most one `[RECURRING]` per agent). The loop continues normally; no `[BLOCKED:code]` is written and `blocked.jsonl` is not updated. Hard stops from §Skill branching logic still apply; RECURRING adds no new stop conditions. `gc-events` removes stale `[RECURRING]` lines; `reset-milestone` clears them at milestone boundaries.
 
-## Review execution rule (subagent mandate)
+## Review execution rule (isolation mandate)
 
-All phase-gate critics (`critic-feature`, `critic-spec`, `critic-test`, `critic-code`, `critic-cross`) and pr-review **must** run in isolated subagents. Generating a verdict inline in the parent context (i.e., executing review logic without spawning a subagent) is forbidden.
+All phase-gate critic reviews must run in isolated processes. Generating a verdict inline in the orchestrator context is forbidden.
 
 Normative implementations:
+- **`critic-spec/test/code/cross`**: shell (`run-critic-loop.sh`) calls `codex exec --full-auto -` directly. Codex is the isolated reviewer; Claude invoked at most once on FAIL (decision agent) and once on convergence-triggering PASS (REJECT-PASS check). Verdict via `plan-file.sh record-verdict-direct` — no SubagentStop hook.
+- **`critic-feature`**: `context: fork` + `agent: critic-feature` B-session, SubagentStop hook. Pure Claude.
+- **`pr-review-toolkit:review-pr`**: external plugin; isolation satisfied by plugin.
 
-- **`critic-*` (5 variants)**: `skills/critic-*/SKILL.md` frontmatter `context: fork` + `agent: critic-*` + `agents/critic-*.md` definition.
-- **`pr-review-toolkit:review-pr`**: The external plugin internally orchestrates `pr-review-toolkit:code-reviewer`, `…:pr-test-analyzer`, `…:silent-failure-hunter`, `…:comment-analyzer`, and `…:type-design-analyzer` subagents, so the isolation requirement is satisfied by the plugin definition.
-
-**Prohibited**: any implementation that generates a verdict directly in the parent context without subagent isolation.
+**Prohibited**: generating a verdict directly in the orchestrator context without subprocess isolation.
 
 ## Loop convergence
 
@@ -90,15 +90,13 @@ Skill reads ## Open Questions and queries sidecar, checks in priority order:
                                 → re-run automatically (one retry allowed;
                                   second consecutive PARSE_ERROR triggers [BLOCKED:code] {agent}: parse)
   7. (no terminal marker, PASS) → re-run automatically
-  8. (no terminal marker, FAIL) → if `[RECURRING] {agent}:` is in `## Open Questions`, the Codex
-       fix prompt must address all findings of that category at root-cause level, not only the latest.
-       LLM determines fix direction:
-       - direction is clear → construct Codex fix prompt (critic finding, target file,
-         change to apply, test command, layer rules if applicable); write to tmp file:
-           codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
-         → re-run critic
-       - direction is ambiguous → append [BLOCKED:spec] {agent}: ambiguous — {question} + stop
-       - [DOCS CONTRADICTION] in critic output → treat docs/*.md as ground truth; fix code (and spec) to match. If fixing code would itself require changing docs (stale requirements), direction is ambiguous → append [BLOCKED:docs] {agent}: contradiction — docs may be stale, ground truth ambiguous; apply cascade + stop; follow `@reference/phase-ops.md §DOCS CONTRADICTION cascade`.
+  8. (no terminal marker, FAIL) → if `[RECURRING] {agent}:` in `## Open Questions`, ALL findings
+       of that category must be addressed at root-cause level, not only the latest.
+       **critic-spec/test/code/cross**: one Claude decision-agent call audits all findings → single Codex fix for entire FIX-PLAN.
+       **critic-feature**: LLM determines fix direction for ALL GENUINE findings:
+       - clear → `codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"` → re-run
+       - ambiguous → `[BLOCKED:spec] {agent}: ambiguous — {question}` + stop
+       - [DOCS CONTRADICTION] → treat docs/*.md as ground truth; fix code+spec. If docs may be stale → `[BLOCKED:docs]` + cascade + stop (`@reference/phase-ops.md §DOCS CONTRADICTION cascade`).
      ENVELOPE_MISMATCH / ENVELOPE_OVERREACH are ordinary FAIL categories — no
      envelope-specific branch. They resolve through the three branches above:
        - an axis derivable from the spec body, or a scenario overreaching a
@@ -117,11 +115,9 @@ Skill reads ## Open Questions and queries sidecar, checks in priority order:
 
 ## Running the critic
 
-Invoke the critic skill with the relevant paths. The `SubagentStop` hook fires `plan-file.sh record-verdict-guarded` automatically when the critic agent exits — do **not** call `record-verdict` or `record-verdict-guarded` manually (doing so would double-record the run, inflating the streak and ceiling counters). For pr-review, `run-critic-loop.sh` records the verdict automatically by extracting the nonce-anchored `<!-- review-verdict: {nonce} PASS|FAIL -->` marker from the spawned session's stdout — do **not** call `append-review-verdict` manually either.
-
-**B-session only** (invoked by `run-critic-loop.sh` as a `claude -p` one-shot): `Skill("{agent}", "{prompt}")` runs the critic subagent synchronously — the subagent completes and the `SubagentStop` hook records the verdict within the **same turn**. Do **not** end the turn after invoking Skill; do **not** run the call in the background; do **not** wait for a completion notification — `claude -p` has no subsequent turn. Ending the turn early orphans the subagent and any child Codex processes, causing a verdict-less `PARSE_ERROR`. After `Skill(...)` returns, proceed immediately to the ultrathink audit and branching within the same turn before exiting.
-
-After `record-verdict` (or `append-review-verdict`) completes, run `@reference/ultrathink.md §Ultrathink verdict audit`, then read `## Open Questions` for the markers listed in §Skill branching logic and branch accordingly. The B-session for each `run-critic-loop.sh` iteration runs the audit internally — `§Critic one-shot iteration` step 2 for the five critic subagents, `pr-review-loop.md §PR-review one-shot iteration` step 3 for pr-review — so the orchestrator that called `run-critic-loop.sh` must **not** re-run the audit after the loop returns. (Direct critic invocations are not a remaining code path: the `record-verdict-guarded` SubagentStop hook at settings.json rejects any critic-subagent run outside `run-critic-loop.sh`.)
+**Shell-driven (critic-spec/test/code/cross)**: `run-critic-loop.sh` calls `codex exec` directly, records via `record-verdict-direct`, audits on FAIL (decision agent), and REJECT-PASS checks on convergence-triggering PASS. Do not call `record-verdict-direct` manually.
+**B-session (critic-feature)**: `Skill("critic-feature", "{prompt}")` is synchronous — `SubagentStop` fires `record-verdict-guarded` within the **same turn**. Do not end the turn after invoking Skill; do not background the call. After Skill returns, run ultrathink audit and branch before exiting. Do not call `record-verdict-guarded` manually.
+**pr-review**: `run-critic-loop.sh` extracts the nonce-anchored verdict and calls `append-review-verdict`. Do not call it manually.
 
 **Exit codes**: 0 = converged; 1 = blocked (`[BLOCKED:{kind}]` marker in plan, or transient retry); 2 = `[BLOCKED:ceiling]`; 3 = lock contention, **non-nested invocations only** (another run already active for this plan — wait for it to finish or remove the plan's `.critic.lock` file (e.g. `plans/{slug}.md.critic.lock`)); recovery cascades using `--nested` silently inherit any existing lock and never return exit 3; any other code is a script failure: write `[BLOCKED:env] {agent}: script-failure — exit {code}` to `## Open Questions` and stop. Running critics manually is not a fallback — it is a protocol violation.
 ### New milestone
@@ -153,10 +149,18 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 
 ## §Critic one-shot iteration
 
-One iteration for a `claude` CLI session from `run-critic-loop.sh`. Do **not** loop — one critic run per session. Steps 1 and 2 execute in a single continuous turn — no turn boundary between them.
-0. **Pre-fix** (only when `prior_fail_log={path}` in prompt): read the log; for each FAIL finding, apply a Codex fix if direction is clear — skip findings where direction is ambiguous (those will re-surface in step 1). Run one fix prompt per clear finding group. Proceed to step 1 regardless of Codex outcome.
-1. `Skill("{agent}", "{prompt}")` — synchronous; `SubagentStop` fires `record-verdict-guarded` automatically when the subagent exits. Do not end the turn here.
-2. `@reference/ultrathink.md §Ultrathink verdict audit`. Then read `## Open Questions` per §Skill branching logic — **exception**: this session never re-runs (steps 6 and 7 hand their re-run back to the shell loop; step 8 / FAIL is executed by this session before exiting) — **sub-exception**: when the ultrathink audit verdict is ACCEPT-OVERRIDE for phase-gate critics, one optional in-session re-run of `Skill(...)` is permitted before exiting (see `@reference/ultrathink.md §ACCEPT-OVERRIDE`); exit after each branching action.
+**Shell-driven (critic-spec/test/code/cross)** — `run-critic-loop.sh` per iteration, no Claude overhead on PASS:
+1. `build_review_prompt` → SKILL.md template → `/tmp/critic-{agent}-review.XXXX`
+2. `codex exec --full-auto - < prompt > plans/{slug}.state/codex-critic-{agent}-last.log`
+3. grep verdict/category markers; `plan-file.sh record-verdict-direct $PLAN $AGENT $PHASE $verdict $category`
+4. **FAIL**: one Claude call (`ultrathink` + Read tool) → `AUDIT:/GENUINE:/FIX-PLAN:` for all findings; `append-audit`; if BLOCKED-AMBIGUOUS: write `[BLOCKED:spec]` markers; `codex exec --full-auto -` with full FIX-PLAN
+5. **PASS (2nd/converged)**: one Claude call for REJECT-PASS check only; if REJECT: `clear-converged`; if ACCEPT: exit 0
+6. **PASS (1st)**: no Claude call; loop continues
+
+**B-session (critic-feature)** — one `claude` CLI session; do **not** loop; steps 1+2 in one continuous turn:
+0. **Pre-fix** (only when `prior_fail_log={path}`): apply Codex fix for each clear FAIL finding; skip ambiguous ones.
+1. `Skill("critic-feature", "{prompt}")` — synchronous; `SubagentStop` fires `record-verdict-guarded`. Do not end the turn.
+2. `@reference/ultrathink.md §Ultrathink verdict audit`. Read `## Open Questions` per §Skill branching logic — **exception**: never re-runs from shell (step 8/FAIL handled in-session) — **sub-exception**: ACCEPT-OVERRIDE allows one optional in-session `Skill(...)` re-run (see `@reference/ultrathink.md §ACCEPT-OVERRIDE`); exit after each branch.
 
 ## Ambiguity signaling
 

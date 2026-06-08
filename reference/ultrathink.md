@@ -1,6 +1,17 @@
 # Ultrathink Verdict Audit
 
-Every verdict returned by a review subagent **must pass a parent-context ultrathink audit** before it is accepted. Run the audit immediately after `record-verdict` completes and **before** branching on `## Open Questions` markers (per `@reference/critics.md §Skill branching logic`). Exception — pr-review: `append-review-verdict` is recorded by the shell after the session exits; the in-session equivalent checkpoint is after outputting the nonce-anchored verdict marker in step 2 of `@reference/pr-review-loop.md`. Do NOT call `append-review-verdict` in-session.
+Every verdict returned by a review process **must pass an ultrathink audit** before it is accepted.
+
+**Shell-driven critics (critic-spec/test/code/cross)**: `run-critic-loop.sh` runs the audit as a separate Claude decision-agent call on every FAIL, and as a minimal REJECT-PASS check on the convergence-triggering (2nd consecutive) PASS. On non-converging PASS iterations no audit is run. The decision agent is invoked with `build_decision_prompt` output and must apply all 6
+§Audit checklist items: Read the review log and cited files for citation verification (item 1),
+Read the spec for coverage gap checks (item 2), assess fix direction (item 3), false-positive
+and false-negative risk (item 4), category accuracy against severity.md (item 5), and
+per-finding decidability classification (item 6).
+The convergence-triggering PASS check reads both the review log and spec to verify items 2 and 4.
+
+**critic-feature (B-session)**: run the audit immediately after `record-verdict` completes and **before** branching on `## Open Questions` markers (per `@reference/critics.md §Skill branching logic`).
+
+**pr-review**: `append-review-verdict` is recorded by the shell after the session exits; the in-session equivalent checkpoint is after outputting the nonce-anchored verdict marker in step 2 of `@reference/pr-review-loop.md`. Do NOT call `append-review-verdict` in-session.
 
 ## §Ultrathink verdict audit
 

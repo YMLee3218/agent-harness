@@ -1,36 +1,13 @@
 ---
 name: critic-spec
 description: >
-  Adversarially review spec.md for missing failure scenarios, boundary gaps, and structural errors.
-  Trigger: after spec.md is written, before writing-tests begins.
+  Codex prompt template for adversarial spec review.
+  Invoked by run-critic-loop.sh (shell-driven) via build_review_prompt.
 user-invocable: false
 context: fork
 agent: critic-spec
 allowed-tools: [Bash]
 ---
-
-@reference/critics.md
-BDD templates: @reference/bdd-templates.md
-
-You orchestrate Codex to perform the review. Build the prompt, run `codex exec`, echo the tail. Do not read sources yourself.
-
-IMPORTANT: Use only the bash heredoc + `codex exec --full-auto -` pattern shown below. Do NOT use `codex-companion review`, `/codex:review`, or `codex review` — these forms reject custom focus text since the 2026-05 plugin update.
-
-## Build and run the Codex prompt
-
-The variable assignments at the top of the bash block read from environment variables
-injected by the harness. Run the bash block as-is — do not modify any values.
-
-```bash
-_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
-_spec_path="${CRITIC_SPEC_PATH:?CRITIC_SPEC_PATH not set}"
-_docs_paths="${CRITIC_DOCS_PATHS:?CRITIC_DOCS_PATHS not set}"
-_plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
-_critic_spec_template=$(mktemp /tmp/critic-spec-tmpl.XXXXXX)
-_critic_spec_prompt=$(mktemp /tmp/critic-spec-prompt.XXXXXX)
-_critic_spec_log=$(mktemp /tmp/critic-spec-log.XXXXXX)
-cat > "$_critic_spec_template" <<'CODEX_PROMPT'
 You are an adversarial spec reviewer. Find cases where implementing this spec would fail. Assume the spec is flawed until proven otherwise. Read every file you need.
 
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
@@ -47,6 +24,40 @@ Read these reference files first — they govern your output:
 - ${PROJECT_DIR}/.claude/reference/layers.md            (naming conventions, spec-path mapping)
 - ${PROJECT_DIR}/.claude/reference/bdd-templates.md     (required boundary coverage by input type)
 - ${PROJECT_DIR}/.claude/reference/operating-envelope.md (legal axis values; filled vs placeholder definition)
+
+## Verdict format (read first — output these markers at the end)
+
+End your output with exactly one PASS or FAIL block. The shell parses only the two HTML-comment markers.
+
+### Rule 1 — PASS pairs only with NONE
+If verdict is PASS, `<!-- category: NONE -->` is required. A PASS with any non-NONE category is a PARSE_ERROR.
+
+### Rule 2 — Advisory labels do not exist
+Only these blocking labels are valid: `[CRITICAL]`, `[MISSING]`, `[MANIFEST-GAP]`, `[FAIL]`, `[DOCS CONTRADICTION]`, `[UNVERIFIED CLAIM]`. Do not invent `[MINOR]`, `[NIT]`, `[INFO]`, `[ADVISORY]`, `[STYLE]`, `[SUGGESTION]`. If an observation doesn't warrant a blocking label, omit it entirely.
+Corollary: no blocking labels → PASS + NONE. Period.
+
+### Rule 3 — FAIL category enum
+On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired.
+Allowed: `LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH`.
+A FAIL without a category marker or with an invalid/descriptive category is a PARSE_ERROR.
+
+PASS block:
+```
+### Verdict
+PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
+```
+
+FAIL block:
+```
+### Verdict
+FAIL — {labels}
+<!-- verdict: FAIL -->
+<!-- category: {one of the enum above} -->
+```
+
+---
 
 ## Angle 1 — Missing scenarios → category: `MISSING_SCENARIO` (or `DOCS_CONTRADICTION` for §doc contradictions)
 
@@ -102,7 +113,7 @@ Before reporting any [MISSING] scenario, verify the scenario is within the decla
 
 ## Output format
 
-\`\`\`
+```
 ## critic-spec Review
 
 ### Angle 1 — Missing Scenarios
@@ -135,62 +146,4 @@ None: "Operating Envelope present and scenarios within bounds"
 ### Citation Summary
 (one line per blocking finding — omit if PASS)
 - {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
-\`\`\`
-
-## Verdict format (strict — parsed by SubagentStop hook)
-
-End your output with exactly one PASS or FAIL block below. The SubagentStop hook
-parses only the two HTML-comment markers; text outside them is ignored.
-
-### Rule 1 — PASS pairs only with NONE (most common failure mode)
-
-If verdict is PASS, the category marker MUST be exactly `NONE`. No exceptions.
-- Inspected SPEC_COMPLIANCE area but found nothing blocking? → PASS + NONE.
-- Inspected LAYER_VIOLATION area but found nothing blocking? → PASS + NONE.
-- Found a cosmetic/typo/style observation? → Do NOT report it. PASS + NONE.
-
-A PASS paired with any non-NONE category (SPEC_COMPLIANCE, STRUCTURAL, …) is
-recorded as PARSE_ERROR. Two consecutive PARSE_ERRORs halt the run.
-
-### Rule 2 — Advisory severity labels do not exist
-
-Per `@reference/severity.md`, only these labels are valid and ALL are blocking:
-`[CRITICAL]`, `[MISSING]`, `[MANIFEST-GAP]`, `[FAIL]`, `[DOCS CONTRADICTION]`,
-`[UNVERIFIED CLAIM]`. Inventing `[MINOR]`, `[NIT]`, `[INFO]`, `[ADVISORY]`,
-`[STYLE]`, `[SUGGESTION]` is forbidden. If an observation does not warrant one
-of the six blocking labels, omit it entirely — do not relabel it.
-
-Corollary: if your `Findings:` list contains no blocking labels, verdict is
-PASS and category is NONE. Period.
-
-### Rule 3 — FAIL category enum (only when Rule 1 does not apply)
-
-On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:`
-annotation on the angle/check that fired. Allowed enum (this critic):
-`LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH`.
-
-FORBIDDEN substitutes (recorded as PARSE_ERROR): `COMPLETENESS`, `CONSISTENCY`,
-`CORRECTNESS`, `CONTRACT`, any descriptive synonym, any section title.
-A FAIL without a `<!-- category: -->` marker is recorded as PARSE_ERROR.
-- A FAIL whose body uses category enum tokens (`[MISSING_SCENARIO]`, `[ENVELOPE_MISMATCH]`, `[ENVELOPE_OVERREACH]`, `[STRUCTURAL]`, `[LAYER_VIOLATION]`, …) as bracket labels instead of severity labels (`[MISSING]`, `[FAIL]`, …) is also recorded as PARSE_ERROR.
-
-### Blocks
-PASS: `### Verdict / PASS / <!-- verdict: PASS --> / <!-- category: NONE -->`
-FAIL: `### Verdict / FAIL — {labels} / <!-- verdict: FAIL --> / <!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | MISSING_SCENARIO | STRUCTURAL | CROSS_FEATURE_CONTRADICTION | ENVELOPE_MISMATCH | ENVELOPE_OVERREACH} -->`
-CODEX_PROMPT
-sed \
-  -e "s|{spec_path}|${_spec_path}|g" \
-  -e "s|{docs_paths}|${_docs_paths}|g" \
-  -e "s|{plan_path}|${_plan_path}|g" \
-  "$_critic_spec_template" > "$_critic_spec_prompt"
-rm -f "$_critic_spec_template"
-codex exec --full-auto - < "$_critic_spec_prompt" > "$_critic_spec_log" 2>&1
-_codex_exit=$?
-echo "=== Codex critic-spec exit: $_codex_exit ==="
-[[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
-echo "=== full critic log retained at $_critic_spec_log ==="
-tail -200 "$_critic_spec_log"
-rm -f "$_critic_spec_prompt" "$_critic_spec_template"
 ```
-
-The verdict markers in the tail are your final stdout. Do not append any commentary after `tail -200`.

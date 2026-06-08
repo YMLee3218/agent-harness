@@ -25,11 +25,12 @@ ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
   exit 5
 }
 
-# Source sidecar for transient mechanism (needed before lock check and in while loop)
+# Source sidecar for transient mechanism
 source "$(dirname "${BASH_SOURCE[0]}")/lib/sidecar.sh" 2>/dev/null || true
+# Source critic-helpers for Codex-driven path
+source "$(dirname "${BASH_SOURCE[0]}")/lib/critic-helpers.sh" 2>/dev/null || true
 
 # Lock file — prevent concurrent runs on the same plan.
-# record-verdict-guarded requires this lock to exist when a critic subagent stops.
 LOOP_LOCK="${PLAN}.critic.lock"
 if [[ $NESTED -eq 0 ]]; then
   if ! (set -C; echo $$ > "$LOOP_LOCK") 2>/dev/null; then
@@ -39,14 +40,12 @@ if [[ $NESTED -eq 0 ]]; then
   fi
   trap 'rm -f "$LOOP_LOCK"' EXIT
 else
-  # Nested: if no outer lock exists (direct recovery cascade), create it and own cleanup.
-  # If outer lock exists (called from inside a B-session), inherit it without taking ownership.
   if (set -C; echo $$ > "$LOOP_LOCK") 2>/dev/null; then
     trap 'rm -f "$LOOP_LOCK"' EXIT
   fi
 fi
 
-# Signal handling — clean up subprocess on interrupt (also removes _session_out)
+# Signal handling — clean up subprocess on interrupt
 CLAUDE_PID="" _session_out=""
 _on_interrupt() {
   [[ -n "$CLAUDE_PID" ]] && kill "$CLAUDE_PID" 2>/dev/null
@@ -59,8 +58,6 @@ trap '_on_interrupt' INT TERM
 TIMEOUT_CMD=$(command -v gtimeout || command -v timeout || true)
 SESSION_TIMEOUT="${CLAUDE_CRITIC_SESSION_TIMEOUT:-3600}"
 
-# Fail loudly when no timeout binary is available — silent unbounded sessions can hang
-# indefinitely. Mirrors stop-check.sh:140-144. Set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to bypass.
 if [[ -z "$TIMEOUT_CMD" ]] && [[ "$SESSION_TIMEOUT" != "0" ]]; then
   bash "$PLAN_FILE_SH" append-note "$PLAN" \
     "[BLOCKED:env] ${AGENT}: no-timeout-binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap" 2>/dev/null || true
@@ -72,17 +69,20 @@ iter=0
 LAST_PLAN_HASH=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
 CONSECUTIVE_NOOP=0
 
-_log_slug_pre=$(basename "$PLAN" .md)
-_log_dir_pre="$(dirname "$PLAN")/${_log_slug_pre}.state"
+_log_slug=$(basename "$PLAN" .md)
+_log_dir="$(dirname "$PLAN")/${_log_slug}.state"
+
+# Prior FAIL log prefill — only for B-session path
 PRIOR_FAIL_LOG=""
-_prior_log="${_log_dir_pre}/last-critic-${AGENT}.log"
-if [[ -f "$_prior_log" ]] && grep -q '<!-- verdict: FAIL -->' "$_prior_log" 2>/dev/null; then
-  PRIOR_FAIL_LOG="$_prior_log"
+if ! _is_codex_driven_agent "$AGENT" 2>/dev/null; then
+  _prior_log="${_log_dir}/last-critic-${AGENT}.log"
+  if [[ -f "$_prior_log" ]] && grep -q '<!-- verdict: FAIL -->' "$_prior_log" 2>/dev/null; then
+    PRIOR_FAIL_LOG="$_prior_log"
+  fi
 fi
 
 while true; do
-  # Ceiling-blocked: check sidecar convergence file (per scope — not plan.md)
-  # Priority per critics.md: BLOCKED checks (1–4) must precede is-converged (5).
+  # Ceiling-blocked check (sidecar)
   _conv_path=$(sc_conv_path "$PLAN" "$PHASE" "$AGENT" 2>/dev/null) || {
     echo "[run-critic-loop] ERROR: sc_conv_path failed — CLAUDE_PROJECT_DIR may be unset" >&2
     exit 1
@@ -93,12 +93,12 @@ while true; do
       exit 2
     fi
   fi
-  # General blocked check: blocked.jsonl (+ plan.md divergence fallback)
+  # General blocked check
   if bash "$PLAN_FILE_SH" is-blocked "$PLAN" 2>/dev/null; then
     echo "[BLOCKED:*] active block detected — exiting critic loop" >&2
     exit 1
   fi
-  # Convergence check via sidecar (authoritative source) — after all BLOCKED checks
+  # Convergence check (authoritative)
   if bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; then
     echo "CONVERGED"; exit 0
   fi
@@ -108,26 +108,7 @@ while true; do
   fi
 
   iter=$((iter + 1))
-  _wrapped_plan_ref=$(printf 'agent=%s phase=%s plan=%s prompt: %s' "$AGENT" "$PHASE" "$PLAN" "$PROMPT")
-  _prefill=""
-  [[ $iter -eq 1 && -n "$PRIOR_FAIL_LOG" ]] && _prefill=" prior_fail_log=${PRIOR_FAIL_LOG}"
-  ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=${AGENT} phase=${PHASE} plan=${PLAN} prompt: ${PROMPT} ${_wrapped_plan_ref}${_prefill}"
 
-  CRITIC_LOOP_MODEL="${CLAUDE_CRITIC_LOOP_MODEL:-opus}"
-  # Capture all B-session output; for pr-review also extract nonce-anchored verdict.
-  _nonce="" _session_out=""
-  if [[ "$AGENT" == "pr-review" ]]; then
-    _nonce=$(uuidgen 2>/dev/null || openssl rand -hex 16 2>/dev/null || printf '%s%s' "$$" "$(date +%s%N)")
-    ITER_PROMPT="${ITER_PROMPT}
-
-Output the review verdict marker before running the ultrathink audit, exactly:
-<!-- review-verdict: ${_nonce} PASS -->
-or
-<!-- review-verdict: ${_nonce} FAIL -->"
-  fi
-  _session_out=$(mktemp)
-  _log_slug=$(basename "$PLAN" .md)
-  _log_dir="$(dirname "$PLAN")/${_log_slug}.state"
   if [[ -L "$_log_dir" ]]; then
     echo "[run-critic-loop] FATAL: sidecar dir $_log_dir is a symlink — refusing" >&2
     bash "$PLAN_FILE_SH" append-note "$PLAN" \
@@ -135,73 +116,267 @@ or
     exit 1
   fi
   mkdir -p "$_log_dir" 2>/dev/null || true
-  _cmd=()
-  [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
-  _cmd+=(claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT")
-  # pr-review sessions need Ring B capability (fix chains call transition, reset-milestone, etc.)
-  # All other critic sessions have CLAUDE_PLAN_CAPABILITY stripped to prevent accidental state mutations.
-  _env_unset=()
-  [[ "$AGENT" != "pr-review" ]] && _env_unset=(-u CLAUDE_PLAN_CAPABILITY)
-  CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
-    env "${_env_unset[@]}" "${_cmd[@]}" > "$_session_out" 2>&1 &
-  CLAUDE_PID=$!
-  wait "$CLAUDE_PID" || {
-    exit_code=$?
-    CLAUDE_PID=""
-    # Preserve session output for diagnosis before removing the temp file
-    [[ -n "${_session_out:-}" && -s "${_session_out:-}" ]] && \
-      cp "$_session_out" "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null || true
-    rm -f "${_session_out:-}"
-    if [[ $exit_code -eq 124 ]]; then
-      _record_transient "$PLAN" "$AGENT" session-timeout \
-        "after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" "$PLAN_FILE_SH" 2>/dev/null || true
-      echo "[transient] session-timeout after ${SESSION_TIMEOUT}s" >&2; exit 1
-    elif [[ $exit_code -eq 1 ]] && grep -q "thinking.*blocks.*cannot be modified\|redacted_thinking.*cannot be modified" \
-        "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null; then
-      if _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
-          "Claude API 400: thinking blocks modified in multi-turn session — will retry" "$PLAN_FILE_SH" 2>/dev/null; then
-        echo "[transient] thinking-block-api-error promoted to [BLOCKED:env] after threshold" >&2; exit 1
-      else
-        echo "[transient] thinking-block-api-error — retrying session" >&2; continue
-      fi
-    else
-      bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED:env] ${AGENT}: script-failure — exit ${exit_code}; check session logs" 2>/dev/null || true
-      echo "[BLOCKED:env] script-failure: ${exit_code}" >&2; exit 1
-    fi
-  }
-  CLAUDE_PID=""
-  _clear_transient_for "$PLAN" "$AGENT" 2>/dev/null || true
 
-  # Preserve session output for diagnosis; echo for pr-review verdict extraction.
-  [[ -n "${_session_out:-}" && -s "${_session_out:-}" ]] && \
-    cp "$_session_out" "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null || true
-  # nonce prevents the grep from matching a doc citation of the marker format.
-  if [[ -n "${_nonce:-}" ]]; then
-    cat "$_session_out"
-    _rv=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "$_session_out" | tail -1 | \
-          sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
-    if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
-      _arv_rc=0
-      bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv" || _arv_rc=$?
-      if [[ $_arv_rc -ne 0 ]]; then
-        if [[ -f "$_conv_path" ]] && jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
-          echo "[BLOCKED:ceiling] pr-review: exceeded critic ceiling — manual review required" >&2
-          exit 2
-        fi
+  # ── Codex-driven path (critic-spec, critic-test, critic-code, critic-cross) ──
+  if _is_codex_driven_agent "$AGENT" 2>/dev/null; then
+
+    # 1. Build review prompt from SKILL.md template
+    _review_prompt=$(mktemp /tmp/critic-${AGENT}-review.XXXXXX)
+    if ! build_review_prompt "$AGENT" "$_review_prompt"; then
+      bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        "[BLOCKED:env] ${AGENT}: review-prompt-build-failed — check skills/${AGENT}/SKILL.md" 2>/dev/null || true
+      rm -f "$_review_prompt"; exit 1
+    fi
+
+    # 2. Run Codex review → fixed log path (reliably accessible for diagnosis)
+    _review_log="${_log_dir}/codex-critic-${AGENT}-last.log"
+    _codex_review_exit=0
+    if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
+      "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
+        codex exec --full-auto - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
+    else
+      codex exec --full-auto - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
+    fi
+    rm -f "$_review_prompt"
+
+    if [[ $_codex_review_exit -eq 124 ]]; then
+      _record_transient "$PLAN" "$AGENT" session-timeout \
+        "codex review timed out after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" \
+        "$PLAN_FILE_SH" 2>/dev/null || true
+      echo "[transient] session-timeout after ${SESSION_TIMEOUT}s" >&2; exit 1
+    fi
+
+    # 3. Detect infra failure (non-zero exit with no output, or CODEX-INFRA-FAILURE sentinel)
+    if [[ $_codex_review_exit -ne 0 && ! -s "$_review_log" ]]; then
+      _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
+        "codex review exit ${_codex_review_exit} with empty output — retrying" "$PLAN_FILE_SH" 2>/dev/null || {
+        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          "[BLOCKED:env] ${AGENT}: critic-skill-not-run — codex exit ${_codex_review_exit} with empty output"
+        exit 1
+      }
+      echo "[transient] codex exit ${_codex_review_exit} with empty output — retrying" >&2
+      continue
+    fi
+    if grep -q '=== CODEX-INFRA-FAILURE:' "$_review_log" 2>/dev/null; then
+      _infra_detail=$(grep '=== CODEX-INFRA-FAILURE:' "$_review_log" | head -1 | cut -c1-120 || echo "infra failure")
+      if _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
+          "codex infra failure — ${_infra_detail}" "$PLAN_FILE_SH" 2>/dev/null; then
+        echo "[transient] promoted to [BLOCKED:env] after threshold" >&2; exit 1
+      else
+        echo "[transient] codex infra failure — retrying" >&2; continue
+      fi
+    fi
+
+    _clear_transient_for "$PLAN" "$AGENT" 2>/dev/null || true
+
+    # 4. Parse verdict/category from Codex log
+    _vc=$(parse_verdict_from_log "$_review_log")
+    _verdict="${_vc%%|*}"
+    _category="${_vc##*|}"
+
+    # 5. Handle missing verdict marker
+    if [[ -z "$_verdict" ]]; then
+      if [[ ! -s "$_review_log" ]]; then
+        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          "[BLOCKED:env] ${AGENT}: critic-skill-not-run — codex produced empty output"
         exit 1
       fi
-    else
-      bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED:env] pr-review: no-verdict-marker — nonce-anchored marker absent from session output; check last-critic-pr-review.log" 2>/dev/null || true
-      echo "[run-critic-loop] [BLOCKED:env] pr-review: no-verdict-marker" >&2
-      rm -f "${_session_out:-}"; _session_out=""
-      exit 1
+      # Has content but no verdict marker → PARSE_ERROR (will retry; second consecutive → BLOCKED:code)
+      _verdict="PARSE_ERROR"
+      _category=""
     fi
-  fi
-  rm -f "${_session_out:-}"; _session_out=""
 
-  # Consecutive NOOP detection — plan file unchanged across iterations
+    # 6. Record verdict directly (validates enum, handles consecutive PARSE_ERROR)
+    _rvd_exit=0
+    bash "$PLAN_FILE_SH" record-verdict-direct \
+      "$PLAN" "$AGENT" "$PHASE" "$_verdict" "$_category" || _rvd_exit=$?
+
+    # 7. Re-check blocked/ceiling after verdict recording
+    if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then
+      if jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
+        echo "[BLOCKED:ceiling] ${AGENT}: exceeded critic ceiling" >&2; exit 2
+      fi
+    fi
+    if bash "$PLAN_FILE_SH" is-blocked "$PLAN" 2>/dev/null; then
+      echo "[BLOCKED:*] active block after verdict record — exiting" >&2; exit 1
+    fi
+
+    # 8. Branch on verdict
+    if [[ "$_verdict" == "PASS" ]]; then
+      if bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; then
+        # 2nd consecutive PASS — one Claude call for REJECT-PASS check only
+        _pass_audit_prompt=$(mktemp /tmp/critic-${AGENT}-passaudit.XXXXXX)
+        build_pass_audit_prompt "$AGENT" "$_review_log" "$PLAN" "$_pass_audit_prompt"
+
+        _pass_check_out=""
+        _pass_cmd=()
+        [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
+          _pass_cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
+        _pass_cmd+=(claude --model sonnet --dangerously-skip-permissions --permission-mode auto \
+          -p "$(cat "$_pass_audit_prompt")")
+        rm -f "$_pass_audit_prompt"
+
+        _pass_check_out=$(CLAUDE_NONINTERACTIVE=1 env -u CLAUDE_PLAN_CAPABILITY \
+          "${_pass_cmd[@]}" 2>/dev/null) || true
+
+        if printf '%s' "$_pass_check_out" | grep -q 'VERDICT: REJECT-PASS'; then
+          _reject_reason=$(printf '%s' "$_pass_check_out" | \
+            grep 'VERDICT: REJECT-PASS' | sed 's/VERDICT: REJECT-PASS[[:space:]]*—[[:space:]]*//' | \
+            head -1 | cut -c1-120 || echo "gap found")
+          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
+          bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "REJECT-PASS" \
+            "audit overrode PASS — ${_reject_reason}" 2>/dev/null || true
+          # Fall through to NOOP check and loop again
+        else
+          bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "ACCEPT" \
+            "convergence verified" 2>/dev/null || true
+          echo "CONVERGED"; exit 0
+        fi
+      fi
+      # 1st PASS or post-REJECT-PASS: loop continues, no Claude call
+
+    elif [[ "$_verdict" == "FAIL" ]]; then
+      # One Claude call: ultrathink audit + comprehensive FIX-PLAN for all findings
+      _decision_prompt=$(mktemp /tmp/critic-${AGENT}-decision.XXXXXX)
+      build_decision_prompt "$AGENT" "$_review_log" "$PLAN" "$_decision_prompt"
+
+      _decision_out=""
+      _dec_cmd=()
+      [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
+        _dec_cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
+      _dec_cmd+=(claude --model sonnet --dangerously-skip-permissions --permission-mode auto \
+        -p "$(cat "$_decision_prompt")")
+      rm -f "$_decision_prompt"
+
+      _decision_out=$(CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
+        env -u CLAUDE_PLAN_CAPABILITY \
+        "${_dec_cmd[@]}" 2>/dev/null) || true
+
+      _audit_outcome=$(parse_audit_outcome "$_decision_out")
+
+      bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "$_audit_outcome" \
+        "$(printf '%s' "$_decision_out" | head -3 | tr '\n' ' ' | cut -c1-120)" 2>/dev/null || true
+
+      # For BLOCKED-AMBIGUOUS: append [BLOCKED:spec] markers from decision output
+      if [[ "$_audit_outcome" == "BLOCKED-AMBIGUOUS" ]]; then
+        while IFS= read -r _bs_line; do
+          [[ -n "$_bs_line" ]] || continue
+          bash "$PLAN_FILE_SH" append-note "$PLAN" "$_bs_line" 2>/dev/null || true
+        done < <(printf '%s' "$_decision_out" | grep '^\[BLOCKED:spec\]' || true)
+      fi
+
+      # Apply Codex fix for GENUINE findings (skip on ACCEPT-OVERRIDE)
+      if [[ "$_audit_outcome" != "ACCEPT-OVERRIDE" ]]; then
+        _fix_plan=$(parse_fix_plan "$_decision_out")
+        if [[ -n "$_fix_plan" ]]; then
+          _spec_ref="${CRITIC_SPEC_PATH:-${CRITIC_ALL_SPEC_PATHS:-${PLAN}}}"
+          _fix_prompt=$(mktemp /tmp/critic-${AGENT}-fix.XXXXXX)
+          build_fix_prompt "$AGENT" "$_review_log" "$_fix_plan" "$_spec_ref" "$PLAN" "$_fix_prompt"
+
+          _fix_log="${_log_dir}/codex-critic-${AGENT}-fix.log"
+          _fix_exit=0
+          if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
+            "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
+              codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
+          else
+            codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
+          fi
+          rm -f "$_fix_prompt"
+          [[ $_fix_exit -ne 0 ]] && \
+            echo "[run-critic-loop] WARN: codex fix exit ${_fix_exit} for ${AGENT}" >&2
+        fi
+      fi
+
+      # Re-check blocked after potential BLOCKED-AMBIGUOUS markers
+      if bash "$PLAN_FILE_SH" is-blocked "$PLAN" 2>/dev/null; then
+        echo "[BLOCKED:*] blocked after fix — exiting" >&2; exit 1
+      fi
+    fi
+    # PARSE_ERROR: record-verdict-direct handled consecutive check; loop continues
+
+  else
+    # ── B-session path (critic-feature, pr-review) — original logic ─────────────
+
+    _wrapped_plan_ref=$(printf 'agent=%s phase=%s plan=%s prompt: %s' "$AGENT" "$PHASE" "$PLAN" "$PROMPT")
+    _prefill=""
+    [[ $iter -eq 1 && -n "$PRIOR_FAIL_LOG" ]] && _prefill=" prior_fail_log=${PRIOR_FAIL_LOG}"
+    ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=${AGENT} phase=${PHASE} plan=${PLAN} prompt: ${PROMPT} ${_wrapped_plan_ref}${_prefill}"
+
+    CRITIC_LOOP_MODEL="${CLAUDE_CRITIC_LOOP_MODEL:-opus}"
+    _nonce="" _session_out=""
+    if [[ "$AGENT" == "pr-review" ]]; then
+      _nonce=$(uuidgen 2>/dev/null || openssl rand -hex 16 2>/dev/null || printf '%s%s' "$$" "$(date +%s%N)")
+      ITER_PROMPT="${ITER_PROMPT}
+
+Output the review verdict marker before running the ultrathink audit, exactly:
+<!-- review-verdict: ${_nonce} PASS -->
+or
+<!-- review-verdict: ${_nonce} FAIL -->"
+    fi
+    _session_out=$(mktemp)
+    _cmd=()
+    [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
+    _cmd+=(claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT")
+    _env_unset=()
+    [[ "$AGENT" != "pr-review" ]] && _env_unset=(-u CLAUDE_PLAN_CAPABILITY)
+    CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
+      env "${_env_unset[@]}" "${_cmd[@]}" > "$_session_out" 2>&1 &
+    CLAUDE_PID=$!
+    wait "$CLAUDE_PID" || {
+      exit_code=$?
+      CLAUDE_PID=""
+      [[ -n "${_session_out:-}" && -s "${_session_out:-}" ]] && \
+        cp "$_session_out" "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null || true
+      rm -f "${_session_out:-}"
+      if [[ $exit_code -eq 124 ]]; then
+        _record_transient "$PLAN" "$AGENT" session-timeout \
+          "after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" "$PLAN_FILE_SH" 2>/dev/null || true
+        echo "[transient] session-timeout after ${SESSION_TIMEOUT}s" >&2; exit 1
+      elif [[ $exit_code -eq 1 ]] && grep -q "thinking.*blocks.*cannot be modified\|redacted_thinking.*cannot be modified" \
+          "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null; then
+        if _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
+            "Claude API 400: thinking blocks modified in multi-turn session — will retry" "$PLAN_FILE_SH" 2>/dev/null; then
+          echo "[transient] thinking-block-api-error promoted to [BLOCKED:env] after threshold" >&2; exit 1
+        else
+          echo "[transient] thinking-block-api-error — retrying session" >&2; continue
+        fi
+      else
+        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          "[BLOCKED:env] ${AGENT}: script-failure — exit ${exit_code}; check session logs" 2>/dev/null || true
+        echo "[BLOCKED:env] script-failure: ${exit_code}" >&2; exit 1
+      fi
+    }
+    CLAUDE_PID=""
+    _clear_transient_for "$PLAN" "$AGENT" 2>/dev/null || true
+
+    [[ -n "${_session_out:-}" && -s "${_session_out:-}" ]] && \
+      cp "$_session_out" "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null || true
+    if [[ -n "${_nonce:-}" ]]; then
+      cat "$_session_out"
+      _rv=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "$_session_out" | tail -1 | \
+            sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
+      if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
+        _arv_rc=0
+        bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv" || _arv_rc=$?
+        if [[ $_arv_rc -ne 0 ]]; then
+          if [[ -f "$_conv_path" ]] && jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
+            echo "[BLOCKED:ceiling] pr-review: exceeded critic ceiling — manual review required" >&2
+            exit 2
+          fi
+          exit 1
+        fi
+      else
+        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          "[BLOCKED:env] pr-review: no-verdict-marker — nonce-anchored marker absent from session output; check last-critic-pr-review.log" 2>/dev/null || true
+        echo "[run-critic-loop] [BLOCKED:env] pr-review: no-verdict-marker" >&2
+        rm -f "${_session_out:-}"; _session_out=""
+        exit 1
+      fi
+    fi
+    rm -f "${_session_out:-}"; _session_out=""
+  fi
+
+  # ── NOOP detection — plan file unchanged across iterations ─────────────────
   plan_hash=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
   if [[ "$plan_hash" == "$LAST_PLAN_HASH" ]]; then
     CONSECUTIVE_NOOP=$((CONSECUTIVE_NOOP + 1))

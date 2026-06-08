@@ -1,39 +1,14 @@
 ---
 name: critic-code
 description: >
-  Review implementation for spec compliance and layer boundary violations after each milestone.
-  Trigger: "critic", "architecture review", "check the implementation", after completing a small feature,
-  a domain concept, or a significant chunk. Covers spec adherence and architecture rules.
+  Codex prompt template for implementation spec compliance and layer boundary review.
+  Invoked by run-critic-loop.sh (shell-driven) via build_review_prompt.
 user-invocable: false
 context: fork
 agent: critic-code
 allowed-tools: [Bash]
 paths: ["src/**", "tests/**", "docs/**", "plans/**"]
 ---
-
-@reference/critics.md
-
-You orchestrate Codex to perform the review. Build the prompt, run `codex exec`, echo the tail. Do not read sources yourself.
-
-## Build and run the Codex prompt
-
-The variable assignments at the top of the bash block read from environment variables
-injected by the harness. Run the bash block as-is — do not modify any values.
-
-```bash
-_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
-_spec_path="${CRITIC_SPEC_PATH:?CRITIC_SPEC_PATH not set}"
-_docs_paths="${CRITIC_DOCS_PATHS:?CRITIC_DOCS_PATHS not set}"
-_plan_path="${CRITIC_PLAN_PATH:?CRITIC_PLAN_PATH not set}"
-_language="${CRITIC_LANGUAGE:?CRITIC_LANGUAGE not set}"
-_domain_root="${CRITIC_DOMAIN_ROOT:?CRITIC_DOMAIN_ROOT not set}"
-_infra_root="${CRITIC_INFRA_ROOT:?CRITIC_INFRA_ROOT not set}"
-_features_root="${CRITIC_FEATURES_ROOT:?CRITIC_FEATURES_ROOT not set}"
-_critic_code_template=$(mktemp /tmp/critic-code-tmpl.XXXXXX)
-_critic_code_prompt=$(mktemp /tmp/critic-code-prompt.XXXXXX)
-_critic_code_log=$(mktemp /tmp/critic-code-log.XXXXXX)
-cat > "$_critic_code_template" <<'CODEX_PROMPT'
 You are an adversarial code reviewer. Find where this implementation violates the spec. Assume the code is wrong until proven otherwise. Read every file you need.
 
 Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FAIL],
@@ -47,6 +22,40 @@ Plan: {plan_path}
 Read these reference files first — they govern your output:
 - ${PROJECT_DIR}/.claude/reference/severity.md   (severity levels, PASS/FAIL threshold, category priority)
 - ${PROJECT_DIR}/.claude/reference/layers.md     (forbidden imports, acceptable exceptions)
+
+## Verdict format (read first — output these markers at the end)
+
+End your output with exactly one PASS or FAIL block. The shell parses only the two HTML-comment markers.
+
+### Rule 1 — PASS pairs only with NONE
+If verdict is PASS, `<!-- category: NONE -->` is required. A PASS with any non-NONE category is a PARSE_ERROR.
+
+### Rule 2 — Advisory labels do not exist
+Only these blocking labels are valid: `[CRITICAL]`, `[MISSING]`, `[MANIFEST-GAP]`, `[FAIL]`, `[DOCS CONTRADICTION]`, `[UNVERIFIED CLAIM]`. Do not invent `[MINOR]`, `[NIT]`, `[INFO]`, `[ADVISORY]`, `[STYLE]`, `[SUGGESTION]`. If an observation doesn't warrant a blocking label, omit it entirely.
+Corollary: no blocking labels → PASS + NONE. Period.
+
+### Rule 3 — FAIL category enum
+On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired.
+Allowed: `LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | MISSING_SCENARIO | TEST_INTEGRITY | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH`.
+A FAIL without a category marker or with an invalid/descriptive category is a PARSE_ERROR.
+
+PASS block:
+```
+### Verdict
+PASS
+<!-- verdict: PASS -->
+<!-- category: NONE -->
+```
+
+FAIL block:
+```
+### Verdict
+FAIL — {comma-separated blocking finding labels}
+<!-- verdict: FAIL -->
+<!-- category: {one of the enum above} -->
+```
+
+---
 
 ## Envelope Discipline (evaluate before Angle 1)
 
@@ -75,19 +84,19 @@ Test coverage and mocking are out of scope here — critic-test owns them.
 ## Angle 2 — Layer boundary → category: `LAYER_VIOLATION`
 
 Run the language-specific boundary checker:
-\`\`\`bash
+```bash
 bash "${PROJECT_DIR}/.claude/scripts/critic-code/run.sh" {language} {domain_root} {infra_root} {features_root}
-\`\`\`
+```
 If no language dispatcher matches, run the generic fallback:
-\`\`\`bash
+```bash
 grep -rn "infrastructure\|features" {domain_root}/ 2>/dev/null | grep -v "^Binary"
 grep -rn "features" {infra_root}/ 2>/dev/null | grep -v "^Binary"
-\`\`\`
+```
 For each hit, decide violation vs. acceptable per layers.md §Acceptable import exceptions. When a hit is ambiguous, read the actual import to determine the violation.
 
 ## Output format
 
-\`\`\`
+```
 ## critic-code Review
 
 ### Angle 1 — Spec Compliance
@@ -106,7 +115,7 @@ None: "No layer boundary violations"
 ### Citation Summary
 (one line per blocking finding — omit if PASS)
 - {tag} @ {file}:{line}: "{verbatim excerpt, max 80 chars}"
-\`\`\`
+```
 
 ## Category mapping
 
@@ -118,74 +127,3 @@ None: "No layer boundary violations"
 - Envelope section missing / contradicts docs (Envelope §)       → ENVELOPE_MISMATCH
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.
-
-## Verdict format (strict — parsed by SubagentStop hook)
-
-End your output with exactly one PASS or FAIL block below. The SubagentStop hook
-parses only the two HTML-comment markers; text outside them is ignored.
-
-### Rule 1 — PASS pairs only with NONE (most common failure mode)
-
-If verdict is PASS, the category marker MUST be exactly `NONE`. No exceptions.
-- Inspected SPEC_COMPLIANCE area but found nothing blocking? → PASS + NONE.
-- Inspected LAYER_VIOLATION area but found nothing blocking? → PASS + NONE.
-- Found a cosmetic/typo/style observation? → Do NOT report it. PASS + NONE.
-
-A PASS paired with any non-NONE category (SPEC_COMPLIANCE, STRUCTURAL, …) is
-recorded as PARSE_ERROR. Two consecutive PARSE_ERRORs halt the run.
-
-### Rule 2 — Advisory severity labels do not exist
-
-Per `@reference/severity.md`, only these labels are valid and ALL are blocking:
-`[CRITICAL]`, `[MISSING]`, `[MANIFEST-GAP]`, `[FAIL]`, `[DOCS CONTRADICTION]`,
-`[UNVERIFIED CLAIM]`. Inventing `[MINOR]`, `[NIT]`, `[INFO]`, `[ADVISORY]`,
-`[STYLE]`, `[SUGGESTION]` is forbidden. If an observation does not warrant one
-of the six blocking labels, omit it entirely — do not relabel it.
-
-Corollary: if your `Findings:` list contains no blocking labels, verdict is
-PASS and category is NONE. Period.
-
-### Rule 3 — FAIL category enum (only when Rule 1 does not apply)
-
-On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:`
-annotation on the angle/check that fired. Allowed enum (this critic):
-`LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | MISSING_SCENARIO | TEST_INTEGRITY | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH`.
-
-FORBIDDEN substitutes (recorded as PARSE_ERROR): `COMPLETENESS`, `CONSISTENCY`,
-`CORRECTNESS`, `CONTRACT`, any descriptive synonym, any section title.
-A FAIL without a `<!-- category: -->` marker is recorded as PARSE_ERROR.
-
-### Blocks
-
-PASS:
-### Verdict
-PASS
-<!-- verdict: PASS -->
-<!-- category: NONE -->
-
-FAIL:
-### Verdict
-FAIL — {comma-separated blocking finding labels}
-<!-- verdict: FAIL -->
-<!-- category: {one of LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | MISSING_SCENARIO | TEST_INTEGRITY | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH} -->
-CODEX_PROMPT
-sed \
-  -e "s|{spec_path}|${_spec_path}|g" \
-  -e "s|{docs_paths}|${_docs_paths}|g" \
-  -e "s|{plan_path}|${_plan_path}|g" \
-  -e "s|{language}|${_language}|g" \
-  -e "s|{domain_root}|${_domain_root}|g" \
-  -e "s|{infra_root}|${_infra_root}|g" \
-  -e "s|{features_root}|${_features_root}|g" \
-  "$_critic_code_template" > "$_critic_code_prompt"
-rm -f "$_critic_code_template"
-codex exec --full-auto - < "$_critic_code_prompt" > "$_critic_code_log" 2>&1
-_codex_exit=$?
-echo "=== Codex critic-code exit: $_codex_exit ==="
-[[ $_codex_exit -ne 0 ]] && echo "=== CODEX-INFRA-FAILURE: exit $_codex_exit ==="
-echo "=== full critic log retained at $_critic_code_log ==="
-tail -200 "$_critic_code_log"
-rm -f "$_critic_code_prompt" "$_critic_code_template"
-```
-
-The verdict markers in the tail are your final stdout. The SubagentStop hook reads `<!-- verdict: -->` and `<!-- category: -->` from there. Do not append any commentary after the `tail -200` output.

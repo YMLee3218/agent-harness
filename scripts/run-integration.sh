@@ -146,7 +146,7 @@ After completing the above, output as the very last line of your response exactl
       bash "$PF" transition "$PLAN" implement "integration failure: implementation bug"
       bash "$PF" reset-for-rollback "$PLAN" implement
       bash "$PF" inter-feature-reset "$PLAN"
-      run_llm "Invoke the implementing skill to replan tasks for the integration failure. Plan: $PLAN"
+      run_llm "Invoke the implementing skill to replan tasks for the integration failure. Plan: $PLAN" opus
       llm_exit "implementing"
       if [[ -n "$UNIT_CMD" ]]; then
         bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD" --lint-cmd "$LINT_CMD"

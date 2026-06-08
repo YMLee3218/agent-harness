@@ -689,6 +689,64 @@ cmd_record_verdict() {
   _persist_verdict "$plan_file" "$current_phase" "$agent_name" "$verdict" "$category" "$_output"
 }
 
+cmd_record_verdict_direct() {
+  local plan_file="$1" agent="$2" phase="$3" verdict="$4" category="${5:-}"
+  require_file "$plan_file"
+  _validate_critic_agent "$agent" "record-verdict-direct"
+
+  local current_phase
+  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null) || \
+    die "record-verdict-direct: cannot read phase from $plan_file"
+
+  case "$verdict" in
+    PASS|FAIL|PARSE_ERROR) ;;
+    *) die "record-verdict-direct: invalid verdict '$verdict'" ;;
+  esac
+
+  if [[ "$verdict" == "PARSE_ERROR" ]]; then
+    _handle_parse_error "$plan_file" "$current_phase" "$agent" \
+      "PARSE_ERROR (no verdict markers in codex output) for ${agent}" \
+      "verdict marker missing (two consecutive parse errors) — check codex output format before retrying" \
+      "first PARSE_ERROR for ${agent} — will retry automatically"
+    return
+  fi
+
+  if [[ "$verdict" == "FAIL" && -z "$category" ]]; then
+    _handle_parse_error "$plan_file" "$current_phase" "$agent" \
+      "FAIL without category from ${agent} (shell-driven path)" \
+      "FAIL without category (two consecutive parse errors) — check codex output format" \
+      "first FAIL-without-category for ${agent} — will retry automatically"
+    return
+  fi
+
+  if [[ "$verdict" == "PASS" && -n "$category" && "$category" != "NONE" ]]; then
+    _handle_parse_error "$plan_file" "$current_phase" "$agent" \
+      "PASS with non-NONE category '${category}' from ${agent} (shell-driven path)" \
+      "PASS with non-NONE category (two consecutive parse errors)" \
+      "first PASS-with-non-NONE-category for ${agent} — will retry automatically"
+    return
+  fi
+
+  if [[ "$verdict" == "FAIL" && -n "$category" ]]; then
+    local _valid_cats _cat_found=0 _c
+    _valid_cats=$(_severity_categories)
+    if [[ -n "$_valid_cats" ]]; then
+      for _c in $_valid_cats; do
+        [[ "$_c" == "$category" ]] && { _cat_found=1; break; }
+      done
+      [[ "$_cat_found" -eq 0 ]] && \
+        _handle_parse_error "$plan_file" "$current_phase" "$agent" \
+          "invalid category '${category}' from ${agent} (shell-driven path) — not in severity.md enum" \
+          "invalid category (two consecutive parse errors) — check codex output format" \
+          "first invalid-category PARSE_ERROR for ${agent} — will retry automatically"
+    fi
+  fi
+
+  local _final_cat="$category"
+  [[ "$_final_cat" == "NONE" ]] && _final_cat=""
+  _persist_verdict "$plan_file" "$current_phase" "$agent" "$verdict" "$_final_cat"
+}
+
 cmd_record_verdict_guarded() {
   local _input _agent _plan _find_rc _lock
   _input=$(cat)
