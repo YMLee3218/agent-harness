@@ -174,7 +174,9 @@ _impl_run_test_phase() {
   local feature="$1" feat_slug="$2"
   local phase_now; phase_now=$(bash "$PF" get-phase "$PLAN")
   [[ "$phase_now" == "spec" || "$phase_now" == "red" ]] || return 0
-  bash "$PF" is-converged "$PLAN" red critic-test 2>/dev/null && return 0
+  # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
+  local _test_marker="${PLAN%.md}.state/test-reviewed-${feat_slug}"
+  [[ -f "$_test_marker" ]] && return 0
   if [[ -z "$UNIT_CMD" ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md"
     exit 1
@@ -187,6 +189,7 @@ _impl_run_test_phase() {
   WRITING_TESTS_COMMAND="${UNIT_CMD}" \
   run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
   llm_exit "writing-tests"
+  rm -f "$_test_marker" 2>/dev/null || true
   bash "$PF" reset-milestone "$PLAN" critic-test
   local _test_files; _test_files=$(_recent_test_files)
   CRITIC_SPEC_PATH="$(find_spec_path "$feat_slug")" \
@@ -195,11 +198,14 @@ _impl_run_test_phase() {
   CRITIC_TEST_COMMAND="${UNIT_CMD}" \
   run_critic critic-test red "Review tests for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Test files: ${_test_files:-tests/}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
+  touch "$_test_marker" 2>/dev/null || true
 }
 
 _impl_run_implement_phase() {
   local feature="$1" feat_slug="$2"
   local phase_now has_task_defs pending any_task_in_ledger
+  # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
+  local _code_marker="${PLAN%.md}.state/code-reviewed-${feat_slug}"
   phase_now=$(bash "$PF" get-phase "$PLAN")
   has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
   if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then
@@ -222,7 +228,8 @@ _impl_run_implement_phase() {
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "implement" ]] && \
-     ! bash "$PF" is-converged "$PLAN" implement critic-code 2>/dev/null; then
+     [[ ! -f "$_code_marker" ]]; then
+    rm -f "$_code_marker" 2>/dev/null || true
     bash "$PF" reset-milestone "$PLAN" critic-code
     CRITIC_SPEC_PATH="$(find_spec_path "$feat_slug")" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
@@ -233,12 +240,15 @@ _impl_run_implement_phase() {
     CRITIC_FEATURES_ROOT="${_features_root}" \
     run_critic critic-code implement "Review changed files for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
     llm_exit "critic-code"
+    touch "$_code_marker" 2>/dev/null || true
   fi
 }
 
 _impl_run_review_phase() {
   local feature="$1" feat_slug="$2"
   local phase_now pr_url
+  # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
+  local _review_marker="${PLAN%.md}.state/pr-reviewed-${feat_slug}"
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "implement" ]]; then
     bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"
@@ -250,14 +260,15 @@ _impl_run_review_phase() {
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "review" ]] && \
-     ! bash "$PF" is-converged "$PLAN" review pr-review 2>/dev/null; then
+     [[ ! -f "$_review_marker" ]]; then
     pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
     run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}." "@reference/pr-review-loop.md §PR-review one-shot iteration"
     llm_exit "pr-review"
+    touch "$_review_marker" 2>/dev/null || true
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "review" ]] && \
-     bash "$PF" is-converged "$PLAN" review pr-review 2>/dev/null; then
+     [[ -f "$_review_marker" ]]; then
     bash "$PF" transition "$PLAN" green "pr-review converged — feature complete"
     bash "$PF" mark-implemented "$PLAN" "$feat_slug"
     gh pr close --delete-branch --comment "PR review converged — closing without merge (changes developed via task-by-task workflow on the feature branch)" 2>/dev/null || true
