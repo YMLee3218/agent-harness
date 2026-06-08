@@ -22,7 +22,19 @@ make_prompt() {
   files=$(get_field "$id" files); spec=$(get_field "$id" spec)
   failing_test=$(get_field "$id" failing_test)
   failing_test_file="${failing_test%%::*}"
-  [[ -n "$failing_test_file" && -f "$failing_test_file" ]] && code=$(cat "$failing_test_file")
+  if [[ -n "$failing_test_file" && -f "$failing_test_file" ]]; then
+    if [[ "$failing_test" == *::* ]]; then
+      _test_fn="${failing_test##*::}"
+      _extractor="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/extract-test.py"
+      if [[ -f "$_extractor" ]]; then
+        code=$(python3 "$_extractor" "$failing_test_file" "$_test_fn" 2>/dev/null) || code=$(cat "$failing_test_file")
+      else
+        code=$(cat "$failing_test_file")
+      fi
+    else
+      code=$(cat "$failing_test_file")
+    fi
+  fi
   if [[ -n "${LINT_CMD:-}" ]]; then
     lint_constraint=$'\n- Before emitting coder-status: complete, run the lint command and fix every violation it reports. Every violation must be in a file within your task scope — if lint reports a violation outside Files to modify, emit coder-status: abort with the detail.'
     lint_cmd_line=$'\nLint command: '"${LINT_CMD}"

@@ -26,7 +26,7 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 
 **Phase `red` — plan task list:**
 
-- The harness pre-resolves the primary spec path; it is available in `${IMPLEMENTING_SPEC_PATH}`. If unset (interactive mode), locate it from `${IMPLEMENTING_PLAN_PATH:-$CLAUDE_PLAN_FILE}` via the feature slug. Read the `## Test Manifest` from the plan file; generate tasks **only** for entries marked `→ RED` — skip entries marked `→ GREEN (pre-existing)` (these already pass and must not receive implementation tasks). Then read the failing test files, the spec file, and existing domain/feature structure.
+- The harness pre-resolves the primary spec path; it is available in `${IMPLEMENTING_SPEC_PATH}`. If unset (interactive mode), locate it from `${IMPLEMENTING_PLAN_PATH:-$CLAUDE_PLAN_FILE}` via the feature slug. Read the `## Test Manifest` from the plan file; generate tasks **only** for entries marked `→ RED` — skip entries marked `→ GREEN (pre-existing)` (these already pass and must not receive implementation tasks). One task = one primary RED test. Do not bundle multiple RED scenarios into a single task. Exception: two RED tests fixed by the exact same line of code change may share a task — use the first test as `failing_test`. Then read the failing test files, the spec file, and existing domain/feature structure.
 
 Reuse any existing adapter whose interface already matches the requirement; if none, create a minimal new adapter. Log `[AUTO-DECIDED] implementing/Step1: {decision}` to `## Open Questions`.
 
@@ -64,7 +64,7 @@ Then write the `## Task Definitions` JSON block in the plan file:
 
 - `layer` must be one of: `domain`, `infrastructure`, `features`
 - `files` is an array of exact file paths to create or modify
-- `failing_test` is the path (and optionally `::test_name`) of the primary failing test for this task; must be passable as a positional argument to the `- Test:` command (e.g. `pytest tests/foo.py::test_bar`, `jest src/foo.test.ts`); leave empty for test runners that do not support positional file path selection (e.g. `go test`, `cargo test`)
+- `failing_test` must be `tests/path/file.py::test_name` (specific test name required); omitting `::test_name` inlines the entire test file verbatim into the Codex prompt — do not omit it. Leave the field empty only when the test runner does not support positional path selection (e.g. `go test`, `cargo test`)
 - `parallel: true` only when there is no cross-task dependency within the same layer tier
 - `depends_on` is the `id` of the task this one depends on, or `null` — informational for JSON ordering only; the scheduler executes sequential tasks in JSON array order, not by this field; place dependent tasks after their dependencies in the array
 
