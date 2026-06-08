@@ -189,7 +189,6 @@ _impl_run_test_phase() {
   WRITING_TESTS_COMMAND="${UNIT_CMD}" \
   run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
   llm_exit "writing-tests"
-  rm -f "$_test_marker" 2>/dev/null || true
   bash "$PF" reset-milestone "$PLAN" critic-test
   local _test_files; _test_files=$(_recent_test_files)
   CRITIC_SPEC_PATH="$(find_spec_path "$feat_slug")" \
@@ -229,7 +228,6 @@ _impl_run_implement_phase() {
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "implement" ]] && \
      [[ ! -f "$_code_marker" ]]; then
-    rm -f "$_code_marker" 2>/dev/null || true
     bash "$PF" reset-milestone "$PLAN" critic-code
     CRITIC_SPEC_PATH="$(find_spec_path "$feat_slug")" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
