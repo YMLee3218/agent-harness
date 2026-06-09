@@ -23,7 +23,7 @@ _phase_spec_prepass() {
 
     if [[ ! -f "$_spec_path" ]]; then
       WRITING_SPEC_PLAN_PATH="${PLAN}" \
-      WRITING_SPEC_ENVELOPE="$(bash "$PF" get-envelope "$PLAN" 2>/dev/null || echo '')" \
+      WRITING_SPEC_ENVELOPE="" \
       run_llm "Invoke the writing-spec skill for feature: ${feature}. Plan: ${PLAN}." opus
       llm_exit "writing-spec"
     fi

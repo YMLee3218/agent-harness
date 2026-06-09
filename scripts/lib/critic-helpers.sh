@@ -81,7 +81,7 @@ build_decision_prompt() {
   cat > "$_out" <<DECISION_PROMPT
 ultrathink
 
-Perform a comprehensive verdict audit for a FAIL verdict from critic-${_agent}.
+Perform a comprehensive verdict audit for a FAIL verdict from ${_agent}.
 
 Review log: ${_log}
 ${_spec_path:+Spec: ${_spec_path}}
@@ -108,7 +108,7 @@ FIX-PLAN:
 Special cases:
 - All FALSE-POSITIVE → AUDIT: ACCEPT-OVERRIDE, omit FIX-PLAN.
 - Any AMBIGUOUS → AUDIT: BLOCKED-AMBIGUOUS; FIX-PLAN for GENUINE only; add per AMBIGUOUS:
-  [BLOCKED:spec] critic-${_agent}: ambiguous — {one-sentence human question}
+  [BLOCKED:spec] ${_agent}: ambiguous — {one-sentence human question}
 DECISION_PROMPT
 }
 
@@ -118,7 +118,7 @@ build_fix_prompt() {
   local _agent="$1" _log="$2" _fix_plan="$3" _spec_ref="$4" _plan="$5" _out="$6"
 
   cat > "$_out" <<FIX_PROMPT
-Fix the following issues found by critic-${_agent}. Apply ALL items in the fix plan comprehensively.
+Fix the following issues found by ${_agent}. Apply ALL items in the fix plan comprehensively.
 
 Plan: ${_plan}
 Spec reference: ${_spec_ref}
@@ -143,7 +143,7 @@ build_pass_audit_prompt() {
   local _spec_path="${CRITIC_SPEC_PATH:-${CRITIC_ALL_SPEC_PATHS:-}}"
 
   cat > "$_out" <<PASS_PROMPT
-Perform the PASS convergence check for critic-${_agent}.
+Perform the PASS convergence check for ${_agent}.
 
 Review log: ${_log}
 ${_spec_path:+Spec: ${_spec_path}}

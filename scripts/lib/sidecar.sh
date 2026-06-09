@@ -219,7 +219,7 @@ _sc_rewrite_jsonl() {
 # milestone_seq increments on reset-milestone/clear-converged; isolates streak history between milestones.
 # Blocked JSONL schema (blocked.jsonl, one record per line):
 # {"ts":"2025-05-10T12:00:00Z","kind":"ceiling","agent":"critic-code",
-#  "scope":"implement/critic-code","message":"exceeded 20 runs","cleared_at":null}
+#  "scope":"implement/critic-code","message":"exceeded 100 runs","cleared_at":null}
 # kind enum: envelope | docs | spec | code | env | harness | ceiling | transient
 # sc_make_conv_state PHASE AGENT [FT STREAK CONV CB ORD MS]
 # Builds a convergence JSON object. All keys emitted in canonical order.

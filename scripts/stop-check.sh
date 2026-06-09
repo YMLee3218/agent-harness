@@ -77,7 +77,7 @@ if [ "$phase" = "integration" ]; then
   fi
 fi
 
-# Extract test command from project CLAUDE.md (## Commands → - Test: `cmd` line).
+# Extract test command from project CLAUDE.md (first `- Test: ` line, whole-file scan).
 # Requires CLAUDE_PROJECT_DIR to be set — no PWD fallback to avoid reading the wrong CLAUDE.md.
 if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
   if [ "${CLAUDE_NONINTERACTIVE:-0}" = "1" ]; then

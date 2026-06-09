@@ -62,7 +62,7 @@ cat > "$_tw_template" <<'CODEX_PROMPT'
 Task: write Red-phase failing tests for every Scenario in the spec below.
 
 Spec(s) — {spec_path} may be a space-separated list of paths; read each file in full before writing tests:
-Test plan (read ## Test Plan section from the plan file): {plan_path}
+Test plan (read ## Test Manifest section from the plan file): {plan_path}
 
 Mocking levels per layer: read ${PROJECT_DIR}/.claude/reference/layers.md §Test mocking levels
 

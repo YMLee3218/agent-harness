@@ -148,14 +148,12 @@ while true; do
 
     # 3. Detect infra failure (non-zero exit with no output, or CODEX-INFRA-FAILURE sentinel)
     if [[ $_codex_review_exit -ne 0 && ! -s "$_review_log" ]]; then
-      _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
-        "codex review exit ${_codex_review_exit} with empty output — retrying" "$PLAN_FILE_SH" 2>/dev/null || {
-        bash "$PLAN_FILE_SH" append-note "$PLAN" \
-          "[BLOCKED:env] ${AGENT}: critic-skill-not-run — codex exit ${_codex_review_exit} with empty output"
-        exit 1
-      }
-      echo "[transient] codex exit ${_codex_review_exit} with empty output — retrying" >&2
-      continue
+      if _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
+          "codex review exit ${_codex_review_exit} with empty output — retrying" "$PLAN_FILE_SH" 2>/dev/null; then
+        echo "[transient] promoted to [BLOCKED:env] after threshold" >&2; exit 1
+      else
+        echo "[transient] codex exit ${_codex_review_exit} with empty output — retrying" >&2; continue
+      fi
     fi
     if grep -q '=== CODEX-INFRA-FAILURE:' "$_review_log" 2>/dev/null; then
       _infra_detail=$(grep '=== CODEX-INFRA-FAILURE:' "$_review_log" | head -1 | cut -c1-120 || echo "infra failure")
@@ -184,6 +182,15 @@ while true; do
       # Has content but no verdict marker → PARSE_ERROR (will retry; second consecutive → BLOCKED:code)
       _verdict="PARSE_ERROR"
       _category=""
+    fi
+
+    # 6a. Guard: FAIL must include at least one blocking-label finding
+    if [[ "$_verdict" == "FAIL" ]]; then
+      _has_blocking=$(extract_all_findings "$_review_log" | head -1)
+      if [[ -z "$_has_blocking" ]]; then
+        _verdict="PARSE_ERROR"
+        _category=""
+      fi
     fi
 
     # 6. Record verdict directly (validates enum, handles consecutive PARSE_ERROR)
@@ -227,10 +234,17 @@ while true; do
           bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "REJECT-PASS" \
             "audit overrode PASS — ${_reject_reason}" 2>/dev/null || true
           # Fall through to NOOP check and loop again
-        else
+        elif printf '%s' "$_pass_check_out" | grep -q 'VERDICT: ACCEPT'; then
           bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "ACCEPT" \
             "convergence verified" 2>/dev/null || true
           echo "CONVERGED"; exit 0
+        else
+          # Audit produced no recognisable verdict — treat as transient and retry
+          _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
+            "PASS audit produced no VERDICT line — retrying" "$PLAN_FILE_SH" 2>/dev/null && {
+            echo "[transient] promoted pass-audit failure to [BLOCKED:env] after threshold" >&2; exit 1
+          } || { echo "[transient] pass-audit no-verdict — retrying" >&2; }
+          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
         fi
       fi
       # 1st PASS or post-REJECT-PASS: loop continues, no Claude call

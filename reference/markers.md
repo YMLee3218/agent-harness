@@ -52,7 +52,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 [BLOCKED:harness] sidecar: corrupt-check — manual sidecar repair required
 [BLOCKED:harness] writing-spec: reference-extension — axis Actors has no value for autonomous scheduled process; proposed addition: 'concurrent instances'
 [BLOCKED:harness] critic-code: reference-extension — category enum has no value covering "performance regression"; proposed addition: 'PERFORMANCE'
-[BLOCKED:ceiling] critic-code: implement/critic-code exceeded 20 runs — manual review required
+[BLOCKED:ceiling] critic-code: implement/critic-code exceeded 100 runs — manual review required
 ```
 
 Transient (sidecar only, never plan.md):
@@ -92,7 +92,7 @@ After resolving the root cause, run `unblock` then restart the autonomous run. E
 **Transient sub-kinds** (closed set — additions require explicit policy review):
 - `session-timeout` — critic session hit `CLAUDE_CRITIC_SESSION_TIMEOUT` wall
 - `loop-lock` — critic loop already running (lock file conflict)
-- `thinking-block-api-error` — Claude API 400: thinking/redacted_thinking blocks modified between turns; session retried automatically
+- `thinking-block-api-error` — transient critic infrastructure failure; two distinct root causes share this counter: (1) Claude API 400: thinking/redacted_thinking blocks modified between turns, (2) Codex empty output or CODEX-INFRA-FAILURE sentinel; session retried automatically in both cases
 
 ## Non-loop stop markers (written to `## Open Questions`)
 

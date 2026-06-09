@@ -76,7 +76,7 @@ fi
 
 # Check: codex CLI (invoked directly in bash subprocesses by implement-helpers.sh)
 if ! command -v codex >/dev/null 2>&1; then
-  _append_blocked "codex" "install via settings.json enabledPlugins or 'claude plugin install codex@openai-codex'"
+  _append_blocked "codex" "run 'claude plugin install codex@openai-codex' to install the Codex CLI binary"
 fi
 
 # Check: codex auth (OPENAI_API_KEY or ~/.codex/auth.json)
