@@ -175,18 +175,24 @@ _impl_reset_for_green() {
 
 _impl_run_test_phase() {
   local feature="$1" feat_slug="$2"
-  local phase_now; phase_now=$(bash "$PF" get-phase "$PLAN")
-  [[ "$phase_now" == "spec" || "$phase_now" == "red" ]] || return 0
-  # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
+  # Per-feature marker must precede the global phase guard.
+  # Phase guard first causes the same false-skip as the old is-converged check:
+  # Feature A's implement step advancing phase to "implement" skips Feature B's test
+  # phase in the same loop iteration even when B's marker is absent.
   local _test_marker="${PLAN%.md}.state/test-reviewed-${feat_slug}"
   [[ -f "$_test_marker" ]] && return 0
+  local phase_now; phase_now=$(bash "$PF" get-phase "$PLAN")
+  # Transition to red before run_llm: writing-tests runs with CLAUDE_PLAN_CAPABILITY stripped
+  # and cannot call plan-file.sh transition from within the session.
+  if [[ "$phase_now" == "spec" ]]; then
+    bash "$PF" transition "$PLAN" red "entering test phase for ${feature}"
+  elif [[ "$phase_now" != "red" ]]; then
+    bash "$PF" transition "$PLAN" red "entering test phase for ${feature} — resetting from ${phase_now}"
+  fi
   if [[ -z "$UNIT_CMD" ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md"
     exit 1
   fi
-  # Transition spec→red before run_llm: writing-tests runs with CLAUDE_PLAN_CAPABILITY stripped
-  # and cannot call plan-file.sh transition (Ring B) from within the session.
-  [[ "$phase_now" == "spec" ]] && bash "$PF" transition "$PLAN" red "entering test phase for ${feature}"
   WRITING_TESTS_SPEC_PATH="$(find_spec_path "$feat_slug")" \
   WRITING_TESTS_PLAN_PATH="${PLAN}" \
   WRITING_TESTS_COMMAND="${UNIT_CMD}" \
@@ -206,8 +212,17 @@ _impl_run_test_phase() {
 _impl_run_implement_phase() {
   local feature="$1" feat_slug="$2"
   local phase_now has_task_defs pending any_task_in_ledger
-  # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
+  # Per-feature marker must precede phase guards — same false-skip pattern as _impl_run_test_phase.
+  # When _impl_reset_for_green fires (phase==green) it deletes _code_marker via inter-feature-reset;
+  # this early-return is needed for re-entry where reset did NOT fire (phase!=green) and the marker
+  # survived — without it the implement phase leaves phase at red and _impl_run_review_phase skips.
   local _code_marker="${PLAN%.md}.state/code-reviewed-${feat_slug}"
+  if [[ -f "$_code_marker" ]]; then
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    [[ "$phase_now" != "implement" && "$phase_now" != "review" && "$phase_now" != "green" ]] && \
+      bash "$PF" transition "$PLAN" implement "implement re-entry: code already reviewed for ${feature}"
+    return 0
+  fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
   if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then
