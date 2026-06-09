@@ -1236,6 +1236,8 @@ cmd_inter_feature_reset() {
     sec&&/\| pending[ |]|\| in_progress[ |]|\| completed[ |]|\| blocked[ |]/{next}
     {print}
   '
-  echo "[inter-feature-reset] cleared task definitions and ledger rows in ${plan_file}" >&2
+  local _state_dir="${plan_file%.md}.state"
+  rm -f "$_state_dir"/code-reviewed-* 2>/dev/null || true
+  echo "[inter-feature-reset] cleared task definitions, ledger rows, and code-reviewed markers in ${plan_file}" >&2
 }
 
