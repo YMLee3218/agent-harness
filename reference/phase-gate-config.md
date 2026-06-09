@@ -28,7 +28,7 @@ Pins the active plan file for `plan-file.sh find-active`. Highest priority overr
 CLAUDE_CRITIC_SESSION_TIMEOUT=3600
 ```
 
-Per-session timeout (seconds) for each `claude` CLI invocation in `run-critic-loop.sh`. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` records a transient event (sidecar only); after K occurrences (`CLAUDE_TRANSIENT_THRESHOLD`, default 3) it promotes to `[BLOCKED:env] {agent}: session-timeout — recurred {K} times: after {N}s` in `## Open Questions`. Set to `0` to disable the timeout cap — `gtimeout 0` / `timeout 0` is treated as "no timeout" by GNU coreutils. When neither `gtimeout` nor `timeout` is installed, `run-critic-loop.sh` BLOCKs at start with `[BLOCKED:env] {agent}: no-timeout-binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap`.
+Per-run timeout (seconds) applied to each reviewer subprocess in `run-critic-loop.sh` — wraps both the `codex exec --full-auto` review invocation and any `claude` CLI orchestration sessions. Default: `3600` (1 hour). Raise when a single critic run is expected to exceed 1 hour (e.g., very large codebases). If the timeout fires, `run-critic-loop.sh` records a transient event (sidecar only); after K occurrences (`CLAUDE_TRANSIENT_THRESHOLD`, default 3) it promotes to `[BLOCKED:env] {agent}: session-timeout — recurred {K} times: after {N}s` in `## Open Questions`. Set to `0` to disable the timeout cap — `gtimeout 0` / `timeout 0` is treated as "no timeout" by GNU coreutils. When neither `gtimeout` nor `timeout` is installed, `run-critic-loop.sh` BLOCKs at start with `[BLOCKED:env] {agent}: no-timeout-binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap`.
 
 ```bash
 CLAUDE_CRITIC_LOOP_CEILING=20
@@ -40,7 +40,7 @@ Maximum critic loop iterations per milestone (ordinals 1–N allowed; the (N+1)t
 CLAUDE_CRITIC_LOOP_MODEL=opus
 ```
 
-Model for the orchestration session spawned by `run-critic-loop.sh`. Default: `opus`. The orchestration session runs the one-shot iteration logic (skill invocation, `record-verdict`, ultrathink audit per `@reference/critics.md §Critic one-shot iteration`). Critic subagents use their own `model:` field from their agent definition (e.g., `agents/critic-code.md` specifies `sonnet`), so this variable controls only the parent session — not the critic review itself.
+Model for the orchestration session spawned by `run-critic-loop.sh`. Default: `opus`. The orchestration session runs the one-shot iteration logic (skill invocation, `record-verdict`, ultrathink audit per `@reference/critics.md §Critic one-shot iteration`). For `critic-spec/test/code/cross`, reviews are executed via `codex exec --full-auto` — codex manages its own model independently of Claude. For `critic-feature`, the review is a Claude fork that uses `model:` from `agents/critic-feature.md`. In both cases `CRITIC_LOOP_MODEL` controls only the orchestration session; the `model:` field in agent files applies to FAIL decision-agent forks, not to the codex review subprocess. So this variable does not affect the critic review itself.
 
 ```bash
 CLAUDE_STOP_CHECK_TIMEOUT=600

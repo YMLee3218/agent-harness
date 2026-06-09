@@ -160,7 +160,7 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 **B-session (critic-feature)** — one `claude` CLI session; do **not** loop; steps 1+2 in one continuous turn:
 0. **Pre-fix** (only when `prior_fail_log={path}`): apply Codex fix for each clear FAIL finding; skip ambiguous ones.
 1. `Skill("critic-feature", "{prompt}")` — synchronous; `SubagentStop` fires `record-verdict-guarded`. Do not end the turn.
-2. `@reference/ultrathink.md §Ultrathink verdict audit`. Read `## Open Questions` per §Skill branching logic — **exception**: never re-runs from shell (step 8/FAIL handled in-session) — **sub-exception**: ACCEPT-OVERRIDE allows one optional in-session `Skill(...)` re-run (see `@reference/ultrathink.md §ACCEPT-OVERRIDE`); exit after each branch.
+2. `@reference/ultrathink.md §Ultrathink verdict audit`. Read `## Open Questions` per §Skill branching logic — **exception**: never re-runs from shell (step 8/FAIL handled in-session) — **sub-exception**: ACCEPT-OVERRIDE allows one optional in-session `Skill(...)` re-run (see `@reference/ultrathink.md §Applying the audit outcome`); exit after each branch.
 
 ## Ambiguity signaling
 

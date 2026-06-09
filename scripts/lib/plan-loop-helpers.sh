@@ -41,13 +41,13 @@ _clear_ceiling_sidecar_entry() {
     --arg scope "$scope" --arg ts "$_ts" || return 1
 }
 
-# _validated_ceiling RAW → prints validated ceiling integer (min 2, default 20)
+# _validated_ceiling RAW → prints validated ceiling integer (min 2, default 100)
 _validated_ceiling() {
   local c="$1"
   case "$c" in
-    ''|*[!0-9]*) c=20 ;;
+    ''|*[!0-9]*) c=100 ;;
   esac
-  [ "$c" -lt 2 ] && c=20
+  [ "$c" -lt 2 ] && c=100
   echo "$c"
 }
 
@@ -192,7 +192,7 @@ _record_loop_state() {
   command -v jq >/dev/null 2>&1 || \
     die "_record_loop_state: jq is required — install jq (brew install jq or apt install jq)"
   local scope; scope=$(_scope_of "$current_phase" "$agent")
-  local ceiling; ceiling=$(_validated_ceiling "${CLAUDE_CRITIC_LOOP_CEILING:-20}")
+  local ceiling; ceiling=$(_validated_ceiling "${CLAUDE_CRITIC_LOOP_CEILING:-100}")
   sc_ensure_dir "$plan_file" || die "ERROR: sidecar dir setup failed for $plan_file"
   local verdicts_path; verdicts_path=$(sc_path "$plan_file" "$SC_VERDICTS")
   local convergence_path; convergence_path=$(sc_conv_path "$plan_file" "$current_phase" "$agent")
