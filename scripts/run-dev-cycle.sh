@@ -60,13 +60,22 @@ if [[ -n "$PLAN" ]]; then
     brainstorm|spec|red|implement|review|green|integration) ;;
     done)
       _found_next=0
+      _pending_count=0
+      _pending_first=""
       for _p in "${PROJECT_DIR}/plans/"*.md; do
         [[ -f "$_p" && "$_p" != "$PLAN" ]] || continue
         _p_phase=$(bash "$PF" get-phase "$_p" 2>/dev/null || echo "")
         if [[ -n "$_p_phase" && "$_p_phase" != "done" ]]; then
-          PLAN="$_p"; current_phase="$_p_phase"; _found_next=1; break
+          _pending_count=$(( _pending_count + 1 ))
+          [[ -z "$_pending_first" ]] && _pending_first="$_p"
         fi
       done
+      if [[ $_pending_count -ge 2 ]]; then
+        echo "ERROR: ${_pending_count} active plan files found after current plan completed. Set CLAUDE_PLAN_FILE=${PROJECT_DIR}/plans/{slug}.md to specify which plan to continue." >&2; exit 3
+      fi
+      if [[ $_pending_count -eq 1 ]]; then
+        PLAN="$_pending_first"; current_phase=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo ""); _found_next=1
+      fi
       if [[ $_found_next -eq 1 ]]; then
         if bash "$PF" is-blocked "$PLAN" 2>/dev/null; then
           echo "[BLOCKED] active block marker present in next plan — resolve markers before proceeding" >&2; exit 1

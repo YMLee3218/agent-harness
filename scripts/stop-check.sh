@@ -67,8 +67,9 @@ fi
 # done is excluded: see header comment — session already closed, no test run needed.
 phase_runs_stop_check "$phase" || exit 0
 
-# if integration phase and a [BLOCKED:code] integration marker is already recorded,
-# allow the stop without re-running tests to avoid infinite Stop-hook block loops.
+# if integration phase and any open [BLOCKED:code] marker is already recorded (any scope —
+# including critic-code from a prior phase), allow the stop without re-running tests to
+# avoid infinite Stop-hook block loops. is-blocked matches by kind only, not scope.
 # Uses is-blocked (sidecar-primary; plan.md consulted only on divergence).
 if [ "$phase" = "integration" ]; then
   if bash "$PLAN_FILE_SH" is-blocked "$active_plan" code 2>/dev/null; then
