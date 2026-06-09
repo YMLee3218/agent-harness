@@ -50,7 +50,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 [BLOCKED:env] critic-code: session-timeout — recurred 3 times: after 3600s
 [BLOCKED:harness] critic-code: protocol-violation — invoked outside run-critic-loop.sh context
 [BLOCKED:harness] sidecar: corrupt-check — manual sidecar repair required
-[BLOCKED:harness] writing-spec: reference-extension — axis Actors has no value for autonomous scheduled process; proposed addition: 'concurrent instances'
+[BLOCKED:harness] writing-spec: reference-extension — axis Actors has no value for anonymous IoT device fleet; proposed addition: 'device-fleet'
 [BLOCKED:harness] critic-code: reference-extension — category enum has no value covering "performance regression"; proposed addition: 'PERFORMANCE'
 [BLOCKED:ceiling] critic-code: implement/critic-code exceeded 100 runs — manual review required
 ```
@@ -176,7 +176,7 @@ The coder agent emits a plain-text signal (not an HTML comment) to its output lo
 - `coder-status: complete` — task finished successfully
 - `coder-status: abort` — task could not be completed
 
-Detected by `run-implement.sh` via `grep -q 'coder-status: complete'`.
+Detected by `implement-helpers.sh` (`verify_task`) via `grep 'coder-status:' "$log" | tail -1`.
 
 ## Audit outcome words
 
