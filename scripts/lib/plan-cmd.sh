@@ -694,9 +694,7 @@ cmd_record_verdict_direct() {
   require_file "$plan_file"
   _validate_critic_agent "$agent" "record-verdict-direct"
 
-  local current_phase
-  current_phase=$(cmd_get_phase "$plan_file" 2>/dev/null) || \
-    die "record-verdict-direct: cannot read phase from $plan_file"
+  local current_phase="$phase"
 
   case "$verdict" in
     PASS|FAIL|PARSE_ERROR) ;;
