@@ -75,7 +75,7 @@ The following patterns may appear to violate §Test mocking levels but are **not
 
 | Pattern | Reason |
 |---------|--------|
-| A standalone class implementing a domain-defined Protocol or ABC is instantiated in a small feature test and injected via DI (e.g., `InMemorySceneStore`) | This is a domain-interface test-double, not infrastructure patching; isolation is at the domain boundary via DI — compliant with the Small feature test mock rule |
+| A standalone class satisfying a domain interface is instantiated in a small feature test and injected via DI (e.g., `InMemorySceneStore`) | This is a domain-interface test-double, not infrastructure patching; isolation is at the domain boundary via DI — compliant with the Small feature test mock rule |
 | `unittest.mock.patch` or `MagicMock` targeting `src/domain/` in a small feature test | Domain is pure logic; if a spec explicitly requires it, this is a test quality concern (`TEST_QUALITY`), not a layer boundary violation (`LAYER_VIOLATION`) |
 
 These exceptions apply to critic-test Check 2 (Mocking levels). When a test appears to "mock infrastructure," confirm whether the subject is a `src/infrastructure/` path being patched, or a free-standing class satisfying a domain interface — only the former is a `LAYER_VIOLATION`.
