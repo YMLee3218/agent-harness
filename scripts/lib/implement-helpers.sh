@@ -164,20 +164,21 @@ _restore_and_retry() {
   fi
 }
 
-# _run_failing_test ID WD — runs the task's designated failing test; returns 1 with BLOCKED on failure.
+# _run_failing_test ID WD — runs all tests in the task's test file; returns 1 with BLOCKED on failure.
 _run_failing_test() {
   local id="$1" wt="$2"
-  local failing_test
+  local failing_test test_file
   failing_test=$(get_field "$id" failing_test)
   [[ -z "$failing_test" ]] && return 0
+  test_file="${failing_test%%::*}"
   local _ec=0
-  (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} bash -c "$TEST_CMD \"\$1\"" -- "$failing_test" 2>&1) || _ec=$?
+  (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} bash -c "$TEST_CMD \"\$1\"" -- "$test_file" 2>&1) || _ec=$?
   if [[ "$_ec" -ne 0 ]]; then
     bash "$PF" update-task "$PLAN" "$id" blocked
     if [[ "$_ec" -eq 124 ]]; then
-      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-timeout — single-test gate exceeded ${IMPLEMENT_TIMEOUT}s (possible infinite loop in generated code)"
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-timeout — file-gate exceeded ${IMPLEMENT_TIMEOUT}s (possible infinite loop in generated code)"
     else
-      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — after implementation"
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — after implementation (file: ${test_file})"
     fi
     return 1
   fi
@@ -254,6 +255,19 @@ cleanup_wt() {
   wt=$(cat "$WORK_DIR/wt-${id}.txt" 2>/dev/null || true)
   [[ -n "$wt" ]]     && git worktree remove --force "$wt" 2>/dev/null || true
   [[ -n "$branch" ]] && git branch -D "$branch" 2>/dev/null || true
+}
+
+# _run_regression_gate MERGED_ID — re-runs all completed tasks' test files after a merge; returns 1 on regression.
+_run_regression_gate() {
+  local merged_id="$1"
+  [[ ! -s "$WORK_DIR/completed-test-files.txt" ]] && return 0
+  mapfile -t _reg_files < "$WORK_DIR/completed-test-files.txt"
+  local _ec=0
+  (${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $SMOKE_TIMEOUT} bash -c "$TEST_CMD \"\$@\"" -- "${_reg_files[@]}" 2>&1) || _ec=$?
+  if [[ "$_ec" -ne 0 ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] regression: tests-failing — merge of ${merged_id} broke previously-passing test files; resolve regression and re-run implementing"
+    return 1
+  fi
 }
 
 # merge_task ID — merge the task branch into HEAD and mark task completed.

@@ -56,6 +56,12 @@ while IFS=$'\t' read -r _id _ft; do
   fi
 done < <(printf '%s' "$TASK_JSON" | jq -r '.[] | [.id, (.failing_test // "")] | @tsv')
 
+_dup_test=$(printf '%s' "$TASK_JSON" | jq -r '[.[] | select((.failing_test // "") != "") | {id, file: (.failing_test | split("::")[0])}] | group_by(.file) | .[] | select(length > 1) | "tasks \([.[].id] | join(", ")) both reference test file \(.[0].file)"' 2>/dev/null || true)
+if [[ -n "$_dup_test" ]]; then
+  bash "$PF" append-note "$PLAN" "[BLOCKED:env] implement: duplicate-test-file — ${_dup_test%%$'\n'*}; each test file must map to exactly one task; fix task definitions and re-run implementing skill"
+  exit 1
+fi
+
 if [[ "$(bash "$PF" get-phase "$PLAN")" != "implement" ]]; then
   bash "$PF" transition "$PLAN" implement "task list registered — advancing to implement"
   bash "$PF" commit-phase "$PLAN" "chore(phase): advance to implement — task list registered"
@@ -120,6 +126,12 @@ for tier in domain infrastructure features; do
       OVERALL_BLOCKED=1
       break 2
     fi
+    _ft_s=$(printf '%s' "$TASK_JSON" | jq -r --arg id "$id" '.[] | select(.id == $id) | .failing_test // ""')
+    [[ -n "$_ft_s" ]] && echo "${_ft_s%%::*}" >> "$WORK_DIR/completed-test-files.txt"
+    if ! _run_regression_gate "$id"; then
+      OVERALL_BLOCKED=1
+      break 2
+    fi
   done
 
   if [[ $tier_blocked -eq 1 ]]; then
@@ -175,6 +187,12 @@ for tier in domain infrastructure features; do
         awk -v id="$_remaining" '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&$0~id{print}' "$PLAN" \
           | grep -q 'completed' || cleanup_wt "$_remaining" 2>/dev/null || true
       done
+      OVERALL_BLOCKED=1
+      break 2
+    fi
+    _ft_p=$(printf '%s' "$TASK_JSON" | jq -r --arg id "$id" '.[] | select(.id == $id) | .failing_test // ""')
+    [[ -n "$_ft_p" ]] && echo "${_ft_p%%::*}" >> "$WORK_DIR/completed-test-files.txt"
+    if ! _run_regression_gate "$id"; then
       OVERALL_BLOCKED=1
       break 2
     fi
