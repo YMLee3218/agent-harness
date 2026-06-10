@@ -5,6 +5,8 @@ set -euo pipefail
 [[ -n "${_IMPLEMENT_HELPERS_LOADED:-}" ]] && return 0
 _IMPLEMENT_HELPERS_LOADED=1
 
+GIT_COMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+
 # All functions use globals set by run-implement.sh:
 #   PLAN PF TASK_JSON WORK_DIR BASE_SHA TEST_CMD LINT_CMD TIMEOUT_CMD IMPLEMENT_TIMEOUT
 
@@ -90,11 +92,11 @@ launch_task() {
   fi
   (cd "$wt" && git rev-parse HEAD) > "$WORK_DIR/task-base-${id}.txt"
   if [[ "$bg" == "1" ]]; then
-    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$prompt") > "$log" 2>&1 &
+    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$prompt") > "$log" 2>&1 &
     echo $! > "$WORK_DIR/pid-${id}.txt"
   else
     local _ec=0
-    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$prompt") > "$log" 2>&1 || _ec=$?
+    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$prompt") > "$log" 2>&1 || _ec=$?
     if [[ "$_ec" -eq 124 ]]; then
       echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$log"
     fi
@@ -141,7 +143,7 @@ _restore_and_retry() {
   make_prompt "$id" > "$retry_prompt"
   printf '\nRETRY: previous attempt modified test files (%s) — strictly read-only.\n' "$test_files" >> "$retry_prompt"
   local _ec=0
-  (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$retry_prompt") > "$retry_log" 2>&1 || _ec=$?
+  (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$retry_prompt") > "$retry_log" 2>&1 || _ec=$?
   if [[ "$_ec" -eq 124 ]]; then
     echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$retry_log"
     bash "$PF" update-task "$PLAN" "$id" blocked
@@ -208,11 +210,13 @@ verify_task() {
 
   local last_status
   last_status=$(grep 'coder-status:' "$log" 2>/dev/null | tail -1)
-  if grep -q '^layer violation:' "$log" 2>/dev/null || \
-     [[ "$last_status" != *"coder-status: complete"* ]]; then
+  if grep -q '^layer violation:' "$log" 2>/dev/null; then
     bash "$PF" update-task "$PLAN" "$id" blocked
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
     return 1
+  fi
+  if [[ "$last_status" != *"coder-status: complete"* ]]; then
+    _run_failing_test "$id" "$wt" || return 1
   fi
 
   local task_base restore_count=0 pre_restore_count=0
