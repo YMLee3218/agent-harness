@@ -65,6 +65,17 @@ These exceptions apply to both run-implement.sh / codex (layer enforcement) and 
 | Test scope | Mock rule | Violation → `[FAIL]` |
 |-----------|-----------|----------------------|
 | Domain test | No mocks; no external dependencies | Any mock present |
-| Small feature test | Mock domain layer only | Infrastructure mocked directly |
+| Small feature test | Call domain directly; isolate infrastructure via DI using domain-interface test-doubles | Patching/monkey-patching infrastructure implementations (e.g., `patch('src.infrastructure…')`) |
 | Large feature test | Mock small features; domain not called directly | Domain called directly |
 | Integration test (`tests/integration/`) | No mocks; real connections | Any mock present |
+
+## Acceptable test patterns
+
+The following patterns may appear to violate §Test mocking levels but are **not** violations:
+
+| Pattern | Reason |
+|---------|--------|
+| A standalone class implementing a domain-defined Protocol or ABC is instantiated in a small feature test and injected via DI (e.g., `InMemorySceneStore`) | This is a domain-interface test-double, not infrastructure patching; isolation is at the domain boundary via DI — compliant with the Small feature test mock rule |
+| `unittest.mock.patch` or `MagicMock` targeting `src/domain/` in a small feature test | Domain is pure logic; if a spec explicitly requires it, this is a test quality concern (`TEST_QUALITY`), not a layer boundary violation (`LAYER_VIOLATION`) |
+
+These exceptions apply to critic-test Check 2 (Mocking levels). When a test appears to "mock infrastructure," confirm whether the subject is a `src/infrastructure/` path being patched, or a free-standing class satisfying a domain interface — only the former is a `LAYER_VIOLATION`.
