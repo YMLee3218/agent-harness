@@ -79,7 +79,7 @@ Issue: implementation contradicts domain rules.
 ## Fix-chain finisher
 
 1. **(If code changed)** Re-run critic-code:
-   (a) **(If not already in `implement` phase)** Transition to `implement` (ensures `record-verdict` stamps `implement/critic-code`; without this, the plan may be in `review` and markers would be stamped `review/critic-code`, breaking convergence):
+   (a) **(If not already in `implement` phase)** Transition to `implement` (critic-code must not run while the plan is in `review` phase — `cmd_reset_phase_state` defensively clears `review/critic-code` as stale; run-critic-loop.sh passes `--phase implement` explicitly so the convergence state is always stamped `implement/critic-code` regardless of plan phase, but the plan itself must be in `implement` for architectural correctness):
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" implement \
      "pr-review fix — re-running critic-code"

@@ -69,7 +69,9 @@ if ! claude plugin list 2>/dev/null | grep -q 'context7-plugin'; then
   _append_blocked "context7-plugin" "install via settings.json enabledPlugins or 'claude plugin install'"
 fi
 
-# Check: pr-review-toolkit (skipped in B-sessions — critic loops never call pr-review-toolkit:review-pr)
+# Check: pr-review-toolkit (skipped in B-sessions — the main orchestrator session already verified it is
+# installed before launching any B-sessions; re-checking per-session is redundant. Note: pr-review B-sessions
+# DO call pr-review-toolkit:review-pr, so this plugin must be present — verified once at orchestrator start.)
 if [ "${CLAUDE_CRITIC_SESSION:-0}" != "1" ] && ! claude plugin list 2>/dev/null | grep -q 'pr-review-toolkit'; then
   _append_blocked "pr-review-toolkit" "install via settings.json enabledPlugins or 'claude plugin install'"
 fi
