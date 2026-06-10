@@ -312,7 +312,7 @@ cmd_context() {
   local blocked_items other_items questions
   blocked_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && (/\[BLOCKED/ || /\[STOP-BLOCKED/){print}' \
     "$plan_file" 2>/dev/null | head -3 | tr '\n' '|' | sed 's/|$//' || true)
-  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[AUTO-DECIDED/ && !/\[IMPLEMENTED/{print}' \
+  other_items=$(awk '/^## Open Questions$/{found=1; next} found && /^## /{found=0} found && /[^[:space:]]/ && !/\[BLOCKED/ && !/\[STOP-BLOCKED/ && !/\[IMPLEMENTED/{print}' \
     "$plan_file" 2>/dev/null | head -2 | tr '\n' '|' | sed 's/|$//' || true)
 
   if [ -n "$blocked_items" ] && [ -n "$other_items" ]; then

@@ -11,9 +11,11 @@ for node in tree.body:
     if isinstance(node, (ast.Import, ast.ImportFrom)):
         keep.update(range(node.lineno - 1, node.end_lineno))
     elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-        start = node.decorator_list[0].lineno - 1 if node.decorator_list else node.lineno - 1
-        if not node.name.startswith("test_") or node.name == name:
-            keep.update(range(start, node.end_lineno))
+        if not node.name.startswith("test_"):
+            keep.update(range(node.lineno - 1, node.end_lineno))
+        elif node.name == name:
+            start = node.decorator_list[0].lineno if node.decorator_list else node.lineno
+            keep.update(range(start - 1, node.end_lineno))
 for i, line in enumerate(lines):
     if i in keep:
         print(line)

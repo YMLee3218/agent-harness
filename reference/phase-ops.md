@@ -11,6 +11,20 @@ Layer rules: @reference/layers.md
 Used when re-entering a writing phase from a later phase (slice mode or any rollback).
 Calling skill specifies `{target-phase}` and `{critic-name}`.
 
+### Reverting from implement/red to spec
+
+When reverting a feature fully back to spec phase, delete ALL test and implementation files for
+that feature before committing. A revert that leaves implementation in place is incomplete — the
+next writing-tests run will classify tests against the leftover code and produce incorrect GREEN
+entries.
+
+Checklist:
+- [ ] `git rm tests/{feature_path}/*`
+- [ ] `git rm src/**/{feature_module}.*` (all layers: domain, infrastructure, features)
+- [ ] Clean `## Task Definitions`, `## Task Ledger`, `## Integration Failures`, and body of
+      `## Critic Verdicts`, `## Verdict Audits`, `## Open Questions` from the plan file
+- [ ] Set `phase: spec` in plan file frontmatter
+
 1. Preserve all existing `## Critic Verdicts` — do not delete them.
 2. Set plan phase and record the rollback (`transition` sets phase first, then appends the entry — correct ordering for step 3):
    ```bash

@@ -39,12 +39,6 @@ make_prompt() {
     lint_constraint=$'\n- Before emitting coder-status: complete, run the lint command and fix every violation it reports. Every violation must be in a file within your task scope — if lint reports a violation outside Files to modify, emit coder-status: abort with the detail.'
     lint_cmd_line=$'\nLint command: '"${LINT_CMD}"
   fi
-  local contracts=""
-  if [[ -n "${PLAN:-}" && -f "${PLAN:-}" ]]; then
-    contracts=$(awk '/^## Open Questions$/{f=1;next} f&&/^## /{f=0} f&&/\[AUTO-DECIDED\]/{
-      sub(/.*\[AUTO-DECIDED\][^:]*: /,""); print "- "$0
-    }' "$PLAN" 2>/dev/null || true)
-  fi
   cat <<EOF
 Task: ${goal}
 Target layer: ${layer}
@@ -62,9 +56,7 @@ ${code}
 
 Test command: ${TEST_CMD}${lint_cmd_line}
 Spec: ${spec}
-${contracts:+
-Implementation decisions (made during planning — follow exactly):
-${contracts}}
+
 When complete, emit exactly: coder-status: complete
 If unable to complete for any reason, emit: coder-status: abort
 EOF
@@ -116,24 +108,18 @@ _extract_test_paths() {
 _restore_and_retry() {
   local id="$1" base="$2" wt="$3" test_files="$4"
   pre_restore_count=$(cd "$wt" && git rev-list --count "${base}..HEAD" 2>/dev/null || echo 0)
-  if ! (cd "$wt" && while IFS= read -r f; do
+  (cd "$wt" && while IFS= read -r f; do
     [[ -z "$f" ]] && continue
     if git cat-file -e "${base}:${f}" 2>/dev/null; then git checkout "$base" -- "$f"
     else rm -f "$f"; fi
-  done <<< "$test_files" && git add -A && \
-    { git diff --cached --quiet || git commit -m "chore: restore test files modified by Codex" 2>/dev/null; }); then
-    bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: restore-failed — could not restore test files: ${test_files}"
-    return 1
-  fi
+  done <<< "$test_files" && git add -A && git commit -m "chore: restore test files modified by Codex" 2>/dev/null || true)
   restore_count=$(cd "$wt" && git rev-list --count "${base}..HEAD" 2>/dev/null || echo 0)
   local retry_log="$WORK_DIR/retry-log-${id}.txt" retry_prompt="$WORK_DIR/retry-prompt-${id}.txt"
   make_prompt "$id" > "$retry_prompt"
   printf '\nRETRY: previous attempt modified test files (%s) — strictly read-only.\n' "$test_files" >> "$retry_prompt"
   (cd "$wt" && env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$retry_prompt") > "$retry_log" 2>&1 || true
-  local last_status
-  last_status=$(grep 'coder-status:' "$retry_log" 2>/dev/null | tail -1 || true)
-  if [[ "$last_status" != *"coder-status: complete"* ]] || grep -q '^layer violation:' "$retry_log" 2>/dev/null; then
+  if grep -qE 'coder-status: abort|^layer violation:' "$retry_log" 2>/dev/null || \
+     ! grep -q 'coder-status: complete' "$retry_log" 2>/dev/null; then
     bash "$PF" update-task "$PLAN" "$id" blocked
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: test-files-touched — modified after retry: ${test_files}"
     return 1
@@ -151,14 +137,10 @@ _run_failing_test() {
   local id="$1" wt="$2"
   local failing_test
   failing_test=$(get_field "$id" failing_test)
-  if [[ -n "$failing_test" ]]; then
-    local test_out
-    if ! test_out=$(cd "$wt" && bash -c "$TEST_CMD \"\$1\"" -- "$failing_test" 2>&1); then
-      local summary; summary=$(printf '%s' "$test_out" | tail -20 | tr '\n' '↵')
-      bash "$PF" update-task "$PLAN" "$id" blocked
-      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — ${summary}"
-      return 1
-    fi
+  if [[ -n "$failing_test" ]] && ! (cd "$wt" && bash -c "$TEST_CMD \"\$1\"" -- "$failing_test" 2>&1); then
+    bash "$PF" update-task "$PLAN" "$id" blocked
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — after implementation"
+    return 1
   fi
 }
 
@@ -166,11 +148,9 @@ _run_failing_test() {
 _run_lint() {
   local id="$1" wt="$2"
   [[ -z "${LINT_CMD:-}" ]] && return 0
-  local lint_out
-  if ! lint_out=$(cd "$wt" && bash -c "$LINT_CMD" 2>&1); then
-    local summary; summary=$(printf '%s' "$lint_out" | head -20 | tr '\n' '↵')
+  if ! (cd "$wt" && bash -c "$LINT_CMD" 2>&1); then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: lint-failing — ${summary}"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: lint-failing — after implementation"
     return 1
   fi
 }
@@ -184,8 +164,9 @@ verify_task() {
   log="$WORK_DIR/log-${id}.txt"
 
   local last_status
-  last_status=$(grep 'coder-status:' "$log" 2>/dev/null | tail -1 || true)
-  if [[ "$last_status" != *"coder-status: complete"* ]] || grep -q '^layer violation:' "$log" 2>/dev/null; then
+  last_status=$(grep 'coder-status:' "$log" 2>/dev/null | tail -1)
+  if grep -q '^layer violation:' "$log" 2>/dev/null || \
+     [[ "$last_status" != *"coder-status: complete"* ]]; then
     bash "$PF" update-task "$PLAN" "$id" blocked
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
     return 1
@@ -202,7 +183,7 @@ verify_task() {
   commit_count=$(cd "$wt" && git rev-list --count "${task_base}..HEAD" 2>/dev/null || echo 0)
   if [[ "$commit_count" -le "$restore_count" ]]; then
     local goal; goal=$(get_field "$id" goal)
-    if ! (cd "$wt" && git add -A && git commit -m "feat: ${goal}"); then
+    if ! (cd "$wt" && git add -A && git commit -m "feat: ${goal}" 2>/dev/null); then
       # Only block when original Codex also made no commits. If pre_restore_count > 0,
       # original had implementation commits; retry added none but implementation may be
       # complete — fall through to _run_failing_test to verify.

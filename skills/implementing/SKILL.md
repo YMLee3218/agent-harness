@@ -30,6 +30,16 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 
 Reuse any existing adapter whose interface already matches the requirement; if none, create a minimal new adapter. Log `[AUTO-DECIDED] implementing/Step1: {decision}` to `## Open Questions`.
 
+If you find a Manifest-GREEN test actually fails today (spec changed after manifest was written):
+- Do NOT change `failing_test` to the file path.
+- Create normal tasks per RED entry, each with a specific `::test_name`.
+- If the mismarked GREEN test is fixed by the same change as an existing task, add it to that
+  task's goal description; keep `failing_test` pointing to one specific `::test_name` (use the
+  first mismarked test if no RED test covers the same change).
+- Append to `## Open Questions`:
+  `[AUTO-DECIDED] implementing/Step1: manifest-green-actually-red — {test_name} fails due to
+  spec change; included in task-N scope; smoke run will confirm.`
+
 Write task list to plan file (human-readable form):
 
 ```
@@ -64,7 +74,12 @@ Then write the `## Task Definitions` JSON block in the plan file:
 
 - `layer` must be one of: `domain`, `infrastructure`, `features`
 - `files` is an array of exact file paths to create or modify
-- `failing_test` must be `tests/path/file.py::test_name` (specific test name required); omitting `::test_name` inlines the entire test file verbatim into the Codex prompt — do not omit it. Leave the field empty only when the test runner does not support positional path selection (e.g. `go test`, `cargo test`)
+- `failing_test` must be `tests/path/file.py::test_name` (specific test name required);
+  omitting `::test_name` inlines the entire test file verbatim into the Codex prompt — do not
+  omit it. This is a hard constraint: NOT subject to [AUTO-DECIDED] override. The orchestrator
+  enforces this and will block with [BLOCKED:env] missing-test-name if absent.
+  Leave the field empty only when the test runner does not support positional path selection
+  (e.g. `go test`, `cargo test`).
 - `parallel: true` only when there is no cross-task dependency within the same layer tier
 - `depends_on` is the `id` of the task this one depends on, or `null` — informational for JSON ordering only; the scheduler executes sequential tasks in JSON array order, not by this field; place dependent tasks after their dependencies in the array
 
