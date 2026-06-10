@@ -15,10 +15,12 @@ source "$_INTEGRATION_HELPERS_DIR/llm-runner.sh"
 
 # capture variant for categorizer — parent reads nonce-anchored stdout, not plan.md awk
 run_llm_capture() {
-  local prompt="$1" outfile="$2"
+  local prompt="$1" outfile="$2" _ec=0
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
+    ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $INTEGRATION_TIMEOUT} \
     env -u CLAUDE_PLAN_CAPABILITY claude --model sonnet --permission-mode auto --dangerously-skip-permissions -p "$prompt" \
-    > "$outfile" 2>&1 || true
+    > "$outfile" 2>&1 || _ec=$?
+  return "$_ec"
 }
 
 # _handle_spec_phase_rollback CATEGORY — full spec/test/implement rollback for spec-gap

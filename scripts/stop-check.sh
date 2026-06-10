@@ -137,6 +137,8 @@ fi
 # Timeout: default 600s max to prevent stalled suites from blocking the session indefinitely.
 # Override via CLAUDE_STOP_CHECK_TIMEOUT env var (e.g. CLAUDE_STOP_CHECK_TIMEOUT=1200 for large suites).
 # macOS ships without GNU coreutils by default; check for gtimeout (Homebrew coreutils) or timeout.
+# shellcheck source=lib/timeout-guard.sh
+source "$(dirname "$0")/lib/timeout-guard.sh"
 _timeout="${CLAUDE_STOP_CHECK_TIMEOUT:-600}"
 _timeout_cmd=""
 if command -v gtimeout >/dev/null 2>&1; then
@@ -148,7 +150,7 @@ fi
 echo "[stop-check] Verifying tests pass before stop (phase=${phase}, CLAUDE_NONINTERACTIVE=1)..." >&2
 _test_exit=0
 if [ -n "$_timeout_cmd" ]; then
-  "$_timeout_cmd" "$_timeout" bash -c "$test_cmd" >/dev/null 2>&1 || _test_exit=$?
+  "$_timeout_cmd" --kill-after=$TG_KILL_AFTER "$_timeout" bash -c "$test_cmd" >/dev/null 2>&1 || _test_exit=$?
 else
   bash -c "$test_cmd" >/dev/null 2>&1 || _test_exit=$?
 fi

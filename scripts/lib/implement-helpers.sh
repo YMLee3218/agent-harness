@@ -6,7 +6,7 @@ set -euo pipefail
 _IMPLEMENT_HELPERS_LOADED=1
 
 # All functions use globals set by run-implement.sh:
-#   PLAN PF TASK_JSON WORK_DIR BASE_SHA TEST_CMD LINT_CMD
+#   PLAN PF TASK_JSON WORK_DIR BASE_SHA TEST_CMD LINT_CMD TIMEOUT_CMD IMPLEMENT_TIMEOUT
 
 # get_field ID FIELD — extracts a field from TASK_JSON for a given task id.
 get_field() {
@@ -39,22 +39,34 @@ make_prompt() {
     lint_constraint=$'\n- Before emitting coder-status: complete, run the lint command and fix every violation it reports. Every violation must be in a file within your task scope — if lint reports a violation outside Files to modify, emit coder-status: abort with the detail.'
     lint_cmd_line=$'\nLint command: '"${LINT_CMD}"
   fi
+  local test_cmd_display run_instruction implement_instruction failing_test_section
+  if [[ -n "$failing_test" ]]; then
+    test_cmd_display="${TEST_CMD} \"${failing_test}\""
+    run_instruction="After the failing test passes, refactor within the code you wrote. After every change, run ONLY the Test command below — do NOT run the full test suite."
+    implement_instruction="Implement the minimum code needed to pass the failing test. Nothing more."
+    failing_test_section="Failing test: ${failing_test}
+${code}
+
+"
+  else
+    test_cmd_display="(none — single-test gate handled by the harness)"
+    run_instruction="Do NOT run the full test suite — in this TDD red phase it fails until all tasks land. Implement strictly to satisfy the Spec below; the harness verifies tests for you."
+    implement_instruction="Implement the minimum code to satisfy the Spec below. Nothing more."
+    failing_test_section=""
+  fi
   cat <<EOF
 Task: ${goal}
 Target layer: ${layer}
 Files to modify: ${files}
-Implement the minimum code needed to pass the failing test. Nothing more.
-After the failing test passes, refactor within the code you wrote. Run tests after every change.
+${implement_instruction}
+${run_instruction}
 Commit once after refactor. Format: {type}({scope}): {description}
 
 Hard constraints:
 - Do NOT modify files matching: tests/* *_test.* test_*.* *.test.* *.spec.* *_spec.* spec.md
 - Respect layer rules for ${layer}. If layer would be violated, STOP and emit "layer violation: {reason}".${lint_constraint}
 
-Failing test: ${failing_test}
-${code}
-
-Test command: ${TEST_CMD}${lint_cmd_line}
+${failing_test_section}Test command: ${test_cmd_display}${lint_cmd_line}
 Spec: ${spec}
 
 When complete, emit exactly: coder-status: complete
@@ -78,10 +90,14 @@ launch_task() {
   fi
   (cd "$wt" && git rev-parse HEAD) > "$WORK_DIR/task-base-${id}.txt"
   if [[ "$bg" == "1" ]]; then
-    (cd "$wt" && env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$prompt") > "$log" 2>&1 &
+    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$prompt") > "$log" 2>&1 &
     echo $! > "$WORK_DIR/pid-${id}.txt"
   else
-    (cd "$wt" && env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$prompt") > "$log" 2>&1 || true
+    local _ec=0
+    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$prompt") > "$log" 2>&1 || _ec=$?
+    if [[ "$_ec" -eq 124 ]]; then
+      echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$log"
+    fi
   fi
 }
 
@@ -89,7 +105,14 @@ launch_task() {
 wait_task() {
   local id="$1"
   local pid_file="$WORK_DIR/pid-${id}.txt"
-  [[ -f "$pid_file" ]] && { wait "$(cat "$pid_file")" || true; rm -f "$pid_file"; }
+  if [[ -f "$pid_file" ]]; then
+    local _ec=0
+    wait "$(cat "$pid_file")" || _ec=$?
+    rm -f "$pid_file"
+    if [[ "$_ec" -eq 124 ]]; then
+      echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$WORK_DIR/log-${id}.txt"
+    fi
+  fi
 }
 
 # _extract_test_paths BASE WD — prints modified/added test file paths relative to worktree.
@@ -117,7 +140,14 @@ _restore_and_retry() {
   local retry_log="$WORK_DIR/retry-log-${id}.txt" retry_prompt="$WORK_DIR/retry-prompt-${id}.txt"
   make_prompt "$id" > "$retry_prompt"
   printf '\nRETRY: previous attempt modified test files (%s) — strictly read-only.\n' "$test_files" >> "$retry_prompt"
-  (cd "$wt" && env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$retry_prompt") > "$retry_log" 2>&1 || true
+  local _ec=0
+  (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto - < "$retry_prompt") > "$retry_log" 2>&1 || _ec=$?
+  if [[ "$_ec" -eq 124 ]]; then
+    echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$retry_log"
+    bash "$PF" update-task "$PLAN" "$id" blocked
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — retry timeout after ${IMPLEMENT_TIMEOUT}s"
+    return 1
+  fi
   if grep -qE 'coder-status: abort|^layer violation:' "$retry_log" 2>/dev/null || \
      ! grep -q 'coder-status: complete' "$retry_log" 2>/dev/null; then
     bash "$PF" update-task "$PLAN" "$id" blocked
@@ -137,9 +167,16 @@ _run_failing_test() {
   local id="$1" wt="$2"
   local failing_test
   failing_test=$(get_field "$id" failing_test)
-  if [[ -n "$failing_test" ]] && ! (cd "$wt" && bash -c "$TEST_CMD \"\$1\"" -- "$failing_test" 2>&1); then
+  [[ -z "$failing_test" ]] && return 0
+  local _ec=0
+  (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} bash -c "$TEST_CMD \"\$1\"" -- "$failing_test" 2>&1) || _ec=$?
+  if [[ "$_ec" -ne 0 ]]; then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — after implementation"
+    if [[ "$_ec" -eq 124 ]]; then
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-timeout — single-test gate exceeded ${IMPLEMENT_TIMEOUT}s (possible infinite loop in generated code)"
+    else
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — after implementation"
+    fi
     return 1
   fi
 }
@@ -148,9 +185,15 @@ _run_failing_test() {
 _run_lint() {
   local id="$1" wt="$2"
   [[ -z "${LINT_CMD:-}" ]] && return 0
-  if ! (cd "$wt" && bash -c "$LINT_CMD" 2>&1); then
+  local _ec=0
+  (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} bash -c "$LINT_CMD" 2>&1) || _ec=$?
+  if [[ "$_ec" -ne 0 ]]; then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: lint-failing — after implementation"
+    if [[ "$_ec" -eq 124 ]]; then
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: lint-timeout — lint exceeded ${IMPLEMENT_TIMEOUT}s"
+    else
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: lint-failing — after implementation"
+    fi
     return 1
   fi
 }

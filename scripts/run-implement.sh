@@ -18,6 +18,11 @@ done
 [[ -z "$PLAN" || -z "$TEST_CMD" ]] && { echo "Usage: run-implement.sh --plan PATH --test-cmd CMD" >&2; exit 1; }
 [[ -f "$PLAN" ]] || { echo "Plan file not found: $PLAN" >&2; exit 1; }
 
+source "$SCRIPTS_DIR/lib/timeout-guard.sh"
+IMPLEMENT_TIMEOUT="${CLAUDE_IMPLEMENT_TIMEOUT:-600}"
+SMOKE_TIMEOUT="${CLAUDE_SMOKE_TIMEOUT:-3600}"
+timeout_guard_init "$IMPLEMENT_TIMEOUT" CLAUDE_IMPLEMENT_TIMEOUT implement "$PLAN" "$PF"
+
 TASK_JSON=$(awk '/<!-- task-definitions-start -->/{f=1;next} /<!-- task-definitions-end -->/{f=0} f' "$PLAN")
 [[ -z "$TASK_JSON" ]] && { echo "ERROR: Task Definitions block missing in $PLAN" >&2; exit 1; }
 if ! printf '%s' "$TASK_JSON" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
@@ -177,7 +182,12 @@ for tier in domain infrastructure features; do
 done
 
 if [[ $OVERALL_BLOCKED -eq 0 ]]; then
-  if ! bash -c "$TEST_CMD" 2>&1; then
+  _smoke_ec=0
+  ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $SMOKE_TIMEOUT} bash -c "$TEST_CMD" 2>&1 || _smoke_ec=$?
+  if [[ "$_smoke_ec" -eq 124 ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] smoke: timeout — full suite exceeded ${SMOKE_TIMEOUT}s (set CLAUDE_SMOKE_TIMEOUT to adjust)"
+    OVERALL_BLOCKED=1
+  elif [[ "$_smoke_ec" -ne 0 ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] smoke: tests-failing — full suite not passing after all tiers"
     OVERALL_BLOCKED=1
   fi

@@ -6,6 +6,13 @@ set -euo pipefail
 [[ -n "${_LLM_RUNNER_LOADED:-}" ]] && return 0
 _LLM_RUNNER_LOADED=1
 
+# run_llm — outer ORCHESTRATOR session (brainstorm/spec/tests/implement dispatch).
+# DELIBERATELY UNGUARDED by wall-clock: a single cap would falsely kill a phase that
+# legitimately runs long (e.g. implementing supervises many already-guarded codex
+# leaves). Guard policy is LAYERED: leaf work (codex workers, test/lint gates, critic
+# sessions) carries the --kill-after=$TG_KILL_AFTER cap; the orchestrator session does
+# not. A hung orchestrator is bounded only by operator attention / the 600s hook
+# timeout, by design. Do NOT add a timeout wrapper here without revisiting this policy.
 run_llm() {
   local prompt="$1" model="${2:-opus}"
   _CALL_RC=0

@@ -55,15 +55,9 @@ _on_interrupt() {
 trap '_on_interrupt' INT TERM
 
 # Timeout command (cross-platform)
-TIMEOUT_CMD=$(command -v gtimeout || command -v timeout || true)
+source "$(dirname "${BASH_SOURCE[0]}")/lib/timeout-guard.sh"
 SESSION_TIMEOUT="${CLAUDE_CRITIC_SESSION_TIMEOUT:-3600}"
-
-if [[ -z "$TIMEOUT_CMD" ]] && [[ "$SESSION_TIMEOUT" != "0" ]]; then
-  bash "$PLAN_FILE_SH" append-note "$PLAN" \
-    "[BLOCKED:env] ${AGENT}: no-timeout-binary — install GNU coreutils (brew install coreutils) or set CLAUDE_CRITIC_SESSION_TIMEOUT=0 to disable the cap" 2>/dev/null || true
-  echo "[BLOCKED:env] ${AGENT}: no-timeout-binary — install GNU coreutils or set CLAUDE_CRITIC_SESSION_TIMEOUT=0" >&2
-  exit 1
-fi
+timeout_guard_init "$SESSION_TIMEOUT" CLAUDE_CRITIC_SESSION_TIMEOUT "${AGENT}" "$PLAN" "$PLAN_FILE_SH"
 
 iter=0
 LAST_PLAN_HASH=$(md5 -q "$PLAN" 2>/dev/null || md5sum "$PLAN" | cut -d' ' -f1)
@@ -132,7 +126,7 @@ while true; do
     _review_log="${_log_dir}/codex-critic-${AGENT}-last.log"
     _codex_review_exit=0
     if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
-      "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
+      "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
         codex exec --full-auto - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
     else
       codex exec --full-auto - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
@@ -218,7 +212,7 @@ while true; do
         _pass_check_out=""
         _pass_cmd=()
         [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
-          _pass_cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
+          _pass_cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
         _pass_cmd+=(claude --model sonnet --dangerously-skip-permissions --permission-mode auto \
           -p "$(cat "$_pass_audit_prompt")")
         rm -f "$_pass_audit_prompt"
@@ -257,7 +251,7 @@ while true; do
       _decision_out=""
       _dec_cmd=()
       [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
-        _dec_cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
+        _dec_cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
       _dec_cmd+=(claude --model sonnet --dangerously-skip-permissions --permission-mode auto \
         -p "$(cat "$_decision_prompt")")
       rm -f "$_decision_prompt"
@@ -297,7 +291,7 @@ while true; do
           _fix_log="${_log_dir}/codex-critic-${AGENT}-fix.log"
           _fix_exit=0
           if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
-            "$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT" \
+            "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
               codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
           else
             codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
@@ -336,7 +330,7 @@ or
     fi
     _session_out=$(mktemp)
     _cmd=()
-    [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=30 "$SESSION_TIMEOUT")
+    [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
     _cmd+=(claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT")
     _env_unset=()
     [[ "$AGENT" != "pr-review" ]] && _env_unset=(-u CLAUDE_PLAN_CAPABILITY)
