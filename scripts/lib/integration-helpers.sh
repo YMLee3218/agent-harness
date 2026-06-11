@@ -38,7 +38,7 @@ _handle_spec_phase_rollback() {
   llm_exit "writing-spec"
   while IFS= read -r _sp; do
     [[ -n "$_sp" ]] && git -C "$PROJECT_DIR" add "$_sp"
-  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
+  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $NF}')
   git -C "$PROJECT_DIR" diff --cached --quiet || \
     git -C "$PROJECT_DIR" commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
   bash "$PF" reset-milestone "$PLAN" critic-spec
@@ -68,6 +68,12 @@ _handle_spec_phase_rollback() {
   CRITIC_TEST_COMMAND="${UNIT_CMD}" \
   run_critic critic-test red "Review updated tests for integration fix. Spec: ${_feature_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
+  while IFS= read -r _tf_file; do
+    [[ -n "$_tf_file" ]] && git -C "$PROJECT_DIR" add "$_tf_file"
+  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | awk '{print $NF}' \
+           | grep -E '^tests/|(^|/)conftest\.|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$')
+  git -C "$PROJECT_DIR" diff --cached --quiet || \
+    git -C "$PROJECT_DIR" commit -m "test(red): apply critic-test fixes for integration ${_cat//' '/-} fix"
   bash "$PF" transition "$PLAN" implement "tests updated for integration fix — implementing"
   bash "$PF" inter-feature-reset "$PLAN"
   run_llm "Invoke the implementing skill for updated spec. Plan: $PLAN" opus

@@ -70,7 +70,7 @@ _phase_spec_prepass() {
 
     while IFS= read -r _sp_file; do
       [[ -n "$_sp_file" ]] && git -C "$PROJECT_DIR" add "$_sp_file"
-    done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $2}')
+    done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $NF}')
     git -C "$PROJECT_DIR" diff --cached --quiet || \
       git -C "$PROJECT_DIR" commit -m "feat(spec): add BDD scenarios for ${feature}"
   done < <(get_features)
@@ -212,8 +212,8 @@ _impl_run_test_phase() {
   # Same pattern as spec phase committing critic-spec fixes above.
   while IFS= read -r _tf_file; do
     [[ -n "$_tf_file" ]] && git -C "$PROJECT_DIR" add "$_tf_file"
-  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | awk '{print $2}' \
-           | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$')
+  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | awk '{print $NF}' \
+           | grep -E '^tests/|(^|/)conftest\.|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$')
   git -C "$PROJECT_DIR" diff --cached --quiet || \
     git -C "$PROJECT_DIR" commit -m "test(red): apply critic-test fixes for ${feature}"
   touch "$_test_marker" 2>/dev/null || true
