@@ -1017,7 +1017,7 @@ cmd_tier_safe() {
       blocked_tasks="${blocked_tasks} ${task_id}(ledger:blocked)"
       continue
     fi
-    if grep -qF "[BLOCKED:code] coder:${task_id}" "$plan_file" 2>/dev/null; then
+    if grep -qF "[BLOCKED:code] coder:${task_id}:" "$plan_file" 2>/dev/null; then
       blocked_tasks="${blocked_tasks} ${task_id}([BLOCKED:code] coder)"
     fi
   done
