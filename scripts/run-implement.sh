@@ -184,8 +184,8 @@ for tier in domain infrastructure features; do
       git merge --abort 2>/dev/null || true
       for _remaining in "${parallel_ids[@]:-}"; do
         [[ -n "$_remaining" ]] || continue
-        awk -v id="$_remaining" '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&$0~id{print}' "$PLAN" \
-          | grep -q 'completed' || cleanup_wt "$_remaining" 2>/dev/null || true
+        _rem_st=$(awk -v tid="$_remaining" '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/^\| /{split($0,a,"|"); id=a[2]; gsub(/^ +| +$/,"",id); if(id==tid){st=a[4]; gsub(/^ +| +$/,"",st); print st; exit}}' "$PLAN" 2>/dev/null || true)
+        [[ "$_rem_st" == "completed" ]] || cleanup_wt "$_remaining" 2>/dev/null || true
       done
       OVERALL_BLOCKED=1
       break 2

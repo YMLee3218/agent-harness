@@ -70,7 +70,8 @@ _phase_spec_prepass() {
 
     while IFS= read -r _sp_file; do
       [[ -n "$_sp_file" ]] && git -C "$PROJECT_DIR" add "$_sp_file"
-    done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $NF}')
+    done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | awk '{print $NF}' \
+             | grep -E '(^|/)spec\.md$|\.spec\.md$')
     git -C "$PROJECT_DIR" diff --cached --quiet || \
       git -C "$PROJECT_DIR" commit -m "feat(spec): add BDD scenarios for ${feature}"
   done < <(get_features)

@@ -38,7 +38,8 @@ _handle_spec_phase_rollback() {
   llm_exit "writing-spec"
   while IFS= read -r _sp; do
     [[ -n "$_sp" ]] && git -C "$PROJECT_DIR" add "$_sp"
-  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | grep 'spec\.md' | awk '{print $NF}')
+  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | awk '{print $NF}' \
+           | grep -E '(^|/)spec\.md$|\.spec\.md$')
   git -C "$PROJECT_DIR" diff --cached --quiet || \
     git -C "$PROJECT_DIR" commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
   bash "$PF" reset-milestone "$PLAN" critic-spec
