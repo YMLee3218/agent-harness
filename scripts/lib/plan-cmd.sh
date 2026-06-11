@@ -895,7 +895,7 @@ cmd_reset_milestone() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-milestone")
   local scope; scope=$(_scope_of "$current_phase" "$agent")
-  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] ${agent}"
+  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] ${agent}:"
   cmd_clear_marker "$plan_file" "[RECURRING] ${agent}:"
   _clear_ceiling_sidecar_entry "$plan_file" "${scope}"
   _clear_transient_for "$plan_file" "$agent" 2>/dev/null || true
@@ -913,7 +913,7 @@ cmd_reset_pr_review() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-pr-review")
   for phase in implement review; do
-    cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] pr-review"
+    cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] pr-review:"
     _clear_ceiling_sidecar_entry "$plan_file" "${phase}/pr-review"
     local ts
     ts=$(_iso_timestamp)
@@ -933,7 +933,7 @@ cmd_reset_phase_state() {
   cmd_set_phase "$plan_file" "$target_phase"
   cmd_reset_milestone "$plan_file" critic-code
   cmd_reset_pr_review "$plan_file"
-  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-code"
+  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-code:"
   _clear_ceiling_sidecar_entry "$plan_file" "review/critic-code"
   _reset_all_transient_counters "$plan_file" 2>/dev/null || true
   echo "[reset-for-rollback] phase set to ${target_phase}; critic-code and pr-review state cleared" >&2
