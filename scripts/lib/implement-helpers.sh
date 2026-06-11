@@ -19,7 +19,7 @@ get_field() {
 
 # make_prompt ID — prints the full task prompt for a Codex worker.
 make_prompt() {
-  local id="$1" goal layer files spec failing_test code="" lint_constraint="" lint_cmd_line=""
+  local id="$1" goal layer files spec failing_test failing_test_file code="" lint_constraint="" lint_cmd_line=""
   goal=$(get_field "$id" goal); layer=$(get_field "$id" layer)
   files=$(get_field "$id" files); spec=$(get_field "$id" spec)
   failing_test=$(get_field "$id" failing_test)
@@ -43,10 +43,10 @@ make_prompt() {
   fi
   local test_cmd_display run_instruction implement_instruction failing_test_section
   if [[ -n "$failing_test" ]]; then
-    test_cmd_display="${TEST_CMD} \"${failing_test}\""
-    run_instruction="After the failing test passes, refactor within the code you wrote. After every change, run ONLY the Test command below — do NOT run the full test suite."
-    implement_instruction="Implement the minimum code needed to pass the failing test. Nothing more."
-    failing_test_section="Failing test: ${failing_test}
+    test_cmd_display="${TEST_CMD} \"${failing_test_file}\""
+    implement_instruction="Implement code to pass ALL tests in ${failing_test_file}. The inline test below is a representative sample only — the file contains additional tests you must also satisfy."
+    run_instruction="Before writing any code, read ${failing_test_file} in full to understand every test you must pass. After each change, run the Test command below (the entire test file — this is identical to the gate). Iterate until ALL tests in the file pass. Do NOT run the full project suite — other task files are still red."
+    failing_test_section="Representative test (from ${failing_test_file} — read the full file for all tests):
 ${code}
 
 "
