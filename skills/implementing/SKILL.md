@@ -26,7 +26,7 @@ Phase entry protocol: @reference/phase-ops.md §Skill phase entry — expected p
 
 **Phase `red` — plan task list:**
 
-- The harness pre-resolves the primary spec path; it is available in `${IMPLEMENTING_SPEC_PATH}`. If unset (interactive mode), locate it from `${IMPLEMENTING_PLAN_PATH:-$CLAUDE_PLAN_FILE}` via the feature slug. Read the `## Test Manifest` from the plan file; generate tasks **only** for entries marked `→ RED` — skip entries marked `→ GREEN (pre-existing)` (these already pass and must not receive implementation tasks). One task = one implementation unit (the file/module listed in `files`). Group all RED tests that drive the same unit into that one task, and set `failing_test` to one representative RED test as the gate. Split into separate tasks only when they modify different files/units (enables parallelism and isolates failures). **Never split a test file across tasks**: all test functions within one test file must belong to a single task — the gate runs the entire test file, so a partial implementation of one file will block the task. If one test file tests multiple independent units, either merge those units into one task or split the test file into per-unit files first (during the red/testing phase). Then read the failing test files, the spec file, and existing domain/feature structure.
+- The harness pre-resolves the primary spec path; it is available in `${IMPLEMENTING_SPEC_PATH}`. If unset (interactive mode), locate it from `${IMPLEMENTING_PLAN_PATH:-$CLAUDE_PLAN_FILE}` via the feature slug. Read the `## Test Manifest` from the plan file; generate tasks **only** for entries marked `→ RED` — skip entries marked `→ GREEN (pre-existing)` (these already pass and must not receive implementation tasks). One task = one implementation unit (the file/module listed in `files`). Group all RED tests that drive the same unit into that one task, and set `failing_test` to one representative RED test as the gate. Split into separate tasks only when they modify different files/units (enables parallelism and isolates failures). **Never split a test file across tasks**: all test functions within one test file must belong to a single task — the gate runs the entire test file, so a partial implementation of one file will block the task. The Red-phase cardinality check (critic-test Check 5) ensures each test file covers exactly one spec before implementing begins. If a multi-unit test file somehow reaches this stage, the correct resolution is to return to the Red phase and re-split the file — never merge multiple specs into one oversized task. Then read the failing test files, the spec file, and existing domain/feature structure.
 
 Reuse any existing adapter whose interface already matches the requirement; if none, create a minimal new adapter. Log `[AUTO-DECIDED] implementing/Step1: {decision}` to `## Open Questions`.
 
@@ -75,9 +75,10 @@ Then write the `## Task Definitions` JSON block in the plan file:
 - `layer` must be one of: `domain`, `infrastructure`, `features`
 - `files` is an array of exact file paths to create or modify
 - `failing_test` must be `tests/path/file.py::test_name` (specific test name required);
-  omitting `::test_name` inlines the entire test file verbatim into the Codex prompt — do not
-  omit it. This is a hard constraint: NOT subject to [AUTO-DECIDED] override. The orchestrator
-  enforces this and will block with [BLOCKED:env] missing-test-name if absent.
+  omitting `::test_name` inlines the entire test file verbatim into the Codex prompt (token
+  cost); the gate and review run at file scope regardless — do not omit it. This is a hard
+  constraint: NOT subject to [AUTO-DECIDED] override. The orchestrator enforces this and will
+  block with [BLOCKED:env] missing-test-name if absent.
   Leave the field empty only when the test runner does not support positional path selection
   (e.g. `go test`, `cargo test`).
 - `parallel: true` only when there is no cross-task dependency within the same layer tier

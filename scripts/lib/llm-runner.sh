@@ -43,7 +43,14 @@ llm_exit() {
 }
 
 _recent_test_files() {
-  git -C "$PROJECT_DIR" diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | tr '\n' ' ' || true
+  local _red_sha _files
+  _red_sha=$(git -C "$PROJECT_DIR" log --grep='^test(red):' --format='%H' 2>/dev/null | head -1 || true)
+  if [[ -n "$_red_sha" ]]; then
+    _files=$(git -C "$PROJECT_DIR" show --name-only --format= "$_red_sha" 2>/dev/null | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | tr '\n' ' ' || true)
+  else
+    _files=$(git -C "$PROJECT_DIR" diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | tr '\n' ' ' || true)
+  fi
+  echo "${_files:-tests/}"
 }
 
 find_spec_path() {

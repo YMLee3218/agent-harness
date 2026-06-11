@@ -51,8 +51,8 @@ ${code}
 
 "
   else
-    test_cmd_display="(none — single-test gate handled by the harness)"
-    run_instruction="Do NOT run the full test suite — in this TDD red phase it fails until all tasks land. Implement strictly to satisfy the Spec below; the harness verifies tests for you."
+    test_cmd_display="(no per-task test gate for this runner — covered by smoke + critic-code)"
+    run_instruction="Do NOT run the full test suite — in this TDD red phase it fails until all tasks land. Implement strictly to satisfy the Spec below. The gate (smoke) and code critic run at file scope after all tasks complete."
     implement_instruction="Implement the minimum code to satisfy the Spec below. Nothing more."
     failing_test_section=""
   fi

@@ -51,7 +51,7 @@ done < <(printf '%s' "$TASK_JSON" | jq -r '.[] | [.id, .layer] | @tsv')
 while IFS=$'\t' read -r _id _ft; do
   [[ -z "$_ft" ]] && continue
   if [[ "$_ft" != *::* ]]; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED:env] implement: missing-test-name — task ${_id} failing_test '${_ft}' has no ::test_name suffix; omitting it inlines the entire test file into the Codex prompt; fix task definitions and re-run implementing skill"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:env] implement: missing-test-name — task ${_id} failing_test '${_ft}' has no ::test_name suffix; ::test_name is required to avoid inlining the entire test file into the Codex prompt (token cost); the gate and review run at file scope regardless; fix task definitions and re-run implementing skill"
     exit 1
   fi
 done < <(printf '%s' "$TASK_JSON" | jq -r '.[] | [.id, (.failing_test // "")] | @tsv')

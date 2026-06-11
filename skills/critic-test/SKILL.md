@@ -109,7 +109,7 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
 
 3. Test quality → category: `TEST_QUALITY` — each test maps to exactly one Scenario; names follow "should {outcome} when {condition}"; no implementation logic inside tests. (→ [FAIL])
 
-4. Confirm all tests fail — run the test command. Every newly written test must fail.
+4. Confirm all tests fail — run `{test_command} {test_files}` (scoped to the reviewed files only — not the full suite, which may have other features still red). Every newly written test must fail.
 
    Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed to pass. For each GREEN entry, verify with git that the test file predates the Red-phase commit:
    ```bash
@@ -123,6 +123,16 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
 
    Flag any test that passes but is NOT marked GREEN (pre-existing). (→ [FAIL])
 
+5. Test file cardinality → category: `STRUCTURAL` — each test file must contain scenarios from exactly one spec file (one concept or feature).
+
+   For each file in {test_files}:
+   a. Identify the spec this file corresponds to from its path (e.g. `tests/domain/scene/…` → `domain/scene/spec.md`; `tests/features/add-scene/…` → `features/add-scene/spec.md`).
+   b. Read the test file and identify which domain concepts, features, or infrastructure components its tests target (by imports, function names, and assertions).
+   c. If a single test file's tests target more than one distinct spec (e.g. domain VO equality tests AND feature scenario tests are in the same file), emit:
+      `[FAIL] category: STRUCTURAL — {file}: bundles tests for multiple units/specs ({list concepts}); split into one file per spec during the Red phase`
+
+   Domain value objects have their own spec (`domain/{concept}/spec.md`). Their equality scenarios (field-wise equality / field-wise inequality `Scenario Outline` rows) must not appear in a feature test file — they must be in a test file dedicated to that domain concept.
+
 ## Output format
 
 ```
@@ -132,6 +142,10 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
 [MISSING] Scenario "{name}": no test found — new test required
 [MANIFEST-GAP] Scenario "{name}": covered by {file}::{test_name} (pre-existing) — add to Test Manifest
 None: "All scenarios covered"
+
+### Structural Issues
+[FAIL] category: STRUCTURAL — {file}: bundles tests for multiple units/specs; split into one file per spec
+None: "All test files map to a single spec"
 
 ### Mocking Issues
 [FAIL] {test file}:{line} — {wrong}: {correct}
@@ -154,6 +168,7 @@ GREEN integrity violations: {list or "none"}
 - Mocking level violation (Check 2)                   → LAYER_VIOLATION
 - Scenario coverage gap, no test exists (Check 1)     → MISSING_SCENARIO
 - Manifest mapping missing, pre-existing test covers (Check 1) → STRUCTURAL
+- Test file bundles multiple specs (Check 5)          → STRUCTURAL
 - Test quality (Check 3)                              → TEST_QUALITY
 - Envelope section missing (Envelope Discipline)      → ENVELOPE_MISMATCH
 - Test verifies out-of-envelope scenario              → ENVELOPE_OVERREACH

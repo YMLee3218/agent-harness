@@ -43,6 +43,11 @@ Scenario: {name}
   Name: "should {outcome} when {condition}"
 ```
 
+File assignment rules (enforced by critic-test):
+- Each test file contains scenarios from **exactly one spec file** (one concept or feature). Never mix scenarios from different specs in one file.
+- Domain value objects have their own spec (`domain/{concept}/spec.md`) and must have their own dedicated test file — do not co-locate domain VO equality scenarios in a feature test file.
+- Different specs → different files; choose paths that reflect the spec boundary (e.g. `tests/domain/{concept}/test_{concept}.py` for domain specs, `tests/features/{verb-noun}/test_{verb_noun}.py` for feature specs).
+
 Proceed directly to Step 3.
 
 ## Step 3 — Delegate test writing to Codex
