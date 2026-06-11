@@ -109,7 +109,7 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
 
 3. Test quality → category: `TEST_QUALITY` — each test maps to exactly one Scenario; names follow "should {outcome} when {condition}"; no implementation logic inside tests. (→ [FAIL])
 
-4. Confirm all tests fail — run `{test_command} {test_files}` (scoped to the reviewed files only — not the full suite, which may have other features still red). Every newly written test must fail.
+4. Confirm all tests fail — run `{test_command} {test_files}`. `{test_files}` is the test files from the latest `test(red):` commit (this feature's, in the normal one-feature-per-`test(red):`-commit flow), so this scopes the run to the reviewed files rather than the whole suite. If `{test_files}` could not be derived it falls back to the `tests/` tree (full suite) — acceptable only in that degraded case. Every newly written test must fail.
 
    Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed to pass. For each GREEN entry, verify with git that the test file predates the Red-phase commit:
    ```bash

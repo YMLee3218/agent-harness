@@ -52,7 +52,7 @@ ${code}
 "
   else
     test_cmd_display="(no per-task test gate for this runner — covered by smoke + critic-code)"
-    run_instruction="Do NOT run the full test suite — in this TDD red phase it fails until all tasks land. Implement strictly to satisfy the Spec below. The gate (smoke) and code critic run at file scope after all tasks complete."
+    run_instruction="Do NOT run the full test suite — in this TDD red phase it fails until all tasks land. Implement strictly to satisfy the Spec below. After all tasks complete, a smoke run (full suite) and critic-code (file-scoped review) verify the result."
     implement_instruction="Implement the minimum code to satisfy the Spec below. Nothing more."
     failing_test_section=""
   fi

@@ -206,6 +206,15 @@ _impl_run_test_phase() {
   CRITIC_TEST_COMMAND="${UNIT_CMD}" \
   run_critic critic-test red "Review tests for feature: ${feature}. Spec: $(find_spec_path "$feat_slug"). Test files: ${_test_files:-tests/}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
+  # critic-test fixes tests in-place (no commit). Commit them now so the implement worktree
+  # (branched from HEAD) sees the corrected files, and so the integrity baseline is updated.
+  # Same pattern as spec phase committing critic-spec fixes above.
+  while IFS= read -r _tf_file; do
+    [[ -n "$_tf_file" ]] && git -C "$PROJECT_DIR" add "$_tf_file"
+  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | awk '{print $2}' \
+           | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$')
+  git -C "$PROJECT_DIR" diff --cached --quiet || \
+    git -C "$PROJECT_DIR" commit -m "test(red): apply critic-test fixes for ${feature}"
   touch "$_test_marker" 2>/dev/null || true
 }
 
