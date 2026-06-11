@@ -193,13 +193,14 @@ _impl_run_test_phase() {
     bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md"
     exit 1
   fi
+  local _pre_test_sha; _pre_test_sha=$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || echo "")
   WRITING_TESTS_SPEC_PATH="$(find_spec_path "$feat_slug")" \
   WRITING_TESTS_PLAN_PATH="${PLAN}" \
   WRITING_TESTS_COMMAND="${UNIT_CMD}" \
   run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
   llm_exit "writing-tests"
   bash "$PF" reset-milestone "$PLAN" critic-test
-  local _test_files; _test_files=$(_recent_test_files)
+  local _test_files; _test_files=$(_recent_test_files "$_pre_test_sha")
   CRITIC_SPEC_PATH="$(find_spec_path "$feat_slug")" \
   CRITIC_TEST_FILES="${_test_files:-tests/}" \
   CRITIC_PLAN_PATH="${PLAN}" \

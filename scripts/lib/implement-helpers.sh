@@ -171,6 +171,11 @@ _run_failing_test() {
   failing_test=$(get_field "$id" failing_test)
   [[ -z "$failing_test" ]] && return 0
   test_file="${failing_test%%::*}"
+  if [[ ! -f "$wt/$test_file" ]]; then
+    bash "$PF" update-task "$PLAN" "$id" blocked
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: missing-test-file — failing_test path ${test_file} not in worktree (stale task definitions, likely a critic-test re-split changed test paths; re-run the implementing skill to regenerate task definitions)"
+    return 1
+  fi
   local _ec=0
   (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} bash -c "$TEST_CMD \"\$1\"" -- "$test_file" 2>&1) || _ec=$?
   if [[ "$_ec" -ne 0 ]]; then

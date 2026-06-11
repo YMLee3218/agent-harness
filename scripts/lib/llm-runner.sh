@@ -42,12 +42,20 @@ llm_exit() {
   esac
 }
 
+# _recent_test_files [since_sha] — test files from the latest test(red): commit.
+# With since_sha, restrict to commits in since_sha..HEAD so a feature whose writing-tests
+# produced no commit does NOT inherit a prior feature's test files (cross-feature contamination).
 _recent_test_files() {
-  local _red_sha _files
-  _red_sha=$(git -C "$PROJECT_DIR" log --grep='^test(red):' --format='%H' 2>/dev/null | head -1 || true)
+  local _since="${1:-}" _red_sha _files=""
+  if [[ -n "$_since" ]]; then
+    _red_sha=$(git -C "$PROJECT_DIR" log --grep='^test(red):' --format='%H' "${_since}..HEAD" 2>/dev/null | head -1 || true)
+  else
+    _red_sha=$(git -C "$PROJECT_DIR" log --grep='^test(red):' --format='%H' 2>/dev/null | head -1 || true)
+  fi
   if [[ -n "$_red_sha" ]]; then
     _files=$(git -C "$PROJECT_DIR" show --name-only --format= "$_red_sha" 2>/dev/null | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | tr '\n' ' ' || true)
-  else
+  elif [[ -z "$_since" ]]; then
+    # Legacy callers only: fall back to last commit's test files when no test(red): exists.
     _files=$(git -C "$PROJECT_DIR" diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '^tests/|_test\.|^test_|\.test\.|\.spec\.|_spec\.' | tr '\n' ' ' || true)
   fi
   echo "${_files:-tests/}"

@@ -55,12 +55,13 @@ _handle_spec_phase_rollback() {
   llm_exit "critic-cross"
   bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
   bash "$PF" reset-milestone "$PLAN" critic-test
+  local _pre_test_sha; _pre_test_sha=$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || echo "")
   WRITING_TESTS_SPEC_PATH="${_feature_specs}" \
   WRITING_TESTS_PLAN_PATH="${PLAN}" \
   WRITING_TESTS_COMMAND="${UNIT_CMD}" \
   run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN" sonnet
   llm_exit "writing-tests"
-  _test_files=$(_recent_test_files)
+  _test_files=$(_recent_test_files "$_pre_test_sha")
   CRITIC_SPEC_PATH="${_feature_specs}" \
   CRITIC_TEST_FILES="${_test_files:-tests/}" \
   CRITIC_PLAN_PATH="${PLAN}" \
