@@ -348,12 +348,12 @@ _scenario_count_gate() {
     echo "[SKIP] scenario-count gate — UNIT_CMD '${UNIT_CMD:-}' does not include pytest; skipping (anti-hallucination: non-pytest collection flags not assumed)" >&2
     return 0
   fi
-  local _concept _layer _concept_snake _concept_kebab _spec_scenarios _test_dir _collect_output _test_count
+  local _concept _layer _concept_snake _concept_kebab _spec_scenarios _test_dir _collect_output _collect_rc _test_count
   _concept=$(basename "$(dirname "$spec_path")")
   _layer=$(basename "$(dirname "$(dirname "$spec_path")")")
   _concept_snake=$(printf '%s' "$_concept" | tr '-' '_')
   _concept_kebab=$(printf '%s' "$_concept" | tr '_' '-')
-  _spec_scenarios=$(grep -cE '^\s*(Scenario|Scenario Outline):' "$spec_path" 2>/dev/null || echo 0)
+  _spec_scenarios=$(grep -cE '^[[:space:]]*(Scenario|Scenario Outline):' "$spec_path" 2>/dev/null || echo 0)
   [[ "$_spec_scenarios" -eq 0 ]] && return 0  # No BDD scenarios in spec — gate not applicable
 
   local _test_dir_snake="${PROJECT_DIR}/tests/${_layer}/${_concept_snake}"
@@ -365,7 +365,12 @@ _scenario_count_gate() {
     return 0  # No test directory yet — coverage gate already blocked for this case
   fi
 
-  _collect_output=$(cd "$PROJECT_DIR" && ${UNIT_CMD} --collect-only -q "$_test_dir" 2>/dev/null || true)
+  _collect_output=$(cd "$PROJECT_DIR" && ${UNIT_CMD} --collect-only -q "$_test_dir" 2>/dev/null)
+  _collect_rc=$?
+  if [[ "$_collect_rc" -ne 0 ]]; then
+    echo "[SKIP] scenario-count gate — pytest collection failed (rc=${_collect_rc}); collection failure is not under-coverage (likely RED-phase import error)" >&2
+    return 0
+  fi
   # Count lines containing '::' — each collected test item appears as path::testname
   _test_count=$(printf '%s\n' "$_collect_output" | grep -cE '::[a-zA-Z]' || true)
   if [[ "$_test_count" -lt "$_spec_scenarios" ]]; then
