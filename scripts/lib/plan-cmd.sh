@@ -183,7 +183,7 @@ cmd_find_active() {
       [ -z "$found" ] && found="$f"
     fi
   done < <(find "$plans_dir" -maxdepth 1 -name '*.md' -print0 2>/dev/null | sort -z)
-  if [ "$malformed" -gt 0 ] && [ "$count" -eq 0 ]; then
+  if [ "$malformed" -gt 0 ]; then
     echo "ERROR: ${malformed} plan file(s) exist but phase is unreadable — repair the ## Phase section before stopping." >&2
     exit 4
   elif [ "$count" -eq 0 ]; then

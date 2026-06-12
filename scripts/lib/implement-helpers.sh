@@ -221,6 +221,11 @@ verify_task() {
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
     return 1
   fi
+  if [[ "$last_status" == *"coder-status: abort"* ]]; then
+    bash "$PF" update-task "$PLAN" "$id" blocked
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
+    return 1
+  fi
   if [[ "$last_status" != *"coder-status: complete"* ]]; then
     _run_failing_test "$id" "$wt" || return 1
   fi

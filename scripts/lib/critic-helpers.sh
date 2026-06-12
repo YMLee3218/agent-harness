@@ -18,6 +18,10 @@ _is_codex_driven_agent() {
   return 1
 }
 
+# _sed_rval VAL — escape a string for use as a sed replacement value when | is the delimiter.
+# Escapes: \ (must come first), & (means "matched text" in sed replacement), | (delimiter).
+_sed_rval() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/&/\\&/g' -e 's/|/\\|/g'; }
+
 # build_review_prompt AGENT OUT_FILE
 # Extracts the Codex prompt template from skills/{agent}/SKILL.md (strips YAML frontmatter),
 # substitutes placeholders, writes filled prompt to OUT_FILE.
@@ -37,17 +41,17 @@ build_review_prompt() {
   [[ -z "$_template" ]] && { echo "[critic-helpers] ERROR: no content after frontmatter in $_skill" >&2; return 1; }
 
   printf '%s\n' "$_template" | sed \
-    -e "s|{spec_path}|${CRITIC_SPEC_PATH:-}|g" \
-    -e "s|{docs_paths}|${CRITIC_DOCS_PATHS:-}|g" \
-    -e "s|{plan_path}|${CRITIC_PLAN_PATH:-}|g" \
-    -e "s|{test_files}|${CRITIC_TEST_FILES:-}|g" \
-    -e "s|{test_command}|${CRITIC_TEST_COMMAND:-}|g" \
-    -e "s|{all_spec_paths}|${CRITIC_ALL_SPEC_PATHS:-}|g" \
-    -e "s|{language}|${CRITIC_LANGUAGE:-}|g" \
-    -e "s|{domain_root}|${CRITIC_DOMAIN_ROOT:-}|g" \
-    -e "s|{infra_root}|${CRITIC_INFRA_ROOT:-}|g" \
-    -e "s|{features_root}|${CRITIC_FEATURES_ROOT:-}|g" \
-    -e "s|\${PROJECT_DIR}|${CLAUDE_PROJECT_DIR:-}|g" \
+    -e "s|{spec_path}|$(_sed_rval "${CRITIC_SPEC_PATH:-}")|g" \
+    -e "s|{docs_paths}|$(_sed_rval "${CRITIC_DOCS_PATHS:-}")|g" \
+    -e "s|{plan_path}|$(_sed_rval "${CRITIC_PLAN_PATH:-}")|g" \
+    -e "s|{test_files}|$(_sed_rval "${CRITIC_TEST_FILES:-}")|g" \
+    -e "s|{test_command}|$(_sed_rval "${CRITIC_TEST_COMMAND:-}")|g" \
+    -e "s|{all_spec_paths}|$(_sed_rval "${CRITIC_ALL_SPEC_PATHS:-}")|g" \
+    -e "s|{language}|$(_sed_rval "${CRITIC_LANGUAGE:-}")|g" \
+    -e "s|{domain_root}|$(_sed_rval "${CRITIC_DOMAIN_ROOT:-}")|g" \
+    -e "s|{infra_root}|$(_sed_rval "${CRITIC_INFRA_ROOT:-}")|g" \
+    -e "s|{features_root}|$(_sed_rval "${CRITIC_FEATURES_ROOT:-}")|g" \
+    -e "s|\${PROJECT_DIR}|$(_sed_rval "${CLAUDE_PROJECT_DIR:-}")|g" \
     > "$_out"
 }
 
@@ -109,6 +113,8 @@ Special cases:
 - All FALSE-POSITIVE → AUDIT: ACCEPT-OVERRIDE, omit FIX-PLAN.
 - Any AMBIGUOUS → AUDIT: BLOCKED-AMBIGUOUS; FIX-PLAN for GENUINE only; add per AMBIGUOUS:
   [BLOCKED:spec] ${_agent}: ambiguous — {one-sentence human question}
+  Exception — DOCS_CONTRADICTION finding where docs may be stale and fix direction is unclear: emit instead:
+  [BLOCKED:docs] ${_agent}: contradiction — docs may be stale, ground truth ambiguous; apply cascade
 DECISION_PROMPT
 }
 

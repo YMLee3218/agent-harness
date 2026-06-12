@@ -21,6 +21,7 @@
       "Bash(gh auth status)",
       "Bash(gh pr view *)",
       "Bash(gh pr create *)",
+      "Bash(gh pr close *)",
       "Bash(sed *)",
       "Bash(grep *)",
       "Bash(test *)",

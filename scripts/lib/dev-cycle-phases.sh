@@ -375,7 +375,7 @@ _scenario_count_gate() {
   _test_count=$(printf '%s\n' "$_collect_output" | grep -cE '::[a-zA-Z]' || true)
   if [[ "$_test_count" -lt "$_spec_scenarios" ]]; then
     bash "$PF" append-note "$PLAN" \
-      "[BLOCKED:code] coverage: under-scenario-count — ${spec_path}; ${_test_count} tests < ${_spec_scenarios} scenarios (하한 미달) — 사람 조사"
+      "[BLOCKED:code] coverage: under-scenario-count — ${spec_path}; ${_test_count} tests < ${_spec_scenarios} scenarios — manual investigation required"
     exit 1
   fi
 }

@@ -84,10 +84,11 @@ Print the test results, then for each test file you created or modified emit one
   TEST_OUTCOME: {file}::{test_name} -> RED | GREEN_PRE_EXISTING
 End with: === TEST-WRITER DONE ===
 CODEX_PROMPT
+_sed_rval() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/&/\\&/g' -e 's/|/\\|/g'; }
 sed \
-  -e "s|{spec_path}|${_spec_path}|g" \
-  -e "s|{plan_path}|${_plan_path}|g" \
-  -e "s|{test_command}|${_test_command}|g" \
+  -e "s|{spec_path}|$(_sed_rval "${_spec_path}")|g" \
+  -e "s|{plan_path}|$(_sed_rval "${_plan_path}")|g" \
+  -e "s|{test_command}|$(_sed_rval "${_test_command}")|g" \
   "$_tw_template" > "$_codex_prompt"
 rm -f "$_tw_template"
 codex exec --full-auto - < "$_codex_prompt" > "$_codex_log" 2>&1

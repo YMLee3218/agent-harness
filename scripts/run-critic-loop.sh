@@ -272,12 +272,12 @@ while true; do
       bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "$_audit_outcome" \
         "$(printf '%s' "$_decision_out" | head -3 | tr '\n' ' ' | cut -c1-120)" 2>/dev/null || true
 
-      # For BLOCKED-AMBIGUOUS: append [BLOCKED:spec] markers from decision output
+      # For BLOCKED-AMBIGUOUS: append [BLOCKED:spec] and [BLOCKED:docs] markers from decision output
       if [[ "$_audit_outcome" == "BLOCKED-AMBIGUOUS" ]]; then
         while IFS= read -r _bs_line; do
           [[ -n "$_bs_line" ]] || continue
           bash "$PLAN_FILE_SH" append-note "$PLAN" "$_bs_line" 2>/dev/null || true
-        done < <(printf '%s' "$_decision_out" | grep '^\[BLOCKED:spec\]' || true)
+        done < <(printf '%s' "$_decision_out" | grep -E '^\[BLOCKED:(spec|docs)\]' || true)
       fi
 
       # Apply Codex fix for GENUINE findings (skip on ACCEPT-OVERRIDE)
