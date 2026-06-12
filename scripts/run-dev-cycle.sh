@@ -152,6 +152,7 @@ fi
 _phase_spec_prepass
 _phase_domain_infra_spec_review
 _phase_cross_spec_review
+_phase_domain_infra_implement_cycle
 _phase_implement_cycle
 
 # ── Integration Tests ─────────────────────────────────────────────────────────

@@ -22,7 +22,9 @@ Single iteration spawned by `run-critic-loop.sh`. Do not loop — one pr-review 
 5. On FAIL: §Categorisation below → appropriate fix chain → §Fix-chain finisher → exit.
    Shell loop re-runs pr-review in the next iteration.
 
-**Categorisation** — interactive: `AskUserQuestion`; non-interactive: infer from evidence. If ambiguous, append `[BLOCKED:spec] pr-review: ambiguous — {question}` and stop.
+**Categorisation** — interactive: `AskUserQuestion`; non-interactive: infer from evidence.
+- If the review finds a spec with scenarios but no corresponding test file: append `[BLOCKED:code] pr-review: missing-test-coverage — {spec}; upstream coverage gate failure (harness anomaly) — do not self-heal, investigate root cause` and stop.
+- If otherwise ambiguous, append `[BLOCKED:spec] pr-review: ambiguous — {question}` and stop.
 
 **Fix chains on FAIL** — **(if not already in `review` phase)** transition to `review` before fixing; remain in `review` for all subsequent FAILs:
 
