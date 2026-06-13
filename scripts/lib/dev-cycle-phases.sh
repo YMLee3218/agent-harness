@@ -8,6 +8,14 @@ _DEV_CYCLE_PHASES_LOADED=1
 # All functions use globals set by run-dev-cycle.sh:
 #   PF PLAN PROJECT_DIR SCRIPTS_DIR UNIT_CMD LINT_CMD _lang _domain_root _infra_root _features_root
 
+# _finalize_pr — idempotent: closes the plan's draft PR once the plan reaches done.
+# No-op if plan is not done or PR is not OPEN.
+_finalize_pr() {
+  [[ "$(bash "$PF" get-phase "$PLAN")" == "done" ]] || return 0
+  [[ "$(gh pr view --json state -q .state 2>/dev/null || echo)" == "OPEN" ]] || return 0
+  gh pr close --delete-branch --comment "Plan complete — closing without merge (developed via task-by-task workflow on the feature branch)" 2>/dev/null || true
+}
+
 # _phase_spec_prepass — write spec and run critic-spec for each feature (skip if converged).
 _phase_spec_prepass() {
   while IFS= read -r feature; do
@@ -292,14 +300,19 @@ _impl_run_review_phase() {
   if [[ "$phase_now" == "implement" ]]; then
     bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"
     bash "$PF" reset-pr-review "$PLAN"
-    gh pr view 2>/dev/null || gh pr create --draft --title "feat: ${feature}" --fill 2>/dev/null || {
-      bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: pr-create-failed — gh pr create failed; create PR manually then re-run"
-      exit 1
-    }
+    if ! gh pr view 2>/dev/null; then
+      local pr_log="${PLAN%.md}.state/pr-create.log"
+      if ! git push -u origin HEAD >"$pr_log" 2>&1 \
+         || ! gh pr create --draft --title "feat: ${feature}" --fill >>"$pr_log" 2>&1; then
+        bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: pr-create-failed — see ${pr_log##*/}; resolve (push/remote/auth) then re-run"
+        exit 1
+      fi
+    fi
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "review" ]] && \
      [[ ! -f "$_review_marker" ]]; then
+    git push origin HEAD >>"${PLAN%.md}.state/pr-create.log" 2>&1 || true
     pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
     run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}." "@reference/pr-review-loop.md §PR-review one-shot iteration"
     llm_exit "pr-review"
@@ -310,7 +323,6 @@ _impl_run_review_phase() {
      [[ -f "$_review_marker" ]]; then
     bash "$PF" transition "$PLAN" green "pr-review converged — feature complete"
     bash "$PF" mark-implemented "$PLAN" "$feat_slug"
-    gh pr close --delete-branch --comment "PR review converged — closing without merge (changes developed via task-by-task workflow on the feature branch)" 2>/dev/null || true
   fi
 }
 

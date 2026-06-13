@@ -5,7 +5,7 @@
 # on failure, appends [BLOCKED:env] preflight: markers to ## Open Questions and exits 2.
 #
 # Required tools (single source of truth):
-#   gh CLI (authenticated)  — running-dev-cycle runs gh pr create before pr-review; without auth PR step fails (skipped in B-sessions: CLAUDE_CRITIC_SESSION=1)
+#   gh CLI (authenticated)  — running-dev-cycle pushes the feature branch and creates a draft PR on first review entry; without auth the push/PR step fails (skipped in B-sessions: CLAUDE_CRITIC_SESSION=1)
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
 #   context7-plugin         — orchestrating Claude uses context7 to resolve [UNVERIFIED CLAIM] findings from critics
 #   pr-review-toolkit       — running-dev-cycle calls pr-review-toolkit:review-pr per feature (review phase); skipped in B-sessions: CLAUDE_CRITIC_SESSION=1

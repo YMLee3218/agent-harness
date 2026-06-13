@@ -140,6 +140,7 @@ if [[ "${current_phase:-}" == "integration" ]]; then
     echo "[SKIP] integration tests — no command found in CLAUDE.md"
     bash "$PF" transition "$PLAN" done "no integration test command — skipped"
   fi
+  _finalize_pr
   exit $?
 fi
 
@@ -165,3 +166,4 @@ else
   echo "[SKIP] integration tests — no command found in CLAUDE.md"
   bash "$PF" transition "$PLAN" done "no integration test command — skipped"
 fi
+_finalize_pr
