@@ -318,20 +318,26 @@ while true; do
     ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=${AGENT} phase=${PHASE} plan=${PLAN} prompt: ${PROMPT} ${_wrapped_plan_ref}${_prefill}"
 
     CRITIC_LOOP_MODEL="${CLAUDE_CRITIC_LOOP_MODEL:-opus}"
-    _nonce="" _session_out=""
+    _nonce="" _session_out="" _sid=""
     if [[ "$AGENT" == "pr-review" ]]; then
       _nonce=$(uuidgen 2>/dev/null || openssl rand -hex 16 2>/dev/null || printf '%s%s' "$$" "$(date +%s%N)")
+      _sid=$(uuidgen 2>/dev/null | tr 'A-Z' 'a-z' || true)
       ITER_PROMPT="${ITER_PROMPT}
 
-Output the review verdict marker before running the ultrathink audit, exactly:
+MANDATORY OUTPUT CONTRACT — the session is invalid without this:
+Print the review verdict marker as a literal raw line (NOT inside a code block,
+NOT described in prose — the exact bytes must appear in your output). Emit it before
+the ultrathink audit, exactly one of:
 <!-- review-verdict: ${_nonce} PASS -->
-or
-<!-- review-verdict: ${_nonce} FAIL -->"
+<!-- review-verdict: ${_nonce} FAIL -->
+Do NOT write \"I output the marker\" or refer to \"the marker above\" — actually print
+the line. The nonce ${_nonce} must appear verbatim."
     fi
     _session_out=$(mktemp)
     _cmd=()
     [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
     _cmd+=(claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT")
+    [[ -n "${_sid:-}" ]] && _cmd+=(--session-id "$_sid")
     _env_unset=()
     [[ "$AGENT" != "pr-review" ]] && _env_unset=(-u CLAUDE_PLAN_CAPABILITY)
     CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
@@ -370,6 +376,17 @@ or
       cat "$_session_out"
       _rv=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "$_session_out" | tail -1 | \
             sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
+      if [[ "$_rv" != "PASS" && "$_rv" != "FAIL" && -n "${_sid:-}" ]]; then
+        _retry_out=$(mktemp); _rcmd=()
+        [[ -n "$TIMEOUT_CMD" ]] && _rcmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
+        _rcmd+=(claude --resume "$_sid" --model "$CRITIC_LOOP_MODEL" --permission-mode auto \
+          --dangerously-skip-permissions -p "Output ONLY the review verdict marker as a literal raw line, using the final verdict you reached in this session, exactly one of: <!-- review-verdict: ${_nonce} PASS --> or <!-- review-verdict: ${_nonce} FAIL -->. Print nothing else.")
+        CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" "${_rcmd[@]}" > "$_retry_out" 2>&1 || true
+        cat "$_retry_out"
+        _rv=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "$_retry_out" | tail -1 | \
+              sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
+        rm -f "$_retry_out"
+      fi
       if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
         _arv_rc=0
         # Session may have left plan in implement phase after fix-chain without restoring to review.
@@ -394,7 +411,7 @@ or
         fi
       else
         bash "$PLAN_FILE_SH" append-note "$PLAN" \
-          "[BLOCKED:env] pr-review: no-verdict-marker — nonce-anchored marker absent from session output; check last-critic-pr-review.log" 2>/dev/null || true
+          "[BLOCKED:env] pr-review: no-verdict-marker — nonce-anchored marker absent from session output after resume retry; check last-critic-pr-review.log" 2>/dev/null || true
         echo "[run-critic-loop] [BLOCKED:env] pr-review: no-verdict-marker" >&2
         rm -f "${_session_out:-}"; _session_out=""
         exit 1
