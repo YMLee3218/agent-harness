@@ -43,9 +43,9 @@ make_prompt() {
   fi
   local test_cmd_display run_instruction implement_instruction failing_test_section
   if [[ -n "$failing_test" ]]; then
-    test_cmd_display="${TEST_CMD} \"${failing_test_file}\""
+    test_cmd_display=".venv/bin/python -m pytest \"${failing_test_file}\""
     implement_instruction="Implement code to pass ALL tests in ${failing_test_file}. The inline test below is a representative sample only — the file contains additional tests you must also satisfy."
-    run_instruction="Before writing any code, read ${failing_test_file} in full to understand every test you must pass. After each change, run the Test command below (the entire test file — this is identical to the gate). Iterate until ALL tests in the file pass. Do NOT run the full project suite — other task files are still red."
+    run_instruction="Before writing any code, read ${failing_test_file} in full to understand every test you must pass. After each change, run the Test command below (the entire test file — this is identical to the gate). Iterate until ALL tests in the file pass. Do NOT run the full project suite — other task files are still red. NOTE: uv run and network are unavailable in this sandbox — use the Test command above (.venv/bin/python -m pytest) instead."
     failing_test_section="Representative test (from ${failing_test_file} — read the full file for all tests):
 ${code}
 
@@ -62,7 +62,7 @@ Target layer: ${layer}
 Files to modify: ${files}
 ${implement_instruction}
 ${run_instruction}
-Commit once after refactor. Format: {type}({scope}): {description}
+Do NOT run any git commands. Leave changes in the working tree. The harness performs the commit.
 
 Hard constraints:
 - Do NOT modify files matching: tests/* *_test.* test_*.* *.test.* *.spec.* *_spec.* spec.md
@@ -91,6 +91,7 @@ launch_task() {
     return 1
   fi
   (cd "$wt" && git rev-parse HEAD) > "$WORK_DIR/task-base-${id}.txt"
+  [[ -n "${PROJECT_VENV:-}" ]] && ln -s "$PROJECT_VENV" "$wt/.venv" 2>/dev/null || true
   if [[ "$bg" == "1" ]]; then
     (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$prompt") > "$log" 2>&1 &
     echo $! > "$WORK_DIR/pid-${id}.txt"
@@ -222,9 +223,13 @@ verify_task() {
     return 1
   fi
   if [[ "$last_status" == *"coder-status: abort"* ]]; then
-    bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
-    return 1
+    local _ft_abort; _ft_abort=$(get_field "$id" failing_test)
+    if [[ -z "$_ft_abort" ]]; then
+      bash "$PF" update-task "$PLAN" "$id" blocked
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
+      return 1
+    fi
+    # Has failing_test: fall through to the test gate — gate pass → harness commits; gate fail → blocked then.
   fi
   if [[ "$last_status" != *"coder-status: complete"* ]]; then
     _run_failing_test "$id" "$wt" || return 1

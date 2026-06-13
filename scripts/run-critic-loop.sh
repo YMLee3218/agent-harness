@@ -372,6 +372,18 @@ or
             sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
       if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
         _arv_rc=0
+        # Session may have left plan in implement phase after fix-chain without restoring to review.
+        # append-review-verdict uses the plan's current phase for the verdict label and convergence
+        # sidecar key; ensure we write to review/pr-review, not implement/pr-review.
+        if [[ "$(bash "$PLAN_FILE_SH" get-phase "$PLAN" 2>/dev/null)" != "review" ]]; then
+          bash "$PLAN_FILE_SH" transition "$PLAN" review \
+            "pr-review session ended — restoring review phase for verdict recording" || {
+            bash "$PLAN_FILE_SH" append-note "$PLAN" \
+              "[BLOCKED:env] pr-review: phase-restore-failed — could not restore review phase before verdict recording" 2>/dev/null || true
+            echo "[run-critic-loop] [BLOCKED:env] pr-review: phase-restore-failed" >&2
+            exit 1
+          }
+        fi
         bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv" || _arv_rc=$?
         if [[ $_arv_rc -ne 0 ]]; then
           if [[ -f "$_conv_path" ]] && jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then

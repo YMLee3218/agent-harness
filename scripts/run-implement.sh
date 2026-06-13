@@ -68,6 +68,8 @@ if [[ "$(bash "$PF" get-phase "$PLAN")" != "implement" ]]; then
 fi
 
 BASE_SHA=$(git rev-parse HEAD)
+PROJECT_VENV=""
+[[ -e ".venv" ]] && PROJECT_VENV=$(readlink -f ".venv" 2>/dev/null || true)
 WORK_DIR=$(mktemp -d /tmp/run-impl-XXXXXX)
 _cleanup_all_worktrees() {
   for wt_file in "$WORK_DIR"/wt-*.txt; do
