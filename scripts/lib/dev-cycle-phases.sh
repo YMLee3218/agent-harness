@@ -248,11 +248,23 @@ _impl_run_implement_phase() {
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
+  if [[ "$has_task_defs" -gt 0 ]]; then
+    local bound_unit; bound_unit=$(bash "$PF" get-task-unit "$PLAN")
+    if [[ -n "$bound_unit" && "$bound_unit" != "$feat_slug" ]]; then
+      echo "[implement] stale task-defs bound to '${bound_unit}', current unit '${feat_slug}' — clearing" >&2
+      bash "$PF" clear-task-state "$PLAN"
+      bash "$PF" append-note "$PLAN" "[AUTO-DECIDED] implement: cleared-stale-task-defs — leftover from interrupted unit '${bound_unit}' discarded before implementing '${feat_slug}'"
+      has_task_defs=0
+    elif [[ -z "$bound_unit" ]]; then
+      echo "[implement] WARN: task-defs present but no task-unit marker — assuming same unit (legacy plan), skipping auto-clear" >&2
+    fi
+  fi
   if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then
     IMPLEMENTING_SPEC_PATH="$_spec_path" \
     IMPLEMENTING_PLAN_PATH="${PLAN}" \
     run_llm "Invoke the implementing skill for feature: ${feature}. Plan: ${PLAN}." opus
     llm_exit "implementing (Step 1)"
+    bash "$PF" set-task-unit "$PLAN" "$feat_slug"
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0

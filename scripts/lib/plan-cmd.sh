@@ -1219,7 +1219,32 @@ cmd_get_envelope() {
   ' "$plan_file"
 }
 
-cmd_inter_feature_reset() {
+cmd_set_task_unit() {
+  local plan_file="$1" unit_key="$2"
+  require_file "$plan_file"
+  if grep -q '<!-- task-unit:' "$plan_file" 2>/dev/null; then
+    _awk_inplace "$plan_file" -v key="$unit_key" '
+      /<!-- task-unit:.*-->/ { print "<!-- task-unit: " key " -->"; next }
+      { print }
+    '
+  else
+    _awk_inplace "$plan_file" -v key="$unit_key" '
+      /<!-- task-definitions-start -->/ { print; print "<!-- task-unit: " key " -->"; next }
+      { print }
+    '
+  fi
+  echo "[set-task-unit] task-definitions bound to unit '${unit_key}' in ${plan_file}" >&2
+}
+
+cmd_get_task_unit() {
+  local plan_file="$1"
+  require_file "$plan_file"
+  grep -m1 '<!-- task-unit:' "$plan_file" 2>/dev/null \
+    | sed 's/.*<!-- task-unit: *//; s/ *-->.*//' \
+    | grep -v '^$' || true
+}
+
+cmd_clear_task_state() {
   local plan_file="$1"
   require_file "$plan_file"
   _awk_inplace "$plan_file" '
@@ -1234,6 +1259,13 @@ cmd_inter_feature_reset() {
     sec&&/\| pending[ |]|\| in_progress[ |]|\| completed[ |]|\| blocked[ |]/{next}
     {print}
   '
+  echo "[clear-task-state] cleared task definitions and ledger rows in ${plan_file}" >&2
+}
+
+cmd_inter_feature_reset() {
+  local plan_file="$1"
+  require_file "$plan_file"
+  cmd_clear_task_state "$plan_file"
   local _state_dir="${plan_file%.md}.state"
   rm -f "$_state_dir"/code-reviewed-* 2>/dev/null || true
   rm -f "$_state_dir"/pr-reviewed-* 2>/dev/null || true
