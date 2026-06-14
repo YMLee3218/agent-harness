@@ -63,4 +63,8 @@ bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked \
 
 **If exits 1 (`[OK]` — no blocks, plan still active)**: read `## Open Questions` for `[BLOCKED:{kind}]` markers and report to the user. All human-must kinds except `ceiling` require `plan-file.sh unblock` after root-cause fix; for `[BLOCKED:ceiling]` use `reset-milestone {agent}` instead (it clears the marker and increments the milestone counter — `unblock` alone would immediately re-trigger the ceiling). Follow `@reference/blocked-guidance.md`.
 
-**If exits 2** (`find-active` found no active plan): in the normal case the plan reached `done` and was merged → report success. If the dev-cycle notification showed errors, run `plan-file.sh find-active` to diagnose (exit 0=active, 2=done/not-found, 3=ambiguous, 4=malformed).
+**If exits 2** (`find-active` found no active plan): two cases based on the dev-cycle script exit code visible in the completion notification:
+- **Dev-cycle exited 0 or 1** (normal completion): plan reached `done` and was merged → report success.
+- **Dev-cycle exited 3** (merge-approval pending): plan is in `done` phase but awaiting human merge — do NOT report success. Inform the user that the branch passed all gates and needs human review and merge: `CLAUDE_PLAN_CAPABILITY=human bash .claude/scripts/run-dev-cycle.sh --plan {plan}`.
+
+If the notification showed other errors, run `plan-file.sh find-active` to diagnose (exit 0=active, 2=done/not-found, 3=ambiguous, 4=malformed).

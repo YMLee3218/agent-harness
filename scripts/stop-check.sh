@@ -51,7 +51,7 @@ resolve_active_plan_and_phase active_plan phase || exit 0
 
 # Human-must-clear marker: send Telegram notification and allow stop
 if _hmc_found=$(marker_present_human_must_clear "$active_plan" 2>/dev/null); then
-  _question=$(grep -F "$_hmc_found" "$active_plan" | head -1)
+  _question=$(awk -v m="$_hmc_found" '/^## Open Questions$/{s=1;next} s&&/^## /{s=0} s&&index($0,m){print;exit}' "$active_plan")
   _slug=$(basename "$active_plan" .md)
   telegram_send_human_must_clear "$_slug" "$_question" \
     "$HOME/.claude/channels/telegram/.env" \
