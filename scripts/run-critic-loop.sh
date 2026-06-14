@@ -217,8 +217,16 @@ while true; do
           -p "$(cat "$_pass_audit_prompt")")
         rm -f "$_pass_audit_prompt"
 
+        _pass_exit=0
         _pass_check_out=$(CLAUDE_NONINTERACTIVE=1 env -u CLAUDE_PLAN_CAPABILITY \
-          "${_pass_cmd[@]}" 2>/dev/null) || true
+          "${_pass_cmd[@]}" 2>/dev/null) || _pass_exit=$?
+        if [[ "$_pass_exit" -eq 124 ]]; then
+          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
+          _record_transient "$PLAN" "$AGENT" session-timeout \
+            "PASS audit timed out after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" \
+            "$PLAN_FILE_SH" 2>/dev/null || true
+          echo "[transient] session-timeout on PASS audit after ${SESSION_TIMEOUT}s" >&2; exit 1
+        fi
 
         if printf '%s' "$_pass_check_out" | grep -q 'VERDICT: REJECT-PASS'; then
           _reject_reason=$(printf '%s' "$_pass_check_out" | \
@@ -256,9 +264,16 @@ while true; do
         -p "$(cat "$_decision_prompt")")
       rm -f "$_decision_prompt"
 
+      _dec_exit=0
       _decision_out=$(CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
         env -u CLAUDE_PLAN_CAPABILITY \
-        "${_dec_cmd[@]}" 2>/dev/null) || true
+        "${_dec_cmd[@]}" 2>/dev/null) || _dec_exit=$?
+      if [[ "$_dec_exit" -eq 124 ]]; then
+        _record_transient "$PLAN" "$AGENT" session-timeout \
+          "decision agent timed out after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" \
+          "$PLAN_FILE_SH" 2>/dev/null || true
+        echo "[transient] session-timeout on decision agent after ${SESSION_TIMEOUT}s" >&2; exit 1
+      fi
 
       _audit_outcome=$(parse_audit_outcome "$_decision_out")
 
