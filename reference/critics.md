@@ -23,7 +23,7 @@ PASS
 <!-- verdict: PASS -->
 <!-- category: NONE -->
 ```
-(`<!-- category: NONE -->` is required on PASS. A non-NONE category on PASS is a `PARSE_ERROR`.)
+(`<!-- category: NONE -->` is conventional on PASS — include it as shown. A non-NONE category on PASS is a `PARSE_ERROR`; omitting the category marker entirely on PASS is also accepted by the parser.)
 
 **FAIL**
 ```

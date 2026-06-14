@@ -9,7 +9,7 @@ _resolve_project_dir() {
   PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
   local _gr
   _gr=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _gr=""
-  [[ -n "$_gr" && "$_gr/" == "${PROJECT_DIR}/"* ]] && PROJECT_DIR="$_gr"
+  [[ -n "$_gr" && "${PROJECT_DIR}/" == "${_gr}/"* ]] && PROJECT_DIR="$_gr"
   export PROJECT_DIR
 }
 

@@ -34,7 +34,7 @@ Dev cycle: invoke `run-dev-cycle.sh` via `/running-dev-cycle` and `run-integrati
 **New feature**: from main checkout, run `/brainstorming` (creates `feature/{slug}` worktree + plan inside it) → run `/running-dev-cycle` (calls `EnterWorktree` to enter the worktree, then builds).
 **Resume**: `cd` to the feature worktree, then run `/running-dev-cycle` (cwd=worktree → `EnterWorktree` skipped; hooks, cycle, and plan all align).
 **Merge/approve**: after `done`, from the **main checkout**, human approves → `feature/{slug}` is merged into `main` with `--no-ff` + worktree removed. If more feature worktrees remain: `[RESTART]` with path to next; otherwise `[DONE]`.
-**Autonomous run** (from inside the feature worktree): `CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md" claude --permission-mode auto -p "/running-dev-cycle"`.
+**Autonomous run** (from inside the feature worktree): `CLAUDE_NONINTERACTIVE=1 CLAUDE_PROJECT_DIR="$(git worktree list --porcelain | head -1 | awk '{print $2}')" CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md" claude --permission-mode auto -p "/running-dev-cycle"`.
 
 ## Harness invariants
 
