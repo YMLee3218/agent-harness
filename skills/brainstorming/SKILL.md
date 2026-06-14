@@ -34,7 +34,7 @@ Phase entry:
 git status --porcelain
 ```
 
-If dirty working tree (non-empty output): `[BLOCKED:env] brainstorming: dirty-working-tree — commit or stash changes first`
+If dirty working tree (non-empty output): `[BLOCKED:env] brainstorming: dirty-working-tree — commit changes first`
 
 If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars) and use `$PROJECT_DIR/plans/{slug}.md` as the plan path throughout. If the plan file (from `CLAUDE_PLAN_FILE` or derived) does not yet exist, run `bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" init "$PROJECT_DIR/plans/{slug}.md"` before any other `plan-file.sh` command.
 
