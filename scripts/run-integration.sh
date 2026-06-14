@@ -18,8 +18,8 @@ done
 [[ -z "$PLAN" || -z "$INTEGRATION_CMD" ]] && {
   echo "Usage: run-integration.sh --plan PATH --integration-cmd CMD [--unit-cmd CMD]" >&2; exit 1; }
 [[ -f "$PLAN" ]] || { echo "Plan file not found: $PLAN" >&2; exit 1; }
-[[ "$UNIT_CMD" == _\(run* ]] && UNIT_CMD=""
-[[ "$INTEGRATION_CMD" == _\(run* ]] && { echo "run-integration: integration-cmd is unfilled — run /initializing-project first" >&2; exit 1; }
+[[ "$UNIT_CMD" == _\(run* || "$UNIT_CMD" == \{* ]] && UNIT_CMD=""
+[[ "$INTEGRATION_CMD" == _\(run* || "$INTEGRATION_CMD" == \{* ]] && { echo "run-integration: integration-cmd is unfilled — run /initializing-project first" >&2; exit 1; }
 
 source "$SCRIPTS_DIR/lib/timeout-guard.sh"
 INTEGRATION_TIMEOUT="${CLAUDE_INTEGRATION_TIMEOUT:-3600}"
