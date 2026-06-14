@@ -34,6 +34,7 @@ _unit_cmd=$(grep -m1 '^\- Test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null \
   | sed 's/^- Test: *//;s/^`//;s/`.*$//' || echo '')
 _integration_cmd=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null \
   | sed 's/^- Integration test: *//;s/^`//;s/`.*$//' || echo '')
+[[ -z "$_integration_cmd" ]] && { echo "running-integration-tests: no '- Integration test:' line found in CLAUDE.md — add it or run /initializing-project first." >&2; exit 1; }
 bash "$PROJECT_DIR/.claude/scripts/run-integration.sh" \
   --plan "${_active_plan}" \
   --unit-cmd "${_unit_cmd}" \
