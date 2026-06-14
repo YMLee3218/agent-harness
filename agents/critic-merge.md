@@ -49,7 +49,7 @@ FAIL criterion=test-integrity: {feature}: test files modified after Red commit {
 
 ### 3 — All plan tasks completed
 
-Read the plan file. Check that every task entry has `[x]` or `Status: completed`. If any task is `[ ]` or `Status: pending/in_progress`, record:
+Read the plan file. Open the `## Task Ledger` table and check the `status` column for every row. If any row has status `pending`, `in_progress`, or `blocked` (not `completed`), record:
 ```
 FAIL criterion=tasks-complete: {task title} is not completed
 ```
@@ -72,7 +72,7 @@ FAIL criterion=no-stubs: {file}:{line} — stub pattern found
 
 The branch must not contain test or source files owned by other plans. Check:
 ```bash
-git diff main...HEAD --name-status -- tests/ src/ internal/ cmd/ pkg/ app/ lib/ crates/ apps/ packages/
+git diff {CRITIC_MERGE_MAIN}...HEAD --name-status -- tests/ src/ internal/ cmd/ pkg/ app/ lib/ crates/ apps/ packages/
 ```
 For each file, check if it belongs to a feature in this plan's Test Manifest or requirement spec.
 Files belonging to features in OTHER plan files are contamination. Record:
