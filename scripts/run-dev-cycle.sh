@@ -27,6 +27,17 @@ if [[ -z "$PLAN" ]]; then
   esac
 fi
 
+# When find-active returns empty (CLAUDE_PLAN_FILE points to a done plan), check for
+# merge-gate failure blocks that would otherwise be invisible to the "no active plan" path.
+if [[ -z "$PLAN" && -n "${CLAUDE_PLAN_FILE:-}" && -f "${CLAUDE_PLAN_FILE}" ]]; then
+  if [[ "$(bash "$PF" get-phase "${CLAUDE_PLAN_FILE}" 2>/dev/null || echo "")" == "done" ]]; then
+    if bash "$PF" is-blocked "${CLAUDE_PLAN_FILE}" 2>/dev/null; then
+      echo "[BLOCKED:code] merge-gate: integrity-fail in $(basename "${CLAUDE_PLAN_FILE}" .md) — fix issues, then: CLAUDE_PLAN_CAPABILITY=human bash \"${PF}\" unblock \"${CLAUDE_PLAN_FILE}\", then re-run with --plan flag" >&2
+      exit 1
+    fi
+  fi
+fi
+
 # shellcheck source=lib/run-context.sh
 source "$SCRIPTS_DIR/lib/run-context.sh"
 setup_run_context

@@ -7,7 +7,8 @@ against the live tree or its archive.
 
 # Language and runtime
 
-- Language: Python 3.12 (backend), TypeScript (frontend)
+- Language: Python
+- Version: 3.12 (backend), TypeScript (frontend)
 - Package manager: uv (Python), pnpm (frontend)
 - Framework: FastAPI (async), SvelteKit
 
