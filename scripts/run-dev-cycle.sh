@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
+if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]] && [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
   exec /usr/bin/env CLAUDE_PLAN_CAPABILITY=harness "$0" "$@"
 fi
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

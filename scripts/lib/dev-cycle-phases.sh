@@ -66,7 +66,7 @@ _phase_spec_prepass() {
       _cross_ctx=" Also verify consistency against existing specs: ${_other_specs}."
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
-    bash "$PF" clear-converged "$PLAN" critic-cross 2>/dev/null || true
+    bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
     rm -f "$_rev_marker" 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec_for_critic}" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
@@ -125,7 +125,7 @@ _phase_domain_infra_spec_review() {
     fi
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
-    bash "$PF" clear-converged "$PLAN" critic-cross 2>/dev/null || true
+    bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
     rm -f "$_rev_marker" 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec}" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \

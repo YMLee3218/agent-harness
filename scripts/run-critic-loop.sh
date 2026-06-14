@@ -272,15 +272,9 @@ while true; do
       bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "$_audit_outcome" \
         "$(printf '%s' "$_decision_out" | head -3 | tr '\n' ' ' | cut -c1-120)" 2>/dev/null || true
 
-      # For BLOCKED-AMBIGUOUS: append [BLOCKED:spec] and [BLOCKED:docs] markers from decision output
-      if [[ "$_audit_outcome" == "BLOCKED-AMBIGUOUS" ]]; then
-        while IFS= read -r _bs_line; do
-          [[ -n "$_bs_line" ]] || continue
-          bash "$PLAN_FILE_SH" append-note "$PLAN" "$_bs_line" 2>/dev/null || true
-        done < <(printf '%s' "$_decision_out" | grep -E '^\[BLOCKED:(spec|docs)\]' || true)
-      fi
-
-      # Apply Codex fix for GENUINE findings (skip on ACCEPT-OVERRIDE)
+      # Apply Codex fix for GENUINE findings first (skip on ACCEPT-OVERRIDE).
+      # BLOCKED-AMBIGUOUS: fix GENUINE findings before writing [BLOCKED:spec] markers —
+      # the pre-tool hook blocks Bash writes once a [BLOCKED:spec] marker is present.
       if [[ "$_audit_outcome" != "ACCEPT-OVERRIDE" ]]; then
         _fix_plan=$(parse_fix_plan "$_decision_out")
         if [[ -n "$_fix_plan" ]]; then
@@ -300,6 +294,14 @@ while true; do
           [[ $_fix_exit -ne 0 ]] && \
             echo "[run-critic-loop] WARN: codex fix exit ${_fix_exit} for ${AGENT}" >&2
         fi
+      fi
+
+      # For BLOCKED-AMBIGUOUS: append [BLOCKED:spec] and [BLOCKED:docs] markers after fix pass
+      if [[ "$_audit_outcome" == "BLOCKED-AMBIGUOUS" ]]; then
+        while IFS= read -r _bs_line; do
+          [[ -n "$_bs_line" ]] || continue
+          bash "$PLAN_FILE_SH" append-note "$PLAN" "$_bs_line" 2>/dev/null || true
+        done < <(printf '%s' "$_decision_out" | grep -E '^\[BLOCKED:(spec|docs)\]' || true)
       fi
 
       # Re-check blocked after potential BLOCKED-AMBIGUOUS markers
