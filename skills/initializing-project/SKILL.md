@@ -53,7 +53,7 @@ After approval, create the directory structure:
 
 ```bash
 mkdir -p src/features src/domain src/infrastructure tests/integration docs/requirements plans features domain infrastructure
-for _gi_entry in 'plans/*.state/' 'plans/.active'; do grep -qxF "$_gi_entry" .gitignore 2>/dev/null || echo "$_gi_entry" >> .gitignore; done
+for _gi_entry in 'plans/**/*.state/' 'plans/.active'; do grep -qxF "$_gi_entry" .gitignore 2>/dev/null || echo "$_gi_entry" >> .gitignore; done
 ```
 
 Per approved domain concept: `mkdir -p src/domain/{concept} domain/{concept}`

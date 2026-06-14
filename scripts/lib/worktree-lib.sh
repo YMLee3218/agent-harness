@@ -18,11 +18,9 @@ main_checkout_root() {
       "branch refs/heads/main") echo "$_wt"; return 0 ;;
     esac
   done < <(git -C "${1:-.}" worktree list --porcelain 2>/dev/null)
-  # Fallback: derive from git common dir (works for single checkout)
-  local _common
-  _common=$(git -C "${1:-.}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
-  # common-dir is <root>/.git (absolute); strip the /.git suffix
-  echo "${_common%/.git}"
+  # Fallback: use show-toplevel of the current checkout (--git-common-dir suffix
+  # stripping breaks when the git dir is not named .git)
+  git -C "${1:-.}" rev-parse --path-format=absolute --show-toplevel 2>/dev/null || return 1
 }
 
 # ensure_plan_worktree SLUG ROOT

@@ -60,6 +60,7 @@ if [[ -n "$PLAN" ]]; then
     brainstorm|spec|red|implement|review|green|integration) ;;
     done)
       # A2/A3: Merge gate + human approval gate before continuing
+      _main_root="${PROJECT_DIR}"
       _MERGE_PENDING="${PLAN%.md}.state/merge-approval.pending"
       if [[ -f "$_MERGE_PENDING" ]]; then
         if [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]]; then
@@ -72,6 +73,9 @@ if [[ -n "$PLAN" ]]; then
           }
           rm -f "$_MERGE_PENDING"
           echo "[merge-gate] Merged feature/$(basename "$PLAN" .md) into main."
+          _slug_merged=$(basename "$PLAN" .md)
+          PLAN="${_main_root}/plans/${_slug_merged}.md"
+          _finalize_pr "$_slug_merged"
         else
           echo "[BLOCKED:merge-approval] Awaiting human merge approval for $(basename "$PLAN" .md). Review ${PLAN%.md}.state/merge-gate-report.txt, then from main checkout: CLAUDE_PLAN_CAPABILITY=human bash .claude/scripts/run-dev-cycle.sh --plan ${PLAN}" >&2
           exit 3
@@ -164,7 +168,6 @@ if [[ "${current_phase:-}" == "integration" ]]; then
     echo "[SKIP] integration tests — no command found in CLAUDE.md"
     bash "$PF" transition "$PLAN" done "no integration test command — skipped"
   fi
-  _finalize_pr
   exit $?
 fi
 
@@ -190,4 +193,3 @@ else
   echo "[SKIP] integration tests — no command found in CLAUDE.md"
   bash "$PF" transition "$PLAN" done "no integration test command — skipped"
 fi
-_finalize_pr

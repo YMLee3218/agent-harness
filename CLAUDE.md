@@ -38,7 +38,7 @@ Dev cycle: invoke `run-dev-cycle.sh` via `/running-dev-cycle` and `run-integrati
 
 ## Harness invariants
 
-- `plans/*.state/` is runtime-only — **never version-controlled**. `.gitignore` must contain `plans/*.state/`. If `git ls-files plans/` shows `.state/` entries, run `git rm -r --cached 'plans/*.state/*' && echo 'plans/*.state/' >> .gitignore && git commit`.
+- `plans/*.state/` is runtime-only — **never version-controlled**. `.gitignore` must contain `plans/**/*.state/`. If `git ls-files plans/` shows `.state/` entries, run `git rm -r --cached 'plans/*.state/*' && echo 'plans/**/*.state/' >> .gitignore && git commit`.
 
 # Local overrides
 

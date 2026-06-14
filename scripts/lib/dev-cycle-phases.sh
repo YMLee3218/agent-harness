@@ -8,12 +8,13 @@ _DEV_CYCLE_PHASES_LOADED=1
 # All functions use globals set by run-dev-cycle.sh:
 #   PF PLAN PROJECT_DIR SCRIPTS_DIR UNIT_CMD LINT_CMD _lang _domain_root _infra_root _features_root
 
-# _finalize_pr — idempotent: closes the plan's draft PR once the plan reaches done.
+# _finalize_pr SLUG — idempotent: closes the plan's PR after merge into main.
 # No-op if plan is not done or PR is not OPEN.
 _finalize_pr() {
+  local _slug="$1"
   [[ "$(bash "$PF" get-phase "$PLAN")" == "done" ]] || return 0
-  [[ "$(gh pr view --json state -q .state 2>/dev/null || echo)" == "OPEN" ]] || return 0
-  gh pr close --delete-branch --comment "Plan complete — closing without merge (developed via task-by-task workflow on the feature branch)" 2>/dev/null || true
+  [[ "$(gh pr view "feature/${_slug}" --json state -q .state 2>/dev/null || echo)" == "OPEN" ]] || return 0
+  gh pr close "feature/${_slug}" --delete-branch --comment "Merged into main via merge gate" 2>/dev/null || true
 }
 
 # _phase_spec_prepass — write spec and run critic-spec for each feature (skip if converged).
