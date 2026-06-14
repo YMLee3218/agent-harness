@@ -191,6 +191,12 @@ while true; do
     _rvd_exit=0
     bash "$PLAN_FILE_SH" record-verdict-direct \
       "$PLAN" "$AGENT" "$PHASE" "$_verdict" "$_category" || _rvd_exit=$?
+    if [[ "$_rvd_exit" -ne 0 ]]; then
+      bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        "[BLOCKED:env] ${AGENT}: verdict-record-failure — record-verdict-direct exited ${_rvd_exit}; check plan-file.sh" \
+        2>/dev/null || true
+      echo "[BLOCKED:env] ${AGENT}: record-verdict-direct failed (exit ${_rvd_exit})" >&2; exit 1
+    fi
 
     # 7. Re-check blocked/ceiling after verdict recording
     if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then

@@ -36,7 +36,7 @@ Corollary: no blocking labels → PASS + NONE. Period.
 
 ### Rule 3 — FAIL category enum
 On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired.
-Allowed: `LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | MISSING_SCENARIO | TEST_INTEGRITY | TEST_QUALITY | STRUCTURAL | ENVELOPE_MISMATCH`.
+Allowed: `LAYER_VIOLATION | DOCS_CONTRADICTION | UNVERIFIED_CLAIM | SPEC_COMPLIANCE | ENVELOPE_MISMATCH`.
 A FAIL without a category marker or with an invalid/descriptive category is a PARSE_ERROR.
 
 PASS block:
