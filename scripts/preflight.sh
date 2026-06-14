@@ -99,7 +99,7 @@ fi
 # Check: plans/*.state/ not git-tracked (runtime state must never be versioned)
 if [ -n "${PROJECT_DIR:-}" ] && \
    git -C "$PROJECT_DIR" ls-files 2>/dev/null | grep -q '^plans/[^/]*\.state/'; then
-  _state_marker="[BLOCKED:env] preflight: state-tracked — runtime state is committed; run: git rm -r --cached 'plans/*.state' && echo 'plans/*.state/' >> .gitignore && git commit -m 'chore: untrack plan state'"
+  _state_marker="[BLOCKED:env] preflight: state-tracked — runtime state is committed; run: git rm -r --cached 'plans/*.state/*' && echo 'plans/*.state/' >> .gitignore && git commit -m 'chore: untrack plan state'"
   _blocked=1
   if [ -n "$_active_plan" ] && [ -f "$_active_plan" ]; then
     grep -qF "preflight: state-tracked" "$_active_plan" 2>/dev/null || \
