@@ -56,9 +56,12 @@ FAIL criterion=tasks-complete: {task title} is not completed
 
 ### 4 — No stubs or NotImplemented in implementation
 
-Search implementation files for stub patterns:
+Search implementation files for stub patterns (check all source roots that exist):
 ```bash
-grep -rn 'raise NotImplementedError\|pass$\|\.\.\.# TODO\|# STUB' src/
+for _sd in src/ internal/ cmd/ pkg/ app/ lib/ crates/ apps/ packages/; do
+  [[ -d "$_sd" ]] || continue
+  grep -rn 'raise NotImplementedError\|pass$\|\.\.\.# TODO\|# STUB' "$_sd"
+done
 ```
 For each hit, record:
 ```
@@ -69,7 +72,7 @@ FAIL criterion=no-stubs: {file}:{line} — stub pattern found
 
 The branch must not contain test or source files owned by other plans. Check:
 ```bash
-git diff main...HEAD --name-status -- tests/ src/
+git diff main...HEAD --name-status -- tests/ src/ internal/ cmd/ pkg/ app/ lib/ crates/ apps/ packages/
 ```
 For each file, check if it belongs to a feature in this plan's Test Manifest or requirement spec.
 Files belonging to features in OTHER plan files are contamination. Record:

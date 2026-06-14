@@ -3,7 +3,6 @@
 # Called from run-dev-cycle.sh when phase reaches 'done'.
 # Exit 0: gate passed (caller may proceed to merge-approval marker).
 # Exit 1: gate failed (caller must re-block the plan).
-# Exit 2: ceiling / manual review required.
 set -euo pipefail
 if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
   exec /usr/bin/env CLAUDE_PLAN_CAPABILITY=harness "$0" "$@"
