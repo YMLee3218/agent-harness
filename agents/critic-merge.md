@@ -26,7 +26,7 @@ Run each check. Collect all failures before emitting the report.
 
 ### 1 — All tests green
 
-Run `{CRITIC_MERGE_TEST_CMD}` in the project directory. If it exits non-zero, record:
+Run `$CRITIC_MERGE_TEST_CMD` in the project directory. If it exits non-zero, record:
 ```
 FAIL criterion=tests-green: unit tests exiting {exit_code} — see output
 ```
@@ -72,7 +72,7 @@ FAIL criterion=no-stubs: {file}:{line} — stub pattern found
 
 The branch must not contain test or source files owned by other plans. Check:
 ```bash
-git diff {CRITIC_MERGE_MAIN}...HEAD --name-status -- tests/ src/ internal/ cmd/ pkg/ app/ lib/ crates/ apps/ packages/
+git diff "$CRITIC_MERGE_MAIN"...HEAD --name-status -- tests/ src/ internal/ cmd/ pkg/ app/ lib/ crates/ apps/ packages/
 ```
 For each file, check if it belongs to a feature in this plan's Test Manifest or requirement spec.
 Files belonging to features in OTHER plan files are contamination. Record:

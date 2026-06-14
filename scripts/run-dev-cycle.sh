@@ -56,6 +56,9 @@ if [[ -n "$PLAN" ]]; then
   if bash "$PF" is-blocked "$PLAN" 2>/dev/null; then
     echo "[BLOCKED] active block marker present — resolve markers before proceeding" >&2; exit 1
   fi
+  if [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" && "$current_phase" != "done" ]]; then
+    exec /usr/bin/env CLAUDE_PLAN_CAPABILITY=harness "$0" "$@"
+  fi
   case "$current_phase" in
     brainstorm|spec|red|implement|review|green|integration) ;;
     done)
