@@ -58,7 +58,7 @@ _recent_test_files() {
     # Legacy callers only: fall back to last commit's test files when no test(red): exists.
     _files=$(git -C "$PROJECT_DIR" diff HEAD~1 HEAD --name-only 2>/dev/null | grep -E '(^|/)tests/|_test\.|(^|/)test_|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$' | tr '\n' ' ' || true)
   fi
-  echo "${_files:-tests/}"
+  echo "${_files:-}"
 }
 
 find_spec_path() {

@@ -136,9 +136,19 @@ Pre-branch checks:
 | Condition | Action |
 |-----------|--------|
 | Not a git repo (`git rev-parse --git-dir` fails) | Append `[BLOCKED:env] brainstorming: not-a-git-repo — run git init before brainstorming` to `## Open Questions` and stop |
-| Branch already exists (`git show-ref --verify refs/heads/feature/{name}` succeeds) | Log `[INFO] branch feature/{name} already exists — reusing` to `## Open Questions` and run `git checkout feature/{name}` |
+| Branch / worktree already exists (`git show-ref --verify refs/heads/feature/{name}` succeeds) | Log `[INFO] branch feature/{name} already exists — reusing` to `## Open Questions` |
 
-Then (if not already on the branch): `git checkout -b feature/{name}`
+Then create (or reuse) an isolated plan worktree and record its path in the plan file:
+
+```bash
+_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "${CLAUDE_PROJECT_DIR:-$(pwd)}")
+source "$_root/.claude/scripts/lib/worktree-lib.sh"
+_wt=$(ensure_plan_worktree "{slug}" "$_root")
+# Record worktree path in plan frontmatter (idempotent)
+bash "$_root/.claude/scripts/plan-file.sh" set-worktree "$_root/plans/{slug}.md" "$_wt" 2>/dev/null || true
+```
+
+Do **not** run `git checkout -b` or `git checkout` — each plan operates exclusively inside its own worktree; the main checkout stays on `main`.
 
 Set plan file phase (skip if already in `brainstorm` — do not re-transition to the same phase; see `@reference/phase-ops.md §Skill phase entry`). In autonomous mode, the plan is typically already in `brainstorm` from a prior interactive run, so this call is a no-op guard. In interactive use, Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`; if the call fails with a capability error, run from a human terminal:
 ```bash
@@ -167,7 +177,7 @@ Update affected `docs/*.md` (SOT) before proceeding.
 
 ### Step 3 — Write output
 
-If `docs/requirements/{name}.md` does not already exist, create it. Apply the same git pre-check as New Feature Flow Step 3.
+If `docs/requirements/{name}.md` does not already exist, create it. Apply the same git pre-check and worktree creation as New Feature Flow Step 3.
 
 Set phase to `brainstorm` (skip if already in `brainstorm` — do not re-transition to the same phase). Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`; if the call fails, run from a human terminal:
 ```bash

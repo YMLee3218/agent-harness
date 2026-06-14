@@ -212,11 +212,15 @@ _impl_run_test_phase() {
   llm_exit "writing-tests"
   bash "$PF" reset-milestone "$PLAN" critic-test
   local _test_files; _test_files=$(_recent_test_files "$_pre_test_sha")
+  if [[ -z "$_test_files" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:env] critic-test: cannot-derive-test-files — ${feature}: no test(red): commit found in ${_pre_test_sha}..HEAD; re-run writing-tests"
+    exit 1
+  fi
   CRITIC_SPEC_PATH="$_spec_path" \
-  CRITIC_TEST_FILES="${_test_files:-tests/}" \
+  CRITIC_TEST_FILES="${_test_files}" \
   CRITIC_PLAN_PATH="${PLAN}" \
   CRITIC_TEST_COMMAND="${UNIT_CMD}" \
-  run_critic critic-test red "Review tests for feature: ${feature}. Spec: ${_spec_path}. Test files: ${_test_files:-tests/}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
+  run_critic critic-test red "Review tests for feature: ${feature}. Spec: ${_spec_path}. Test files: ${_test_files}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
   # critic-test fixes tests in-place (no commit). Commit them now so the implement worktree
   # (branched from HEAD) sees the corrected files, and so the integrity baseline is updated.

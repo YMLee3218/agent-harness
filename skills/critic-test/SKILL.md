@@ -59,6 +59,18 @@ FAIL — {labels}
 
 ## Pre-check — test file integrity → category: `TEST_INTEGRITY`
 
+**Absent test file guard** (run before any git log):
+
+Check whether each path in `{test_files}` exists on disk. If a test file is **absent** (not present in the working tree) **and** the current plan phase is `spec` or `red` (awaiting a fresh Red baseline), emit:
+
+```
+[SKIP] test file integrity: awaiting fresh Red baseline — {file} not yet committed
+```
+
+and continue to the next check. Do **not** emit `[CRITICAL]` for an absent file in these phases — the file will be written and committed as part of the Red step.
+
+If the test file is absent and the phase is **past** `red` (implement, review, green, integration, done), that is a genuine `[CRITICAL]` — treat as a missing test file and apply the normal FAIL verdict.
+
 If git is available:
 ```bash
 git log --grep='^test(red):' --format='%H %s' -- {test_files} | head -1

@@ -59,6 +59,39 @@ if [[ -n "$PLAN" ]]; then
   case "$current_phase" in
     brainstorm|spec|red|implement|review|green|integration) ;;
     done)
+      # A2/A3: Merge gate + human approval gate before continuing
+      _MERGE_PENDING="${PLAN%.md}.state/merge-approval.pending"
+      if [[ -f "$_MERGE_PENDING" ]]; then
+        if [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]]; then
+          # Human cleared merge-approval: do the merge and clean up
+          # shellcheck source=lib/worktree-lib.sh
+          source "$SCRIPTS_DIR/lib/worktree-lib.sh"
+          merge_plan_worktree "$(basename "$PLAN" .md)" "$PROJECT_DIR" || {
+            echo "[merge-gate] ERROR: merge failed — resolve conflicts and re-run with CLAUDE_PLAN_CAPABILITY=human" >&2; exit 1
+          }
+          rm -f "$_MERGE_PENDING"
+          echo "[merge-gate] Merged feature/$(basename "$PLAN" .md) into main."
+        else
+          echo "[BLOCKED:merge-approval] Awaiting human merge approval for $(basename "$PLAN" .md). Review ${PLAN%.md}.state/merge-gate-report.txt, then run with CLAUDE_PLAN_CAPABILITY=human." >&2
+          exit 3
+        fi
+      else
+        _mg_rc=0
+        bash "$SCRIPTS_DIR/run-merge-gate.sh" --plan "$PLAN" || _mg_rc=$?
+        if [[ $_mg_rc -ne 0 ]]; then
+          bash "$PF" append-note "$PLAN" "[BLOCKED:code] merge-gate: integrity-fail — see ${PLAN%.md}.state/merge-gate-report.txt"
+          exit 1
+        fi
+        touch "$_MERGE_PENDING"
+        # shellcheck source=lib/telegram-notify.sh
+        source "$SCRIPTS_DIR/lib/telegram-notify.sh"
+        _tg_slug=$(basename "$PLAN" .md)
+        telegram_send_human_must_clear "$_tg_slug" \
+          "[BLOCKED:merge-approval] Branch feature/${_tg_slug} passed merge gate — ready to merge into main. Review: ${PLAN%.md}.state/merge-gate-report.txt. To merge: CLAUDE_PLAN_CAPABILITY=human bash .claude/scripts/run-dev-cycle.sh --plan ${PLAN}" \
+          "${PROJECT_DIR}/.claude/.env" "${PROJECT_DIR}/.claude/access.json" || true
+        echo "[merge-gate] PASS — plan ${_tg_slug} awaiting human merge approval." >&2
+        exit 3
+      fi
       _found_next=0
       _pending_count=0
       _pending_first=""

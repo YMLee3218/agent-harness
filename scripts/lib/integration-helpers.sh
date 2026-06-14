@@ -63,11 +63,15 @@ _handle_spec_phase_rollback() {
   run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN" sonnet
   llm_exit "writing-tests"
   _test_files=$(_recent_test_files "$_pre_test_sha")
+  if [[ -z "$_test_files" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:env] critic-test: cannot-derive-test-files — integration fix: no test(red): commit found; re-run writing-tests"
+    exit 1
+  fi
   CRITIC_SPEC_PATH="${_feature_specs}" \
-  CRITIC_TEST_FILES="${_test_files:-tests/}" \
+  CRITIC_TEST_FILES="${_test_files}" \
   CRITIC_PLAN_PATH="${PLAN}" \
   CRITIC_TEST_COMMAND="${UNIT_CMD}" \
-  run_critic critic-test red "Review updated tests for integration fix. Spec: ${_feature_specs}. Test files: ${_test_files:-tests/}. Plan: $PLAN. Test command: ${UNIT_CMD}."
+  run_critic critic-test red "Review updated tests for integration fix. Spec: ${_feature_specs}. Test files: ${_test_files}. Plan: $PLAN. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
   while IFS= read -r _tf_file; do
     [[ -n "$_tf_file" ]] && git -C "$PROJECT_DIR" add "$_tf_file"
