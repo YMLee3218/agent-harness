@@ -66,13 +66,14 @@ if [[ -n "$PLAN" ]]; then
           # Human cleared merge-approval: do the merge and clean up
           # shellcheck source=lib/worktree-lib.sh
           source "$SCRIPTS_DIR/lib/worktree-lib.sh"
-          merge_plan_worktree "$(basename "$PLAN" .md)" "$PROJECT_DIR" || {
+          _main_root=$(main_checkout_root "$PROJECT_DIR") || _main_root="$PROJECT_DIR"
+          merge_plan_worktree "$(basename "$PLAN" .md)" "$_main_root" || {
             echo "[merge-gate] ERROR: merge failed — resolve conflicts and re-run with CLAUDE_PLAN_CAPABILITY=human" >&2; exit 1
           }
           rm -f "$_MERGE_PENDING"
           echo "[merge-gate] Merged feature/$(basename "$PLAN" .md) into main."
         else
-          echo "[BLOCKED:merge-approval] Awaiting human merge approval for $(basename "$PLAN" .md). Review ${PLAN%.md}.state/merge-gate-report.txt, then run with CLAUDE_PLAN_CAPABILITY=human." >&2
+          echo "[BLOCKED:merge-approval] Awaiting human merge approval for $(basename "$PLAN" .md). Review ${PLAN%.md}.state/merge-gate-report.txt, then from main checkout: CLAUDE_PLAN_CAPABILITY=human bash .claude/scripts/run-dev-cycle.sh --plan ${PLAN}" >&2
           exit 3
         fi
       else
@@ -87,37 +88,27 @@ if [[ -n "$PLAN" ]]; then
         source "$SCRIPTS_DIR/lib/telegram-notify.sh"
         _tg_slug=$(basename "$PLAN" .md)
         telegram_send_human_must_clear "$_tg_slug" \
-          "[BLOCKED:merge-approval] Branch feature/${_tg_slug} passed merge gate — ready to merge into main. Review: ${PLAN%.md}.state/merge-gate-report.txt. To merge: CLAUDE_PLAN_CAPABILITY=human bash .claude/scripts/run-dev-cycle.sh --plan ${PLAN}" \
+          "[BLOCKED:merge-approval] Branch feature/${_tg_slug} passed merge gate — ready to merge into main. Review: ${PLAN%.md}.state/merge-gate-report.txt. To merge (from main checkout): CLAUDE_PLAN_CAPABILITY=human bash .claude/scripts/run-dev-cycle.sh --plan ${PLAN}" \
           "${PROJECT_DIR}/.claude/.env" "${PROJECT_DIR}/.claude/access.json" || true
         echo "[merge-gate] PASS — plan ${_tg_slug} awaiting human merge approval." >&2
         exit 3
       fi
-      _found_next=0
-      _pending_count=0
-      _pending_first=""
-      for _p in "${PROJECT_DIR}/plans/"*.md; do
-        [[ -f "$_p" && "$_p" != "$PLAN" ]] || continue
-        _p_phase=$(bash "$PF" get-phase "$_p" 2>/dev/null || echo "")
-        if [[ -n "$_p_phase" && "$_p_phase" != "done" ]]; then
-          _pending_count=$(( _pending_count + 1 ))
-          [[ -z "$_pending_first" ]] && _pending_first="$_p"
-        fi
-      done
-      if [[ $_pending_count -ge 2 ]]; then
-        echo "ERROR: ${_pending_count} active plan files found after current plan completed. Set CLAUDE_PLAN_FILE=${PROJECT_DIR}/plans/{slug}.md to specify which plan to continue." >&2; exit 3
-      fi
-      if [[ $_pending_count -eq 1 ]]; then
-        PLAN="$_pending_first"; current_phase=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo ""); _found_next=1
-      fi
-      if [[ $_found_next -eq 1 ]]; then
-        if bash "$PF" is-blocked "$PLAN" 2>/dev/null; then
-          echo "[BLOCKED] active block marker present in next plan — resolve markers before proceeding" >&2; exit 1
-        fi
-      fi
-      if [[ $_found_next -eq 0 ]]; then
-        echo "[DONE] All requirements complete. Run /brainstorming to start a new requirement." >&2
+      _pending_count=0; _next_wt=""; _wl_wt=""
+      while IFS= read -r _wl_line; do
+        case "$_wl_line" in
+          "worktree "*) _wl_wt="${_wl_line#worktree }" ;;
+          "branch refs/heads/feature/"*)
+            _pending_count=$(( _pending_count + 1 ))
+            [[ -z "$_next_wt" ]] && _next_wt="$_wl_wt"
+            ;;
+        esac
+      done < <(git -C "$_main_root" worktree list --porcelain 2>/dev/null)
+      if [[ $_pending_count -ge 1 ]]; then
+        echo "[RESTART] Plan $(basename "$PLAN" .md) merged. ${_pending_count} feature worktree(s) still active — cd to the worktree and re-invoke /running-dev-cycle. Next: ${_next_wt}" >&2
         exit 0
       fi
+      echo "[DONE] All requirements complete. Run /brainstorming to start a new requirement." >&2
+      exit 0
       ;;
     *) echo "[BLOCKED] unrecognised plan phase: ${current_phase}" >&2; exit 1 ;;
   esac

@@ -7,18 +7,50 @@ description: >
 
 # Development Cycle
 
-Resolve the active plan file, then run:
+## Step 1 — Resolve active plan worktree
 
 ```bash
 _boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
-bash "$PROJECT_DIR/.claude/scripts/run-dev-cycle.sh" \
-  --plan "$(bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')"
+source "$PROJECT_DIR/.claude/scripts/lib/worktree-lib.sh"
+_main_root=$(main_checkout_root "$PROJECT_DIR") || _main_root="$PROJECT_DIR"
+_cur_branch=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [[ "$_cur_branch" == feature/* ]]; then
+  _slug="${_cur_branch#feature/}"; _wt="$PROJECT_DIR"; _need_enter=0
+else
+  _slug="" _wt="" _wl_wt="" _need_enter=1
+  while IFS= read -r _wl_line; do
+    case "$_wl_line" in
+      "worktree "*) _wl_wt="${_wl_line#worktree }" ;;
+      "branch refs/heads/feature/"*) _slug="${_wl_line#branch refs/heads/feature/}"; _wt="$_wl_wt"; break ;;
+    esac
+  done < <(git -C "$_main_root" worktree list --porcelain 2>/dev/null)
+  if [[ -z "$_slug" ]]; then
+    echo "[BLOCKED:env] running-dev-cycle: no-active-worktree — run /brainstorming first to create a plan, then re-run" >&2
+    exit 1
+  fi
+fi
+echo "SLUG=$_slug WT=$_wt NEED_ENTER=$_need_enter"
 ```
 
-Use `run_in_background=true` (script may run for hours).
+If `NEED_ENTER=1` (cwd is main — new feature start), call `EnterWorktree` with `path` set to the WT value printed above.
+If `NEED_ENTER=0` (cwd is already the feature worktree — resume path), skip `EnterWorktree`.
 
-After the completion notification, run the block check:
+Before invoking, show the user the active feature worktrees via `git -C "$_main_root" worktree list` so they can see which plan will run (useful if multiple feature branches exist).
+
+## Step 2 — Run dev cycle
+
+```bash
+_boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
+bash "$PROJECT_DIR/.claude/scripts/run-dev-cycle.sh"
+```
+
+Use `run_in_background=true` (script may run for hours). End the turn immediately after launching — the completion notification drives the next turn.
+
+## Step 3 — Block check
+
+After the completion notification:
 
 ```bash
 _boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
@@ -27,8 +59,8 @@ bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked \
   "$(bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')"
 ```
 
-**If the command exits 0 (`[BLOCKED]`)**: immediately follow `@reference/blocked-guidance.md` to present the block in the conversation language (Korean by default) with root-cause-first recommendations. (`is-blocked` produces no stdout — the block details are in blocked.jsonl; use `plan-file.sh context` to surface the current markers if needed — `context` resolves the active plan itself, no argument required.) Do not retry the dev cycle, do not predict outcomes ("this should pass", "a clean run is expected"), do not spawn a fresh `claude -p` invocation. A `HUMAN_MUST_CLEAR_MARKERS` entry means the human owns the next step — the orchestrator's role is to relay status and guide resolution, not to act past the marker.
+**If exits 0 (`[BLOCKED]`)**: follow `@reference/blocked-guidance.md` — present block in conversation language (Korean by default) with root-cause-first recommendations. (`is-blocked` produces no stdout — use `plan-file.sh context` to surface markers.) Do not retry the dev cycle, predict outcomes, or spawn a fresh `claude -p`. `HUMAN_MUST_CLEAR_MARKERS` means human owns the next step — relay status and guide resolution only.
 
-**If the command exits 1 (`[OK]` — plan still active, no blocks)**: read `## Open Questions` for any `[BLOCKED:{kind}]` markers and report to the user. Exit 1 means no active block records but the plan is still in a non-done phase. All human-must kinds except `ceiling` (`envelope`, `docs`, `spec`, `code`, `env`, `harness`) require `plan-file.sh unblock` after fixing the root cause. Exception: for `[BLOCKED:ceiling]`, always use `reset-milestone {agent}` instead — `reset-milestone` both clears the marker and increments the milestone counter so the next run starts fresh. `unblock` alone does not increment the milestone counter and immediately re-triggers the ceiling block. See `@reference/markers.md §Clearing stop markers`. Then follow `@reference/blocked-guidance.md` to present any markers in the conversation language (Korean by default) with root-cause-first recommendations.
+**If exits 1 (`[OK]` — no blocks, plan still active)**: read `## Open Questions` for `[BLOCKED:{kind}]` markers and report to the user. All human-must kinds except `ceiling` require `plan-file.sh unblock` after root-cause fix; for `[BLOCKED:ceiling]` use `reset-milestone {agent}` instead (it clears the marker and increments the milestone counter — `unblock` alone would immediately re-trigger the ceiling). Follow `@reference/blocked-guidance.md`.
 
-**If the command exits 2** (`find-active` found no usable plan, or jq unavailable): In the normal case — when `run-dev-cycle.sh` completed without error — `find-active` finds no active plan and `is-blocked ""` exits 2 via `require_file`; report success. If the dev-cycle notification showed errors, run `plan-file.sh find-active` directly to diagnose: exit 0=active, 2=not-found/done, 3=ambiguous, 4=malformed.
+**If exits 2** (`find-active` found no active plan): in the normal case the plan reached `done` and was merged → report success. If the dev-cycle notification showed errors, run `plan-file.sh find-active` to diagnose (exit 0=active, 2=done/not-found, 3=ambiguous, 4=malformed).

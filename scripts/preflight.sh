@@ -96,6 +96,19 @@ if [ -z "${CLAUDE_PROJECT_DIR:-}" ] || [ ! -f "${PROJECT_DIR}/CLAUDE.md" ]; then
   _append_blocked "CLAUDE.md" "run /initializing-project to create the project CLAUDE.md"
 fi
 
+# Check: plans/*.state/ not git-tracked (runtime state must never be versioned)
+if [ -n "${PROJECT_DIR:-}" ] && \
+   git -C "$PROJECT_DIR" ls-files 2>/dev/null | grep -q '^plans/[^/]*\.state/'; then
+  _state_marker="[BLOCKED:env] preflight: state-tracked — runtime state is committed; run: git rm -r --cached 'plans/*.state' && echo 'plans/*.state/' >> .gitignore && git commit -m 'chore: untrack plan state'"
+  _blocked=1
+  if [ -n "$_active_plan" ] && [ -f "$_active_plan" ]; then
+    grep -qF "preflight: state-tracked" "$_active_plan" 2>/dev/null || \
+      bash "$PLAN_FILE_SH" append-note "$_active_plan" "$_state_marker" 2>/dev/null || true
+  else
+    echo "$_state_marker" >&2
+  fi
+fi
+
 if [ "$_blocked" = "1" ]; then
   echo "[BLOCKED:env] preflight: prerequisites-missing — inspect ## Open Questions in the active plan" >&2
   exit 2

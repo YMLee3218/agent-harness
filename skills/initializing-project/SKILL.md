@@ -53,6 +53,7 @@ After approval, create the directory structure:
 
 ```bash
 mkdir -p src/features src/domain src/infrastructure tests/integration docs/requirements plans features domain infrastructure
+for _gi_entry in 'plans/*.state/' 'plans/.active'; do grep -qxF "$_gi_entry" .gitignore 2>/dev/null || echo "$_gi_entry" >> .gitignore; done
 ```
 
 Per approved domain concept: `mkdir -p src/domain/{concept} domain/{concept}`
@@ -189,7 +190,7 @@ If the project is not yet a git repository (`git rev-parse --git-dir` fails):
 
 Stage and commit if there is anything to stage:
 ```bash
-git add CLAUDE.md src/ docs/ plans/ features/ domain/
+git add CLAUDE.md src/ docs/ plans/ features/ domain/ .gitignore
 git add .claude/scripts/critic-code/patterns/ 2>/dev/null || true
 if git diff --cached --quiet; then
   echo "[SKIP] nothing to commit — scaffold already present"

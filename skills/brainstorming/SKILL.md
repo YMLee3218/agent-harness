@@ -36,7 +36,7 @@ git status --porcelain
 
 If dirty working tree (non-empty output): `[BLOCKED:env] brainstorming: dirty-working-tree — commit changes first`
 
-If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars) and use `$PROJECT_DIR/plans/{slug}.md` as the plan path throughout. If the plan file (from `CLAUDE_PLAN_FILE` or derived) does not yet exist, run `bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" init "$PROJECT_DIR/plans/{slug}.md"` before any other `plan-file.sh` command.
+If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars). Find main root (`git rev-parse --show-toplevel`), source `.claude/scripts/lib/worktree-lib.sh`, call `ensure_plan_worktree "{slug}" "$_root"` → `$_wt` (fall back to `$_root` on failure), then `export CLAUDE_PLAN_FILE="$_wt/plans/{slug}.md"`. Write all outputs (plan, docs, requirements) inside `$_wt`. If the plan file does not yet exist, run `bash "$_root/.claude/scripts/plan-file.sh" init "$CLAUDE_PLAN_FILE"` before any other `plan-file.sh` command.
 
 Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 
@@ -131,21 +131,14 @@ If `docs/requirements/{name}.md` does not already exist, create it:
 - {explicitly excluded items}
 ```
 
-Pre-branch checks:
+If `git rev-parse --git-dir` fails (not a git repo): append `[BLOCKED:env] brainstorming: not-a-git-repo — run git init before brainstorming` to `## Open Questions` and stop.
 
-| Condition | Action |
-|-----------|--------|
-| Not a git repo (`git rev-parse --git-dir` fails) | Append `[BLOCKED:env] brainstorming: not-a-git-repo — run git init before brainstorming` to `## Open Questions` and stop |
-| Branch / worktree already exists (`git show-ref --verify refs/heads/feature/{name}` succeeds) | Log `[INFO] branch feature/{name} already exists — reusing` to `## Open Questions` |
-
-Then create (or reuse) an isolated plan worktree and record its path in the plan file:
+Commit plan and docs to the feature branch (worktree was created in Step 1):
 
 ```bash
-_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "${CLAUDE_PROJECT_DIR:-$(pwd)}")
-source "$_root/.claude/scripts/lib/worktree-lib.sh"
-_wt=$(ensure_plan_worktree "{slug}" "$_root")
-# Record worktree path in plan frontmatter (idempotent)
-bash "$_root/.claude/scripts/plan-file.sh" set-worktree "$_root/plans/{slug}.md" "$_wt" 2>/dev/null || true
+git -C "$_wt" add plans/ docs/ 2>/dev/null || true
+git -C "$_wt" diff --cached --quiet 2>/dev/null || \
+  git -C "$_wt" commit -m "chore(plan): init brainstorm for {slug}"
 ```
 
 Do **not** run `git checkout -b` or `git checkout` — each plan operates exclusively inside its own worktree; the main checkout stays on `main`.
@@ -155,7 +148,7 @@ Set plan file phase (skip if already in `brainstorm` — do not re-transition to
 _boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 export CLAUDE_PLAN_CAPABILITY=harness
-bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$PROJECT_DIR/plans/{slug}.md" brainstorm \
+bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PLAN_FILE" brainstorm \
   "decomposition approved — starting brainstorm phase"
 ```
 
@@ -184,7 +177,7 @@ Set phase to `brainstorm` (skip if already in `brainstorm` — do not re-transit
 _boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 export CLAUDE_PLAN_CAPABILITY=harness
-bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$PROJECT_DIR/plans/{slug}.md" brainstorm \
+bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PLAN_FILE" brainstorm \
   "re-brainstorming"
 ```
 

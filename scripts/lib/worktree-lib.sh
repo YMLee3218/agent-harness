@@ -6,6 +6,25 @@ set -euo pipefail
 [[ -n "${_WORKTREE_LIB_LOADED:-}" ]] && return 0
 _WORKTREE_LIB_LOADED=1
 
+# main_checkout_root [PATH]
+# Prints the path of the worktree whose HEAD is on refs/heads/main.
+# Falls back to the common git dir's parent (single-checkout compat).
+# Read-only — no side effects.
+main_checkout_root() {
+  local _wt="" _line
+  while IFS= read -r _line; do
+    case "$_line" in
+      "worktree "*)  _wt="${_line#worktree }" ;;
+      "branch refs/heads/main") echo "$_wt"; return 0 ;;
+    esac
+  done < <(git -C "${1:-.}" worktree list --porcelain 2>/dev/null)
+  # Fallback: derive from git common dir (works for single checkout)
+  local _common
+  _common=$(git -C "${1:-.}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+  # common-dir is <root>/.git (absolute); strip the /.git suffix
+  echo "${_common%/.git}"
+}
+
 # ensure_plan_worktree SLUG ROOT
 # Creates a worktree at <ROOT>/.claude/worktrees/<SLUG> on branch feature/<SLUG>,
 # branched from main. Idempotent — no-op if the worktree already exists.
