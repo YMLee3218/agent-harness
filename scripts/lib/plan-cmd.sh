@@ -244,8 +244,8 @@ cmd_transition() {
 
 cmd_commit_phase() {
   local plan_file="$1" message="$2"
-  local _repo_dir; _repo_dir="$(dirname "$plan_file")"
-  git -C "$_repo_dir" add "$plan_file"
+  local _repo_dir; _repo_dir="$(cd "$(dirname "$plan_file")" && pwd)"
+  git -C "$_repo_dir" add "$_repo_dir/$(basename "$plan_file")"
   git -C "$_repo_dir" diff --cached --quiet || git -C "$_repo_dir" commit -m "$message"
 }
 
@@ -557,7 +557,7 @@ _extract_or_handle_missing_verdict() {
     elif printf '%s' "$_output" | grep -qE \
         '(Unknown skill|ERROR:[[:space:]]+[a-z-]+ must be invoked via|=== CODEX-INFRA-FAILURE:|=== Codex [a-z-]+ exit: [1-9])'; then
       _infra_detail=$(printf '%s' "$_output" | \
-        grep -E '(Unknown skill|ERROR: [a-z-]+ must be invoked via|=== CODEX-INFRA-FAILURE:|=== Codex [a-z-]+ exit: [1-9])' \
+        grep -E '(Unknown skill|ERROR:[[:space:]]+[a-z-]+ must be invoked via|=== CODEX-INFRA-FAILURE:|=== Codex [a-z-]+ exit: [1-9])' \
         | head -1 | cut -c1-120 || echo "infrastructure signature detected")
     fi
     if [ -n "$_infra_detail" ]; then

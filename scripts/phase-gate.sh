@@ -88,6 +88,17 @@ _guard_plan_phase_mutation() {
     echo "BLOCKED [phase-gate]: writes touching '## Phase' or frontmatter 'phase:' are reserved for 'plan-file.sh transition/set-phase' (Ring B). Use the harness command instead of editing plan.md directly." >&2
     exit 2
   fi
+  # The heading/frontmatter checks above miss an Edit that rewrites ONLY the bare phase
+  # value line (the word on its own line under '## Phase' — the authoritative value read by
+  # cmd_get_phase, plan-cmd.sh:110). Block when the edit removes/changes that exact line.
+  local _cur_phase
+  _cur_phase=$(awk '/^## Phase$/{f=1;next} f&&/^[A-Za-z]/{print;exit} f&&/^##/{exit}' "$_file_path" 2>/dev/null || true)
+  if [[ -n "$_cur_phase" ]] \
+     && printf '%s' "$_old" | grep -qE "^${_cur_phase}[[:space:]]*$" \
+     && ! printf '%s' "$_new" | grep -qE "^${_cur_phase}[[:space:]]*$"; then
+    echo "BLOCKED [phase-gate]: editing the '## Phase' value line is reserved for 'plan-file.sh transition/set-phase' (Ring B). Use the harness command instead of editing plan.md directly." >&2
+    exit 2
+  fi
   if printf '%s' "$_new" | grep -qF '[CONVERGED]'; then
     echo "BLOCKED [phase-gate]: '[CONVERGED]' is not a valid plan-file marker — convergence state lives in the sidecar only (plans/{slug}.state/convergence/)" >&2
     exit 2
