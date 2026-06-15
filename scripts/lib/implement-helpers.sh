@@ -216,7 +216,7 @@ verify_task() {
   log="$WORK_DIR/log-${id}.txt"
 
   local last_status
-  last_status=$(grep 'coder-status:' "$log" 2>/dev/null | tail -1)
+  last_status=$(grep 'coder-status:' "$log" 2>/dev/null | tail -1) || true
   if grep -q '^layer violation:' "$log" 2>/dev/null; then
     bash "$PF" update-task "$PLAN" "$id" blocked
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — $(tail -3 "$log" 2>/dev/null | tr '\n' ' ')"
