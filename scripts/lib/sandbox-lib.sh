@@ -22,6 +22,8 @@ _init_worker_sandbox() {
     echo "[sandbox-lib] WARN: no PROJ_DIR supplied; Tier 1 inactive" >&2
     _sandbox_unavailable "no PROJ_DIR"; return 0
   fi
+  # Resolve symlinks so Seatbelt deny rules match the kernel-resolved path.
+  _proj_dir="$(cd "$_proj_dir" 2>/dev/null && pwd -P || printf '%s' "$_proj_dir")"
   if [[ "$(uname 2>/dev/null)" != "Darwin" ]]; then
     echo "[sandbox-lib] WARN: non-macOS platform; Tier 1 inactive (Linux bubblewrap not yet implemented)" >&2
     _sandbox_unavailable "non-Darwin"; return 0
