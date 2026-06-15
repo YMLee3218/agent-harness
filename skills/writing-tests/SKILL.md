@@ -108,12 +108,7 @@ If the tail is missing `=== TEST-WRITER DONE ===`, retry once with `RETRY: previ
 
 If any test claimed `RED` actually passed (rerun the test command yourself once to confirm), retry once with the failing-test names appended and the instruction `RETRY: these tests must be rewritten to FAIL — they currently pass without implementation`. Tests that pass due to wrong subject or empty assertions must be rewritten, not relabelled.
 
-Then commit:
-```
-git add {test files}
-git commit -m "test(red): {scenario summary}"
-```
-This preserves the Red state across session interruptions.
+Leave the test files in the working tree. The orchestrator (`dev-cycle-phases.sh`) commits them immediately after this skill returns, preserving the Red state.
 
 ## Phase rollback
 

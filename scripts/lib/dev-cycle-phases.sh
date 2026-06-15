@@ -211,6 +211,15 @@ _impl_run_test_phase() {
   WRITING_TESTS_COMMAND="${UNIT_CMD}" \
   run_llm "Invoke the writing-tests skill for feature: ${feature}. Plan: ${PLAN}." sonnet
   llm_exit "writing-tests"
+  # Worker cannot commit (git common dir is outside PROJ_ROOT → Tier 1 EPERM).
+  # Commit test files from the orchestrator — same pattern as spec/critic-test commits below.
+  while IFS= read -r _tf_file; do
+    [[ -n "$_tf_file" ]] && git -C "$PROJECT_DIR" add "$_tf_file"
+  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | awk '{print $NF}' \
+           | grep -E '(^|/)tests/|(^|/)conftest\.|_test\.|(^|/)test_|\.test\.|\.spec\.|_spec\.' \
+           | grep -v '\.spec\.md$')
+  git -C "$PROJECT_DIR" diff --cached --quiet || \
+    git -C "$PROJECT_DIR" commit -m "test(red): add failing tests for ${feature}"
   bash "$PF" reset-milestone "$PLAN" critic-test
   local _test_files; _test_files=$(_recent_test_files "$_pre_test_sha")
   if [[ -z "$_test_files" ]]; then
