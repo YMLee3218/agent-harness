@@ -201,3 +201,13 @@
 2026-06-15 21:35 | iter=663 | result=FIX | scripts/run-merge-gate.sh:16-17 added→source sandbox-lib.sh + _init_worker_sandbox
 2026-06-15 21:35 | iter=663 | result=FIX | scripts/run-merge-gate.sh:49 env ... claude→env ... worker_exec claude
 2026-06-15 21:35 | iter=663 | result=FIX | scripts/lib/implement-helpers.sh:150 codex exec (retry path) →"" codex exec
+2026-06-15 | iter=675 | result=FIX | scripts/worker.sb:64-74 before→after: allowlist(src/tests/docs) → allow PROJ_ROOT + deny control paths (closed set; last-match-wins); fixes spec/domain/features/infrastructure write EPERM
+2026-06-15 | iter=675 | result=FIX | scripts/lib/sandbox-lib.sh:9-73 before→after: silent return 0 on unavailability → _SANDBOX_REQUIRED_FAIL=1 + _sandbox_unavailable helper; CLAUDE_ALLOW_UNSANDBOXED=1 opt-in; worker_exec refuses when flag set
+2026-06-15 | iter=675 | result=FIX | scripts/run-implement.sh:24-27 added→fail-closed guard: check _SANDBOX_REQUIRED_FAIL + BLOCKED:env note + exit 1
+2026-06-15 | iter=675 | result=FIX | scripts/run-critic-loop.sh:35-38 added→fail-closed guard: check _SANDBOX_REQUIRED_FAIL + BLOCKED:env note + exit 1
+2026-06-15 | iter=675 | result=FIX | scripts/run-integration.sh:34-38 added→fail-closed guard: check _SANDBOX_REQUIRED_FAIL + BLOCKED:env note + exit 1
+2026-06-15 | iter=675 | result=FIX | scripts/run-merge-gate.sh:18-21 added→fail-closed guard: check _SANDBOX_REQUIRED_FAIL + echo BLOCKED:env + exit 1
+2026-06-15 | iter=675 | result=FIX | scripts/run-dev-cycle.sh:60-64 added→fail-closed guard: check _SANDBOX_REQUIRED_FAIL + BLOCKED:env note + exit 1
+2026-06-15 | iter=675 | result=FIX | reference/enforcement-tiers.md:11-26 before→after: inaccurate WARN+fall-through → fail-closed semantics; CLAUDE_ALLOW_UNSANDBOXED=1 documented; sandbox.enabled=false rationale; protected-path list updated to new write model
+2026-06-15 | iter=675 | result=FIX | scripts/lib/plan-cmd.sh:136-138 added→git add .phase in cmd_set_phase so every subsequent commit includes authoritative phase value
+2026-06-15 | iter=675 | result=FIX | scripts/phase-gate.sh:77-101 before→after: removed ## Phase body-value check (dead code — new plans have no body); removed 'authoritative' framing; kept only frontmatter phase: nudge and [CONVERGED] guard
