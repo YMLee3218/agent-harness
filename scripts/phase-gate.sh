@@ -75,9 +75,11 @@ _guard_sidecar() {
 }
 
 # _guard_plan_phase_mutation INPUT FILE_PATH — BEST-EFFORT-NUDGE (Tier 2) only.
-# Phase authority has moved to plans/{slug}.phase (kernel denyWrite via sandbox-exec/worker.sb).
-# This guard catches accidental plan.md edits touching ## Phase; it is NOT security-critical
+# Phase authority lives in plans/{slug}.phase (kernel denyWrite via sandbox-exec/worker.sb).
+# This guard catches accidental plan.md frontmatter 'phase:' edits; NOT security-critical
 # and does not need to be bypass-proof. See reference/enforcement-tiers.md §Tier 2.
+# Note: new plans have no '## Phase' body section; the body-phase check below is a no-op
+# when absent (awk returns empty _cur_phase, guard skips).
 _guard_plan_phase_mutation() {
   local _input="$1" _file_path="$2"
   [[ "$_file_path" == */plans/*.md || "$_file_path" == plans/*.md ]] || return 0
@@ -86,19 +88,8 @@ _guard_plan_phase_mutation() {
   local _new _old
   _new=$(printf '%s' "$_input" | jq -r '(.tool_input.content // .tool_input.new_string // "") + "\n" + ([.tool_input.edits[]?.new_string // ""] | join("\n"))' 2>/dev/null)
   _old=$(printf '%s' "$_input" | jq -r '(.tool_input.old_string // "") + "\n" + ([.tool_input.edits[]?.old_string // ""] | join("\n"))' 2>/dev/null)
-  if printf '%s\n%s' "$_old" "$_new" | grep -qE '(^|\n)## Phase($|\n)|(^|\n)phase:[[:space:]]+[a-z]+'; then
-    echo "BLOCKED [phase-gate]: writes touching '## Phase' or frontmatter 'phase:' are reserved for 'plan-file.sh transition/set-phase' (Ring B). Use the harness command instead of editing plan.md directly." >&2
-    exit 2
-  fi
-  # The heading/frontmatter checks above miss an Edit that rewrites ONLY the bare phase
-  # value line (the word on its own line under '## Phase' — the authoritative value read by
-  # cmd_get_phase, plan-cmd.sh:110). Block when the edit removes/changes that exact line.
-  local _cur_phase
-  _cur_phase=$(awk '/^## Phase$/{f=1;next} f&&/^[A-Za-z]/{print;exit} f&&/^##/{exit}' "$_file_path" 2>/dev/null || true)
-  if [[ -n "$_cur_phase" ]] \
-     && printf '%s' "$_old" | grep -qE "^${_cur_phase}[[:space:]]*$" \
-     && ! printf '%s' "$_new" | grep -qE "^${_cur_phase}[[:space:]]*$"; then
-    echo "BLOCKED [phase-gate]: editing the '## Phase' value line is reserved for 'plan-file.sh transition/set-phase' (Ring B). Use the harness command instead of editing plan.md directly." >&2
+  if printf '%s\n%s' "$_old" "$_new" | grep -qE '(^|\n)phase:[[:space:]]+[a-z]+'; then
+    echo "BLOCKED [phase-gate]: writes touching frontmatter 'phase:' are reserved for 'plan-file.sh transition/set-phase' (Ring B). Use the harness command instead of editing plan.md directly." >&2
     exit 2
   fi
   if printf '%s' "$_new" | grep -qF '[CONVERGED]'; then

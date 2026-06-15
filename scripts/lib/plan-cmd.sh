@@ -133,6 +133,9 @@ cmd_set_phase() {
   done
   [ "$valid" -eq 1 ] || die "invalid phase: $phase (must be one of: $VALID_PHASES)"
   printf '%s' "$phase" > "${plan_file%.md}.phase"
+  # Stage .phase so the next commit always includes the authoritative phase value.
+  local _repo_dir; _repo_dir="$(cd "$(dirname "$plan_file")" && pwd)"
+  git -C "$_repo_dir" add "${plan_file%.md}.phase" 2>/dev/null || true
   # Mirror to plan.md frontmatter and body for human readability (non-authoritative)
   _awk_replace_phase_body "$plan_file" "$phase"
 }

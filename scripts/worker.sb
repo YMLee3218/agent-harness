@@ -2,19 +2,21 @@
 ; Applied to every leaf Claude/Codex worker spawn by the harness orchestrator.
 ; This is the Tier 1 (AUTHORITATIVE) enforcement layer per reference/enforcement-tiers.md.
 ;
-; Default-deny write policy: only explicitly listed paths may be written.
+; Write model: allow project root (open set = default), deny control paths (closed set).
 ; All reads are unrestricted (workers need broad code access).
 ; Networking is unrestricted (workers need LLM API access).
 ;
 ; Dynamic parameters (supplied via -D at spawn time):
-;   PROJ_SRC          — project src/ directory
-;   PROJ_TESTS        — project tests/ directory
-;   PROJ_DOCS         — project docs/ directory
-;   PLANS_MD_REGEX    — regex matching plans/*.md prose files (NOT .phase or .state/)
+;   PROJ_ROOT          — feature worktree root (src/, tests/, docs/, domain/, features/,
+;                        infrastructure/, plans/*.md all covered)
+;   PROJ_HARNESS       — .claude-harness/ subtree (scripts, reference, settings.json,
+;                        CLAUDE.md, history.md, agents, skills); deny
+;   PLANS_PHASE_REGEX  — regex matching plans/*.phase authority files; deny
+;   PLANS_STATE_REGEX  — regex matching plans/*.state/ sidecar dirs; deny
+;   PROJ_CLAUDE_MD     — workspace CLAUDE.md literal path; deny
+;   PROJ_GITFILE       — .git gitdir pointer literal path; deny
 ;
-; PROFILE COMPLETENESS NOTE: allowWrite paths are a starting set that may need
-; expansion after the first dry-run (uv/pnpm caches, git hooks, etc.).
-; Run with SANDBOX_DENY_LOG=1 to surface EPERM hits for refinement.
+; Run with SANDBOX_DENY_LOG=1 to surface residual EPERM hits after first dry-run.
 
 (version 1)
 (deny default)
@@ -59,11 +61,14 @@
   (regex #"^/Users/[^/]+/Library/Application Support/")
   (regex #"^/Users/[^/]+/\.claude/projects/"))
 
-;; Project write paths: source, tests, docs (supplied as params)
-(allow file-write*
-  (subpath (param "PROJ_SRC"))
-  (subpath (param "PROJ_TESTS"))
-  (subpath (param "PROJ_DOCS")))
+;; Project root: allow all writes (open set — src/, tests/, docs/, domain/,
+;; features/, infrastructure/, plans/*.md, alembic/, frontend/, etc.)
+(allow file-write* (subpath (param "PROJ_ROOT")))
 
-;; Plan prose files: plans/*.md only — .phase and .state/ are NOT matched
-(allow file-write* (regex (param "PLANS_MD_REGEX")))
+;; Control paths: explicit deny (closed set; last-match-wins overrides the allow above)
+(deny file-write*
+  (subpath (param "PROJ_HARNESS"))          ; scripts/ reference/ settings.json CLAUDE.md history.md agents/ skills/
+  (regex   (param "PLANS_PHASE_REGEX"))      ; plans/*.phase authority files
+  (regex   (param "PLANS_STATE_REGEX"))      ; plans/*.state/ sidecar dirs
+  (literal (param "PROJ_CLAUDE_MD"))         ; workspace CLAUDE.md
+  (literal (param "PROJ_GITFILE")))          ; .git gitdir pointer

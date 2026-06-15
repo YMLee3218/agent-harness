@@ -57,6 +57,11 @@ source "$SCRIPTS_DIR/lib/llm-runner.sh"
 # Initialize Tier 1 worker sandbox (macOS Seatbelt via sandbox-exec).
 # Must run after setup_run_context has set PROJECT_DIR.
 _init_worker_sandbox "${PROJECT_DIR:-}"
+if [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]]; then
+  [[ -n "$PLAN" ]] && bash "$PF" append-note "$PLAN" "[BLOCKED:env] dev-cycle: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
+  [[ -z "$PLAN" ]] && echo "[BLOCKED:env] dev-cycle: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" >&2
+  exit 1
+fi
 
 # Preflight: abort if any block present (catches [BLOCKED:env] preflight markers)
 if [[ -n "$PLAN" ]]; then

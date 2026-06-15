@@ -14,7 +14,11 @@ source "$SCRIPTS_DIR/lib/run-context.sh"
 setup_run_context
 # shellcheck source=lib/sandbox-lib.sh
 source "$SCRIPTS_DIR/lib/sandbox-lib.sh" 2>/dev/null || true
-_init_worker_sandbox "${PROJECT_DIR:-}" 2>/dev/null || true
+_init_worker_sandbox "${PROJECT_DIR:-}"
+if [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]]; then
+  echo "[BLOCKED:env] merge-gate: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" >&2
+  exit 1
+fi
 # shellcheck source=lib/llm-runner.sh
 source "$SCRIPTS_DIR/lib/llm-runner.sh"
 

@@ -31,7 +31,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/sidecar.sh" 2>/dev/null || true
 source "$(dirname "${BASH_SOURCE[0]}")/lib/critic-helpers.sh" 2>/dev/null || true
 # Source sandbox-lib for Tier 1 worker confinement
 source "$(dirname "${BASH_SOURCE[0]}")/lib/sandbox-lib.sh" 2>/dev/null || true
-_init_worker_sandbox "$(dirname "$(dirname "$PLAN")")" 2>/dev/null || true
+_init_worker_sandbox "$(dirname "$(dirname "$PLAN")")"
+if [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]]; then
+  bash "$PLAN_FILE_SH" append-note "$PLAN" "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
+  exit 1
+fi
 
 # Lock file — prevent concurrent runs on the same plan.
 LOOP_LOCK="${PLAN}.critic.lock"

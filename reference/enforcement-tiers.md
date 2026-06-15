@@ -8,16 +8,22 @@ Harness protections are organized into two tiers. **Only Tier 1 provides structu
 
 **Mechanism**: macOS Seatbelt (`sandbox-exec`) wraps every leaf worker spawn (Claude and Codex sessions) via `scripts/lib/sandbox-lib.sh`. The sandbox profile (`scripts/worker.sb`) enforces write-deny at the OS syscall level. All subprocesses inherit the restriction.
 
-**Protected paths** (blocked by default-deny profile — workers cannot write these regardless of command form):
-- `plans/*.phase` — phase authority files
-- `plans/*.state/` — sidecar control state
-- `scripts/**`, `settings.json`, `reference/**`, `CLAUDE.md`, `history.md` — Ring C harness files
+**Write model**: allow project root (`PROJ_ROOT` subpath — open set covering `src/`, `tests/`, `docs/`, `domain/`, `features/`, `infrastructure/`, `plans/*.md`, etc.), then explicitly deny the control paths below (closed set; Seatbelt last-match-wins).
+
+**Protected paths** (denied by explicit deny rules — workers cannot write these regardless of command form):
+- `plans/*.phase` (`PLANS_PHASE_REGEX`) — phase authority files
+- `plans/*.state/` (`PLANS_STATE_REGEX`) — sidecar control state
+- `.claude-harness/` (`PROJ_HARNESS` subpath) — `scripts/`, `reference/`, `settings.json`, `CLAUDE.md`, `history.md`, `agents/`, `skills/`
+- `CLAUDE.md` (`PROJ_CLAUDE_MD` literal) — workspace CLAUDE.md
+- `.git` (`PROJ_GITFILE` literal) — gitdir pointer
 
 **Bypass is structurally impossible** for confined worker processes: Bash redirect (`>`), `python -c "open(...).write(...)"`, `sed -i`, `find -exec`, and `codex exec` all hit the same kernel EPERM. The attack surface is closed.
 
-**When Tier 1 is absent** (non-macOS, `sandbox-exec` unavailable, or `worker.sb` missing): `_init_worker_sandbox` logs a warning and `_WORKER_SANDBOX_ARGS` remains empty — spawn calls fall through to Tier 2 only. Check `[sandbox-lib] WARN:` in run logs.
+**Note on `claude` worker `sandbox.enabled`**: the claude worker runs under the external Seatbelt profile only. `settings.json` keeps `sandbox.enabled: false` intentionally — the internal sandbox would also restrict interactive human sessions, which is undesirable. Single external Seatbelt enforcement is the design.
 
-**Profile completeness**: the allowWrite set in `worker.sb` is a starting point, refined by observing EPERM hits in dry-runs. Legitimate write failures surface as Codex/Claude worker errors; adjust `worker.sb` params accordingly.
+**When Tier 1 is absent** (non-macOS, `sandbox-exec` unavailable, or `worker.sb` missing): the harness is **fail-closed by default**. `_init_worker_sandbox` sets `_SANDBOX_REQUIRED_FAIL=1`; each calling script (`run-implement.sh`, `run-critic-loop.sh`, `run-integration.sh`, `run-merge-gate.sh`, `run-dev-cycle.sh`) checks this flag immediately after the call and exits with `[BLOCKED:env] sandbox: tier1-unavailable`. Workers are NOT spawned. To opt out of this requirement (e.g., Linux CI or development environments without Seatbelt), set `CLAUDE_ALLOW_UNSANDBOXED=1`; only the orchestrator process can set this env var before spawning workers, so adversarial workers cannot self-grant the override. Linux Tier 1 equivalent (bubblewrap) is not yet implemented; Linux runs require `CLAUDE_ALLOW_UNSANDBOXED=1`.
+
+**Profile completeness**: run with `SANDBOX_DENY_LOG=1` to surface residual EPERM hits after the first dry-run.
 
 ## Tier 2 — BEST-EFFORT-NUDGE (Software-level)
 

@@ -20,7 +20,11 @@ done
 
 # shellcheck source=lib/sandbox-lib.sh
 source "$SCRIPTS_DIR/lib/sandbox-lib.sh" 2>/dev/null || true
-_init_worker_sandbox "$(dirname "$(dirname "$PLAN")")" 2>/dev/null || true
+_init_worker_sandbox "$(dirname "$(dirname "$PLAN")")"
+if [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]]; then
+  bash "$PF" append-note "$PLAN" "[BLOCKED:env] implement: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
+  exit 1
+fi
 
 source "$SCRIPTS_DIR/lib/timeout-guard.sh"
 IMPLEMENT_TIMEOUT="${CLAUDE_IMPLEMENT_TIMEOUT:-600}"
