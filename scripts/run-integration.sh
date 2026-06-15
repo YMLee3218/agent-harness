@@ -70,7 +70,7 @@ _validate_integration_preconditions() {
   local _ec=0
   ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $INTEGRATION_TIMEOUT} bash -c "$UNIT_CMD" 2>&1 || _ec=$?
   [[ "$_ec" -eq 0 ]] && return 0
-  if [[ "$_ec" -eq 124 ]]; then
+  if [[ -n "$TIMEOUT_CMD" && "$_ec" -eq 124 ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: unit-tests-timeout — unit suite exceeded ${INTEGRATION_TIMEOUT}s (possible hang; set CLAUDE_INTEGRATION_TIMEOUT to adjust)"
     exit 1
   fi
@@ -97,7 +97,7 @@ while true; do
     bash "$PF" transition "$PLAN" done "integration tests passed"
     exit 0
   fi
-  if [[ "$_int_ec" -eq 124 ]]; then
+  if [[ -n "$TIMEOUT_CMD" && "$_int_ec" -eq 124 ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: tests-timeout — integration suite exceeded ${INTEGRATION_TIMEOUT}s (possible hang; set CLAUDE_INTEGRATION_TIMEOUT to adjust)"
     exit 1
   fi
@@ -136,7 +136,7 @@ After completing the above, output as the very last line of your response exactl
 <!-- integration-result: ${_cat_nonce} implementation bug -->
 <!-- integration-result: ${_cat_nonce} blocked -->" "$_cat_out" || _cap_ec=$?
   cat "$_cat_out"
-  if [[ "$_cap_ec" -eq 124 ]]; then
+  if [[ -n "$TIMEOUT_CMD" && "$_cap_ec" -eq 124 ]]; then
     rm -f "$_cat_out"
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: categorizer-timeout — failure categorization exceeded ${INTEGRATION_TIMEOUT}s (set CLAUDE_INTEGRATION_TIMEOUT to adjust)"
     exit 1

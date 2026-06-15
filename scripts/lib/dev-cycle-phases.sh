@@ -260,8 +260,6 @@ _impl_run_implement_phase() {
       bash "$PF" clear-task-state "$PLAN"
       bash "$PF" append-note "$PLAN" "[AUTO-DECIDED] implement: cleared-stale-task-defs — leftover from interrupted unit '${bound_unit}' discarded before implementing '${feat_slug}'"
       has_task_defs=0
-    elif [[ -z "$bound_unit" ]]; then
-      echo "[implement] WARN: task-defs present but no task-unit marker — assuming same unit (legacy plan), skipping auto-clear" >&2
     fi
   fi
   if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then

@@ -12,6 +12,11 @@ input=$(cat)
 
 require_jq_or_block "pretooluse-skill"
 
+if ! printf '%s' "$input" | jq -e . >/dev/null 2>&1; then
+  echo "BLOCKED [phase-gate/skill]: malformed hook payload — cannot evaluate marker gate; failing closed" >&2
+  exit 2
+fi
+
 [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && exit 0
 
 skill=$(printf '%s' "$input" | jq -r '.tool_input.skill // ""')

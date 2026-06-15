@@ -204,7 +204,7 @@ done
 if [[ $OVERALL_BLOCKED -eq 0 ]]; then
   _smoke_ec=0
   ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $SMOKE_TIMEOUT} bash -c "$TEST_CMD" 2>&1 || _smoke_ec=$?
-  if [[ "$_smoke_ec" -eq 124 ]]; then
+  if [[ -n "$TIMEOUT_CMD" && "$_smoke_ec" -eq 124 ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] smoke: timeout — full suite exceeded ${SMOKE_TIMEOUT}s (set CLAUDE_SMOKE_TIMEOUT to adjust)"
     OVERALL_BLOCKED=1
   elif [[ "$_smoke_ec" -ne 0 ]]; then

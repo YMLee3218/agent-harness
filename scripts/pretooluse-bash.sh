@@ -17,6 +17,11 @@ input=$(cat)
 
 require_jq_or_block "pretooluse-bash"
 
+if ! printf '%s' "$input" | jq -e . >/dev/null 2>&1; then
+  echo "BLOCKED [phase-gate/bash]: malformed hook payload — cannot evaluate marker gate; failing closed" >&2
+  exit 2
+fi
+
 cmd=$(extract_tool_input_command "$input")
 
 # ── Static blocking rules (unconditional pattern match) ──────────────────────
