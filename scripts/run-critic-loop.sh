@@ -132,6 +132,11 @@ while true; do
     # 2. Run Codex review → fixed log path (reliably accessible for diagnosis)
     _review_log="${_log_dir}/codex-critic-${AGENT}-last.log"
     _codex_review_exit=0
+    _sandbox_guard || {
+      bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+      exit 1
+    }
     if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
       "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
         "${_WORKER_SANDBOX_ARGS[@]}" codex exec --full-auto - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
@@ -228,6 +233,12 @@ while true; do
         build_pass_audit_prompt "$AGENT" "$_review_log" "$PLAN" "$_pass_audit_prompt"
 
         _pass_check_out=""
+        _sandbox_guard || {
+          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
+          bash "$PLAN_FILE_SH" append-note "$PLAN" \
+            "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+          exit 1
+        }
         _pass_cmd=()
         [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
           _pass_cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
@@ -276,6 +287,11 @@ while true; do
       build_decision_prompt "$AGENT" "$_review_log" "$PLAN" "$_decision_prompt"
 
       _decision_out=""
+      _sandbox_guard || {
+        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+        exit 1
+      }
       _dec_cmd=()
       [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
         _dec_cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
@@ -319,6 +335,11 @@ while true; do
 
           _fix_log="${_log_dir}/codex-critic-${AGENT}-fix.log"
           _fix_exit=0
+          _sandbox_guard || {
+            bash "$PLAN_FILE_SH" append-note "$PLAN" \
+              "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+            exit 1
+          }
           if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
             "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
               "${_WORKER_SANDBOX_ARGS[@]}" codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
@@ -371,6 +392,11 @@ Do NOT write \"I output the marker\" or refer to \"the marker above\" — actual
 the line. The nonce ${_nonce} must appear verbatim."
     fi
     _session_out=$(mktemp)
+    _sandbox_guard || {
+      bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+      exit 1
+    }
     _cmd=()
     [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
     [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _cmd+=("${_WORKER_SANDBOX_ARGS[@]}")
@@ -416,6 +442,11 @@ the line. The nonce ${_nonce} must appear verbatim."
             sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
       if [[ "$_rv" != "PASS" && "$_rv" != "FAIL" && -n "${_sid:-}" ]]; then
         _retry_out=$(mktemp); _rcmd=()
+        _sandbox_guard || {
+          bash "$PLAN_FILE_SH" append-note "$PLAN" \
+            "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+          exit 1
+        }
         [[ -n "$TIMEOUT_CMD" ]] && _rcmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
         [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _rcmd+=("${_WORKER_SANDBOX_ARGS[@]}")
         _rcmd+=(claude --resume "$_sid" --model "$CRITIC_LOOP_MODEL" --permission-mode auto \

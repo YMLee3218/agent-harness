@@ -59,6 +59,15 @@ _sandbox_unavailable() {
   fi
 }
 
+# _sandbox_guard — fail-closed precheck for timeout-prefixed spawn sites that
+# cannot use worker_exec (timeout execs a binary, not a shell function).
+_sandbox_guard() {
+  [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && return 0
+  [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]] || return 0
+  echo "[BLOCKED:env] sandbox: tier1-unavailable — set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" >&2
+  return 1
+}
+
 # worker_exec CMD [ARGS...] — run a command inside the worker sandbox when active.
 # If sandbox is unavailable and CLAUDE_ALLOW_UNSANDBOXED=1 is not set, refuses to run.
 worker_exec() {
