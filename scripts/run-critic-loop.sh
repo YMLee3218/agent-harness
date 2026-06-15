@@ -248,11 +248,11 @@ while true; do
           echo "CONVERGED"; exit 0
         else
           # Audit produced no recognisable verdict — treat as transient and retry
+          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
           _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
             "PASS audit produced no VERDICT line — retrying" "$PLAN_FILE_SH" 2>/dev/null && {
             echo "[transient] promoted pass-audit failure to [BLOCKED:env] after threshold" >&2; exit 1
           } || { echo "[transient] pass-audit no-verdict — retrying" >&2; }
-          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
         fi
       fi
       # 1st PASS or post-REJECT-PASS: loop continues, no Claude call
