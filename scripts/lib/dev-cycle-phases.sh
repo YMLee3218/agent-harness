@@ -329,7 +329,10 @@ _impl_run_review_phase() {
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "review" ]] && \
      [[ ! -f "$_review_marker" ]]; then
-    git push origin HEAD >>"${PLAN%.md}.state/pr-create.log" 2>&1 || true
+    if ! git push origin HEAD >>"${PLAN%.md}.state/pr-create.log" 2>&1; then
+      bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: pr-push-failed — push before pr-review failed; see pr-create.log; resolve (push/remote/auth) then re-run"
+      exit 1
+    fi
     pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
     run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}." "@reference/pr-review-loop.md §PR-review one-shot iteration"
     llm_exit "pr-review"
