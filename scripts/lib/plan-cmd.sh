@@ -268,8 +268,9 @@ cmd_append_note() {
   fi
   # Idempotency: skip if exact same [BLOCKED:*] marker already present in ## Open Questions.
   if [[ -n "$_kind" ]]; then
-    if awk -v note="$note" '/^## Open Questions$/{s=1;next} s&&/^## /{s=0} s&&$0==note{found=1;exit} END{exit !found}' \
-        "$plan_file" 2>/dev/null; then
+    local _oq_section
+    _oq_section=$(awk '/^## Open Questions$/{s=1;next} s&&/^## /{s=0} s{print}' "$plan_file" 2>/dev/null) || _oq_section=""
+    if printf '%s\n' "$_oq_section" | grep -qxF -- "$note"; then
       echo "[cmd_append_note] INFO: duplicate [BLOCKED:${_kind}] marker suppressed" >&2
       return 0
     fi

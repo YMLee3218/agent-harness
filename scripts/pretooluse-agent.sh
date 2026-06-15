@@ -12,6 +12,11 @@ input=$(cat)
 
 require_jq_or_block "pretooluse-agent"
 
+if ! printf '%s' "$input" | jq -e . >/dev/null 2>&1; then
+  echo "BLOCKED [phase-gate/agent]: malformed hook payload — cannot evaluate marker gate; failing closed" >&2
+  exit 2
+fi
+
 [[ "${CLAUDE_PLAN_CAPABILITY:-}" == "human" ]] && exit 0
 
 subagent=$(printf '%s' "$input" | jq -r '.tool_input.subagent_type // ""')

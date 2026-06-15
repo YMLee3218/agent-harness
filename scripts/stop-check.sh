@@ -47,6 +47,14 @@ source "$(dirname "$0")/lib/telegram-notify.sh"
 source "$(dirname "$0")/lib/active-plan.sh"
 # shellcheck source=phase-policy.sh
 source "$(dirname "$0")/phase-policy.sh"
+# Detect corrupt/ambiguous plan state (resolver exits 2) so the Stop hook surfaces the reason
+# and ALLOWS stop, instead of exit 2 propagating as force-continue on a broken plan.
+_pc_rc=0
+_pc_reason=$( resolve_active_plan_and_phase _pc_p _pc_ph 2>&1 1>/dev/null ) || _pc_rc=$?
+if [[ "$_pc_rc" -eq 2 ]]; then
+  echo "[stop-check] plan state unresolved (${_pc_reason:-corrupt/ambiguous}) — surfacing and allowing stop; repair the plan/state JSON, then re-run" >&2
+  exit 0
+fi
 resolve_active_plan_and_phase active_plan phase || exit 0
 
 # Human-must-clear marker: send Telegram notification and allow stop
