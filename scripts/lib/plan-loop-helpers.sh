@@ -181,7 +181,8 @@ _record_loop_state_body() {
       "$([ "$new_converged" = "true" ] && echo true || echo false)" \
       "$([ "$prior_cb" = "true" ] && echo true || echo false)" \
       "$run_ordinal" "$ms" \
-    | jq --arg cat "$category" '. + {last_verdict_category: $cat}')"
+    | jq --arg cat "$category" --arg fp "$(_spec_fingerprint)" \
+      '. + {last_verdict_category: $cat, spec_fingerprint: $fp}')"
   if [[ "$verdict" != "PARSE_ERROR" ]] && [[ "$was_first_turn" != "true" ]]; then
     echo "[record-loop-state] first real verdict for ${scope}" >&2
   fi
