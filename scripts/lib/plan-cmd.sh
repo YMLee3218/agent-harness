@@ -1095,6 +1095,28 @@ cmd_gc_verdicts() {
 
 # ── Sidecar queries / migration ───────────────────────────────────────────────
 
+# _is_converged_plan_md_fail PLAN_FILE PHASE AGENT
+# Returns "FAIL" if the last verdict for {phase}/{agent} in ## Critic Verdicts
+# (after the last MILESTONE-BOUNDARY for that scope) is FAIL; empty string otherwise.
+# Symmetric with _is_blocked_plan_md_count — provides plan.md ground-truth for divergence check.
+_is_converged_plan_md_fail() {
+  local _pf="$1" _phase="$2" _agent="$3"
+  local _scope="${_phase}/${_agent}"
+  awk -v scope="$_scope" '
+    /^## Critic Verdicts$/ { in_s=1; next }
+    in_s && /^## / { in_s=0 }
+    !in_s { next }
+    index($0,"[MILESTONE-BOUNDARY @")>0 && index($0,scope ":")>0 { last=""; next }
+    $0 ~ ("^- " scope ": (PASS|FAIL)") {
+      last = ($0 ~ ("^- " scope ": FAIL")) ? "FAIL" : "PASS"
+    }
+    END { if (last=="FAIL") print "FAIL" }
+  ' "$_pf" 2>/dev/null
+}
+
+# INVARIANT: convergence 상태(.converged)는 이 함수 외에서 직접 읽지 말 것.
+# 새 소비자는 반드시 is-converged를 거쳐 plan.md 발산 가드(FIX-1)와
+# spec 핑거프린트 가드(FIX-3)를 통과해야 한다. 직접 읽으면 두 가드가 우회된다(G2/G3 재발).
 cmd_is_converged() {
   local plan_file="$1" phase="$2" agent="$3"
   require_file "$plan_file"
@@ -1110,7 +1132,33 @@ cmd_is_converged() {
   fi
   local converged
   converged=$(jq -r '.converged // false' "$conv_path" 2>/dev/null || echo false)
-  [[ "$converged" == "true" ]]
+  if [[ "$converged" == "true" ]]; then
+    # FIX-1: plan.md divergence guard — symmetric with is-blocked divergence check (G2).
+    if [[ "$(_is_converged_plan_md_fail "$plan_file" "$phase" "$agent")" == "FAIL" ]]; then
+      echo "[is-converged] DIVERGENCE: sidecar converged=true but plan.md '## Critic Verdicts' last ${phase}/${agent} verdict is FAIL — treating as not-converged" >&2
+      return 1
+    fi
+    # FIX-3: spec fingerprint guard — invalidate stale convergence when spec set has changed (G3).
+    local _stored_fp
+    _stored_fp=$(jq -r '.spec_fingerprint // ""' "$conv_path" 2>/dev/null || echo "")
+    if [[ -z "$_stored_fp" ]]; then
+      # Old sidecar without fingerprint field — fail-safe: force one re-convergence.
+      echo "[is-converged] SPEC-FINGERPRINT-ABSENT: sidecar missing spec_fingerprint — treating as not-converged (fail-safe; populates on next verdict)" >&2
+      return 1
+    fi
+    # F2: when fingerprinting is unavailable (no SHA tool) at record or check time, skip the
+    # spec-change comparison rather than blocking forever — "no-sha-tool" is a non-comparable sentinel.
+    if [[ "$_stored_fp" != "no-sha-tool" ]]; then
+      local _current_fp
+      _current_fp=$(_spec_fingerprint)
+      if [[ -n "$_current_fp" && "$_current_fp" != "no-sha-tool" && "$_stored_fp" != "$_current_fp" ]]; then
+        echo "[is-converged] SPEC-CHANGED: fingerprint ${_stored_fp:0:12}… → ${_current_fp:0:12}… — treating as not-converged (spec set changed since last convergence)" >&2
+        return 1
+      fi
+    fi
+    return 0
+  fi
+  return 1
 }
 
 # _is_blocked_plan_md_count PLAN_FILE [KIND] — count active BLOCKED markers in ## Open Questions.

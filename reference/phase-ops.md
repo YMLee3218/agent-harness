@@ -35,7 +35,16 @@ Checklist:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {critic-name}
    ```
-4. Proceed normally from Step 2 of the calling skill.
+4. **Post-rollback convergence-verdict consistency check**: for each affected `{phase}/{agent}` scope, verify the sidecar is consistent with `## Critic Verdicts`:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {phase} {agent}
+   ```
+   If this prints a `DIVERGENCE` message (sidecar `converged=true` but plan.md shows FAIL), the runtime guard detected forged state. Explicitly reset the sidecar so the stale `converged:true` does not persist:
+   ```bash
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {agent}
+   ```
+   Record the event in `history.md` as `RESIDUAL`. **Do not hand-edit the convergence JSON to restore PASS.** Doing so recreates the exact forgery this check prevents.
+5. Proceed normally from Step 2 of the calling skill.
 
 ## Skill phase entry
 
