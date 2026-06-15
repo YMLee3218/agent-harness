@@ -147,7 +147,7 @@ _restore_and_retry() {
   make_prompt "$id" > "$retry_prompt"
   printf '\nRETRY: previous attempt modified test files (%s) — strictly read-only.\n' "$test_files" >> "$retry_prompt"
   local _ec=0
-  (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$retry_prompt") > "$retry_log" 2>&1 || _ec=$?
+  (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$retry_prompt") > "$retry_log" 2>&1 || _ec=$?
   if [[ -n "$TIMEOUT_CMD" && "$_ec" -eq 124 ]]; then
     echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$retry_log"
     bash "$PF" update-task "$PLAN" "$id" blocked

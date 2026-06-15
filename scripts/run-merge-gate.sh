@@ -12,6 +12,9 @@ SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/run-context.sh
 source "$SCRIPTS_DIR/lib/run-context.sh"
 setup_run_context
+# shellcheck source=lib/sandbox-lib.sh
+source "$SCRIPTS_DIR/lib/sandbox-lib.sh" 2>/dev/null || true
+_init_worker_sandbox "${PROJECT_DIR:-}" 2>/dev/null || true
 # shellcheck source=lib/llm-runner.sh
 source "$SCRIPTS_DIR/lib/llm-runner.sh"
 
@@ -43,7 +46,7 @@ export CRITIC_MERGE_INTEGRATION_CMD="${INTEGRATION_CMD}"
 echo "[merge-gate] Running final branch integrity audit for ${SLUG}…"
 _CALL_RC=0
 CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="${PLAN}" \
-  env -u CLAUDE_PLAN_CAPABILITY claude --model sonnet --permission-mode auto --dangerously-skip-permissions \
+  env -u CLAUDE_PLAN_CAPABILITY worker_exec claude --model sonnet --permission-mode auto --dangerously-skip-permissions \
   -p "You are critic-merge. Run the merge-gate audit for plan ${PLAN} on branch ${BRANCH}. $(cat "$SCRIPTS_DIR/../agents/critic-merge.md" 2>/dev/null || echo 'See agents/critic-merge.md')" \
   > "$REPORT_FILE" 2>&1 || _CALL_RC=$?
 
