@@ -21,3 +21,4 @@ worktrees/
 
 # Plan sidecar state — runtime-only, never version-controlled (covers worktree-nested paths too)
 plans/**/*.state/
+settings.local.json
