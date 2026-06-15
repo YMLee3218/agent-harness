@@ -153,6 +153,10 @@ cmd_find_active() {
       if [ "$envphase" = "done" ]; then
         echo "[plan-file] CLAUDE_PLAN_FILE=$CLAUDE_PLAN_FILE is done; falling through to other strategies. Unset or pick a new plan if unintentional." >&2
       fi
+      if [ -z "$envphase" ]; then
+        echo "ERROR: CLAUDE_PLAN_FILE=$CLAUDE_PLAN_FILE exists but phase is unreadable (missing ## Phase section) — repair before stopping." >&2
+        exit 4
+      fi
     fi
   fi
 
@@ -896,15 +900,15 @@ cmd_reset_milestone() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-milestone")
   local scope; scope=$(_scope_of "$current_phase" "$agent")
-  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] ${agent}:"
-  cmd_clear_marker "$plan_file" "[RECURRING] ${agent}:"
+  _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
   _clear_ceiling_sidecar_entry "$plan_file" "${scope}"
   _clear_transient_for "$plan_file" "$agent" 2>/dev/null || true
   local ts
   ts=$(_iso_timestamp)
   _append_to_critic_verdicts "$plan_file" \
     "[MILESTONE-BOUNDARY @${ts}] ${scope}:"
-  _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
+  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] ${agent}:"
+  cmd_clear_marker "$plan_file" "[RECURRING] ${agent}:"
   echo "[reset-milestone] cleared convergence markers and added milestone boundary for ${scope}" >&2
 }
 
@@ -914,16 +918,16 @@ cmd_reset_pr_review() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-pr-review")
   for phase in implement review; do
-    cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] pr-review:"
+    _sc_reset_convergence_for_scope "$plan_file" "$phase" "pr-review"
     _clear_ceiling_sidecar_entry "$plan_file" "${phase}/pr-review"
     local ts
     ts=$(_iso_timestamp)
     _append_to_critic_verdicts "$plan_file" \
       "[MILESTONE-BOUNDARY @${ts}] ${phase}/pr-review:"
-    _sc_reset_convergence_for_scope "$plan_file" "$phase" "pr-review"
   done
-  cmd_clear_marker "$plan_file" "[RECURRING] pr-review:"
   _clear_transient_for "$plan_file" "pr-review" 2>/dev/null || true
+  cmd_clear_marker "$plan_file" "[RECURRING] pr-review:"
+  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] pr-review:"
   echo "[reset-pr-review] cleared pr-review convergence markers for implement and review phases" >&2
 }
 

@@ -52,7 +52,7 @@ if [[ $_CALL_RC -ne 0 ]]; then
   exit 1
 fi
 
-if grep -q '^MERGE-READY: yes' "$REPORT_FILE" 2>/dev/null; then
+if grep -qE '^MERGE-READY: yes[[:space:]]*$' "$REPORT_FILE" 2>/dev/null; then
   echo "[merge-gate] PASS — branch ${BRANCH} is merge-ready."
   cat "$REPORT_FILE"
   exit 0

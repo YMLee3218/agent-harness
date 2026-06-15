@@ -122,7 +122,7 @@ _compute_streak() {
   if [[ $_src -ne 0 ]]; then
     local scope; scope=$(_scope_of "$current_phase" "$agent")
     echo "[record-loop-state] streak compute failed for ${scope} — verdict withheld" >&2
-    _record_blocked_runtime "$plan_file" "harness" "verdicts" \
+    _record_blocked_runtime "$plan_file" "$agent" "$scope" \
       "corrupt verdicts.jsonl — streak computation failed; manual inspection required"
     return 3
   fi

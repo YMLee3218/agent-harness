@@ -83,10 +83,10 @@ block_execution() {
   if printf '%s' "$cmd" | grep -iqE '\|[[:space:]]*(python3?|perl|ruby|node)[[:space:]]*(-[[:space:]])?([[:space:]]|$)'; then
     echo "BLOCKED: pipe-to-interpreter detected" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[[:space:]]+(-[A-Za-z]*[ceE]([[:space:]]|=)|--?command|--?eval)'; then
+  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[[:space:]]+(-[A-Za-z]*[ceE]([[:space:]]|=|['"'"'"]|$)|--?command|--?eval)'; then
     echo "BLOCKED: inline interpreter script — use Read/Write/Edit tools instead of python/perl/ruby/node -c/-e" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[^|;&]*<<-?[[:space:]]*['"'"'"\\]?[A-Za-z_]'; then
+  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[^|;&]*<<-?[[:space:]]*['"'"'"\\]?[A-Za-z0-9_]'; then
     echo "BLOCKED: interpreter heredoc detected — use Write/Edit tool instead of python/perl/ruby/node << HEREDOC" >&2; exit 2
   fi
   # awk internal redirect to src/, tests/, or plans/
