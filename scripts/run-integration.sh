@@ -141,6 +141,11 @@ After completing the above, output as the very last line of your response exactl
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] integration: categorizer-timeout — failure categorization exceeded ${INTEGRATION_TIMEOUT}s (set CLAUDE_INTEGRATION_TIMEOUT to adjust)"
     exit 1
   fi
+  if [[ "$_cap_ec" -ne 0 ]]; then
+    rm -f "$_cat_out"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:env] integration: categorizer-invocation-failure — claude exited ${_cap_ec}; re-run or check session logs" 2>/dev/null || true
+    exit 1
+  fi
 
   _cat_marker=$(grep -o "<!-- integration-result: ${_cat_nonce} [a-z ]* -->" "$_cat_out" | tail -1 | \
                 sed "s|<!-- integration-result: ${_cat_nonce} ||; s| -->||" | tr -d '\n' || true)
@@ -152,7 +157,7 @@ After completing the above, output as the very last line of your response exactl
         "[BLOCKED:code] integration: tests-failing — mixed or ambiguous failure categories; manual review required" 2>/dev/null || true
     else
       bash "$PF" append-note "$PLAN" \
-        "[BLOCKED:code] integration: tests-failing — categorizer produced no result marker; re-run or review manually" 2>/dev/null || true
+        "[BLOCKED:harness] integration: categorizer-no-marker — categorizer produced no result marker; re-run or inspect claude output" 2>/dev/null || true
     fi
     exit 1
   fi

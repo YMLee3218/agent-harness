@@ -30,6 +30,15 @@ Run the block below as-is — do not modify any values:
 _boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
 _active_plan=$(bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')
+if [[ -z "$_active_plan" ]]; then
+  echo "running-integration-tests: no active plan — start a dev cycle first with /running-dev-cycle" >&2; exit 1
+fi
+_phase=$(bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" get-phase "$_active_plan" 2>/dev/null || echo '')
+if [[ "$_phase" != "green" && "$_phase" != "integration" ]]; then
+  bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" append-note "$_active_plan" \
+    "[BLOCKED:env] running-integration-tests: unexpected-phase — entered from ${_phase:-unknown}; expected green or integration"
+  exit 1
+fi
 _unit_cmd=$(grep -m1 '^\- Test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null \
   | sed 's/^- Test: *//;s/^`//;s/`.*$//' || echo '')
 _integration_cmd=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null \
