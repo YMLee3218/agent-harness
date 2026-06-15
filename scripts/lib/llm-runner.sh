@@ -20,7 +20,7 @@ run_llm() {
   local prompt="$1" model="${2:-opus}"
   _CALL_RC=0
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="${PLAN:-}" \
-    env -u CLAUDE_PLAN_CAPABILITY worker_exec claude --model "$model" --permission-mode auto --dangerously-skip-permissions -p "$prompt" || _CALL_RC=$?
+    worker_exec env -u CLAUDE_PLAN_CAPABILITY claude --model "$model" --permission-mode auto --dangerously-skip-permissions -p "$prompt" || _CALL_RC=$?
 }
 
 run_critic() {

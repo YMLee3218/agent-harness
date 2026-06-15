@@ -22,6 +22,8 @@ _init_worker_sandbox() {
     echo "[sandbox-lib] WARN: no PROJ_DIR supplied; Tier 1 inactive" >&2
     _sandbox_unavailable "no PROJ_DIR"; return 0
   fi
+  # Resolve symlinks so Seatbelt deny rules match the kernel-resolved path.
+  _proj_dir="$(cd "$_proj_dir" 2>/dev/null && pwd -P || printf '%s' "$_proj_dir")"
   if [[ "$(uname 2>/dev/null)" != "Darwin" ]]; then
     echo "[sandbox-lib] WARN: non-macOS platform; Tier 1 inactive (Linux bubblewrap not yet implemented)" >&2
     _sandbox_unavailable "non-Darwin"; return 0
@@ -57,6 +59,15 @@ _sandbox_unavailable() {
   else
     echo "[sandbox-lib] WARN: Tier 1 sandbox unavailable (${_reason}); CLAUDE_ALLOW_UNSANDBOXED=1 — running unconfined" >&2
   fi
+}
+
+# _sandbox_guard — fail-closed precheck for timeout-prefixed spawn sites that
+# cannot use worker_exec (timeout execs a binary, not a shell function).
+_sandbox_guard() {
+  [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && return 0
+  [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]] || return 0
+  echo "[BLOCKED:env] sandbox: tier1-unavailable — set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" >&2
+  return 1
 }
 
 # worker_exec CMD [ARGS...] — run a command inside the worker sandbox when active.

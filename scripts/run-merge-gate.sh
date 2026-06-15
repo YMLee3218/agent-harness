@@ -50,7 +50,7 @@ export CRITIC_MERGE_INTEGRATION_CMD="${INTEGRATION_CMD}"
 echo "[merge-gate] Running final branch integrity audit for ${SLUG}…"
 _CALL_RC=0
 CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="${PLAN}" \
-  env -u CLAUDE_PLAN_CAPABILITY worker_exec claude --model sonnet --permission-mode auto --dangerously-skip-permissions \
+  worker_exec env -u CLAUDE_PLAN_CAPABILITY claude --model sonnet --permission-mode auto --dangerously-skip-permissions \
   -p "You are critic-merge. Run the merge-gate audit for plan ${PLAN} on branch ${BRANCH}. $(cat "$SCRIPTS_DIR/../agents/critic-merge.md" 2>/dev/null || echo 'See agents/critic-merge.md')" \
   > "$REPORT_FILE" 2>&1 || _CALL_RC=$?
 

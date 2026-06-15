@@ -19,7 +19,11 @@ Harness protections are organized into two tiers. **Only Tier 1 provides structu
 
 **Bypass is structurally impossible** for confined worker processes: Bash redirect (`>`), `python -c "open(...).write(...)"`, `sed -i`, `find -exec`, and `codex exec` all hit the same kernel EPERM. The attack surface is closed.
 
+**Git commit ownership**: the `test(red):` commit (and all other commits) are made by the orchestrator (`dev-cycle-phases.sh`), not by workers. Workers leave files in the working tree only. This avoids exposing `git common dir` (which lives outside `PROJ_ROOT`) as a required Tier 1 write surface.
+
 **Note on `claude` worker `sandbox.enabled`**: the claude worker runs under the external Seatbelt profile only. `settings.json` keeps `sandbox.enabled: false` intentionally — the internal sandbox would also restrict interactive human sessions, which is undesirable. Single external Seatbelt enforcement is the design.
+
+**Note on timeout-prefixed spawn sites**: `timeout`/`gtimeout` exec their first argument as a binary via `execvp`, so they cannot invoke `worker_exec` (a bash shell function). Spawn sites that carry a timeout prefix (`${TIMEOUT_CMD:+…}`) must use `"${_WORKER_SANDBOX_ARGS[@]}"` array expansion directly, preceded by a `_sandbox_guard` call for fail-closed behaviour. `worker_exec` is reserved for timeout-free spawn sites (`run-merge-gate.sh`, `llm-runner.sh`). Timeout-prefixed array+guard sites: `implement-helpers.sh`, `integration-helpers.sh`, `run-critic-loop.sh` (codex spawns).
 
 **When Tier 1 is absent** (non-macOS, `sandbox-exec` unavailable, or `worker.sb` missing): the harness is **fail-closed by default**. `_init_worker_sandbox` sets `_SANDBOX_REQUIRED_FAIL=1`; each calling script (`run-implement.sh`, `run-critic-loop.sh`, `run-integration.sh`, `run-merge-gate.sh`, `run-dev-cycle.sh`) checks this flag immediately after the call and exits with `[BLOCKED:env] sandbox: tier1-unavailable`. Workers are NOT spawned. To opt out of this requirement (e.g., Linux CI or development environments without Seatbelt), set `CLAUDE_ALLOW_UNSANDBOXED=1`; only the orchestrator process can set this env var before spawning workers, so adversarial workers cannot self-grant the override. Linux Tier 1 equivalent (bubblewrap) is not yet implemented; Linux runs require `CLAUDE_ALLOW_UNSANDBOXED=1`.
 

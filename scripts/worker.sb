@@ -31,7 +31,7 @@
 
 ;; File reads: unrestricted
 (allow file-read*)
-(allow file-ioctl*)
+(allow file-ioctl)
 
 ;; Networking: required for LLM API and package downloads
 (allow network*)
