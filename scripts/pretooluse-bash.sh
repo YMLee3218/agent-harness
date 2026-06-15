@@ -41,7 +41,7 @@ if [ -f "$PLAN_FILE_SH" ]; then
 
   # ── Codex invocation block (before early-exit so destination-less codex exec is caught) ──
   if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
-    if printf '%s' "$cmd" | grep -qE '(^|[;|&]|&&|\|\|)[[:space:]]*(env([[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+|-u[[:space:]]+[A-Za-z_][A-Za-z0-9_]*))*[[:space:]]+)?codex([[:space:]]+|$)'; then
+    if printf '%s' "$cmd" | grep -qE '(^|[;|&]|&&|\|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(env([[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+|-u[[:space:]]+[A-Za-z_][A-Za-z0-9_]*))*[[:space:]]+)?codex([[:space:]]+|$)'; then
       _codex_plan=""; _codex_phase=""
       resolve_active_plan_and_phase _codex_plan _codex_phase || _codex_plan=""
       if [ -n "$_codex_plan" ]; then

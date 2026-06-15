@@ -211,7 +211,7 @@ block_capability() {
   _block_var_assign "$cmd" "CLAUDE_PROJECT_DIR" "CLAUDE_PROJECT_DIR assignment in agent Bash command — would spawn child claude with detached hook root"
   # env-injection
   if printf '%s' "$cmd" | grep -qwE \
-    'BASH_ENV|PROMPT_COMMAND|PS4|SHELLOPTS|BASHOPTS|LD_PRELOAD|LD_AUDIT|DYLD_INSERT_LIBRARIES|PHASE_GATE_STRICT'; then
+    'BASH_ENV|PROMPT_COMMAND|PS4|SHELLOPTS|BASHOPTS|LD_PRELOAD|LD_AUDIT|DYLD_INSERT_LIBRARIES|PHASE_GATE_STRICT|PHASE_GATE_SRC_GLOB|PHASE_GATE_TEST_GLOB'; then
     echo "BLOCKED: shell startup / library-injection env var detected" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -qE '(^|[[:space:];|&])[[:space:]]*ENV[[:space:]]*='; then
@@ -226,17 +226,20 @@ block_capability() {
 block_plan_revert() {
   local cmd="$1"
   [[ -z "${PLAN_FILE_SH:-}" ]] && return 0
-  local _active_plan=""
-  # Use find-active directly: any non-zero (no plan, ambiguous rc=3, malformed rc=4)
-  # means we cannot determine which plan to guard, so skip this check.
-  _active_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) || return 0
+  local _is_revert=0
+  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+(checkout|restore|apply|am|revert|cherry-pick|switch)[[:space:]]' \
+     && printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]]*\.md'; then
+    _is_revert=1
+  elif printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+reset[[:space:]]+--[[:space:]]*(soft|mixed)([[:space:]]|$)'; then
+    _is_revert=1
+  fi
+  [[ "$_is_revert" -eq 0 ]] && return 0
+  local _active_plan="" _fa_rc=0
+  _active_plan=$(bash "$PLAN_FILE_SH" find-active 2>/dev/null) || _fa_rc=$?
+  if [[ "$_fa_rc" -eq 3 || "$_fa_rc" -eq 4 ]]; then
+    echo "BLOCKED: plan-revert git operation while plan state is ambiguous/corrupt (find-active rc=${_fa_rc}) — cannot verify no human-must-clear marker is active; resolve plan state first" >&2; exit 2
+  fi
   [[ -z "$_active_plan" ]] && return 0
   marker_present_human_must_clear "$_active_plan" >/dev/null 2>&1 || return 0
-  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+(checkout|restore|apply|am|revert|cherry-pick|switch)[[:space:]]' && \
-     printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]]*\.md'; then
-    echo "BLOCKED: git operation targeting plans/*.md while human-must-clear marker active — resolve the block first" >&2; exit 2
-  fi
-  if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+reset[[:space:]]+--[[:space:]]*(soft|mixed)([[:space:]]|$)'; then
-    echo "BLOCKED: git reset --soft/--mixed while human-must-clear marker active — resolve the block first" >&2; exit 2
-  fi
+  echo "BLOCKED: git plan-revert operation while human-must-clear marker active — resolve the block first" >&2; exit 2
 }
