@@ -106,7 +106,7 @@ launch_task() {
   else
     local _ec=0
     (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$prompt") > "$log" 2>&1 || _ec=$?
-    if [[ -n "$TIMEOUT_CMD" && "$_ec" -eq 124 ]]; then
+    if [[ -n "${TIMEOUT_CMD:-}" && "$_ec" -eq 124 ]]; then
       echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$log"
     fi
   fi
@@ -120,7 +120,7 @@ wait_task() {
     local _ec=0
     wait "$(cat "$pid_file")" || _ec=$?
     rm -f "$pid_file"
-    if [[ -n "$TIMEOUT_CMD" && "$_ec" -eq 124 ]]; then
+    if [[ -n "${TIMEOUT_CMD:-}" && "$_ec" -eq 124 ]]; then
       echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$WORK_DIR/log-${id}.txt"
     fi
   fi
@@ -158,7 +158,7 @@ _restore_and_retry() {
     return 1
   }
   (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$retry_prompt") > "$retry_log" 2>&1 || _ec=$?
-  if [[ -n "$TIMEOUT_CMD" && "$_ec" -eq 124 ]]; then
+  if [[ -n "${TIMEOUT_CMD:-}" && "$_ec" -eq 124 ]]; then
     echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$retry_log"
     bash "$PF" update-task "$PLAN" "$id" blocked
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: aborted — retry timeout after ${IMPLEMENT_TIMEOUT}s"
@@ -194,7 +194,7 @@ _run_failing_test() {
   (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} bash -c "$TEST_CMD \"\$1\"" -- "$test_file" 2>&1) || _ec=$?
   if [[ "$_ec" -ne 0 ]]; then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    if [[ -n "$TIMEOUT_CMD" && "$_ec" -eq 124 ]]; then
+    if [[ -n "${TIMEOUT_CMD:-}" && "$_ec" -eq 124 ]]; then
       bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-timeout — file-gate exceeded ${IMPLEMENT_TIMEOUT}s (possible infinite loop in generated code)"
     else
       bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: tests-failing — after implementation (file: ${test_file})"
@@ -211,7 +211,7 @@ _run_lint() {
   (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} bash -c "$LINT_CMD" 2>&1) || _ec=$?
   if [[ "$_ec" -ne 0 ]]; then
     bash "$PF" update-task "$PLAN" "$id" blocked
-    if [[ -n "$TIMEOUT_CMD" && "$_ec" -eq 124 ]]; then
+    if [[ -n "${TIMEOUT_CMD:-}" && "$_ec" -eq 124 ]]; then
       bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: lint-timeout — lint exceeded ${IMPLEMENT_TIMEOUT}s"
     else
       bash "$PF" append-note "$PLAN" "[BLOCKED:code] coder:${id}: lint-failing — after implementation"
@@ -292,7 +292,7 @@ _run_regression_gate() {
   mapfile -t _reg_files < "$WORK_DIR/completed-test-files.txt"
   local _ec=0
   (${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $SMOKE_TIMEOUT} bash -c "$TEST_CMD \"\$@\"" -- "${_reg_files[@]}" 2>&1) || _ec=$?
-  if [[ -n "$TIMEOUT_CMD" && "$_ec" -eq 124 ]]; then
+  if [[ -n "${TIMEOUT_CMD:-}" && "$_ec" -eq 124 ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] regression: tests-timeout — regression re-run after merge of ${merged_id} exceeded ${SMOKE_TIMEOUT}s (possible hang; set CLAUDE_SMOKE_TIMEOUT to adjust)"
     return 1
   fi
