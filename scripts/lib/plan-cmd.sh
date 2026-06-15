@@ -1172,7 +1172,7 @@ _is_blocked_plan_md_count() {
   [[ -z "$_section" ]] && { echo 0; return 0; }
   if [[ -n "$_kind" ]]; then
     # kind is [a-z]+ — safe to interpolate; \[ and \] are literal brackets in grep ERE
-    _count=$(printf '%s\n' "$_section" | grep -cE "^\[BLOCKED:${_kind}\] " 2>/dev/null || echo 0)
+    _count=$(printf '%s\n' "$_section" | grep -cE "^\[BLOCKED:${_kind}\] " 2>/dev/null) || _count=0
   else
     local _m _esc
     for _m in "${HUMAN_MUST_CLEAR_MARKERS[@]}"; do

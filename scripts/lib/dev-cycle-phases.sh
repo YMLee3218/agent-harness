@@ -385,7 +385,7 @@ _scenario_count_gate() {
   _layer=$(basename "$(dirname "$(dirname "$spec_path")")")
   _concept_snake=$(printf '%s' "$_concept" | tr '-' '_')
   _concept_kebab=$(printf '%s' "$_concept" | tr '_' '-')
-  _spec_scenarios=$(grep -cE '^[[:space:]]*(Scenario|Scenario Outline):' "$spec_path" 2>/dev/null || echo 0)
+  _spec_scenarios=$(grep -cE '^[[:space:]]*(Scenario|Scenario Outline):' "$spec_path" 2>/dev/null) || _spec_scenarios=0
   [[ "$_spec_scenarios" -eq 0 ]] && return 0  # No BDD scenarios in spec — gate not applicable
 
   local _test_dir_snake="${PROJECT_DIR}/tests/${_layer}/${_concept_snake}"

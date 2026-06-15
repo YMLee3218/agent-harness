@@ -38,7 +38,7 @@ if [ -f "$PLAN_FILE_SH" ]; then
   if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
     if printf '%s' "$cmd" | grep -qE '(^|[;|&]|&&|\|\|)[[:space:]]*(env([[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+|-u[[:space:]]+[A-Za-z_][A-Za-z0-9_]*))*[[:space:]]+)?codex([[:space:]]+|$)'; then
       _codex_plan=""; _codex_phase=""
-      resolve_active_plan_and_phase _codex_plan _codex_phase 2>/dev/null || _codex_plan=""
+      resolve_active_plan_and_phase _codex_plan _codex_phase || _codex_plan=""
       if [ -n "$_codex_plan" ]; then
         _codex_hmc=$(marker_present_human_must_clear "$_codex_plan" 2>/dev/null) || _codex_hmc=""
         if [ -n "$_codex_hmc" ]; then

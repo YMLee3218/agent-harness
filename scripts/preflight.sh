@@ -33,7 +33,7 @@ _resolve_project_dir
 
 # Locate active plan for [BLOCKED:env] preflight: writes; non-fatal if none found.
 _active_plan="" _active_plan_phase=""
-resolve_active_plan_and_phase _active_plan _active_plan_phase 2>/dev/null || _active_plan=""
+resolve_active_plan_and_phase _active_plan _active_plan_phase || _active_plan=""
 
 _blocked=0
 
