@@ -19,7 +19,7 @@ skill=$(printf '%s' "$input" | jq -r '.tool_input.skill // ""')
 
 PLAN_FILE_SH="$(dirname "$0")/plan-file.sh"
 plan=""; phase=""
-resolve_active_plan_and_phase plan phase 2>/dev/null || plan=""
+resolve_active_plan_and_phase plan phase || plan=""
 [[ -z "$plan" ]] && exit 0
 
 if _hmc=$(marker_present_human_must_clear "$plan" 2>/dev/null); then

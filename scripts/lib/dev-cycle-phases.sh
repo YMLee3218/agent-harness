@@ -397,8 +397,9 @@ _scenario_count_gate() {
     return 0  # No test directory yet — coverage gate already blocked for this case
   fi
 
-  _collect_output=$(cd "$PROJECT_DIR" && ${UNIT_CMD} --collect-only -q "$_test_dir" 2>/dev/null)
-  _collect_rc=$?
+  local _collect_rc=0
+  _collect_output=$(cd "$PROJECT_DIR" && ${UNIT_CMD} --collect-only -q "$_test_dir" 2>/dev/null) \
+    || _collect_rc=$?
   if [[ "$_collect_rc" -ne 0 ]]; then
     echo "[SKIP] scenario-count gate — pytest collection failed (rc=${_collect_rc}); collection failure is not under-coverage (likely RED-phase import error)" >&2
     return 0
