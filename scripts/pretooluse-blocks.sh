@@ -83,7 +83,7 @@ block_execution() {
   if printf '%s' "$cmd" | grep -iqE '\|[[:space:]]*(python3?|perl|ruby|node)[[:space:]]*(-[[:space:]])?([[:space:]]|$)'; then
     echo "BLOCKED: pipe-to-interpreter detected" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[[:space:]]+(-[A-Za-z]*[ceE]([[:space:]]|=|['"'"'"]|$)|--?command|--?eval)'; then
+  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b([[:space:]]+-[A-Za-z0-9]+)*[[:space:]]+(-[A-Za-z]*[ceE]([[:space:]]|=|['"'"'"]|$)|--?command|--?eval)'; then
     echo "BLOCKED: inline interpreter script — use Read/Write/Edit tools instead of python/perl/ruby/node -c/-e" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[^|;&]*<<-?[[:space:]]*['"'"'"\\]?[A-Za-z0-9_]'; then
@@ -125,7 +125,7 @@ block_sidecar_writes() {
     echo "BLOCKED: git rm targeting plans/*.md" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -qE '(^|[;|&])[[:space:]]*cd[[:space:]]+([./]*)?plans([/[:space:];|&]|$)' \
-    && printf '%s' "$cmd" | grep -qE '\b(sed[[:space:]]+-i|rm|cp|mv|tee|cat[[:space:]]+>|printf|echo)[[:space:]]'; then
+    && printf '%s' "$cmd" | grep -qE '(\b(sed[[:space:]]+-i|rm|cp|mv|tee|printf|echo)[[:space:]]|>{1,2})'; then
     echo "BLOCKED: cd plans && write — use plan-file.sh harness commands" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+(checkout|restore|apply|am|revert|cherry-pick|update-ref|update-index|hash-object)[[:space:]]' && \

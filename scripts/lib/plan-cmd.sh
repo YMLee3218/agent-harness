@@ -130,7 +130,7 @@ cmd_set_phase() {
 
 _read_phase_quick() {
   local pf="$1" p=""
-  p=$(awk '/^## Phase$/{found=1; next} found && /^[A-Za-z]/{print; exit}' "$pf" 2>/dev/null \
+  p=$(awk '/^## Phase$/{found=1; next} found && /^[A-Za-z]/{print; exit} found && /^##/{exit}' "$pf" 2>/dev/null \
     | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true)
   echo "$p"
 }
@@ -935,13 +935,24 @@ cmd_reset_phase_state() {
   local plan_file="$1" target_phase="$2"
   require_file "$plan_file"
   [ -n "$target_phase" ] || die "reset-for-rollback: target-phase required"
-  cmd_set_phase "$plan_file" "$target_phase"
-  cmd_reset_milestone "$plan_file" critic-code
+  local _sc_dir _conv_file _basename _cv_phase _cv_agent
+  _sc_dir=$(sc_dir "$plan_file" 2>/dev/null) || true
+  if [[ -n "$_sc_dir" && -d "$_sc_dir/convergence" ]]; then
+    for _conv_file in "$_sc_dir/convergence"/*.json; do
+      [[ -f "$_conv_file" ]] || continue
+      _basename=$(basename "$_conv_file" .json)
+      _cv_phase="${_basename%%__*}"
+      _cv_agent="${_basename#*__}"
+      _sc_reset_convergence_for_scope "$plan_file" "$_cv_phase" "$_cv_agent" 2>/dev/null || true
+    done
+  fi
   cmd_reset_pr_review "$plan_file"
   cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-code:"
+  cmd_clear_marker "$plan_file" "[RECURRING] critic-code:"
   _clear_ceiling_sidecar_entry "$plan_file" "review/critic-code"
   _reset_all_transient_counters "$plan_file" 2>/dev/null || true
-  echo "[reset-for-rollback] phase set to ${target_phase}; critic-code and pr-review state cleared" >&2
+  cmd_set_phase "$plan_file" "$target_phase"
+  echo "[reset-for-rollback] phase set to ${target_phase}; all critic convergence and pr-review state cleared" >&2
 }
 
 # ── Task ledger / GC ──────────────────────────────────────────────────────────
@@ -1261,7 +1272,7 @@ cmd_mark_implemented() {
 
 cmd_get_envelope() {
   local plan_file="$1"
-  [[ -f "$plan_file" ]] || die "plan file not found: $plan_file"
+  require_file "$plan_file"
   awk -F'|' '
     /^\| *(Actors|Frequency|Concurrency|Persistence|Failure model|External I\/O) *\|/ {
       axis=$2; val=$3
