@@ -107,7 +107,7 @@ if [[ -n "$PLAN" ]]; then
         _tg_slug=$(basename "$PLAN" .md)
         telegram_send_human_must_clear "$_tg_slug" \
           "[BLOCKED:merge-approval] Branch feature/${_tg_slug} passed merge gate — ready to merge into main. Review: ${PLAN%.md}.state/merge-gate-report.txt. To merge (from main checkout): CLAUDE_PLAN_CAPABILITY=human bash .claude/scripts/run-dev-cycle.sh --plan ${PLAN}" \
-          "${PROJECT_DIR}/.claude/.env" "${PROJECT_DIR}/.claude/access.json" || true
+          "$HOME/.claude/channels/telegram/.env" "$HOME/.claude/channels/telegram/access.json" || true
         echo "[merge-gate] PASS — plan ${_tg_slug} awaiting human merge approval." >&2
         exit 3
       fi
