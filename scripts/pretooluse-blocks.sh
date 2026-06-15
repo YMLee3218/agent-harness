@@ -221,7 +221,8 @@ block_capability() {
 
 # ── 5. block_plan_revert ─────────────────────────────────────────────────────
 # Blocks git operations targeting plans/*.md (checkout/restore/apply/am/revert/cherry-pick/switch)
-# and git reset --soft/--mixed (any target) when a HUMAN_MUST_CLEAR_MARKERS entry is active.
+# and git reset --soft/--mixed/default-mixed (any commit-offset or sha target) when a
+# HUMAN_MUST_CLEAR_MARKERS entry is active. Unstaging (git reset HEAD <path>) stays ALLOW.
 # Note: git stash is blocked globally by settings.json, not here.
 block_plan_revert() {
   local cmd="$1"
@@ -230,7 +231,7 @@ block_plan_revert() {
   if printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+(checkout|restore|apply|am|revert|cherry-pick|switch)[[:space:]]' \
      && printf '%s' "$cmd" | grep -qE 'plans/[^[:space:]]*\.md'; then
     _is_revert=1
-  elif printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+reset[[:space:]]+--[[:space:]]*(soft|mixed)([[:space:]]|$)'; then
+  elif printf '%s' "$cmd" | grep -iqE 'git[[:space:]]+reset[[:space:]]+--[[:space:]]*(soft|mixed)([[:space:]]|$)|git[[:space:]]+reset[[:space:]]+(--[[:space:]]*[a-z]+[[:space:]]+)?(HEAD[~^]|@[~^{]|ORIG_HEAD|[0-9a-f]{7,40}([[:space:]]|$))'; then
     _is_revert=1
   fi
   [[ "$_is_revert" -eq 0 ]] && return 0
