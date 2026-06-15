@@ -1142,15 +1142,19 @@ cmd_is_converged() {
     local _stored_fp
     _stored_fp=$(jq -r '.spec_fingerprint // ""' "$conv_path" 2>/dev/null || echo "")
     if [[ -z "$_stored_fp" ]]; then
-      # Old sidecar without fingerprint field — fail-safe: force re-convergence.
+      # Old sidecar without fingerprint field — fail-safe: force one re-convergence.
       echo "[is-converged] SPEC-FINGERPRINT-ABSENT: sidecar missing spec_fingerprint — treating as not-converged (fail-safe; populates on next verdict)" >&2
       return 1
     fi
-    local _current_fp
-    _current_fp=$(_spec_fingerprint)
-    if [[ -n "$_current_fp" && "$_stored_fp" != "$_current_fp" ]]; then
-      echo "[is-converged] SPEC-CHANGED: fingerprint ${_stored_fp:0:12}… → ${_current_fp:0:12}… — treating as not-converged (spec set changed since last convergence)" >&2
-      return 1
+    # F2: when fingerprinting is unavailable (no SHA tool) at record or check time, skip the
+    # spec-change comparison rather than blocking forever — "no-sha-tool" is a non-comparable sentinel.
+    if [[ "$_stored_fp" != "no-sha-tool" ]]; then
+      local _current_fp
+      _current_fp=$(_spec_fingerprint)
+      if [[ -n "$_current_fp" && "$_current_fp" != "no-sha-tool" && "$_stored_fp" != "$_current_fp" ]]; then
+        echo "[is-converged] SPEC-CHANGED: fingerprint ${_stored_fp:0:12}… → ${_current_fp:0:12}… — treating as not-converged (spec set changed since last convergence)" >&2
+        return 1
+      fi
     fi
     return 0
   fi

@@ -219,6 +219,7 @@ _sc_rewrite_jsonl() {
 #  "last_verdict_category":"","spec_fingerprint":"<sha256>"}
 # milestone_seq increments on reset-milestone/clear-converged; isolates streak history between milestones.
 # spec_fingerprint: SHA-256 of sorted spec.md paths+contents at last verdict time; absent on old sidecars.
+#   Values: "<sha256>" = normal hash; "empty" = no spec.md found; "no-sha-tool" = SHA tool unavailable (check skipped).
 # Blocked JSONL schema (blocked.jsonl, one record per line):
 # {"ts":"2025-05-10T12:00:00Z","kind":"ceiling","agent":"critic-code",
 #  "scope":"implement/critic-code","message":"exceeded 100 runs","cleared_at":null}
@@ -239,14 +240,16 @@ sc_make_conv_state() {
 }
 
 # _spec_fingerprint — SHA-256 of sorted spec.md paths+contents under CLAUDE_PROJECT_DIR.
-# Returns "empty" when no spec.md files exist; "" when no SHA tool available (check skipped).
+# Returns "empty" when no spec.md files exist; "no-sha-tool" when no SHA tool (spec-change check skipped).
 # Stored in convergence JSON at every verdict; checked by cmd_is_converged to detect spec-set drift.
 _spec_fingerprint() {
   local _project_dir="${CLAUDE_PROJECT_DIR:-}"
   [[ -z "$_project_dir" || ! -d "$_project_dir" ]] && { echo ""; return 0; }
   local _files
   _files=$(find "$_project_dir" -name "spec.md" \
-    -not -path "*/.git/*" -not -path "*/plans/*" 2>/dev/null | LC_ALL=C sort) || _files=""
+    -not -path "*/.git/*" -not -path "*/plans/*" \
+    -not -path "*/worktrees/*" -not -path "*/node_modules/*" -not -path "*/.venv/*" \
+    2>/dev/null | LC_ALL=C sort) || _files=""
   [[ -z "$_files" ]] && { echo "empty"; return 0; }
   local _fp=""
   if command -v sha256sum >/dev/null 2>&1; then
@@ -258,7 +261,7 @@ _spec_fingerprint() {
       [[ -f "$_f" ]] && cat "$_f" 2>/dev/null || true
     done <<< "$_files"; } | shasum -a 256 2>/dev/null | awk '{print $1}' )
   else
-    echo ""
+    echo "no-sha-tool"
     return 0
   fi
   [[ -z "$_fp" ]] && echo "unavailable" || echo "$_fp"
