@@ -244,6 +244,7 @@ sc_make_conv_state() {
 # Stored in convergence JSON at every verdict; checked by cmd_is_converged to detect spec-set drift.
 _spec_fingerprint() {
   local _project_dir="${CLAUDE_PROJECT_DIR:-}"
+  # Empty string = CLAUDE_PROJECT_DIR unset/missing; callers treat absent as ABSENT (safe fallback).
   [[ -z "$_project_dir" || ! -d "$_project_dir" ]] && { echo ""; return 0; }
   local _files
   _files=$(find "$_project_dir" -name "spec.md" \
@@ -264,7 +265,7 @@ _spec_fingerprint() {
     echo "no-sha-tool"
     return 0
   fi
-  [[ -z "$_fp" ]] && echo "unavailable" || echo "$_fp"
+  [[ -z "$_fp" ]] && echo "no-sha-tool" || echo "$_fp"
 }
 
 # ── Transient mechanism ────────────────────────────────────────────────────────
