@@ -83,7 +83,7 @@ block_execution() {
   if printf '%s' "$cmd" | grep -iqE '\|[[:space:]]*(python3?|perl|ruby|node)[[:space:]]*(-[[:space:]])?([[:space:]]|$)'; then
     echo "BLOCKED: pipe-to-interpreter detected" >&2; exit 2
   fi
-  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b([[:space:]]+-[A-Za-z0-9]+)*[[:space:]]+(-[A-Za-z]*[ceE]([[:space:]]|=|['"'"'"]|$)|--?command|--?eval)'; then
+  if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b([[:space:]]+-[^[:space:]]+([[:space:]]+[^-][^[:space:]]*)?)*[[:space:]]+(-[A-Za-z]*[ceE]([[:space:]]|=|['"'"'"]|$)|--?command|--?eval)'; then
     echo "BLOCKED: inline interpreter script — use Read/Write/Edit tools instead of python/perl/ruby/node -c/-e" >&2; exit 2
   fi
   if printf '%s' "$cmd" | grep -qE '\b(python3?|perl|ruby|node)\b[^|;&]*<<-?[[:space:]]*['"'"'"\\]?[A-Za-z0-9_]'; then
