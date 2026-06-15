@@ -29,6 +29,9 @@ ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/sidecar.sh" 2>/dev/null || true
 # Source critic-helpers for Codex-driven path
 source "$(dirname "${BASH_SOURCE[0]}")/lib/critic-helpers.sh" 2>/dev/null || true
+# Source sandbox-lib for Tier 1 worker confinement
+source "$(dirname "${BASH_SOURCE[0]}")/lib/sandbox-lib.sh" 2>/dev/null || true
+_init_worker_sandbox "$(dirname "$(dirname "$PLAN")")" 2>/dev/null || true
 
 # Lock file — prevent concurrent runs on the same plan.
 LOOP_LOCK="${PLAN}.critic.lock"
@@ -127,9 +130,9 @@ while true; do
     _codex_review_exit=0
     if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
       "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
-        codex exec --full-auto - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
+        "${_WORKER_SANDBOX_ARGS[@]}" codex exec --full-auto - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
     else
-      codex exec --full-auto - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
+      "${_WORKER_SANDBOX_ARGS[@]}" codex exec --full-auto - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
     fi
     rm -f "$_review_prompt"
 
@@ -224,6 +227,7 @@ while true; do
         _pass_cmd=()
         [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
           _pass_cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
+        [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _pass_cmd+=("${_WORKER_SANDBOX_ARGS[@]}")
         _pass_cmd+=(claude --model sonnet --dangerously-skip-permissions --permission-mode auto \
           -p "$(cat "$_pass_audit_prompt")")
         rm -f "$_pass_audit_prompt"
@@ -271,6 +275,7 @@ while true; do
       _dec_cmd=()
       [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
         _dec_cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
+      [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _dec_cmd+=("${_WORKER_SANDBOX_ARGS[@]}")
       _dec_cmd+=(claude --model sonnet --dangerously-skip-permissions --permission-mode auto \
         -p "$(cat "$_decision_prompt")")
       rm -f "$_decision_prompt"
@@ -312,9 +317,9 @@ while true; do
           _fix_exit=0
           if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
             "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
-              codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
+              "${_WORKER_SANDBOX_ARGS[@]}" codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
           else
-            codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
+            "${_WORKER_SANDBOX_ARGS[@]}" codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
           fi
           rm -f "$_fix_prompt"
           [[ $_fix_exit -ne 0 ]] && \
@@ -364,6 +369,7 @@ the line. The nonce ${_nonce} must appear verbatim."
     _session_out=$(mktemp)
     _cmd=()
     [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
+    [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _cmd+=("${_WORKER_SANDBOX_ARGS[@]}")
     _cmd+=(claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT")
     [[ -n "${_sid:-}" ]] && _cmd+=(--session-id "$_sid")
     _env_unset=()
@@ -407,6 +413,7 @@ the line. The nonce ${_nonce} must appear verbatim."
       if [[ "$_rv" != "PASS" && "$_rv" != "FAIL" && -n "${_sid:-}" ]]; then
         _retry_out=$(mktemp); _rcmd=()
         [[ -n "$TIMEOUT_CMD" ]] && _rcmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
+        [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _rcmd+=("${_WORKER_SANDBOX_ARGS[@]}")
         _rcmd+=(claude --resume "$_sid" --model "$CRITIC_LOOP_MODEL" --permission-mode auto \
           --dangerously-skip-permissions -p "Output ONLY the review verdict marker as a literal raw line, using the final verdict you reached in this session, exactly one of: <!-- review-verdict: ${_nonce} PASS --> or <!-- review-verdict: ${_nonce} FAIL -->. Print nothing else.")
         CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" "${_rcmd[@]}" > "$_retry_out" 2>&1 || true

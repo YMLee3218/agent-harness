@@ -28,6 +28,9 @@ timeout_guard_init "$INTEGRATION_TIMEOUT" CLAUDE_INTEGRATION_TIMEOUT integration
 # shellcheck source=lib/run-context.sh
 source "$SCRIPTS_DIR/lib/run-context.sh"
 setup_run_context
+# shellcheck source=lib/sandbox-lib.sh
+source "$SCRIPTS_DIR/lib/sandbox-lib.sh" 2>/dev/null || true
+_init_worker_sandbox "${PROJECT_DIR:-}" 2>/dev/null || true
 LINT_CMD=$(grep -m1 '^\- Lint:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Lint: *//;s/^`//;s/`.*$//' || echo "")
 [[ "$LINT_CMD" == _\(run* || "$LINT_CMD" == \{* ]] && LINT_CMD=""
 # DATA delimiter wrapping for prompt injection prevention

@@ -74,8 +74,10 @@ _guard_sidecar() {
   fi
 }
 
-# _guard_plan_phase_mutation INPUT FILE_PATH — blocks direct phase edits to plans/*.md.
-# Phase transitions must go through plan-file.sh transition/set-phase (Ring B).
+# _guard_plan_phase_mutation INPUT FILE_PATH — BEST-EFFORT-NUDGE (Tier 2) only.
+# Phase authority has moved to plans/{slug}.phase (kernel denyWrite via sandbox-exec/worker.sb).
+# This guard catches accidental plan.md edits touching ## Phase; it is NOT security-critical
+# and does not need to be bypass-proof. See reference/enforcement-tiers.md §Tier 2.
 _guard_plan_phase_mutation() {
   local _input="$1" _file_path="$2"
   [[ "$_file_path" == */plans/*.md || "$_file_path" == plans/*.md ]] || return 0

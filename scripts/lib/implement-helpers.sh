@@ -5,6 +5,9 @@ set -euo pipefail
 [[ -n "${_IMPLEMENT_HELPERS_LOADED:-}" ]] && return 0
 _IMPLEMENT_HELPERS_LOADED=1
 
+_IMPL_HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[[ -n "${_SANDBOX_LIB_LOADED:-}" ]] || . "$_IMPL_HELPERS_DIR/sandbox-lib.sh"
+
 GIT_COMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
 
 # All functions use globals set by run-implement.sh:
@@ -93,11 +96,11 @@ launch_task() {
   (cd "$wt" && git rev-parse HEAD) > "$WORK_DIR/task-base-${id}.txt"
   [[ -n "${PROJECT_VENV:-}" ]] && ln -s "$PROJECT_VENV" "$wt/.venv" 2>/dev/null || true
   if [[ "$bg" == "1" ]]; then
-    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$prompt") > "$log" 2>&1 &
+    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$prompt") > "$log" 2>&1 &
     echo $! > "$WORK_DIR/pid-${id}.txt"
   else
     local _ec=0
-    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$prompt") > "$log" 2>&1 || _ec=$?
+    (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --full-auto ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$prompt") > "$log" 2>&1 || _ec=$?
     if [[ -n "$TIMEOUT_CMD" && "$_ec" -eq 124 ]]; then
       echo "coder-status: abort (timeout after ${IMPLEMENT_TIMEOUT}s)" >> "$log"
     fi

@@ -18,7 +18,7 @@ run_llm_capture() {
   local prompt="$1" outfile="$2" _ec=0
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
     ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $INTEGRATION_TIMEOUT} \
-    env -u CLAUDE_PLAN_CAPABILITY claude --model sonnet --permission-mode auto --dangerously-skip-permissions -p "$prompt" \
+    env -u CLAUDE_PLAN_CAPABILITY worker_exec claude --model sonnet --permission-mode auto --dangerously-skip-permissions -p "$prompt" \
     > "$outfile" 2>&1 || _ec=$?
   return "$_ec"
 }

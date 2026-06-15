@@ -1,0 +1,69 @@
+; Worker sandbox profile — macOS Seatbelt (sandbox-exec).
+; Applied to every leaf Claude/Codex worker spawn by the harness orchestrator.
+; This is the Tier 1 (AUTHORITATIVE) enforcement layer per reference/enforcement-tiers.md.
+;
+; Default-deny write policy: only explicitly listed paths may be written.
+; All reads are unrestricted (workers need broad code access).
+; Networking is unrestricted (workers need LLM API access).
+;
+; Dynamic parameters (supplied via -D at spawn time):
+;   PROJ_SRC          — project src/ directory
+;   PROJ_TESTS        — project tests/ directory
+;   PROJ_DOCS         — project docs/ directory
+;   PLANS_MD_REGEX    — regex matching plans/*.md prose files (NOT .phase or .state/)
+;
+; PROFILE COMPLETENESS NOTE: allowWrite paths are a starting set that may need
+; expansion after the first dry-run (uv/pnpm caches, git hooks, etc.).
+; Run with SANDBOX_DENY_LOG=1 to surface EPERM hits for refinement.
+
+(version 1)
+(deny default)
+
+;; Process execution and IPC
+(allow process-exec*)
+(allow process-fork)
+(allow mach*)
+(allow ipc-posix*)
+(allow signal (target self))
+(allow sysctl-read)
+
+;; File reads: unrestricted
+(allow file-read*)
+(allow file-ioctl*)
+
+;; Networking: required for LLM API and package downloads
+(allow network*)
+(allow system-socket)
+
+;; Device files and pseudo-terminals
+(allow file-write*
+  (literal "/dev/null")
+  (literal "/dev/random")
+  (literal "/dev/urandom")
+  (regex #"^/dev/ttys?[0-9]+"))
+
+;; Temp and var dirs (codex worktrees, agent tmp files)
+(allow file-write*
+  (regex #"^/tmp/")
+  (regex #"^/private/tmp/")
+  (regex #"^/var/folders/"))
+
+;; User home: cache and state dirs for package managers, codex, claude
+(allow file-write*
+  (regex #"^/Users/[^/]+/\.cache/")
+  (regex #"^/Users/[^/]+/\.local/share/")
+  (regex #"^/Users/[^/]+/\.codex/")
+  (regex #"^/Users/[^/]+/\.npm/")
+  (regex #"^/Users/[^/]+/\.pnpm-store/")
+  (regex #"^/Users/[^/]+/Library/Caches/")
+  (regex #"^/Users/[^/]+/Library/Application Support/")
+  (regex #"^/Users/[^/]+/\.claude/projects/"))
+
+;; Project write paths: source, tests, docs (supplied as params)
+(allow file-write*
+  (subpath (param "PROJ_SRC"))
+  (subpath (param "PROJ_TESTS"))
+  (subpath (param "PROJ_DOCS")))
+
+;; Plan prose files: plans/*.md only — .phase and .state/ are NOT matched
+(allow file-write* (regex (param "PLANS_MD_REGEX")))

@@ -18,6 +18,10 @@ done
 [[ -z "$PLAN" || -z "$TEST_CMD" ]] && { echo "Usage: run-implement.sh --plan PATH --test-cmd CMD" >&2; exit 1; }
 [[ -f "$PLAN" ]] || { echo "Plan file not found: $PLAN" >&2; exit 1; }
 
+# shellcheck source=lib/sandbox-lib.sh
+source "$SCRIPTS_DIR/lib/sandbox-lib.sh" 2>/dev/null || true
+_init_worker_sandbox "$(dirname "$(dirname "$PLAN")")" 2>/dev/null || true
+
 source "$SCRIPTS_DIR/lib/timeout-guard.sh"
 IMPLEMENT_TIMEOUT="${CLAUDE_IMPLEMENT_TIMEOUT:-600}"
 SMOKE_TIMEOUT="${CLAUDE_SMOKE_TIMEOUT:-3600}"
