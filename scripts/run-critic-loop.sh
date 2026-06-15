@@ -191,11 +191,16 @@ while true; do
     _rvd_exit=0
     bash "$PLAN_FILE_SH" record-verdict-direct \
       "$PLAN" "$AGENT" "$PHASE" "$_verdict" "$_category" || _rvd_exit=$?
-    if [[ "$_rvd_exit" -ne 0 ]]; then
+    # record-verdict-direct exits 1 BY DESIGN after persisting a FAIL/PARSE_ERROR verdict
+    # (_persist_verdict:686 / _handle_parse_error:498); PASS exits 0. Only a deviation from this
+    # contract is a genuine recorder failure (e.g. require_file exit 2, lock-absent die).
+    _rvd_expected=0
+    [[ "$_verdict" == "FAIL" || "$_verdict" == "PARSE_ERROR" ]] && _rvd_expected=1
+    if [[ "$_rvd_exit" -ne "$_rvd_expected" ]]; then
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED:env] ${AGENT}: verdict-record-failure — record-verdict-direct exited ${_rvd_exit}; check plan-file.sh" \
+        "[BLOCKED:env] ${AGENT}: verdict-record-failure — record-verdict-direct exited ${_rvd_exit} (expected ${_rvd_expected}); check plan-file.sh" \
         2>/dev/null || true
-      echo "[BLOCKED:env] ${AGENT}: record-verdict-direct failed (exit ${_rvd_exit})" >&2; exit 1
+      echo "[BLOCKED:env] ${AGENT}: record-verdict-direct failed (exit ${_rvd_exit}, expected ${_rvd_expected})" >&2; exit 1
     fi
 
     # 7. Re-check blocked/ceiling after verdict recording

@@ -887,9 +887,9 @@ cmd_clear_converged() {
   local scope; scope=$(_scope_of "$current_phase" "$agent")
   local ts
   ts=$(_iso_timestamp)
+  _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
   _append_to_critic_verdicts "$plan_file" \
     "${ts} ${scope}: REJECT-PASS (audit-override — streak reset)"
-  _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
   echo "[clear-converged] reset streak for ${scope}" >&2
 }
 
@@ -1330,7 +1330,8 @@ cmd_inter_feature_reset() {
   local plan_file="$1"
   require_file "$plan_file"
   cmd_clear_task_state "$plan_file"
-  local _state_dir="${plan_file%.md}.state"
+  local _state_dir
+  _state_dir=$(sc_dir "$plan_file") || return 0
   rm -f "$_state_dir"/code-reviewed-* 2>/dev/null || true
   rm -f "$_state_dir"/pr-reviewed-* 2>/dev/null || true
   rm -f "$_state_dir"/test-reviewed-* 2>/dev/null || true

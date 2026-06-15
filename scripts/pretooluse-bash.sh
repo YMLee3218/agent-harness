@@ -41,7 +41,7 @@ if [ -f "$PLAN_FILE_SH" ]; then
 
   # ── Codex invocation block (before early-exit so destination-less codex exec is caught) ──
   if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
-    if printf '%s' "$cmd" | grep -qE '(^|[;|&]|&&|\|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(env([[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+|-u[[:space:]]+[A-Za-z_][A-Za-z0-9_]*))*[[:space:]]+)?codex([[:space:]]+|$)'; then
+    if printf '%s' "$cmd" | grep -qE '(^|[;|&]|&&|\|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(env([[:space:]]+([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+|-u[[:space:]]+[A-Za-z_][A-Za-z0-9_]*))*[[:space:]]+)?([^[:space:]]*/)?codex([[:space:]]+|$)'; then
       _codex_plan=""; _codex_phase=""
       resolve_active_plan_and_phase _codex_plan _codex_phase || _codex_plan=""
       if [ -n "$_codex_plan" ]; then
@@ -106,28 +106,28 @@ if [ -f "$PLAN_FILE_SH" ]; then
       )
       if [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${CLAUDE_PLAN_CAPABILITY:-}" != "human" ]]; then
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -qE "/${_RING_C_INNER}"; then
+             | grep -qE "(^|/)${_RING_C_INNER}"; then
           echo "BLOCKED [phase-gate/bash]: Ring C file (unexpanded path) is protected — only human edits accepted (set CLAUDE_PLAN_CAPABILITY=human to override)" >&2; exit 2
         fi
       fi
       if [ -n "$_current_phase" ]; then
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -qE '/(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/|packages/[^/]+/src/)'; then
+             | grep -qE '(^|/)(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/|packages/[^/]+/src/)'; then
           apply_phase_block "src/domain/__guard__" "$_current_phase" "phase-gate/bash" || exit 2
         fi
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -E '(/tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)' \
+             | grep -E '((^|/)tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)' \
              | grep -qv '\.spec\.md$'; then
           apply_phase_block "tests/__guard__" "$_current_phase" "phase-gate/bash" || exit 2
         fi
       else
         # No active plan — apply strict-mode guard via raw patterns for unexpanded destinations.
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -qE '/(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/|packages/[^/]+/src/)'; then
+             | grep -qE '(^|/)(src/(domain|features|infrastructure)/|src/main/[^/]+/|internal/|cmd/|pkg/|app/|lib/|crates/[^/]+/src/|apps/[^/]+/src/|packages/[^/]+/src/)'; then
           bootstrap_block_if_strict "src/domain/__guard__" || exit 2
         fi
         if printf '%s' "$_raw_dest_tokens" \
-             | grep -E '(/tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)' \
+             | grep -E '((^|/)tests/|_test\.|test_[^/]+\.|\.test\.|\.spec\.|_spec\.)' \
              | grep -qv '\.spec\.md$'; then
           bootstrap_block_if_strict "tests/__guard__" || exit 2
         fi
