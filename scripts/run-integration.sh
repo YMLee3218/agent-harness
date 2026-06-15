@@ -28,6 +28,13 @@ timeout_guard_init "$INTEGRATION_TIMEOUT" CLAUDE_INTEGRATION_TIMEOUT integration
 # shellcheck source=lib/run-context.sh
 source "$SCRIPTS_DIR/lib/run-context.sh"
 setup_run_context
+# shellcheck source=lib/sandbox-lib.sh
+source "$SCRIPTS_DIR/lib/sandbox-lib.sh" 2>/dev/null || true
+_init_worker_sandbox "${PROJECT_DIR:-}"
+if [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]]; then
+  bash "$PF" append-note "$PLAN" "[BLOCKED:env] integration: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
+  exit 1
+fi
 LINT_CMD=$(grep -m1 '^\- Lint:' "$PROJECT_DIR/CLAUDE.md" 2>/dev/null | sed 's/^- Lint: *//;s/^`//;s/`.*$//' || echo "")
 [[ "$LINT_CMD" == _\(run* || "$LINT_CMD" == \{* ]] && LINT_CMD=""
 # DATA delimiter wrapping for prompt injection prevention

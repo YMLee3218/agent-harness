@@ -1,0 +1,74 @@
+; Worker sandbox profile — macOS Seatbelt (sandbox-exec).
+; Applied to every leaf Claude/Codex worker spawn by the harness orchestrator.
+; This is the Tier 1 (AUTHORITATIVE) enforcement layer per reference/enforcement-tiers.md.
+;
+; Write model: allow project root (open set = default), deny control paths (closed set).
+; All reads are unrestricted (workers need broad code access).
+; Networking is unrestricted (workers need LLM API access).
+;
+; Dynamic parameters (supplied via -D at spawn time):
+;   PROJ_ROOT          — feature worktree root (src/, tests/, docs/, domain/, features/,
+;                        infrastructure/, plans/*.md all covered)
+;   PROJ_HARNESS       — .claude-harness/ subtree (scripts, reference, settings.json,
+;                        CLAUDE.md, history.md, agents, skills); deny
+;   PLANS_PHASE_REGEX  — regex matching plans/*.phase authority files; deny
+;   PLANS_STATE_REGEX  — regex matching plans/*.state/ sidecar dirs; deny
+;   PROJ_CLAUDE_MD     — workspace CLAUDE.md literal path; deny
+;   PROJ_GITFILE       — .git gitdir pointer literal path; deny
+;
+; Run with SANDBOX_DENY_LOG=1 to surface residual EPERM hits after first dry-run.
+
+(version 1)
+(deny default)
+
+;; Process execution and IPC
+(allow process-exec*)
+(allow process-fork)
+(allow mach*)
+(allow ipc-posix*)
+(allow signal (target self))
+(allow sysctl-read)
+
+;; File reads: unrestricted
+(allow file-read*)
+(allow file-ioctl*)
+
+;; Networking: required for LLM API and package downloads
+(allow network*)
+(allow system-socket)
+
+;; Device files and pseudo-terminals
+(allow file-write*
+  (literal "/dev/null")
+  (literal "/dev/random")
+  (literal "/dev/urandom")
+  (regex #"^/dev/ttys?[0-9]+"))
+
+;; Temp and var dirs (codex worktrees, agent tmp files)
+(allow file-write*
+  (regex #"^/tmp/")
+  (regex #"^/private/tmp/")
+  (regex #"^/var/folders/"))
+
+;; User home: cache and state dirs for package managers, codex, claude
+(allow file-write*
+  (regex #"^/Users/[^/]+/\.cache/")
+  (regex #"^/Users/[^/]+/\.local/share/")
+  (regex #"^/Users/[^/]+/\.codex/")
+  (regex #"^/Users/[^/]+/\.npm/")
+  (regex #"^/Users/[^/]+/\.pnpm-store/")
+  (regex #"^/Users/[^/]+/Library/Caches/")
+  (regex #"^/Users/[^/]+/Library/Application Support/")
+  (regex #"^/Users/[^/]+/\.claude/projects/"))
+
+;; Project root: allow all writes (open set — src/, tests/, docs/, domain/,
+;; features/, infrastructure/, plans/*.md, alembic/, frontend/, etc.)
+(allow file-write* (subpath (param "PROJ_ROOT")))
+
+;; Control paths: explicit deny (closed set; last-match-wins overrides the allow above)
+(deny file-write*
+  (subpath (param "PROJ_HARNESS"))          ; scripts/ reference/ settings.json CLAUDE.md history.md agents/ skills/
+  (regex   (param "PLANS_PHASE_REGEX"))      ; plans/*.phase authority files
+  (regex   (param "PLANS_STATE_REGEX"))      ; plans/*.state/ sidecar dirs
+  (literal (param "PROJ_CLAUDE_MD"))         ; workspace CLAUDE.md
+  (literal (param "PROJ_GITFILE")))          ; .git gitdir pointer

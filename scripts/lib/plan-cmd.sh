@@ -98,19 +98,26 @@ cmd_init() {
   {
     printf -- '---\nfeature: %s\nphase: brainstorm\nschema: 2\n' "$slug"
     [ -n "$mode" ] && printf 'mode: %s\n' "$mode"
-    printf -- '---\n\n## Vision\n\n## Scenarios\n\n## Test Manifest\n\n## Phase\nbrainstorm\n\n## Phase Transitions\n- brainstorm → (initial)\n\n## Critic Verdicts\n\n## Task Ledger\n| task-id | layer | status | commit-sha |\n|---------|-------|--------|------------|\n## Integration Failures\n\n## Verdict Audits\n\n## Open Questions\n'
+    printf -- '---\n\n## Vision\n\n## Scenarios\n\n## Test Manifest\n\n## Phase Transitions\n- brainstorm → (initial)\n\n## Critic Verdicts\n\n## Task Ledger\n| task-id | layer | status | commit-sha |\n|---------|-------|--------|------------|\n## Integration Failures\n\n## Verdict Audits\n\n## Open Questions\n'
   } > "$plan_file"
+  printf 'brainstorm' > "${plan_file%.md}.phase"
   sc_ensure_dir "$plan_file" || die "ERROR: sidecar dir setup failed for $plan_file"
 }
 
 cmd_get_phase() {
   local plan_file="$1"
   require_file "$plan_file"
-  local phase
-  phase=$(awk '/^## Phase$/{found=1; next} found && /^[A-Za-z]/{print; exit} found && /^##/{exit}' "$plan_file" \
-          | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+  local phase_file="${plan_file%.md}.phase"
+  local phase=""
+  if [[ -f "$phase_file" ]]; then
+    phase=$(cat "$phase_file" 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true)
+  else
+    # Migration fallback: read from ## Phase body section
+    phase=$(awk '/^## Phase$/{found=1; next} found && /^[A-Za-z]/{print; exit} found && /^##/{exit}' "$plan_file" \
+            | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+  fi
   if [ -z "$phase" ]; then
-    echo "ERROR: '## Phase' section not found or empty in $plan_file" >&2
+    echo "ERROR: phase not found — '${phase_file}' absent and '## Phase' section empty in $plan_file" >&2
     exit 2
   fi
   echo "$phase"
@@ -125,13 +132,24 @@ cmd_set_phase() {
     [ "$p" = "$phase" ] && valid=1 && break
   done
   [ "$valid" -eq 1 ] || die "invalid phase: $phase (must be one of: $VALID_PHASES)"
+  printf '%s' "$phase" > "${plan_file%.md}.phase"
+  # Stage .phase so the next commit always includes the authoritative phase value.
+  local _repo_dir; _repo_dir="$(cd "$(dirname "$plan_file")" && pwd)"
+  git -C "$_repo_dir" add "${plan_file%.md}.phase" 2>/dev/null || true
+  # Mirror to plan.md frontmatter and body for human readability (non-authoritative)
   _awk_replace_phase_body "$plan_file" "$phase"
 }
 
 _read_phase_quick() {
   local pf="$1" p=""
-  p=$(awk '/^## Phase$/{found=1; next} found && /^[A-Za-z]/{print; exit} found && /^##/{exit}' "$pf" 2>/dev/null \
-    | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true)
+  local _phf="${pf%.md}.phase"
+  if [[ -f "$_phf" ]]; then
+    p=$(cat "$_phf" 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true)
+  else
+    # Migration fallback: read from ## Phase body section
+    p=$(awk '/^## Phase$/{found=1; next} found && /^[A-Za-z]/{print; exit} found && /^##/{exit}' "$pf" 2>/dev/null \
+      | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true)
+  fi
   echo "$p"
 }
 
@@ -180,7 +198,7 @@ cmd_find_active() {
     local phase
     phase=$(_read_phase_quick "$f")
     if [ -z "$phase" ]; then
-      echo "[plan-file] ERROR: plan file exists but phase cannot be read: $f (missing ## Phase section)" >&2
+      echo "[plan-file] ERROR: plan file exists but phase cannot be read: $f (missing .phase file and ## Phase section)" >&2
       malformed=$((malformed + 1))
     elif [ "$phase" != "done" ]; then
       count=$((count + 1))
@@ -188,7 +206,7 @@ cmd_find_active() {
     fi
   done < <(find "$plans_dir" -maxdepth 1 -name '*.md' -print0 2>/dev/null | sort -z)
   if [ "$malformed" -gt 0 ]; then
-    echo "ERROR: ${malformed} plan file(s) exist but phase is unreadable — repair the ## Phase section before stopping." >&2
+    echo "ERROR: ${malformed} plan file(s) exist but phase is unreadable — create plans/{slug}.phase or repair the ## Phase section." >&2
     exit 4
   elif [ "$count" -eq 0 ]; then
     exit 2
@@ -246,6 +264,8 @@ cmd_commit_phase() {
   local plan_file="$1" message="$2"
   local _repo_dir; _repo_dir="$(cd "$(dirname "$plan_file")" && pwd)"
   git -C "$_repo_dir" add "$_repo_dir/$(basename "$plan_file")"
+  local _phase_file="${_repo_dir}/$(basename "${plan_file%.md}").phase"
+  [[ -f "$_phase_file" ]] && git -C "$_repo_dir" add "$_phase_file" || true
   git -C "$_repo_dir" diff --cached --quiet || git -C "$_repo_dir" commit -m "$message"
 }
 

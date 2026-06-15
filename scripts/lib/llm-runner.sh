@@ -6,6 +6,9 @@ set -euo pipefail
 [[ -n "${_LLM_RUNNER_LOADED:-}" ]] && return 0
 _LLM_RUNNER_LOADED=1
 
+_LLM_RUNNER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[[ -n "${_SANDBOX_LIB_LOADED:-}" ]] || . "$_LLM_RUNNER_DIR/sandbox-lib.sh"
+
 # run_llm — outer ORCHESTRATOR session (brainstorm/spec/tests/implement dispatch).
 # DELIBERATELY UNGUARDED by wall-clock: a single cap would falsely kill a phase that
 # legitimately runs long (e.g. implementing supervises many already-guarded codex
@@ -17,7 +20,7 @@ run_llm() {
   local prompt="$1" model="${2:-opus}"
   _CALL_RC=0
   CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="${PLAN:-}" \
-    env -u CLAUDE_PLAN_CAPABILITY claude --model "$model" --permission-mode auto --dangerously-skip-permissions -p "$prompt" || _CALL_RC=$?
+    env -u CLAUDE_PLAN_CAPABILITY worker_exec claude --model "$model" --permission-mode auto --dangerously-skip-permissions -p "$prompt" || _CALL_RC=$?
 }
 
 run_critic() {
