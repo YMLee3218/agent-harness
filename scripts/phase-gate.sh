@@ -97,7 +97,7 @@ _guard_plan_phase_mutation() {
 # _guard_human_must_clear — blocks all writes when any HUMAN_MUST_CLEAR_MARKERS entry is present.
 _guard_human_must_clear() {
   local _plan _phase _found
-  if resolve_with_latest_fallback _plan _phase 2>/dev/null; then
+  if resolve_with_latest_fallback _plan _phase; then
     if _found=$(marker_present_human_must_clear "$_plan"); then
       echo "BLOCKED: $_found present — write prohibited; human must resolve and clear the marker from terminal" >&2
       exit 2
