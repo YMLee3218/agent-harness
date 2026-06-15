@@ -96,7 +96,7 @@ Apply all 6 §Audit checklist items:
 2. Coverage gaps: Read the spec. Are there Scenarios/Scenario Outlines the review did not address?
 3. Fix direction: does the proposed fix target the root cause?
 4. False positive/negative risk.
-5. Category accuracy — does \`<!-- category: X -->\` use the highest-priority enum value present (ENVELOPE_MISMATCH > ENVELOPE_OVERREACH > LAYER_VIOLATION > CROSS_FEATURE_CONTRADICTION > DOCS_CONTRADICTION > UNVERIFIED_CLAIM > SPEC_COMPLIANCE > MISSING_SCENARIO > TEST_INTEGRITY > TEST_QUALITY > STRUCTURAL)?
+5. Category accuracy — does \`<!-- category: X -->\` use the highest-priority enum value present (ENVELOPE_MISMATCH > PROPAGATED_VALUE_OUT_OF_SYNC > ENVELOPE_OVERREACH > LAYER_VIOLATION > CROSS_FEATURE_CONTRADICTION > DOCS_CONTRADICTION > UNVERIFIED_CLAIM > SPEC_COMPLIANCE > MISSING_SCENARIO > TEST_INTEGRITY > TEST_QUALITY > STRUCTURAL)?
 6. Per-finding classification:
    - GENUINE: cited excerpt IS present at file:line AND fix direction is determinable from the reviewed files (spec, docs, review log)
    - FALSE-POSITIVE: (a) excerpt absent from cited file:line, OR (b) [MISSING] finding whose scenario keywords are confirmed present in the spec

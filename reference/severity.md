@@ -31,6 +31,7 @@ When a single FAIL contains findings from multiple categories, use the **highest
 
 ```
 ENVELOPE_MISMATCH
+  > PROPAGATED_VALUE_OUT_OF_SYNC
   > ENVELOPE_OVERREACH
   > LAYER_VIOLATION
   > CROSS_FEATURE_CONTRADICTION

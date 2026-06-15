@@ -38,7 +38,7 @@ Corollary: no blocking labels → PASS + NONE. Period.
 
 ### Rule 3 — FAIL category enum
 On FAIL, copy `<!-- category: X -->` verbatim from the `→ category:` annotation on the angle that fired.
-Allowed: `CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL | ENVELOPE_MISMATCH`.
+Allowed: `CROSS_FEATURE_CONTRADICTION | LAYER_VIOLATION | MISSING_SCENARIO | STRUCTURAL | ENVELOPE_MISMATCH | PROPAGATED_VALUE_OUT_OF_SYNC`.
 A FAIL without a category marker or with an invalid/descriptive category is a PARSE_ERROR.
 
 PASS block:
@@ -83,7 +83,7 @@ Same concept named differently across specs.
 A feature spec directly references domain concepts owned by another feature without going
 through the correct layer boundary (per layers.md).
 
-## Angle 7 — Cross-feature Envelope consistency → category: `ENVELOPE_MISMATCH` (exception: propagated-value drift on internal callee uses `PROPAGATED_VALUE_OUT_OF_SYNC` — see internal callee sub-rule below)
+## Angle 7 — Cross-feature Envelope consistency → category: `ENVELOPE_MISMATCH` for entry-point callee findings; `PROPAGATED_VALUE_OUT_OF_SYNC` for internal callee propagation findings (see internal callee sub-rule below)
 
 Scope guard: only process spec paths under `features/`. Exclude `domain/` and `infrastructure/` specs from Angle 7 entirely — they do not carry Operating Envelopes and must not be classified as "internal callee" for propagation checks.
 
