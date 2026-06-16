@@ -26,6 +26,7 @@ if [ ! -s "$MANIFEST" ]; then
   exit 2
 fi
 mapfile -t KEY_FILES < <(grep -vE '^[[:space:]]*(#|$)' "$MANIFEST")
+[ "${#KEY_FILES[@]}" -gt 0 ] || { echo "BLOCKED [harness-copy-mirror]: manifest has no usable entries: $MANIFEST" >&2; exit 2; }
 
 # Verify main exists — writer always has it; fail-loud if somehow missing.
 if ! git rev-parse --verify main >/dev/null 2>&1; then
