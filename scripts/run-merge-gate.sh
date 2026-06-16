@@ -21,6 +21,8 @@ if [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]]; then
 fi
 # shellcheck source=lib/llm-runner.sh
 source "$SCRIPTS_DIR/lib/llm-runner.sh"
+# shellcheck source=lib/sidecar.sh
+source "$SCRIPTS_DIR/lib/sidecar.sh"
 
 PLAN=""
 while [[ $# -gt 0 ]]; do
@@ -40,6 +42,7 @@ INTEGRATION_CMD=$(grep -m1 '^\- Integration test:' "$PROJECT_DIR/CLAUDE.md" 2>/d
 [[ "$INTEGRATION_CMD" == _\(run* || "$INTEGRATION_CMD" == \{* ]] && INTEGRATION_CMD=""
 
 REPORT_FILE="${PLAN%.md}.state/merge-gate-report.txt"
+sc_ensure_dir "$PLAN"
 
 export CRITIC_MERGE_PLAN="$PLAN"
 export CRITIC_MERGE_BRANCH="$BRANCH"
