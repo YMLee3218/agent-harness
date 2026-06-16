@@ -7,6 +7,11 @@
 # Stray harness plan.md (belongs at harness root, not workspace) — never commit
 /plan.md
 
+# Builder-side artifacts that must never be tracked in workspace
+/history.md
+/local.md
+/err
+
 # Tool caches — never committed
 .ruff_cache/
 __pycache__/
