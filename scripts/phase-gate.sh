@@ -57,6 +57,25 @@ _guard_ring_c() {
   fi
 }
 
+# _guard_history_format INPUT — blocks writes to history.md with invalid line format.
+# Validates every line in new content against the 5 permitted formats.
+# Runs before _guard_no_plan so builder-side writes are also gated.
+_guard_history_format() {
+  local _input="$1"
+  local _file; _file=$(extract_tool_input_path "$_input")
+  [[ "$(basename "${_file:-}")" == "history.md" ]] || return 0
+  local _validator; _validator="$(dirname "$0")/lib/validate-history-line.sh"
+  local _new
+  _new=$(printf '%s' "$_input" | jq -r '(.tool_input.content // .tool_input.new_string // "") + "\n" + ([.tool_input.edits[]?.new_string // ""] | join("\n"))' 2>/dev/null)
+  if ! printf '%s\n' "$_new" | bash "$_validator" 2>/tmp/history-gate-err; then
+    echo "BLOCKED [phase-gate/history-format]: history.md write rejected" >&2
+    cat /tmp/history-gate-err >&2
+    rm -f /tmp/history-gate-err
+    exit 2
+  fi
+  rm -f /tmp/history-gate-err
+}
+
 # _guard_no_plan INPUT — handles the no-active-plan path; exits (allow or block).
 _guard_no_plan() {
   local _input="$1"
@@ -118,6 +137,7 @@ mode_write() {
   require_jq_or_block "phase-gate" "${PHASE_GATE_STRICT:-1}" || { echo "[phase-gate] warning: jq not found; write allowed (strict mode off)" >&2; exit 0; }
 
   _guard_ring_c "$input"
+  _guard_history_format "$input"
 
   local phase
   GATE_FAIL_REASON="none"
