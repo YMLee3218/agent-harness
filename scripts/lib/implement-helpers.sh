@@ -46,9 +46,9 @@ make_prompt() {
   fi
   local test_cmd_display run_instruction implement_instruction failing_test_section
   if [[ -n "$failing_test" ]]; then
-    test_cmd_display=".venv/bin/python -m pytest \"${failing_test_file}\""
+    test_cmd_display="${TEST_CMD} \"${failing_test_file}\""
     implement_instruction="Implement code to pass ALL tests in ${failing_test_file}. The inline test below is a representative sample only — the file contains additional tests you must also satisfy."
-    run_instruction="Before writing any code, read ${failing_test_file} in full to understand every test you must pass. After each change, run the Test command below (the entire test file — this is identical to the gate). Iterate until ALL tests in the file pass. Do NOT run the full project suite — other task files are still red. NOTE: uv run and network are unavailable in this sandbox — use the Test command above (.venv/bin/python -m pytest) instead."
+    run_instruction="Before writing any code, read ${failing_test_file} in full to understand every test you must pass. After each change, run the Test command below (the entire test file — this is identical to the gate). Iterate until ALL tests in the file pass. Do NOT run the full project suite — other task files are still red. NOTE: network and package managers are unavailable in this sandbox — use the Test command shown above."
     failing_test_section="Representative test (from ${failing_test_file} — read the full file for all tests):
 ${code}
 

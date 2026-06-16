@@ -36,7 +36,7 @@ git status --porcelain
 
 If dirty working tree (non-empty output): `[BLOCKED:env] brainstorming: dirty-working-tree — commit changes first`
 
-If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars). Find main root (`git rev-parse --show-toplevel`), source `.claude/scripts/lib/worktree-lib.sh`, call `ensure_plan_worktree "{slug}" "$_root"` → `$_wt` (fall back to `$_root` on failure), then `export CLAUDE_PLAN_FILE="$_wt/plans/{slug}.md"`. Write all outputs (plan, docs, requirements) inside `$_wt`. If the plan file does not yet exist, run `bash "$_root/.claude/scripts/plan-file.sh" init "$CLAUDE_PLAN_FILE"` before any other `plan-file.sh` command.
+If `CLAUDE_PLAN_FILE` is unset, derive a slug from the feature name (kebab-case, max 30 chars). Find main root (`git rev-parse --show-toplevel`), source `.claude/scripts/lib/worktree-lib.sh`, call `ensure_plan_worktree "{slug}" "$_root"` → `$_wt`; if it fails: `[BLOCKED:env] brainstorming: worktree-create-failed — could not create git worktree for feature/{slug}; check git status and retry`. Then `export CLAUDE_PLAN_FILE="$_wt/plans/{slug}.md"`. Write all outputs (plan, docs, requirements) inside `$_wt`. If the plan file does not yet exist, run `bash "$_root/.claude/scripts/plan-file.sh" init "$CLAUDE_PLAN_FILE"` before any other `plan-file.sh` command.
 
 Read `plans/{slug}.md` if it exists (resume context after `/compact`).
 

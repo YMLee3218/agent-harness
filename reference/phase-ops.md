@@ -43,7 +43,7 @@ Checklist:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {agent}
    ```
-   Record the event in `history.md` as `RESIDUAL`. **Do not hand-edit the convergence JSON to restore PASS.** Doing so recreates the exact forgery this check prevents.
+   **Do not hand-edit the convergence JSON to restore PASS.** Doing so recreates the exact forgery this check prevents.
 5. Proceed normally from Step 2 of the calling skill.
 
 ## Skill phase entry

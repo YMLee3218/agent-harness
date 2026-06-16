@@ -104,7 +104,7 @@ die_with_reason() {
   local _label="${BLOCKED_LABEL:-active-plan}"
   case "$1" in
     3) echo "BLOCKED [${_label}]: multiple active plan files — set CLAUDE_PLAN_FILE=\"$CLAUDE_PROJECT_DIR/plans/{slug}.md\" to disambiguate" >&2; exit 2 ;;
-    4) echo "BLOCKED [${_label}]: plan file exists but phase is unreadable — repair the plan file or state JSON" >&2; exit 2 ;;
+    4) echo "BLOCKED [${_label}]: plan file exists but phase is unreadable — restore the \`.phase\` sidecar: \`printf '<phase>' > plans/{slug}.phase\` (schema 2); for legacy plans check the \`## Phase\` body section" >&2; exit 2 ;;
   esac
 }
 

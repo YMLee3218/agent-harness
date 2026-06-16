@@ -22,14 +22,7 @@ One-paragraph description of what this project does and who it serves.
 
 # Shell commands
 
-<!--
-NOTE: The harness scripts (`run-dev-cycle.sh`, `run-integration.sh`, `stop-check.sh`) read
-Test, Lint, and Integration-test commands from the project-root `CLAUDE.md` — specifically
-the first `- Test:`, `- Lint:`, and `- Integration test:` lines found in that file (whole-file
-scan, not section-scoped). Run `/initializing-project` to fill those in automatically,
-or edit project CLAUDE.md directly. These fields below are for project documentation only
-and are not read by any harness script at runtime.
--->
+<!-- These fields are for project documentation only — not read by harness scripts. -->
 
 - Test: `<command>`
 - Lint: `<command>`

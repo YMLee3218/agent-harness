@@ -117,7 +117,7 @@ cmd_get_phase() {
             | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
   fi
   if [ -z "$phase" ]; then
-    echo "ERROR: phase not found — '${phase_file}' absent and '## Phase' section empty in $plan_file" >&2
+    echo "ERROR: phase not found — '${phase_file}' sidecar absent (schema 2: restore with printf '<phase>' > '${phase_file}'; legacy plans: check '## Phase' body section in $plan_file)" >&2
     exit 2
   fi
   echo "$phase"
@@ -172,7 +172,7 @@ cmd_find_active() {
         echo "[plan-file] CLAUDE_PLAN_FILE=$CLAUDE_PLAN_FILE is done; falling through to other strategies. Unset or pick a new plan if unintentional." >&2
       fi
       if [ -z "$envphase" ]; then
-        echo "ERROR: CLAUDE_PLAN_FILE=$CLAUDE_PLAN_FILE exists but phase is unreadable (missing ## Phase section) — repair before stopping." >&2
+        echo "ERROR: CLAUDE_PLAN_FILE=$CLAUDE_PLAN_FILE exists but phase is unreadable — restore '${CLAUDE_PLAN_FILE%.md}.phase' sidecar (printf '<phase>' > '${CLAUDE_PLAN_FILE%.md}.phase'); for legacy plans check '## Phase' body section." >&2
         exit 4
       fi
     fi

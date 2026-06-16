@@ -13,7 +13,7 @@ Harness protections are organized into two tiers. **Only Tier 1 provides structu
 **Protected paths** (denied by explicit deny rules — workers cannot write these regardless of command form):
 - `plans/*.phase` (`PLANS_PHASE_REGEX`) — phase authority files
 - `plans/*.state/` (`PLANS_STATE_REGEX`) — sidecar control state
-- `.claude-harness/` (`PROJ_HARNESS` subpath) — `scripts/`, `reference/`, `settings.json`, `CLAUDE.md`, `history.md`, `agents/`, `skills/`
+- `.claude-harness/` (`PROJ_HARNESS` subpath) — `scripts/`, `reference/`, `settings.json`, `CLAUDE.md`, `agents/`, `skills/`
 - `CLAUDE.md` (`PROJ_CLAUDE_MD` literal) — workspace CLAUDE.md
 - `.git` (`PROJ_GITFILE` literal) — gitdir pointer
 

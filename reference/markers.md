@@ -15,7 +15,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 [BLOCKED:{kind}] {scope}: {sub-kind} — {detail}
 ```
 
-- `{kind}` — one of the 8 values in the table below.
+- `{kind}` — one of the 9 values in the table below.
 - `{scope}` — identifies the emitter: critic agent name (`critic-code`, `critic-spec`, …), coder task (`coder:{task-id}`), or an agent-less identifier (`preflight:{tool}`, `integration`, `smoke`, `sidecar`, `run-dev-cycle`).
 - `{sub-kind}` — first token of the body; identifies the specific condition (e.g., `ENVELOPE_MISMATCH`, `session-timeout`, `tests-failing`).
 - `{detail}` — human-readable short explanation.
@@ -32,6 +32,9 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 | `[BLOCKED:harness]` | Harness call path, sidecar integrity, or reference data (enum/axis) extension | human-must | 1 |
 | `[BLOCKED:ceiling]` | Critic loop ceiling exceeded → `reset-milestone` | human-must | 2 |
 | `[BLOCKED:transient]` | **1-time transient state** (session timeout, lock clash) | **auto** — harness self-retries; never requires `unblock` | 1,3 |
+| `[BLOCKED:merge-approval]` | Merge gate passed — awaiting human merge approval | human-must (merge action from main checkout) | 3 |
+
+> **`[BLOCKED:merge-approval]` is stderr-only** — it is never written to `plan.md` and not in `HUMAN_MUST_CLEAR_MARKERS`; the pending state is tracked via `${PLAN%.md}.state/merge-approval.pending`. Exit 3 is the harness signal.
 
 > **`[BLOCKED:transient]` is sidecar-only** — it is never written to `plan.md`. If one appears in `## Open Questions`, it was written incorrectly; `unblock` intentionally does not clear it. See §Transient auto-handling.
 
@@ -167,7 +170,6 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "$CLAUDE_PR
 `is-blocked` reads `blocked.jsonl` as its primary source. If `blocked.jsonl` is absent (no blocks ever written), corrupt (parse error), or reports 0 active records, `is-blocked` applies the divergence safety check: if `## Open Questions` in the plan file still contains active `[BLOCKED:*]` lines, `is-blocked` treats the state as blocked and logs a DIVERGENCE warning; otherwise returns "not blocked". `is-converged` reads `convergence/{phase}__{agent}.json` exclusively (not `blocked.jsonl`) and returns "not converged" if the file is absent.
 
 ## HTML verdict envelopes
-
 Format and rules: `@reference/critics.md §Verdict format` (single source of truth).
 
 ## Coder status signals
@@ -179,9 +181,7 @@ The coder agent emits a plain-text signal (not an HTML comment) to its output lo
 Detected by `implement-helpers.sh` (`verify_task`) via `grep 'coder-status:' "$log" | tail -1`.
 
 ## Audit outcome words
-
 Written by parent-context ultrathink audit to `## Verdict Audits` via `plan-file.sh append-audit`. Full protocol and outcome table: `@reference/ultrathink.md §Audit outcomes`.
-
 Category enum values and priority: `@reference/severity.md §Category priority`
 
 ## Phase-scoped convergence markers

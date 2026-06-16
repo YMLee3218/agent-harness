@@ -86,9 +86,11 @@ if [ -z "${OPENAI_API_KEY:-}" ] && [ ! -f "${HOME}/.codex/auth.json" ]; then
   _append_blocked "codex-auth" "set OPENAI_API_KEY or run 'codex login' to authenticate (creates ~/.codex/auth.json)"
 fi
 
-# Check: .claude/local.md
+# Check: .claude/local.md (existence + language field)
 if [ -z "${CLAUDE_PROJECT_DIR:-}" ] || [ ! -f "${PROJECT_DIR}/.claude/local.md" ]; then
   _append_blocked "local.md" "create .claude/local.md with the project language and runtime (see examples/local.md); test/lint/integration-test commands go in project CLAUDE.md, written by /initializing-project"
+elif ! grep -qm1 '^- Language:' "${PROJECT_DIR}/.claude/local.md" 2>/dev/null; then
+  _append_blocked "local.md-language" "add '- Language: <lang>' to .claude/local.md (see examples/local.md); without it the harness defaults to Python for all projects"
 fi
 
 # Check: project CLAUDE.md

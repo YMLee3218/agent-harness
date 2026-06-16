@@ -29,6 +29,7 @@ _handle_spec_phase_rollback() {
   local _cat="$1" _sp _test_files
   bash "$PF" transition "$PLAN" spec "integration failure: ${_cat}"
   bash "$PF" reset-for-rollback "$PLAN" spec
+  bash "$PF" inter-feature-reset "$PLAN"
   bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
   bash "$PF" reset-milestone "$PLAN" critic-spec
   rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
@@ -63,6 +64,12 @@ _handle_spec_phase_rollback() {
   WRITING_TESTS_COMMAND="${UNIT_CMD}" \
   run_llm "Invoke the writing-tests skill for the updated spec. Plan: $PLAN" sonnet
   llm_exit "writing-tests"
+  while IFS= read -r _tf_file; do
+    [[ -n "$_tf_file" ]] && git -C "$PROJECT_DIR" add "$_tf_file"
+  done < <(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null | awk '{print $NF}' \
+           | grep -E '(^|/)tests/|(^|/)conftest\.|_test\.|(^|/)test_|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$')
+  git -C "$PROJECT_DIR" diff --cached --quiet || \
+    git -C "$PROJECT_DIR" commit -m "test(red): add failing tests for integration ${_cat//' '/-} fix"
   _test_files=$(_recent_test_files "$_pre_test_sha")
   if [[ -z "$_test_files" ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:env] critic-test: cannot-derive-test-files — integration fix: no test(red): commit found; re-run writing-tests"

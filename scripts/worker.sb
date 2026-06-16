@@ -10,7 +10,7 @@
 ;   PROJ_ROOT          — feature worktree root (src/, tests/, docs/, domain/, features/,
 ;                        infrastructure/, plans/*.md all covered)
 ;   PROJ_HARNESS       — .claude-harness/ subtree (scripts, reference, settings.json,
-;                        CLAUDE.md, history.md, agents, skills); deny
+;                        CLAUDE.md, agents, skills); deny
 ;   PLANS_PHASE_REGEX  — regex matching plans/*.phase authority files; deny
 ;   PLANS_STATE_REGEX  — regex matching plans/*.state/ sidecar dirs; deny
 ;   PROJ_CLAUDE_MD     — workspace CLAUDE.md literal path; deny
@@ -67,7 +67,7 @@
 
 ;; Control paths: explicit deny (closed set; last-match-wins overrides the allow above)
 (deny file-write*
-  (subpath (param "PROJ_HARNESS"))          ; scripts/ reference/ settings.json CLAUDE.md history.md agents/ skills/
+  (subpath (param "PROJ_HARNESS"))          ; scripts/ reference/ settings.json CLAUDE.md agents/ skills/
   (regex   (param "PLANS_PHASE_REGEX"))      ; plans/*.phase authority files
   (regex   (param "PLANS_STATE_REGEX"))      ; plans/*.state/ sidecar dirs
   (literal (param "PROJ_CLAUDE_MD"))         ; workspace CLAUDE.md

@@ -34,7 +34,7 @@ If `CRITIC_MERGE_INTEGRATION_CMD` is set, run it too. Same failure format.
 
 For each feature listed in the plan's Test Manifest, run:
 ```bash
-git log --grep='^test(red):' --format='%H' -- {feature_test_files} | head -1
+git log --grep='^test(red):' --format='%H' -- {feature_test_files} | tail -1
 ```
 then:
 ```bash
@@ -49,7 +49,7 @@ FAIL criterion=test-integrity: {feature}: test files modified after Red commit {
 
 Read the plan file. Open the `## Task Ledger` table and check the `status` column for every row. If any row has status `pending`, `in_progress`, or `blocked` (not `completed`), record:
 ```
-FAIL criterion=tasks-complete: {task title} is not completed
+FAIL criterion=tasks-complete: {task-id} is not completed
 ```
 
 ### 4 — No stubs or NotImplemented in implementation

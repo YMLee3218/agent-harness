@@ -101,8 +101,8 @@ rm -f "$_codex_prompt" "$_tw_template" "$_codex_log"
 ## Step 4 — Verify and record
 
 Parse the tail for `TEST_OUTCOME:` lines. For each:
-- `RED` → record in `## Test Manifest` as `{file}::{test_name} → RED`.
-- `GREEN_PRE_EXISTING` → record as `{file}::{test_name} → GREEN (pre-existing)` and append a `## Open Questions` note so the user can confirm the existing behaviour is intentional. Skip implement for these.
+- `RED` → record in `## Test Manifest` as `- {file}::{test_name} → RED`.
+- `GREEN_PRE_EXISTING` → record as `- {file}::{test_name} → GREEN (pre-existing)` and append a `## Open Questions` note so the user can confirm the existing behaviour is intentional. Skip implement for these.
 
 If the tail is missing `=== TEST-WRITER DONE ===`, retry once with `RETRY: previous run did not complete; finish all scenarios and emit the done sentinel.` appended. If the second run also fails, write `[BLOCKED:code] test-writer: codex-incomplete — Codex did not complete` and stop.
 

@@ -249,7 +249,7 @@ _spec_fingerprint() {
   local _files
   _files=$(find "$_project_dir" -name "spec.md" \
     -not -path "*/.git/*" -not -path "*/plans/*" \
-    -not -path "*/worktrees/*" -not -path "*/node_modules/*" -not -path "*/.venv/*" \
+    -not -path "${_project_dir}/.claude/worktrees/*" -not -path "*/node_modules/*" -not -path "*/.venv/*" \
     2>/dev/null | LC_ALL=C sort) || _files=""
   [[ -z "$_files" ]] && { echo "empty"; return 0; }
   local _fp=""
