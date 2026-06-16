@@ -78,8 +78,8 @@ _guard_sidecar() {
 # Phase authority lives in plans/{slug}.phase (kernel denyWrite via sandbox-exec/worker.sb).
 # This guard catches accidental plan.md frontmatter 'phase:' edits; NOT security-critical
 # and does not need to be bypass-proof. See reference/enforcement-tiers.md §Tier 2.
-# Note: new plans have no '## Phase' body section; the body-phase check below is a no-op
-# when absent (awk returns empty _cur_phase, guard skips).
+# Checks: (1) frontmatter 'phase:' field in old/new content; (2) '[CONVERGED]' marker in new content.
+# Body edits to plan files are not blocked — only these two conditions trigger exit 2.
 _guard_plan_phase_mutation() {
   local _input="$1" _file_path="$2"
   [[ "$_file_path" == */plans/*.md || "$_file_path" == plans/*.md ]] || return 0
