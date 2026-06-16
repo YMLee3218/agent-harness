@@ -1,0 +1,4 @@
+scripts/phase-gate.sh
+scripts/lib/validate-history-line.sh
+scripts/lib/sandbox-lib.sh
+settings.json
