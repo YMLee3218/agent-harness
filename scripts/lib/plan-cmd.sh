@@ -1355,6 +1355,7 @@ cmd_inter_feature_reset() {
   rm -f "$_state_dir"/code-reviewed-* 2>/dev/null || true
   rm -f "$_state_dir"/pr-reviewed-* 2>/dev/null || true
   rm -f "$_state_dir"/test-reviewed-* 2>/dev/null || true
-  echo "[inter-feature-reset] cleared task definitions, ledger rows, code-reviewed, pr-reviewed, and test-reviewed markers in ${plan_file}" >&2
+  rm -f "$_state_dir"/manifest-reconcile-* 2>/dev/null || true
+  echo "[inter-feature-reset] cleared task definitions, ledger rows, code-reviewed, pr-reviewed, test-reviewed, and manifest-reconcile markers in ${plan_file}" >&2
 }
 

@@ -269,35 +269,52 @@ _impl_run_implement_phase() {
       bash "$PF" clear-task-state "$PLAN"
       bash "$PF" append-note "$PLAN" "[AUTO-DECIDED] implement: cleared-stale-task-defs — leftover from interrupted unit '${bound_unit}' discarded before implementing '${feat_slug}'"
       has_task_defs=0
+    else
+      # Same-slug re-entry trap: task-defs exist, all ledger rows completed, no pending.
+      # This occurs when smoke failed after run-implement succeeded — the manifest gate checks
+      # whether the coverage gap (multi-file RED not all represented in task failing_tests)
+      # is the cause. If so, clear task state so Step 1 replays below.
+      local _trap_pending _trap_any
+      _trap_pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]|\| blocked[ |]/' "$PLAN" 2>/dev/null || true)
+      _trap_any=$(awk '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/\| (pending|in_progress|completed|blocked)[ |]/{print;exit}' "$PLAN" 2>/dev/null || true)
+      if [[ -z "$_trap_pending" && -n "$_trap_any" && ! -f "$_code_marker" ]]; then
+        _manifest_reconciliation_gate "$_spec_path" "$feat_slug" || has_task_defs=0
+      fi
     fi
   fi
-  if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then
-    IMPLEMENTING_SPEC_PATH="$_spec_path" \
-    IMPLEMENTING_PLAN_PATH="${PLAN}" \
-    run_llm "Invoke the implementing skill for feature: ${feature}. Plan: ${PLAN}." opus
-    llm_exit "implementing (Step 1)"
-    bash "$PF" set-task-unit "$PLAN" "$feat_slug"
-  fi
-  phase_now=$(bash "$PF" get-phase "$PLAN")
-  has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
-  # Guard: implementing skill ran but produced no JSON marker block
-  if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then
-    bash "$PF" append-note "$PLAN" \
-      "[BLOCKED:code] implement: missing-task-definitions-markers — implementing skill ran but did not write <!-- task-definitions-start --> JSON block; re-run the implementing skill"
-    exit 1
-  fi
-  pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]|\| blocked[ |]/' "$PLAN" 2>/dev/null || true)
-  any_task_in_ledger=$(awk '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/\| (pending|in_progress|completed|blocked)[ |]/{print;exit}' "$PLAN" 2>/dev/null || true)
-  if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && \
-        ( -n "$pending" || ( "$has_task_defs" -gt 0 && -z "$any_task_in_ledger" ) ) ]]; then
-    if [[ -z "$UNIT_CMD" ]]; then
-      bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-implement: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md"
+  for (( _impl_attempt=1; _impl_attempt <= ${CLAUDE_MANIFEST_RECONCILE_MAX:-2} + 1; _impl_attempt++ )); do
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
+    if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then
+      IMPLEMENTING_SPEC_PATH="$_spec_path" \
+      IMPLEMENTING_PLAN_PATH="${PLAN}" \
+      run_llm "Invoke the implementing skill for feature: ${feature}. Plan: ${PLAN}." opus
+      llm_exit "implementing (Step 1)"
+      bash "$PF" set-task-unit "$PLAN" "$feat_slug"
+    fi
+    phase_now=$(bash "$PF" get-phase "$PLAN")
+    has_task_defs=$(grep -c 'task-definitions-start' "$PLAN" 2>/dev/null) || has_task_defs=0
+    # Guard: implementing skill ran but produced no JSON marker block
+    if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && "$has_task_defs" -eq 0 ]]; then
+      bash "$PF" append-note "$PLAN" \
+        "[BLOCKED:code] implement: missing-task-definitions-markers — implementing skill ran but did not write <!-- task-definitions-start --> JSON block; re-run the implementing skill"
       exit 1
     fi
-    _spec_coverage_gate "$_spec_path" "$feat_slug"
-    _scenario_count_gate "$_spec_path"
-    bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD" --lint-cmd "$LINT_CMD"
-  fi
+    pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]|\| blocked[ |]/' "$PLAN" 2>/dev/null || true)
+    any_task_in_ledger=$(awk '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/\| (pending|in_progress|completed|blocked)[ |]/{print;exit}' "$PLAN" 2>/dev/null || true)
+    if [[ ( "$phase_now" == "red" || "$phase_now" == "implement" ) && \
+          ( -n "$pending" || ( "$has_task_defs" -gt 0 && -z "$any_task_in_ledger" ) ) ]]; then
+      if [[ -z "$UNIT_CMD" ]]; then
+        bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-implement: no-unit-test-cmd — add '- Test: {cmd}' to CLAUDE.md"
+        exit 1
+      fi
+      _spec_coverage_gate "$_spec_path" "$feat_slug"
+      _scenario_count_gate "$_spec_path"
+      _manifest_reconciliation_gate "$_spec_path" "$feat_slug" || continue
+      bash "$SCRIPTS_DIR/run-implement.sh" --plan "$PLAN" --test-cmd "$UNIT_CMD" --lint-cmd "$LINT_CMD"
+    fi
+    break
+  done
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "implement" ]] && \
      [[ ! -f "$_code_marker" ]]; then
@@ -416,6 +433,64 @@ _scenario_count_gate() {
   if [[ "$_test_count" -lt "$_spec_scenarios" ]]; then
     bash "$PF" append-note "$PLAN" \
       "[BLOCKED:code] coverage: under-scenario-count — ${spec_path}; ${_test_count} tests < ${_spec_scenarios} scenarios — manual investigation required"
+    exit 1
+  fi
+}
+
+# _manifest_reconciliation_gate SPEC_PATH UNIT_KEY — verify every RED manifest file for this unit
+# is covered by at least one task's failing_test. Returns 0 when all covered or no RED entries exist.
+# On uncovered files: increments .state/manifest-reconcile-<unit>.attempts counter;
+# if counter <= CLAUDE_MANIFEST_RECONCILE_MAX (default 2): clears task state and returns 1
+# (callers should replay Step 1); if counter exceeds max: appends BLOCKED note and exits 1.
+_manifest_reconciliation_gate() {
+  local spec_path="$1" unit_key="$2"
+  local _concept _concept_snake _concept_kebab
+  _concept=$(basename "$(dirname "$spec_path")")
+  _concept_snake=$(printf '%s' "$_concept" | tr '-' '_')
+  _concept_kebab=$(printf '%s' "$_concept" | tr '_' '-')
+
+  # Collect RED manifest files scoped to this unit (skip GREEN/pre-existing entries).
+  # Manifest entry format: "- tests/path/file.py::test_name → RED"
+  local _red_files
+  _red_files=$(awk '/^## Test Manifest/{f=1;next} f&&/^## /{exit} f&&/→ RED/ && !/GREEN/{n=split($2,parts,"::"); print parts[1]}' "$PLAN" 2>/dev/null \
+    | grep -E "/${_concept_snake}/|/test_${_concept_snake}\.|/${_concept_kebab}/|/test_${_concept_kebab}\." \
+    | sort -u || true)
+
+  [[ -z "$_red_files" ]] && return 0
+
+  # Collect failing_test file paths from task-defs JSON.
+  local _task_files
+  _task_files=$(awk '/<!-- task-definitions-start -->/{f=1;next} /<!-- task-definitions-end -->/{f=0} f' "$PLAN" 2>/dev/null \
+    | jq -r '.[] | (.failing_test // "") | split("::")[0]' 2>/dev/null \
+    | grep -v '^$' | sort -u || true)
+
+  # Find RED files not covered by any task.
+  local _uncovered=""
+  while IFS= read -r _rf; do
+    [[ -z "$_rf" ]] && continue
+    printf '%s\n' "$_task_files" | grep -qxF "$_rf" && continue
+    _uncovered="${_uncovered:+${_uncovered} }${_rf}"
+  done <<< "$_red_files"
+
+  [[ -z "$_uncovered" ]] && return 0
+
+  # Uncovered RED files detected — manage retry counter.
+  local _state_dir _attempts_file _attempts _max_attempts
+  _state_dir="${PLAN%.md}.state"
+  mkdir -p "$_state_dir" 2>/dev/null || true
+  _attempts_file="${_state_dir}/manifest-reconcile-${unit_key}.attempts"
+  _attempts=0
+  [[ -f "$_attempts_file" ]] && _attempts=$(cat "$_attempts_file" 2>/dev/null || echo 0)
+  _attempts=$(( _attempts + 1 ))
+  printf '%d\n' "$_attempts" > "$_attempts_file"
+
+  _max_attempts="${CLAUDE_MANIFEST_RECONCILE_MAX:-2}"
+  if [[ "$_attempts" -le "$_max_attempts" ]]; then
+    bash "$PF" clear-task-state "$PLAN"
+    bash "$PF" append-note "$PLAN" "[AUTO-DECIDED] reconcile: replanning — RED file(s) [${_uncovered}] not covered by any task failing_test (attempt ${_attempts}/${_max_attempts}); cleared task state for Step 1 replay"
+    return 1
+  else
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] reconcile: manifest-coverage-incomplete — RED file(s) [${_uncovered}] not covered by any task failing_test after ${_max_attempts} replanning attempts; implementing skill is not generating per-RED-file task coverage — investigate root cause, do not patch manually"
     exit 1
   fi
 }
