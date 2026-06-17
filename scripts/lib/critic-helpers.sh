@@ -64,13 +64,19 @@ extract_all_findings() {
 }
 
 # parse_verdict_from_log LOG_PATH → prints "verdict|category" to stdout
+# Extracts only from the last ### Verdict block to prevent cross-pairing across blocks.
 parse_verdict_from_log() {
   local _log="$1"
   [[ -f "$_log" ]] || { printf '|'; return; }
-  local _v _c
-  _v=$(grep -oE '<!--[[:space:]]*verdict:[[:space:]]*[A-Z]+[[:space:]]*-->' "$_log" 2>/dev/null | tail -1 \
+  local _v _c _start _block
+  _start=$(grep -n "^### Verdict" "$_log" 2>/dev/null | tail -1 | cut -d: -f1)
+  if [[ -z "$_start" ]]; then
+    printf '|'; return
+  fi
+  _block=$(tail -n +"$_start" "$_log" 2>/dev/null)
+  _v=$(printf '%s' "$_block" | grep -oE '<!--[[:space:]]*verdict:[[:space:]]*[A-Z]+[[:space:]]*-->' | tail -1 \
        | sed -E 's/<!--[[:space:]]*verdict:[[:space:]]*//; s/[[:space:]]*-->//' || true)
-  _c=$(grep -oE '<!--[[:space:]]*category:[[:space:]]*[A-Z_]+[[:space:]]*-->' "$_log" 2>/dev/null | tail -1 \
+  _c=$(printf '%s' "$_block" | grep -oE '<!--[[:space:]]*category:[[:space:]]*[A-Z_]+[[:space:]]*-->' | tail -1 \
        | sed -E 's/<!--[[:space:]]*category:[[:space:]]*//; s/[[:space:]]*-->//' || true)
   printf '%s|%s' "${_v:-}" "${_c:-}"
 }

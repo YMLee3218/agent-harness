@@ -66,7 +66,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
 ```
 2. If GENUINE findings exist, build a Codex fix prompt scoped to **only** those findings (exclude AMBIGUOUS findings from fix scope) and apply now — before emitting any `[BLOCKED:spec]` markers (the pre-tool hook blocks Bash writes once a `[BLOCKED:spec]` marker is present):
 ```bash
-codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
+codex exec --dangerously-bypass-approvals-and-sandbox - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"
 ```
 3. For each AMBIGUOUS finding, check whether the exact marker text already exists in `## Open Questions`; if not, append:
    `[BLOCKED:spec] {agent}: ambiguous — {finding-excerpt}: {audit-question}`

@@ -9,7 +9,7 @@
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
 #   context7-plugin         — orchestrating Claude uses context7 to resolve [UNVERIFIED CLAIM] findings from critics
 #   pr-review-toolkit       — running-dev-cycle calls pr-review-toolkit:review-pr per feature (review phase); skipped in B-sessions: CLAUDE_CRITIC_SESSION=1
-#   codex                   — run-implement.sh delegates implementation via codex exec --full-auto
+#   codex                   — run-implement.sh delegates implementation via codex exec --dangerously-bypass-approvals-and-sandbox (worker.sb is Tier 1 confinement)
 #   codex-auth              — Codex requires OPENAI_API_KEY or ~/.codex/auth.json
 # Required files:
 #   .claude/local.md        — language, runtime (test/lint/integration-test commands live in project CLAUDE.md, written by initializing-project)

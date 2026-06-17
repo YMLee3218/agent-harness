@@ -59,7 +59,7 @@ to `## Open Questions` (self-superseding — at most one `[RECURRING]` per agent
 All phase-gate critic reviews must run in isolated processes. Generating a verdict inline in the orchestrator context is forbidden.
 
 Normative implementations:
-- **`critic-spec/test/code/cross`**: shell (`run-critic-loop.sh`) calls `codex exec --full-auto -` directly. Codex is the isolated reviewer; Claude invoked at most once on FAIL (decision agent) and once on convergence-triggering PASS (REJECT-PASS check). Verdict via `plan-file.sh record-verdict-direct` — no SubagentStop hook.
+- **`critic-spec/test/code/cross`**: shell (`run-critic-loop.sh`) calls `codex exec --dangerously-bypass-approvals-and-sandbox -` directly (worker.sb provides Tier 1 confinement; `--dangerously-bypass-approvals-and-sandbox` prevents nested Seatbelt). Codex is the isolated reviewer; Claude invoked at most once on FAIL (decision agent) and once on convergence-triggering PASS (REJECT-PASS check). Verdict via `plan-file.sh record-verdict-direct` — no SubagentStop hook.
 - **`critic-feature`**: `context: fork` + `agent: critic-feature` B-session, SubagentStop hook. Pure Claude.
 - **`pr-review-toolkit:review-pr`**: external plugin; isolation satisfied by plugin.
 
@@ -94,7 +94,7 @@ Skill reads ## Open Questions and queries sidecar, checks in priority order:
        of that category must be addressed at root-cause level, not only the latest.
        **critic-spec/test/code/cross**: one Claude decision-agent call audits all findings → single Codex fix for entire FIX-PLAN.
        **critic-feature**: LLM determines fix direction for ALL GENUINE findings:
-       - clear → `codex exec --full-auto - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"` → re-run
+       - clear → `codex exec --dangerously-bypass-approvals-and-sandbox - < "$_fix_prompt" > "$_fix_log" 2>&1; tail -200 "$_fix_log"; rm -f "$_fix_prompt" "$_fix_log"` → re-run
        - ambiguous → `[BLOCKED:spec] {agent}: ambiguous — {question}` + stop
        - [DOCS CONTRADICTION] → treat docs/*.md as ground truth; fix code+spec. If docs may be stale → `[BLOCKED:docs]` + cascade + stop (`@reference/phase-ops.md §DOCS CONTRADICTION cascade`).
      ENVELOPE_MISMATCH / ENVELOPE_OVERREACH are ordinary FAIL categories — no
@@ -151,9 +151,9 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 
 **Shell-driven (critic-spec/test/code/cross)** — `run-critic-loop.sh` per iteration, no Claude overhead on PASS:
 1. `build_review_prompt` → SKILL.md template → `/tmp/critic-{agent}-review.XXXX`
-2. `codex exec --full-auto - < prompt > plans/{slug}.state/codex-critic-{agent}-last.log`
+2. `codex exec --dangerously-bypass-approvals-and-sandbox - < prompt > plans/{slug}.state/codex-critic-{agent}-last.log`
 3. grep verdict/category markers; `plan-file.sh record-verdict-direct $PLAN $AGENT $PHASE $verdict $category`
-4. **FAIL**: one Claude call (`ultrathink` + Read tool) → `AUDIT:/GENUINE:/FIX-PLAN:` for all findings; `append-audit`; if BLOCKED-AMBIGUOUS: write `[BLOCKED:spec]` markers; `codex exec --full-auto -` with full FIX-PLAN
+4. **FAIL**: one Claude call (`ultrathink` + Read tool) → `AUDIT:/GENUINE:/FIX-PLAN:` for all findings; `append-audit`; if BLOCKED-AMBIGUOUS: write `[BLOCKED:spec]` markers; `codex exec --dangerously-bypass-approvals-and-sandbox -` with full FIX-PLAN
 5. **PASS (2nd/converged)**: one Claude call for REJECT-PASS check only; if REJECT: `clear-converged`; if ACCEPT: exit 0
 6. **PASS (1st)**: no Claude call; loop continues
 
