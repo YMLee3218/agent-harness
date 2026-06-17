@@ -11,6 +11,7 @@
 ;                        infrastructure/, plans/*.md all covered)
 ;   PROJ_HARNESS       — .claude-harness/ subtree (scripts, reference, settings.json,
 ;                        CLAUDE.md, agents, skills); deny
+;   PROJ_CLAUDE_DIR    — .claude alias subtree (배포 시 .claude-harness 심볼릭); deny
 ;   PLANS_PHASE_REGEX  — regex matching plans/*.phase authority files; deny
 ;   PLANS_STATE_REGEX  — regex matching plans/*.state/ sidecar dirs; deny
 ;   PROJ_CLAUDE_MD     — workspace CLAUDE.md literal path; deny
@@ -68,6 +69,7 @@
 ;; Control paths: explicit deny (closed set; last-match-wins overrides the allow above)
 (deny file-write*
   (subpath (param "PROJ_HARNESS"))          ; scripts/ reference/ settings.json CLAUDE.md agents/ skills/
+  (subpath (param "PROJ_CLAUDE_DIR"))        ; .claude alias (배포 시 .claude-harness 심볼릭)
   (regex   (param "PLANS_PHASE_REGEX"))      ; plans/*.phase authority files
   (regex   (param "PLANS_STATE_REGEX"))      ; plans/*.state/ sidecar dirs
   (literal (param "PROJ_CLAUDE_MD"))         ; workspace CLAUDE.md

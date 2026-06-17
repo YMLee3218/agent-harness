@@ -3,6 +3,7 @@
 # Called from run-dev-cycle.sh when phase reaches 'done'.
 # Exit 0: gate passed (caller may proceed to merge-approval marker).
 # Exit 1: gate failed (caller must re-block the plan).
+# Exit 2: sandbox unavailable (caller treats as env failure, not code failure).
 set -euo pipefail
 if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
   exec /usr/bin/env CLAUDE_PLAN_CAPABILITY=harness "$0" "$@"
@@ -17,7 +18,7 @@ source "$SCRIPTS_DIR/lib/sandbox-lib.sh" 2>/dev/null || true
 _init_worker_sandbox "${PROJECT_DIR:-}"
 if [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]]; then
   echo "[BLOCKED:env] merge-gate: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" >&2
-  exit 1
+  exit 2
 fi
 # shellcheck source=lib/llm-runner.sh
 source "$SCRIPTS_DIR/lib/llm-runner.sh"

@@ -98,7 +98,7 @@ cmd_init() {
   {
     printf -- '---\nfeature: %s\nphase: brainstorm\nschema: 2\n' "$slug"
     [ -n "$mode" ] && printf 'mode: %s\n' "$mode"
-    printf -- '---\n\n## Vision\n\n## Scenarios\n\n## Test Manifest\n\n## Phase Transitions\n- brainstorm → (initial)\n\n## Critic Verdicts\n\n## Task Ledger\n| task-id | layer | status | commit-sha |\n|---------|-------|--------|------------|\n## Integration Failures\n\n## Verdict Audits\n\n## Open Questions\n'
+    printf -- '---\n\n## Phase\nbrainstorm\n\n## Vision\n\n## Scenarios\n\n## Test Manifest\n\n## Phase Transitions\n- brainstorm → (initial)\n\n## Critic Verdicts\n\n## Task Ledger\n| task-id | layer | status | commit-sha |\n|---------|-------|--------|------------|\n## Integration Failures\n\n## Verdict Audits\n\n## Open Questions\n'
   } > "$plan_file"
   printf 'brainstorm' > "${plan_file%.md}.phase"
   sc_ensure_dir "$plan_file" || die "ERROR: sidecar dir setup failed for $plan_file"

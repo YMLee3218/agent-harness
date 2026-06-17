@@ -43,6 +43,7 @@ _init_worker_sandbox() {
     sandbox-exec -f "$_sb"
     -D "PROJ_ROOT=${_proj_dir}"
     -D "PROJ_HARNESS=${_proj_dir}/.claude-harness"
+    -D "PROJ_CLAUDE_DIR=${_proj_dir}/.claude"
     -D "PLANS_PHASE_REGEX=${_phase_regex}"
     -D "PLANS_STATE_REGEX=${_state_regex}"
     -D "PROJ_CLAUDE_MD=${_proj_dir}/CLAUDE.md"

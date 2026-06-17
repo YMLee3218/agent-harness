@@ -71,6 +71,7 @@ bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked \
 - **Dev-cycle exited 0** — two sub-cases; check the notification text:
   - Notification contains `[RESTART]`: one feature was merged but more worktrees are still active — do NOT report overall success. Tell the user to `cd` to the next worktree (path shown in the notification) and re-invoke `/running-dev-cycle` there.
   - Notification contains `[DONE]`: all requirements complete → report success. Suggest `/brainstorming` to start the next requirement.
+- **Dev-cycle exited 1** (merge-gate integrity fail on done plan): `CLAUDE_PLAN_FILE` pointed to a done plan that has a block marker set by merge-gate. Run `plan-file.sh context "$CLAUDE_PLAN_FILE"` to surface the block, resolve it, then re-run with `--plan`.
 - **Dev-cycle exited 3** (merge-approval pending): plan is in `done` phase but awaiting human merge — do NOT report success. Inform the user that the branch passed all gates and needs human review and merge: `CLAUDE_PLAN_CAPABILITY=human bash .claude/scripts/run-dev-cycle.sh --plan {plan}`.
 
 If the notification showed other errors, run `plan-file.sh find-active` to diagnose (exit 0=active, 2=done/not-found, 3=ambiguous, 4=malformed).
