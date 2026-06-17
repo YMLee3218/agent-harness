@@ -97,7 +97,7 @@ launch_task() {
   [[ -n "${PROJECT_VENV:-}" ]] && ln -s "$PROJECT_VENV" "$wt/.venv" 2>/dev/null || true
   _sandbox_guard || {
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED:env] coder:${id}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:env] coder:${id}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
     return 1
   }
   if [[ "$bg" == "1" ]]; then
@@ -154,7 +154,7 @@ _restore_and_retry() {
   local _ec=0
   _sandbox_guard || {
     bash "$PF" update-task "$PLAN" "$id" blocked
-    bash "$PF" append-note "$PLAN" "[BLOCKED:env] coder:${id}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
+    bash "$PF" append-note "$PLAN" "[BLOCKED:env] coder:${id}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
     return 1
   }
   (cd "$wt" && ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $IMPLEMENT_TIMEOUT} "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --dangerously-bypass-approvals-and-sandbox ${GIT_COMMON_DIR:+--add-dir "$GIT_COMMON_DIR"} - < "$retry_prompt") > "$retry_log" 2>&1 || _ec=$?

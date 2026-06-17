@@ -86,6 +86,7 @@ while true; do
   # Ceiling-blocked check (sidecar)
   _conv_path=$(sc_conv_path "$PLAN" "$PHASE" "$AGENT" 2>/dev/null) || {
     echo "[run-critic-loop] ERROR: sc_conv_path failed — CLAUDE_PROJECT_DIR may be unset" >&2
+    bash "$PLAN_FILE_SH" append-note "$PLAN" "[BLOCKED:env] ${AGENT}: CLAUDE_PROJECT_DIR-unset — sc_conv_path failed; re-run with CLAUDE_PROJECT_DIR set to project root" 2>/dev/null || true
     exit 1
   }
   if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then
@@ -134,7 +135,7 @@ while true; do
     _codex_review_exit=0
     _sandbox_guard || {
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+        "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
       exit 1
     }
     if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
@@ -236,7 +237,7 @@ while true; do
         _sandbox_guard || {
           bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
           bash "$PLAN_FILE_SH" append-note "$PLAN" \
-            "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+            "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
           exit 1
         }
         _pass_cmd=()
@@ -289,7 +290,7 @@ while true; do
       _decision_out=""
       _sandbox_guard || {
         bash "$PLAN_FILE_SH" append-note "$PLAN" \
-          "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+          "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
         exit 1
       }
       _dec_cmd=()
@@ -337,7 +338,7 @@ while true; do
           _fix_exit=0
           _sandbox_guard || {
             bash "$PLAN_FILE_SH" append-note "$PLAN" \
-              "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+              "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
             exit 1
           }
           if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
@@ -394,7 +395,7 @@ the line. The nonce ${_nonce} must appear verbatim."
     _session_out=$(mktemp)
     _sandbox_guard || {
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+        "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
       exit 1
     }
     _cmd=()
@@ -444,7 +445,7 @@ the line. The nonce ${_nonce} must appear verbatim."
         _retry_out=$(mktemp); _rcmd=()
         _sandbox_guard || {
           bash "$PLAN_FILE_SH" append-note "$PLAN" \
-            "[BLOCKED:env] ${AGENT}: sandbox-unavailable — tier1-sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+            "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
           exit 1
         }
         [[ -n "$TIMEOUT_CMD" ]] && _rcmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
