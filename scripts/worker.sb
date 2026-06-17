@@ -60,7 +60,7 @@
   (regex #"^/Users/[^/]+/\.pnpm-store/")
   (regex #"^/Users/[^/]+/Library/Caches/")
   (regex #"^/Users/[^/]+/Library/Application Support/")
-  (regex #"^/Users/[^/]+/\.claude/projects/"))
+  (regex #"^/Users/[^/]+/\.claude/"))
 
 ;; Project root: allow all writes (open set — src/, tests/, docs/, domain/,
 ;; features/, infrastructure/, plans/*.md, alembic/, frontend/, etc.)
