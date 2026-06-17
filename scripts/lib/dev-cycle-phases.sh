@@ -183,6 +183,32 @@ _impl_reset_for_green() {
   bash "$PF" reset-milestone "$PLAN" critic-test
 }
 
+# _green_preexisting_integrity_gate SINCE_SHA — Tier-1 deterministic enforcement of the
+# critic-test SKILL.md Check 4 rule. Every test marked "→ GREEN (pre-existing)" in the plan
+# must live in a test file that already EXISTED before this unit's test phase began
+# (SINCE_SHA = _pre_test_sha, the HEAD captured before writing-tests ran). A file absent at
+# SINCE_SHA was (re)created during this Red phase, so a GREEN claim on it means the worker
+# self-declared pre-existing to skip implementation — block it. Re-derived from git every
+# iteration, so no plan note / REVIEW-NOTE can clear it.
+_green_preexisting_integrity_gate() {
+  local _since="$1" _green_files _gf _bad=""
+  [[ -z "$_since" ]] && return 0   # no baseline → cannot prove; matches SKILL.md degraded SKIP
+  # Extract unique test-file paths from every "→ GREEN (pre-existing)" line in the plan.
+  _green_files=$(grep -F '→ GREEN (pre-existing)' "$PLAN" 2>/dev/null \
+    | grep -oE '(^|[[:space:]])tests/[^[:space:]:]+' \
+    | sed -E 's/^[[:space:]]*//' | sort -u || true)
+  [[ -z "$_green_files" ]] && return 0
+  while IFS= read -r _gf; do
+    [[ -z "$_gf" ]] && continue
+    # File must have existed in the tree at SINCE_SHA to legitimately be "pre-existing".
+    git -C "$PROJECT_DIR" cat-file -e "${_since}:${_gf}" 2>/dev/null || _bad="${_bad:+${_bad} }${_gf}"
+  done <<< "$_green_files"
+  if [[ -n "$_bad" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:harness] green-preexisting-integrity — file(s) [${_bad}] marked → GREEN (pre-existing) but did not exist before this unit's Red phase (created in/after test(red): commit). A pre-existing claim requires the test file to predate the Red phase. Resolution: implement the unit so its tests are genuinely RED; OR if reverting the unit, delete the corresponding implementation per reference/phase-ops.md so the tests fail. Fix the root cause before running plan-file.sh unblock."
+    exit 1
+  fi
+}
+
 _impl_run_test_phase() {
   local feature="$1" feat_slug="$2"
   local _spec_path="${3:-}"
@@ -226,6 +252,7 @@ _impl_run_test_phase() {
     bash "$PF" append-note "$PLAN" "[BLOCKED:env] critic-test: cannot-derive-test-files — ${feature}: no test(red): commit found in ${_pre_test_sha}..HEAD; re-run writing-tests"
     exit 1
   fi
+  _green_preexisting_integrity_gate "$_pre_test_sha"
   CRITIC_SPEC_PATH="$_spec_path" \
   CRITIC_TEST_FILES="${_test_files}" \
   CRITIC_PLAN_PATH="${PLAN}" \

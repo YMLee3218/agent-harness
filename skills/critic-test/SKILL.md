@@ -131,6 +131,8 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
    If `create_ts >= red_commit_ts`, emit:
    [FAIL] category: TEST_INTEGRITY — {file}: marked GREEN (pre-existing) but was created in the Red phase commit.
 
+   Note: this check is also enforced as a Tier-1 deterministic gate (`_green_preexisting_integrity_gate` in `dev-cycle-phases.sh`) that runs before this critic is invoked and emits `[BLOCKED:harness] green-preexisting-integrity` on violation. The git-timestamp method above is the LLM-layer backup; the orchestrator gate is authoritative.
+
    If git is unavailable or the test(red): commit cannot be found, emit `[SKIP] GREEN integrity check: {reason}` and continue.
 
    Flag any test that passes but is NOT marked GREEN (pre-existing). (→ [FAIL])
