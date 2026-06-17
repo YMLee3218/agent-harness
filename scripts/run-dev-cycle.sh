@@ -22,7 +22,7 @@ if [[ -z "$PLAN" ]]; then
     0) ;;
     2) PLAN="" ;;
     3) echo "[BLOCKED] Multiple active plan files — set CLAUDE_PLAN_FILE=\"$CLAUDE_PROJECT_DIR/plans/{slug}.md\" then re-run" >&2; exit 1 ;;
-    4) echo "[BLOCKED] Plan file phase unreadable — check ## Phase section" >&2; exit 1 ;;
+    4) echo "[BLOCKED] Plan file phase unreadable — restore plans/{slug}.phase sidecar (schema 2) or repair ## Phase section (legacy plans)" >&2; exit 1 ;;
     *) PLAN="" ;;
   esac
 fi
@@ -32,7 +32,7 @@ fi
 if [[ -z "$PLAN" && -n "${CLAUDE_PLAN_FILE:-}" && -f "${CLAUDE_PLAN_FILE}" ]]; then
   if [[ "$(bash "$PF" get-phase "${CLAUDE_PLAN_FILE}" 2>/dev/null || echo "")" == "done" ]]; then
     if bash "$PF" is-blocked "${CLAUDE_PLAN_FILE}" 2>/dev/null; then
-      echo "[BLOCKED:code] merge-gate: integrity-fail in $(basename "${CLAUDE_PLAN_FILE}" .md) — fix issues, then: CLAUDE_PLAN_CAPABILITY=human bash \"${PF}\" unblock \"${CLAUDE_PLAN_FILE}\", then re-run with --plan flag" >&2
+      echo "[merge-gate] done plan $(basename "${CLAUDE_PLAN_FILE}" .md) has an active block — run: bash \"${PF}\" context \"${CLAUDE_PLAN_FILE}\" to see the specific block kind; resolve it, then re-run with --plan flag" >&2
       exit 1
     fi
   fi
@@ -161,7 +161,7 @@ if [[ -n "${current_phase:-}" ]] && [[ "$current_phase" == "brainstorm" ]] && \
   case $find_rc in
     0) [[ -n "$PLAN" ]] || { echo "ERROR: plan file not created by brainstorming" >&2; exit 1; } ;;
     3) echo "ERROR: multiple active plan files after brainstorming — set CLAUDE_PLAN_FILE=\"$CLAUDE_PROJECT_DIR/plans/{slug}.md\"" >&2; exit 1 ;;
-    4) echo "ERROR: plan file phase unreadable after brainstorming — repair the ## Phase section" >&2; exit 1 ;;
+    4) echo "ERROR: plan file phase unreadable after brainstorming — restore plans/{slug}.phase sidecar or repair the ## Phase section" >&2; exit 1 ;;
     *) echo "ERROR: plan file not created by brainstorming (find-active rc=$find_rc)" >&2; exit 1 ;;
   esac
   if grep -q '^mode:' "$PLAN" 2>/dev/null; then

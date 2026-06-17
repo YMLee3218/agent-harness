@@ -77,7 +77,12 @@ fi
 
 BASE_SHA=$(git rev-parse HEAD)
 PROJECT_VENV=""
-[[ -e ".venv" ]] && PROJECT_VENV=$(readlink -f ".venv" 2>/dev/null || true)
+if [[ -e ".venv" ]]; then
+  PROJECT_VENV=$(realpath ".venv" 2>/dev/null \
+    || readlink -f ".venv" 2>/dev/null \
+    || python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' ".venv" 2>/dev/null \
+    || true)
+fi
 WORK_DIR=$(mktemp -d /tmp/run-impl-XXXXXX)
 _cleanup_all_worktrees() {
   for wt_file in "$WORK_DIR"/wt-*.txt; do

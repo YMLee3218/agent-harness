@@ -150,6 +150,6 @@ None: "All envelope axes compatible across interacting features"
 - Missing handoffs                                  → MISSING_SCENARIO
 - Naming inconsistencies                            → STRUCTURAL
 - Layer boundary cross-check                        → LAYER_VIOLATION
-- Incompatible envelope axes across features (Angle 7) → ENVELOPE_MISMATCH
+- Incompatible envelope axes across features (Angle 7) → ENVELOPE_MISMATCH (entry-point callee) or PROPAGATED_VALUE_OUT_OF_SYNC (internal callee)
 
 When multiple FAILs fire, pick the highest-priority category per severity.md §Category priority.

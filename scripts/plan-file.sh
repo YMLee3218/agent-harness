@@ -65,7 +65,7 @@ case "$1" in
   record-verdict-guarded)   cmd_record_verdict_guarded ;;
   record-verdict-direct) [ $# -ge 5 ] || die "Usage: plan-file.sh record-verdict-direct <plan-file> <agent> <phase> <verdict> [category]"; cmd_record_verdict_direct "$2" "$3" "$4" "$5" "${6:-}" ;;
   record-task-completed)  cmd_record_task_completed ;;
-  context)              cmd_context ;;
+  context)              cmd_context "${2:-}" ;;
   gc-events)            cmd_gc_events ;;
   gc-verdicts)          [ $# -eq 2 ] || die "Usage: plan-file.sh gc-verdicts <plan-file>"; cmd_gc_verdicts "$2" ;;
   add-task)             [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;

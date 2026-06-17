@@ -58,7 +58,7 @@ Search implementation files for stub patterns (check all source roots that exist
 ```bash
 for _sd in src/ internal/ cmd/ pkg/ app/ lib/ crates/ apps/ packages/; do
   [[ -d "$_sd" ]] || continue
-  grep -rn 'raise NotImplementedError\|pass$\|\.\.\.# TODO\|# STUB' "$_sd"
+  grep -rn 'raise NotImplementedError\|pass$\|\.\.\.# TODO\|# STUB\|unimplemented!(\|todo!(\|throw new NotImplementedException\|throw new UnsupportedOperationException' "$_sd"
 done
 ```
 For each hit, record:

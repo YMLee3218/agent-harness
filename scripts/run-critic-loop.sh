@@ -140,9 +140,9 @@ while true; do
     }
     if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
       "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
-        "${_WORKER_SANDBOX_ARGS[@]}" codex exec --dangerously-bypass-approvals-and-sandbox - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
+        "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --dangerously-bypass-approvals-and-sandbox - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
     else
-      "${_WORKER_SANDBOX_ARGS[@]}" codex exec --dangerously-bypass-approvals-and-sandbox - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
+      "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --dangerously-bypass-approvals-and-sandbox - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
     fi
     rm -f "$_review_prompt"
 
@@ -343,9 +343,9 @@ while true; do
           }
           if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
             "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
-              "${_WORKER_SANDBOX_ARGS[@]}" codex exec --dangerously-bypass-approvals-and-sandbox - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
+              "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --dangerously-bypass-approvals-and-sandbox - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
           else
-            "${_WORKER_SANDBOX_ARGS[@]}" codex exec --dangerously-bypass-approvals-and-sandbox - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
+            "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --dangerously-bypass-approvals-and-sandbox - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
           fi
           rm -f "$_fix_prompt"
           [[ $_fix_exit -ne 0 ]] && \

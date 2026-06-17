@@ -324,8 +324,10 @@ cmd_record_stop_block() {
 
 cmd_context() {
   require_jq
-  local plan_file
-  plan_file=$(cmd_find_active 2>/dev/null) || exit 0
+  local plan_file="${1:-}"
+  if [ -z "$plan_file" ]; then
+    plan_file=$(cmd_find_active 2>/dev/null) || exit 0
+  fi
 
   local phase
   phase=$(_require_phase "$plan_file" "cmd_context") || exit 0
@@ -1150,9 +1152,9 @@ _is_converged_plan_md_fail() {
   ' "$_pf" 2>/dev/null
 }
 
-# INVARIANT: convergence 상태(.converged)는 이 함수 외에서 직접 읽지 말 것.
-# 새 소비자는 반드시 is-converged를 거쳐 plan.md 발산 가드(FIX-1)와
-# spec 핑거프린트 가드(FIX-3)를 통과해야 한다. 직접 읽으면 두 가드가 우회된다(G2/G3 재발).
+# INVARIANT: .converged state must not be read directly outside this function.
+# New consumers must go through is-converged to pass the plan.md divergence guard (FIX-1)
+# and the spec fingerprint guard (FIX-3). Reading directly bypasses both guards (G2/G3 regression).
 cmd_is_converged() {
   local plan_file="$1" phase="$2" agent="$3"
   require_file "$plan_file"

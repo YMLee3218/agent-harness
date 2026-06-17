@@ -9,7 +9,13 @@ _resolve_project_dir() {
   PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
   local _gr
   _gr=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _gr=""
-  [[ -n "$_gr" && "${PROJECT_DIR}/" == "${_gr}/"* ]] && PROJECT_DIR="$_gr"
+  if [[ -n "$_gr" ]]; then
+    if [[ "${PROJECT_DIR}/" == "${_gr}/"* ]]; then
+      PROJECT_DIR="$_gr"                           # snap-up from subdirectory (existing)
+    elif [[ -n "${CLAUDE_PROJECT_DIR:-}" && "${_gr}/" == "${CLAUDE_PROJECT_DIR}/"* ]]; then
+      PROJECT_DIR="$_gr"                           # follow into worktree (new)
+    fi
+  fi
   export PROJECT_DIR
 }
 

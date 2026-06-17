@@ -25,7 +25,14 @@ Harness protections are organized into two tiers. **Only Tier 1 provides structu
 
 **Note on timeout-prefixed spawn sites**: `timeout`/`gtimeout` exec their first argument as a binary via `execvp`, so they cannot invoke `worker_exec` (a bash shell function). Spawn sites that carry a timeout prefix (`${TIMEOUT_CMD:+…}`) must use `"${_WORKER_SANDBOX_ARGS[@]}"` array expansion directly, preceded by a `_sandbox_guard` call for fail-closed behaviour. `worker_exec` is reserved for timeout-free spawn sites (`run-merge-gate.sh`, `llm-runner.sh`). Timeout-prefixed array+guard sites: `implement-helpers.sh`, `integration-helpers.sh`, `run-critic-loop.sh` (codex spawns).
 
-**When Tier 1 is absent** (non-macOS, `sandbox-exec` unavailable, or `worker.sb` missing): the harness is **fail-closed by default**. `_init_worker_sandbox` sets `_SANDBOX_REQUIRED_FAIL=1`; each calling script (`run-implement.sh`, `run-critic-loop.sh`, `run-integration.sh`, `run-merge-gate.sh`, `run-dev-cycle.sh`) checks this flag immediately after the call and exits with `[BLOCKED:env] sandbox: tier1-unavailable`. Workers are NOT spawned. To opt out of this requirement (e.g., Linux CI or development environments without Seatbelt), set `CLAUDE_ALLOW_UNSANDBOXED=1`; only the orchestrator process can set this env var before spawning workers, so adversarial workers cannot self-grant the override. Linux Tier 1 equivalent (bubblewrap) is not yet implemented; Linux runs require `CLAUDE_ALLOW_UNSANDBOXED=1`.
+**When Tier 1 is absent** (non-macOS, `sandbox-exec` unavailable, or `worker.sb` missing): the harness is **fail-closed by default**. `_init_worker_sandbox` sets `_SANDBOX_REQUIRED_FAIL=1`; each calling script checks this flag immediately after the call and writes a per-script `[BLOCKED:env]` marker to the plan file (or stderr if no active plan), then exits:
+- `run-implement.sh` → `[BLOCKED:env] implement: sandbox-unavailable`
+- `run-critic-loop.sh` → `[BLOCKED:env] ${AGENT}: sandbox-unavailable`
+- `run-integration.sh` → `[BLOCKED:env] integration: sandbox-unavailable`
+- `run-merge-gate.sh` → `[BLOCKED:env] merge-gate: sandbox-unavailable` (stderr only; exits 2)
+- `run-dev-cycle.sh` → `[BLOCKED:env] dev-cycle: sandbox-unavailable`
+
+Workers are NOT spawned. (`sandbox-lib.sh` also emits `[BLOCKED:env] sandbox: tier1-unavailable` to stderr as a library-level diagnostic; this does not appear in `## Open Questions`.) To opt out of this requirement (e.g., Linux CI or development environments without Seatbelt), set `CLAUDE_ALLOW_UNSANDBOXED=1`; only the orchestrator process can set this env var before spawning workers, so adversarial workers cannot self-grant the override. Linux Tier 1 equivalent (bubblewrap) is not yet implemented; Linux runs require `CLAUDE_ALLOW_UNSANDBOXED=1`.
 
 **Profile completeness**: run with `SANDBOX_DENY_LOG=1` to surface residual EPERM hits after the first dry-run.
 
