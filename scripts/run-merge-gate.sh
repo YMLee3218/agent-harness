@@ -79,7 +79,7 @@ ${_pending}
 while IFS= read -r _red_sha; do
   [[ -z "$_red_sha" ]] && continue
   _rfiles=$(git -C "$PROJECT_DIR" show --name-only --format= "$_red_sha" 2>/dev/null \
-    | grep -E '(^|/)tests/|(^|/)test_|_test\.|\.test\.|\.spec\.' | grep -v '\.spec\.md$' || true)
+    | grep -E '(^|/)tests/|(^|/)conftest\.|_test\.|(^|/)test_|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$' || true)
   [[ -z "$_rfiles" ]] && continue
   while IFS= read -r _tf; do
     [[ -z "$_tf" ]] && continue
@@ -91,8 +91,8 @@ ${_bad}
   done <<< "$_rfiles"
 done <<< "$(git -C "$PROJECT_DIR" log --grep='^test(red):' --format='%H' "${MAIN_BRANCH}..HEAD" 2>/dev/null || true)"
 
-# Criterion 1 — tests-green: unit (+integration) suite must exit 0. One retry absorbs
-# flakiness; second failure is authoritative. Run inside the sandbox via worker_exec.
+# Criterion 1 — tests-green: unit (+integration) suite must exit 0. Unit has one retry to
+# absorb flakiness; second failure is authoritative. Integration runs once (single-run). Run inside the sandbox via worker_exec.
 # Output goes to sibling files so the LLM's later report (overwrites $REPORT_FILE) stays clean.
 if [[ -n "$UNIT_CMD" ]]; then
   # shellcheck disable=SC2086
@@ -123,7 +123,7 @@ if [[ -n "$_det_fail" ]]; then
     printf '%s' "$_det_fail"; echo ""
     echo "MERGE-READY: no"
   } > "$REPORT_FILE"
-  bash "$PF" append-note "$PLAN" "[BLOCKED:harness] merge-gate-tier1 — deterministic pre-gate failed (tests-green/test-integrity/tasks-complete); see ${REPORT_FILE}. Fix the root cause; the gate re-derives truth from git/exit-codes every run and cannot be cleared by a plan note."
+  bash "$PF" append-note "$PLAN" "[BLOCKED:code] merge-gate-tier1 — deterministic pre-gate failed (tests-green/test-integrity/tasks-complete); see ${REPORT_FILE}. Fix the root cause; the gate re-derives truth from git/exit-codes every run and cannot be cleared by a plan note."
   echo "[merge-gate] FAIL (Tier-1 deterministic) — see $REPORT_FILE" >&2
   cat "$REPORT_FILE" >&2
   exit 1
@@ -139,6 +139,7 @@ CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="${PLAN}" \
 
 if [[ $_CALL_RC -ne 0 ]]; then
   echo "[merge-gate] critic-merge invocation failed (exit ${_CALL_RC})" >&2
+  bash "$PF" append-note "$PLAN" "[BLOCKED:env] merge-gate: critic-merge-invocation-failed — LLM exit ${_CALL_RC}; re-run to retry or check claude availability" 2>/dev/null || true
   exit 1
 fi
 
@@ -149,5 +150,6 @@ if grep -qE '^MERGE-READY: yes[[:space:]]*$' "$REPORT_FILE" 2>/dev/null; then
 else
   echo "[merge-gate] FAIL — branch ${BRANCH} did not pass all criteria." >&2
   cat "$REPORT_FILE" >&2
+  bash "$PF" append-note "$PLAN" "[BLOCKED:code] merge-gate: integrity-fail — see ${REPORT_FILE}. Fix the identified issues, then re-run." 2>/dev/null || true
   exit 1
 fi
