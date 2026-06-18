@@ -923,7 +923,7 @@ cmd_reset_milestone() {
   current_phase=$(_require_phase "$plan_file" "reset-milestone")
   local scope; scope=$(_scope_of "$current_phase" "$agent")
   _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
-  _clear_ceiling_sidecar_entry "$plan_file" "${scope}"
+  _clear_all_ceiling_sidecar_entries_for_agent "$plan_file" "$agent"
   _clear_transient_for "$plan_file" "$agent" 2>/dev/null || true
   local ts
   ts=$(_iso_timestamp)
@@ -971,6 +971,7 @@ cmd_reset_phase_state() {
   cmd_reset_pr_review "$plan_file"
   cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-code:"
   cmd_clear_marker "$plan_file" "[RECURRING] critic-code:"
+  _clear_ceiling_sidecar_entry "$plan_file" "implement/critic-code"
   _clear_ceiling_sidecar_entry "$plan_file" "review/critic-code"
   _reset_all_transient_counters "$plan_file" 2>/dev/null || true
   cmd_set_phase "$plan_file" "$target_phase"
@@ -1073,8 +1074,11 @@ cmd_record_task_completed() {
   task_id=$(printf '%s' "$input" | jq -r '.task_id // "unknown"' 2>/dev/null || echo "unknown")
   [[ "$task_id" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { echo "[record-task-completed] invalid task_id: ${task_id}" >&2; exit 0; }
   plan_file=$(cmd_find_active 2>/dev/null) || exit 0
-  (cmd_update_task "$plan_file" "$task_id" "completed") || true
-  echo "[record-task-completed] marked task (${task_id}) completed in ${plan_file}" >&2
+  if (cmd_update_task "$plan_file" "$task_id" "completed"); then
+    echo "[record-task-completed] marked task (${task_id}) completed in ${plan_file}" >&2
+  else
+    echo "[record-task-completed] WARN: could not update task ${task_id} in ${plan_file} — task may not exist in ledger" >&2
+  fi
 }
 
 cmd_gc_events() {

@@ -29,7 +29,11 @@ Run the block below as-is — do not modify any values:
 ```bash
 _boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 source "$_boot/.claude/scripts/lib/run-context.sh" && _resolve_project_dir
-_active_plan=$(bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null || echo '')
+_fa_rc=0
+_active_plan=$(bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" find-active 2>/dev/null) || _fa_rc=$?
+if [[ $_fa_rc -eq 3 || $_fa_rc -eq 4 ]]; then
+  echo "running-integration-tests: ambiguous or malformed plan state (find-active rc=${_fa_rc}) — run plan-file.sh find-active to diagnose" >&2; exit 1
+fi
 if [[ -z "$_active_plan" ]]; then
   echo "running-integration-tests: no active plan — start a dev cycle first with /running-dev-cycle" >&2; exit 1
 fi

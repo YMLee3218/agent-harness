@@ -15,6 +15,7 @@ Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FA
 text is present. If not present, drop the finding. No uncited findings.
 
 Spec: {spec_path}
+(If {spec_path} contains multiple space-separated paths, check scenarios and coverage against all listed specs.)
 Test files: {test_files}
 Plan: {plan_path}
 Test command: {test_command}
@@ -121,7 +122,7 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
 
 3. Test quality → category: `TEST_QUALITY` — each test maps to exactly one Scenario; names follow "should {outcome} when {condition}"; no implementation logic inside tests. (→ [FAIL])
 
-4. Confirm all tests fail — run `{test_command} {test_files}`. `{test_files}` is the test files from the latest `test(red):` commit (this feature's, in the normal one-feature-per-`test(red):`-commit flow), so this scopes the run to the reviewed files rather than the whole suite. If `{test_files}` could not be derived it falls back to the `tests/` tree (full suite) — acceptable only in that degraded case. Every newly written test must fail.
+4. Confirm all tests fail — run `{test_command} {test_files}`. `{test_files}` is the test files from the latest `test(red):` commit (this feature's, in the normal one-feature-per-`test(red):`-commit flow), so this scopes the run to the reviewed files rather than the whole suite. Exception: if the test runner does not support positional file-path selection (e.g. `go test`, `cargo test`), run `{test_command}` alone — appending file paths is invalid for these runners. If `{test_files}` could not be derived it falls back to the `tests/` tree (full suite) — acceptable only in that degraded case. Every newly written test must fail.
 
    Exception: a test marked `GREEN (pre-existing)` in the Test Manifest is allowed to pass. For each GREEN entry, verify with git that the test file predates the Red-phase commit:
    ```bash
@@ -131,7 +132,7 @@ If a test exercises a scenario whose conditions require an axis value exceeding 
    If `create_ts >= red_commit_ts`, emit:
    [FAIL] category: TEST_INTEGRITY — {file}: marked GREEN (pre-existing) but was created in the Red phase commit.
 
-   Note: this check is also enforced as a Tier-1 deterministic gate (`_green_preexisting_integrity_gate` in `dev-cycle-phases.sh`) that runs before this critic is invoked and emits `[BLOCKED:harness] green-preexisting-integrity` on violation. The git-timestamp method above is the LLM-layer backup; the orchestrator gate is authoritative.
+   Note: this check is also enforced as a Tier-1 deterministic gate (`_green_preexisting_integrity_gate` in `dev-cycle-phases.sh`) that runs before this critic is invoked and emits `[BLOCKED:code] green-preexisting-integrity` on violation. The git-timestamp method above is the LLM-layer backup; the orchestrator gate is authoritative.
 
    If git is unavailable or the test(red): commit cannot be found, emit `[SKIP] GREEN integrity check: {reason}` and continue.
 

@@ -75,6 +75,7 @@ _handle_spec_phase_rollback() {
     bash "$PF" append-note "$PLAN" "[BLOCKED:env] critic-test: cannot-derive-test-files — integration fix: no test(red): commit found; re-run writing-tests"
     exit 1
   fi
+  _green_preexisting_integrity_gate "$_pre_test_sha"
   CRITIC_SPEC_PATH="${_feature_specs}" \
   CRITIC_TEST_FILES="${_test_files}" \
   CRITIC_PLAN_PATH="${PLAN}" \

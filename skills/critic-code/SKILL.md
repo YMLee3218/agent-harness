@@ -16,6 +16,7 @@ Evidence rule: before reporting any blocking finding ([CRITICAL], [MISSING], [FA
 text is present. If not present, drop the finding. No uncited findings.
 
 Spec: {spec_path}
+(If {spec_path} contains multiple space-separated paths, review implementation against all listed specs.)
 Docs: {docs_paths}
 Plan: {plan_path}
 

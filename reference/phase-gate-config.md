@@ -40,7 +40,7 @@ Maximum critic loop iterations per milestone (ordinals 1–N allowed; the (N+1)t
 CLAUDE_CRITIC_LOOP_MODEL=opus
 ```
 
-Model for the orchestration session spawned by `run-critic-loop.sh`. Default: `opus`. The orchestration session runs the one-shot iteration logic (skill invocation, `record-verdict`, ultrathink audit per `@reference/critics.md §Critic one-shot iteration`). For `critic-spec/test/code/cross`, reviews are executed via `codex exec --dangerously-bypass-approvals-and-sandbox` (worker.sb provides Tier 1 confinement) — codex manages its own model independently of Claude. For `critic-feature`, the review is a Claude fork that uses `model:` from `agents/critic-feature.md`. In both cases `CRITIC_LOOP_MODEL` controls only the orchestration session and does not affect the critic review itself. For shell-driven critics (`critic-spec/test/code/cross`), the FAIL decision audit is a separate one-shot `claude --model sonnet` invocation (see `run-critic-loop.sh:261`) that uses a dynamically built prompt from `build_decision_prompt` in `scripts/lib/critic-helpers.sh` — it does not consult the agent file's `model:` field. The `model:` field in `agents/critic-{code,spec,test,cross}.md` applies only when those agents are launched directly as Claude skill wrappers, which does not occur in the automated shell-driven loop.
+Model for the orchestration session spawned by `run-critic-loop.sh`. Default: `opus`. The orchestration session runs the one-shot iteration logic (skill invocation, `record-verdict`, ultrathink audit per `@reference/critics.md §Critic one-shot iteration`). For `critic-spec/test/code/cross`, reviews are executed via `codex exec --dangerously-bypass-approvals-and-sandbox` (worker.sb provides Tier 1 confinement) — codex manages its own model independently of Claude. For `critic-feature`, the review is a Claude fork that uses `model:` from `agents/critic-feature.md`. In both cases `CRITIC_LOOP_MODEL` controls only the orchestration session and does not affect the critic review itself. For shell-driven critics (`critic-spec/test/code/cross`), the FAIL decision audit is a separate one-shot `claude --model sonnet` invocation (see `run-critic-loop.sh:300`) that uses a dynamically built prompt from `build_decision_prompt` in `scripts/lib/critic-helpers.sh` — it does not consult the agent file's `model:` field. The `model:` field in `agents/critic-{code,spec,test,cross}.md` applies only when those agents are launched directly as Claude skill wrappers, which does not occur in the automated shell-driven loop.
 
 ```bash
 CLAUDE_STOP_CHECK_TIMEOUT=600
@@ -63,6 +63,7 @@ Source of truth: `scripts/phase-policy.sh` (`phase_blocks_src`, `phase_blocks_te
 To avoid spurious aborts, set `CLAUDE_PLAN_FILE` and advance the plan to the correct phase before launching:
 ```bash
 CLAUDE_NONINTERACTIVE=1 \
+CLAUDE_PROJECT_DIR="$(pwd)" \
 CLAUDE_PLAN_FILE="$(pwd)/plans/{slug}.md" \
   claude --permission-mode auto -p "/running-dev-cycle"
 ```

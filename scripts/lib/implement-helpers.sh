@@ -146,7 +146,7 @@ _restore_and_retry() {
     [[ -z "$f" ]] && continue
     if git cat-file -e "${base}:${f}" 2>/dev/null; then git checkout "$base" -- "$f"
     else rm -f "$f"; fi
-  done <<< "$test_files" && git add -A && git commit -m "chore: restore test files modified by Codex" 2>/dev/null || true)
+  done <<< "$test_files" && git add -A && git commit -m "chore(state): restore test files modified by Codex" 2>/dev/null || true)
   restore_count=$(cd "$wt" && git rev-list --count "${base}..HEAD" 2>/dev/null || echo 0)
   local retry_log="$WORK_DIR/retry-log-${id}.txt" retry_prompt="$WORK_DIR/retry-prompt-${id}.txt"
   make_prompt "$id" > "$retry_prompt"

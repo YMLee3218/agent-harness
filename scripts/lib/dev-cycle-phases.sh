@@ -75,7 +75,6 @@ _phase_spec_prepass() {
       "Review spec for feature: ${feature}. Spec: ${_spec_for_critic}. Docs: $(docs_paths). Plan: ${PLAN}.${_cross_ctx}"
     llm_exit "critic-spec"
     touch "$_rev_marker" 2>/dev/null || true
-    git -C "$PROJECT_DIR" add "$_rev_marker" 2>/dev/null || true
 
     while IFS= read -r _sp_file; do
       [[ -n "$_sp_file" ]] && git -C "$PROJECT_DIR" add "$_sp_file"
@@ -135,7 +134,7 @@ _phase_domain_infra_spec_review() {
     llm_exit "critic-spec"
     touch "$_rev_marker" 2>/dev/null || true
 
-    git -C "$PROJECT_DIR" add "$_spec_rel" "$_rev_marker" 2>/dev/null || true
+    git -C "$PROJECT_DIR" add "$_spec_rel" 2>/dev/null || true
     git -C "$PROJECT_DIR" diff --cached --quiet || \
       git -C "$PROJECT_DIR" commit -m "feat(spec): add BDD scenarios for ${_layer}/${_slug}"
   done <<< "$_di_specs"
@@ -194,9 +193,11 @@ _green_preexisting_integrity_gate() {
   local _since="$1" _green_files _gf _bad=""
   [[ -z "$_since" ]] && return 0   # no baseline → cannot prove; matches SKILL.md degraded SKIP
   # Extract unique test-file paths from every "→ GREEN (pre-existing)" line in the plan.
+  # Match all supported test-file patterns, not just tests/ prefix.
   _green_files=$(grep -F '→ GREEN (pre-existing)' "$PLAN" 2>/dev/null \
-    | grep -oE '(^|[[:space:]])tests/[^[:space:]:]+' \
-    | sed -E 's/^[[:space:]]*//' | sort -u || true)
+    | grep -oE '[^[:space:]|:]+' \
+    | grep -E '(^|/)tests/|(^|/)conftest\.|_test\.|(^|/)test_|\.test\.|\.spec\.|_spec\.' \
+    | grep -v 'spec\.md$' | sort -u || true)
   [[ -z "$_green_files" ]] && return 0
   while IFS= read -r _gf; do
     [[ -z "$_gf" ]] && continue
@@ -204,7 +205,7 @@ _green_preexisting_integrity_gate() {
     git -C "$PROJECT_DIR" cat-file -e "${_since}:${_gf}" 2>/dev/null || _bad="${_bad:+${_bad} }${_gf}"
   done <<< "$_green_files"
   if [[ -n "$_bad" ]]; then
-    bash "$PF" append-note "$PLAN" "[BLOCKED:harness] green-preexisting-integrity — file(s) [${_bad}] marked → GREEN (pre-existing) but did not exist before this unit's Red phase (created in/after test(red): commit). A pre-existing claim requires the test file to predate the Red phase. Resolution: implement the unit so its tests are genuinely RED; OR if reverting the unit, delete the corresponding implementation per reference/phase-ops.md so the tests fail. Fix the root cause before running plan-file.sh unblock."
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] green-preexisting-integrity — file(s) [${_bad}] marked → GREEN (pre-existing) but did not exist before this unit's Red phase (created in/after test(red): commit). A pre-existing claim requires the test file to predate the Red phase. Resolution: implement the unit so its tests are genuinely RED; OR if reverting the unit, delete the corresponding implementation per reference/phase-ops.md so the tests fail. Fix the root cause before running plan-file.sh unblock."
     exit 1
   fi
 }
@@ -403,13 +404,14 @@ _impl_run_review_phase() {
 # naming convention in the tests/ directory.
 _spec_coverage_gate() {
   local spec_path="$1" unit_key="$2"
-  local _concept _concept_snake _concept_kebab _test_count
+  local _concept _concept_snake _concept_kebab _layer _test_count
   _concept=$(basename "$(dirname "$spec_path")")
+  _layer=$(basename "$(dirname "$(dirname "$spec_path")")")
   _concept_snake=$(printf '%s' "$_concept" | tr '-' '_')
   _concept_kebab=$(printf '%s' "$_concept" | tr '_' '-')
-  # Segment-boundary matching: concept must appear as a full path component or as test_{concept}.filename
+  # Segment-boundary matching scoped to layer; avoids cross-layer same-slug contamination.
   _test_count=$(git -C "$PROJECT_DIR" ls-files "tests/" 2>/dev/null \
-    | grep -cE "/${_concept_snake}/|/test_${_concept_snake}\.|/${_concept_kebab}/|/test_${_concept_kebab}\." \
+    | grep -cE "/${_layer}/${_concept_snake}/|/${_layer}/${_concept_kebab}/|/${_layer}/test_${_concept_snake}\.|/${_layer}/test_${_concept_kebab}\." \
     || true)
   if [[ "$_test_count" -eq 0 ]]; then
     bash "$PF" append-note "$PLAN" \
@@ -445,7 +447,15 @@ _scenario_count_gate() {
   [[ -d "$_test_dir_snake" ]] && _test_dir="tests/${_layer}/${_concept_snake}"
   [[ -z "$_test_dir" && -d "$_test_dir_kebab" ]] && _test_dir="tests/${_layer}/${_concept_kebab}"
   if [[ -z "$_test_dir" ]]; then
-    return 0  # No test directory yet — coverage gate already blocked for this case
+    # No directory layout — also check for single-file layout (test_concept.py at layer root).
+    # _spec_coverage_gate accepts this pattern; keep both gates consistent.
+    if [[ -f "${_test_dir_snake%/*}/test_${_concept_snake}.py" ]]; then
+      _test_dir="tests/${_layer}/test_${_concept_snake}.py"
+    elif [[ -f "${_test_dir_kebab%/*}/test_${_concept_kebab}.py" ]]; then
+      _test_dir="tests/${_layer}/test_${_concept_kebab}.py"
+    else
+      return 0  # No tests yet — coverage gate blocked for this case
+    fi
   fi
 
   local _collect_rc=0
@@ -471,16 +481,23 @@ _scenario_count_gate() {
 # (callers should replay Step 1); if counter exceeds max: appends BLOCKED note and exits 1.
 _manifest_reconciliation_gate() {
   local spec_path="$1" unit_key="$2"
-  local _concept _concept_snake _concept_kebab
+  local _concept _concept_snake _concept_kebab _layer
   _concept=$(basename "$(dirname "$spec_path")")
+  _layer=$(basename "$(dirname "$(dirname "$spec_path")")")
   _concept_snake=$(printf '%s' "$_concept" | tr '-' '_')
   _concept_kebab=$(printf '%s' "$_concept" | tr '_' '-')
 
-  # Collect RED manifest files scoped to this unit (skip GREEN/pre-existing entries).
+  # Gate only applies when UNIT_CMD includes 'pytest'; other runners (go test, cargo test)
+  # use empty failing_test fields by design (implementing/SKILL.md) — skip for those.
+  if ! printf '%s' "${UNIT_CMD:-}" | grep -qw 'pytest'; then
+    return 0
+  fi
+
+  # Collect RED manifest files scoped to this unit and layer (skip GREEN/pre-existing entries).
   # Manifest entry format: "- tests/path/file.py::test_name → RED"
   local _red_files
   _red_files=$(awk '/^## Test Manifest/{f=1;next} f&&/^## /{exit} f&&/→ RED/ && !/GREEN/{n=split($2,parts,"::"); print parts[1]}' "$PLAN" 2>/dev/null \
-    | grep -E "/${_concept_snake}/|/test_${_concept_snake}\.|/${_concept_kebab}/|/test_${_concept_kebab}\." \
+    | grep -E "/${_layer}/${_concept_snake}/|/${_layer}/${_concept_kebab}/|/${_layer}/test_${_concept_snake}\.|/${_layer}/test_${_concept_kebab}\." \
     | sort -u || true)
 
   [[ -z "$_red_files" ]] && return 0

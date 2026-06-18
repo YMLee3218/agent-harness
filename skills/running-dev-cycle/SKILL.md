@@ -67,7 +67,7 @@ bash "$PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked \
 
 **If exits 1 (`[OK]` — no blocks, plan still active)**: `is-blocked` confirmed no active block markers in sidecar or `## Open Questions`. The plan is alive but not yet complete. If the dev cycle is still running, wait for the next completion notification. If it exited unexpectedly, run `plan-file.sh context "$CLAUDE_PLAN_FILE"` to diagnose the plan state, then re-invoke `/running-dev-cycle`.
 
-**If exits 2** (`find-active` found no active plan): two cases based on the dev-cycle script exit code visible in the completion notification:
+**If exits 2** (`find-active` found no active plan — note: rc 3/4 from `find-active` (ambiguous/malformed state) is also collapsed to an empty path by `|| echo ''` and presents as exit 2; run `plan-file.sh find-active` directly to distinguish): two cases based on the dev-cycle script exit code visible in the completion notification:
 - **Dev-cycle exited 0** — two sub-cases; check the notification text:
   - Notification contains `[RESTART]`: one feature was merged but more worktrees are still active — do NOT report overall success. Tell the user to `cd` to the next worktree (path shown in the notification) and re-invoke `/running-dev-cycle` there.
   - Notification contains `[DONE]`: all requirements complete → report success. Suggest `/brainstorming` to start the next requirement.

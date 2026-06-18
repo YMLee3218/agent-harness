@@ -138,7 +138,7 @@ Then re-invoke the `brainstorming` skill.
 
 ### Full rollback reset
 
-For integration failure or unit-test failure before integration: call `transition` first to log the rollback reason in Phase Transitions, then `reset-for-rollback` to atomically set phase, run `reset-milestone critic-code`, run `reset-pr-review`, and clear stale `review/critic-code` markers:
+For integration failure or unit-test failure before integration: call `transition` first to log the rollback reason in Phase Transitions, then `reset-for-rollback` to atomically reset all critic convergence sidecars (all agents, not just critic-code), run `reset-pr-review`, clear ceiling/recurring markers for `critic-code`, reset all transient counters, and set phase. Note: `reset-for-rollback` does NOT call `reset-milestone` and does NOT write a `[MILESTONE-BOUNDARY]` entry to plan.md `## Critic Verdicts`. If a plan.md boundary marker is needed for a specific critic, call `reset-milestone {critic}` explicitly after `reset-for-rollback`.
 ```bash
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {target-phase} \
   "{one sentence reason}"

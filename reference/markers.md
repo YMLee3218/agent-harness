@@ -167,7 +167,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked "$CLAUDE_PROJ
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" implement critic-code
 ```
 
-`is-blocked` reads `blocked.jsonl` as its primary source. If `blocked.jsonl` is absent (no blocks ever written), corrupt (parse error), or reports 0 active records, `is-blocked` applies the divergence safety check: if `## Open Questions` in the plan file still contains active `[BLOCKED:*]` lines, `is-blocked` treats the state as blocked and logs a DIVERGENCE warning; otherwise returns "not blocked". `is-converged` reads `convergence/{phase}__{agent}.json` exclusively (not `blocked.jsonl`) and returns "not converged" if the file is absent.
+`is-blocked` reads `blocked.jsonl` as its primary source. If `blocked.jsonl` is absent (no blocks ever written), corrupt (parse error), or reports 0 active records, `is-blocked` applies the divergence safety check: if `## Open Questions` in the plan file still contains active `[BLOCKED:*]` lines, `is-blocked` treats the state as blocked and logs a DIVERGENCE warning; otherwise returns "not blocked". `is-converged` reads `convergence/{phase}__{agent}.json` as its primary source and returns "not converged" if the file is absent. When the sidecar reports `converged=true`, two additional guards run: (1) **plan.md divergence guard** — if the last `{phase}/{agent}` verdict in `## Critic Verdicts` is FAIL, treats as not-converged; (2) **spec-fingerprint guard** — if the spec set has changed since convergence was recorded (or the sidecar lacks a `spec_fingerprint` field), treats as not-converged (fail-safe; populates on next verdict).
 
 ## HTML verdict envelopes
 Format and rules: `@reference/critics.md §Verdict format` (single source of truth).
@@ -186,7 +186,7 @@ Category enum values and priority: `@reference/severity.md §Category priority`
 
 ## Phase-scoped convergence markers
 
-Cleared per scope by `plan-file.sh reset-milestone {agent}` (invokes `cmd_reset_milestone` in `scripts/lib/plan-cmd.sh`, which calls `cmd_clear_marker` + `_clear_ceiling_sidecar_entry`): `[BLOCKED:ceiling]`. All markers require `{phase}` to equal the current plan phase — stale markers from prior phases do not satisfy a check.
+Cleared agent-wide by `plan-file.sh reset-milestone {agent}` (invokes `cmd_reset_milestone` in `scripts/lib/plan-cmd.sh`, which calls `cmd_clear_marker` + `_clear_all_ceiling_sidecar_entries_for_agent`): `[BLOCKED:ceiling]`. Both clears are agent-wide (all scopes for the agent) — symmetric with the plan.md marker clear. All markers require `{phase}` to equal the current plan phase — stale markers from prior phases do not satisfy a check.
 
 | Phase | Agent | Invocation site |
 |-------|-------|-----------------|
@@ -197,4 +197,4 @@ Cleared per scope by `plan-file.sh reset-milestone {agent}` (invokes `cmd_reset_
 | `implement` | `critic-code` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature test/implement loop) |
 | `review` | `pr-review` | `scripts/run-dev-cycle.sh` (always called with `--phase review`; `reset-pr-review` also clears `implement/pr-review` defensively) |
 
-Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase. (`review/critic-code` has no active invocation site — `cmd_reset_phase_state` defensively clears stale markers that would arise if `critic-code` ever ran while the plan phase was `review`.)
+Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase. (`critic-code` runs at scope `implement/critic-code` — `cmd_reset_phase_state` clears this scope's ceiling entry; it also defensively clears `review/critic-code` for stale entries that would arise if `critic-code` ever ran while the plan phase was `review`.)

@@ -35,9 +35,9 @@ Checklist:
    ```bash
    bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {critic-name}
    ```
-4. **Post-rollback convergence-verdict consistency check**: for each affected `{phase}/{agent}` scope, verify the sidecar is consistent with `## Critic Verdicts`:
+4. **Post-rollback convergence-verdict consistency check**: for each affected agent at `{target-phase}` (the current plan phase after step 2), verify the sidecar is consistent with `## Critic Verdicts`. Use `{target-phase}` as the phase — `clear-converged` reads the current plan phase, so `{phase}` and the current plan phase must agree:
    ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {phase} {agent}
+   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {target-phase} {agent}
    ```
    If this prints a `DIVERGENCE` message (sidecar `converged=true` but plan.md shows FAIL), the runtime guard detected forged state. Explicitly reset the sidecar so the stale `converged:true` does not persist:
    ```bash

@@ -110,7 +110,6 @@ if [[ -n "$PLAN" ]]; then
           bash "$PF" append-note "$PLAN" "[BLOCKED:env] merge-gate: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
           exit 1
         elif [[ $_mg_rc -ne 0 ]]; then
-          bash "$PF" append-note "$PLAN" "[BLOCKED:code] merge-gate: integrity-fail — see ${PLAN%.md}.state/merge-gate-report.txt"
           exit 1
         fi
         touch "$_MERGE_PENDING"

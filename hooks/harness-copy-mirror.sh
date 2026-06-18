@@ -47,7 +47,7 @@ for f in "${KEY_FILES[@]}"; do
     <(git show "main:.claude-harness/$f" 2>/dev/null) \
     <(git show ":0:.claude-harness/$f" 2>/dev/null); then
     echo "BLOCKED [harness-copy-mirror]: $f modified directly on branch '$current_branch'" >&2
-    echo "  Apply changes to ~/harness-builder/workspace/ then run sync-harness.sh on main." >&2
+    echo "  Apply changes in the harness-builder workspace, then run sync-harness.sh on main." >&2
     exit_code=2
   fi
 done

@@ -98,6 +98,7 @@ if [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
   echo "[stop-check] CLAUDE_PROJECT_DIR not set; skipping test verification" >&2
   exit 0
 fi
+PROJECT_DIR="${CLAUDE_PROJECT_DIR}"
 test_cmd=""
 _raw_test_line=""
 claude_md="${PROJECT_DIR}/CLAUDE.md"

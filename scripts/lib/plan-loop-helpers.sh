@@ -41,6 +41,25 @@ _clear_ceiling_sidecar_entry() {
     --arg scope "$scope" --arg ts "$_ts" || return 1
 }
 
+# _clear_all_ceiling_sidecar_entries_for_agent PLAN AGENT
+# Marks ALL uncleared ceiling entries for AGENT as cleared, regardless of scope.
+# Used by cmd_reset_milestone so the blocked.jsonl clear is agent-wide — matching
+# cmd_clear_marker's agent-wide plan.md ceiling-marker removal (cmd_clear_marker's
+# jq never matches ceiling entries by design; see comment above _clear_ceiling_sidecar_entry).
+_clear_all_ceiling_sidecar_entries_for_agent() {
+  local plan_file="$1" agent="$2"
+  command -v jq >/dev/null 2>&1 || return 0
+  sc_ensure_dir "$plan_file" || return 1
+  local _bpath _ts
+  _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
+  [[ -f "$_bpath" ]] || return 0
+  _ts=$(_iso_timestamp)
+  _sc_rewrite_jsonl "$_bpath" \
+    'if (.cleared_at == null and .kind == "ceiling" and .agent == $agent) then .cleared_at = $ts else . end' \
+    "reset-milestone-ceiling" \
+    --arg agent "$agent" --arg ts "$_ts" || return 1
+}
+
 _DEFAULT_CEILING=100
 
 # _validated_ceiling RAW → prints validated ceiling integer (min 2, default $_DEFAULT_CEILING)

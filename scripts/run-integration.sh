@@ -42,6 +42,8 @@ source "$SCRIPTS_DIR/lib/prompt-builder.sh" 2>/dev/null || true
 
 # shellcheck source=lib/integration-helpers.sh
 source "$SCRIPTS_DIR/lib/integration-helpers.sh"
+# shellcheck source=lib/dev-cycle-phases.sh
+source "$SCRIPTS_DIR/lib/dev-cycle-phases.sh"
 
 _plan_slug=$(basename "$PLAN" .md)
 _req_file="${PROJECT_DIR}/docs/requirements/${_plan_slug}.md"
