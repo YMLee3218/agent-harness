@@ -116,16 +116,16 @@ export CLAUDE_PLAN_CAPABILITY=harness
      "docs contradiction fixed — tests updated and passing"
    ```
 
-4. If steps 2 and 3 did not run (docs-only fix with no spec or test changes), check the current plan phase. If it is `review`, transition to `implement` so `record-verdict` stamps `implement/critic-code` (not `review/critic-code`). If already in `implement`, skip this transition:
-   ```bash
-   # Only run if plan phase is `review` — do not re-transition if already in `implement`
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" implement \
-     "docs contradiction applied — no spec or test changes; re-running critic-code"
-   ```
-   Run the test command. Reset the critic-code milestone before re-running:
-   ```bash
-   bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" critic-code
-   ```
-   `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
+4. If steps 2 and 3 did not run (docs-only fix with no spec or test changes), no phase transition is needed — the plan stays in the phase where the contradiction surfaced. Reset that phase's critic milestone and re-run it:
+   - **`implement`** (critic-code origin — see §"During `implement` phase" below): run the test command, then reset and re-run critic-code:
+     ```bash
+     bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" critic-code
+     ```
+     `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
+   - **`spec`** (critic-spec origin — the contradiction surfaced during spec review and the docs were stale, so the spec itself is unchanged): no implementation exists yet, so do not run the test command. Reset and re-run critic-spec:
+     ```bash
+     bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" critic-spec
+     ```
+     `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-spec --phase spec --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Review spec at [spec-path]. Relevant docs: [doc-paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 
 **During `implement` phase (after critic-code)** — critic-quality re-runs automatically in the next shell-loop iteration after a fix is applied; no manual phase transition required.

@@ -195,6 +195,6 @@ Cleared agent-wide by `plan-file.sh reset-milestone {agent}` (invokes `cmd_reset
 | `spec` | `critic-cross` | `scripts/run-dev-cycle.sh` (Phase 2: cross-feature spec consistency review, once per plan) |
 | `red` | `critic-test` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature test/implement loop) |
 | `implement` | `critic-code` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature test/implement loop) |
-| `review` | `pr-review` | `scripts/run-dev-cycle.sh` (always called with `--phase review`; `reset-pr-review` also clears `implement/pr-review` defensively) |
+| `implement` | `critic-quality` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature quality/pr-review step, after `critic-code` converges — `scripts/lib/dev-cycle-phases.sh` `run_critic critic-quality implement`; `reset-pr-review` clears `implement/critic-quality`) |
 
-Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase. (`critic-code` runs at scope `implement/critic-code` — `cmd_reset_phase_state` clears this scope's ceiling entry; it also defensively clears `review/critic-code` for stale entries that would arise if `critic-code` ever ran while the plan phase was `review`.)
+Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase. (`critic-code` runs at scope `implement/critic-code` — `cmd_reset_phase_state` clears this scope's ceiling entry and resets every existing convergence sidecar it finds.)
