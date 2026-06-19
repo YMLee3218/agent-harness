@@ -282,10 +282,11 @@ _impl_run_implement_phase() {
   # this early-return is needed for re-entry where reset did NOT fire (phase!=green) and the marker
   # survived — without it the implement phase leaves phase at red and _impl_run_review_phase skips.
   local _code_marker="${PLAN%.md}.state/code-reviewed-${feat_slug}"
-  if [[ -f "$_code_marker" ]]; then
+  local _quality_marker="${PLAN%.md}.state/quality-reviewed-${feat_slug}"
+  if [[ -f "$_code_marker" && -f "$_quality_marker" ]]; then
     phase_now=$(bash "$PF" get-phase "$PLAN")
-    [[ "$phase_now" != "implement" && "$phase_now" != "review" && "$phase_now" != "green" ]] && \
-      bash "$PF" transition "$PLAN" implement "implement re-entry: code already reviewed for ${feature}"
+    [[ "$phase_now" != "implement" && "$phase_now" != "green" ]] && \
+      bash "$PF" transition "$PLAN" implement "implement re-entry: code and quality already reviewed for ${feature}"
     return 0
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
@@ -358,42 +359,30 @@ _impl_run_implement_phase() {
     llm_exit "critic-code"
     touch "$_code_marker" 2>/dev/null || true
   fi
+  phase_now=$(bash "$PF" get-phase "$PLAN")
+  if [[ "$phase_now" == "implement" ]] && \
+     [[ ! -f "$_quality_marker" ]]; then
+    bash "$PF" reset-milestone "$PLAN" critic-quality
+    CRITIC_SPEC_PATH="$_spec_path" \
+    CRITIC_DOCS_PATHS="$(docs_paths)" \
+    CRITIC_PLAN_PATH="${PLAN}" \
+    CRITIC_LANGUAGE="${_lang}" \
+    CRITIC_DOMAIN_ROOT="${_domain_root}" \
+    CRITIC_INFRA_ROOT="${_infra_root}" \
+    CRITIC_FEATURES_ROOT="${_features_root}" \
+    run_critic critic-quality implement "Review quality for feature: ${feature}. Spec: ${_spec_path}. Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}."
+    llm_exit "critic-quality"
+    touch "$_quality_marker" 2>/dev/null || true
+  fi
 }
 
 _impl_run_review_phase() {
   local feature="$1" feat_slug="$2"
-  local phase_now pr_url
-  # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
-  local _review_marker="${PLAN%.md}.state/pr-reviewed-${feat_slug}"
+  local phase_now _quality_marker
+  _quality_marker="${PLAN%.md}.state/quality-reviewed-${feat_slug}"
   phase_now=$(bash "$PF" get-phase "$PLAN")
-  if [[ "$phase_now" == "implement" ]]; then
-    bash "$PF" transition "$PLAN" review "critic-code converged — starting pr-review"
-    bash "$PF" reset-pr-review "$PLAN"
-    if ! gh pr view 2>/dev/null; then
-      local pr_log="${PLAN%.md}.state/pr-create.log"
-      if ! git push -u origin HEAD >"$pr_log" 2>&1 \
-         || ! gh pr create --draft --title "feat: ${feature}" --fill >>"$pr_log" 2>&1; then
-        bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: pr-create-failed — see ${pr_log##*/}; resolve (push/remote/auth) then re-run"
-        exit 1
-      fi
-    fi
-  fi
-  phase_now=$(bash "$PF" get-phase "$PLAN")
-  if [[ "$phase_now" == "review" ]] && \
-     [[ ! -f "$_review_marker" ]]; then
-    if ! git push origin HEAD >>"${PLAN%.md}.state/pr-create.log" 2>&1; then
-      bash "$PF" append-note "$PLAN" "[BLOCKED:env] run-dev-cycle: pr-push-failed — push before pr-review failed; see pr-create.log; resolve (push/remote/auth) then re-run"
-      exit 1
-    fi
-    pr_url=$(gh pr view --json url -q .url 2>/dev/null || echo "")
-    run_critic pr-review review "PR: ${pr_url}. Plan: ${PLAN}." "@reference/pr-review-loop.md §PR-review one-shot iteration"
-    llm_exit "pr-review"
-    touch "$_review_marker" 2>/dev/null || true
-  fi
-  phase_now=$(bash "$PF" get-phase "$PLAN")
-  if [[ "$phase_now" == "review" ]] && \
-     [[ -f "$_review_marker" ]]; then
-    bash "$PF" transition "$PLAN" green "pr-review converged — feature complete"
+  if [[ "$phase_now" == "implement" ]] && [[ -f "$_quality_marker" ]]; then
+    bash "$PF" transition "$PLAN" green "critic-quality converged — feature complete"
     bash "$PF" mark-implemented "$PLAN" "$feat_slug"
   fi
 }

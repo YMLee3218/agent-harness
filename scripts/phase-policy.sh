@@ -73,7 +73,7 @@ phase_blocks_src() {
 
 phase_blocks_test() {
   case "$1" in
-    brainstorm|spec|implement|review|green|integration|done) return 0 ;;
+    brainstorm|spec|implement|green|integration|done) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -86,7 +86,7 @@ phase_runs_stop_check() {
 }
 
 list_phases() {
-  echo "brainstorm spec red implement review green integration done"
+  echo "brainstorm spec red implement green integration done"
 }
 
 # apply_phase_block <path> <phase> [label]

@@ -5,11 +5,10 @@
 # on failure, appends [BLOCKED:env] preflight: markers to ## Open Questions and exits 2.
 #
 # Required tools (single source of truth):
-#   gh CLI (authenticated)  — running-dev-cycle pushes the feature branch and creates a draft PR on first review entry; without auth the push/PR step fails (skipped in B-sessions: CLAUDE_CRITIC_SESSION=1)
+#   gh CLI (authenticated)  — used for merge gate (gh pr view, etc.)
 #   jq                      — phase-gate.sh and pretooluse-bash.sh parse hook payloads
 #   context7-plugin         — orchestrating Claude uses context7 to resolve [UNVERIFIED CLAIM] findings from critics
-#   pr-review-toolkit       — running-dev-cycle calls pr-review-toolkit:review-pr per feature (review phase); skipped in B-sessions: CLAUDE_CRITIC_SESSION=1
-#   codex                   — run-implement.sh delegates implementation via codex exec --dangerously-bypass-approvals-and-sandbox (worker.sb is Tier 1 confinement)
+#   codex                   — run-implement.sh and run-critic-loop.sh delegate to codex exec (worker.sb is Tier 1 confinement)
 #   codex-auth              — Codex requires OPENAI_API_KEY or ~/.codex/auth.json
 # Required files:
 #   .claude/local.md        — language, runtime (test/lint/integration-test commands live in project CLAUDE.md, written by initializing-project)
@@ -67,13 +66,6 @@ fi
 # Check: context7-plugin
 if ! claude plugin list 2>/dev/null | grep -q 'context7-plugin'; then
   _append_blocked "context7-plugin" "install via settings.json enabledPlugins or 'claude plugin install'"
-fi
-
-# Check: pr-review-toolkit (skipped in B-sessions — the main orchestrator session already verified it is
-# installed before launching any B-sessions; re-checking per-session is redundant. Note: pr-review B-sessions
-# DO call pr-review-toolkit:review-pr, so this plugin must be present — verified once at orchestrator start.)
-if [ "${CLAUDE_CRITIC_SESSION:-0}" != "1" ] && ! claude plugin list 2>/dev/null | grep -q 'pr-review-toolkit'; then
-  _append_blocked "pr-review-toolkit" "install via settings.json enabledPlugins or 'claude plugin install'"
 fi
 
 # Check: codex CLI (invoked directly in bash subprocesses by implement-helpers.sh)

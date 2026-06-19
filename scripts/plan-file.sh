@@ -17,13 +17,9 @@ case "$1" in
   # Ring B — CLAUDE_PLAN_CAPABILITY=harness required (harness scripts; human operators: export CLAUDE_PLAN_CAPABILITY=harness): state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
   reset-for-rollback|record-verdict|record-verdict-guarded|record-verdict-direct|\
-  append-review-verdict|\
   gc-events|gc-verdicts|record-task-completed|record-stop-block|mark-implemented|\
   inter-feature-reset|set-task-unit|clear-task-state)
     require_capability "$1" B
-    if [ "$1" = "append-review-verdict" ] && [ $# -ge 2 ] && [ ! -f "$2.critic.lock" ]; then
-      die "BLOCKED: ${2##*/}.critic.lock absent — append-review-verdict requires run-critic-loop.sh context"
-    fi
     if [ "$1" = "record-verdict" ]; then
       _rv_plan=$(cmd_find_active 2>/dev/null) || _rv_plan=""
       if [ -n "$_rv_plan" ] && [ ! -f "${_rv_plan}.critic.lock" ]; then
@@ -37,9 +33,7 @@ case "$1" in
     ;;
 
   # Critic-loop B-session mutators — gated by .critic.lock presence only.
-  # Regular critic sessions have CLAUDE_PLAN_CAPABILITY stripped; pr-review sessions retain it
-  # for fix chains (run-critic-loop.sh conditionally strips based on AGENT). The lock proves
-  # genuine run-critic-loop.sh context for these commands regardless of capability.
+  # The lock proves genuine run-critic-loop.sh context for these commands regardless of capability.
   append-audit|clear-converged)
     [ $# -ge 2 ] || die "Usage: plan-file.sh $1 <plan-file> ..."
     [ -f "$2.critic.lock" ] || die "BLOCKED: ${2##*/}.critic.lock absent — $1 requires run-critic-loop.sh context"
@@ -70,7 +64,6 @@ case "$1" in
   gc-verdicts)          [ $# -eq 2 ] || die "Usage: plan-file.sh gc-verdicts <plan-file>"; cmd_gc_verdicts "$2" ;;
   add-task)             [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
   update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
-  append-review-verdict) [ $# -eq 4 ] || die "Usage: plan-file.sh append-review-verdict <plan-file> <agent> PASS|FAIL"; cmd_append_review_verdict "$2" "$3" "$4" ;;
   record-stop-block)    [ $# -eq 4 ] || die "Usage: plan-file.sh record-stop-block <plan-file> <phase> <reason>"; cmd_record_stop_block "$2" "$3" "$4" ;;
   unblock)              [ $# -le 2 ] || die "Usage: plan-file.sh unblock [plan-file]"; cmd_unblock "${2:-}" ;;
   clear-converged)      [ $# -eq 3 ] || die "Usage: plan-file.sh clear-converged <plan-file> <agent>"; cmd_clear_converged "$2" "$3" ;;

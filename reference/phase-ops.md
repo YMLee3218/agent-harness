@@ -128,9 +128,4 @@ export CLAUDE_PLAN_CAPABILITY=harness
    ```
    `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/run-critic-loop.sh" --agent critic-code --phase implement --plan "$CLAUDE_PROJECT_DIR/plans/{slug}.md" --nested --prompt "Review these files: [changed files]. Spec at: [spec-path]. Relevant docs: [paths]."` — exit 0 → proceed; exit 1 → `[BLOCKED:{kind}]` written to plan — stop and report; exit 2 → `[BLOCKED:ceiling]` — manual review required.
 
-**During `review` phase** — after critic-code passes, restore phase to `review` before re-running pr-review:
-```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" review \
-  "docs contradiction fixed — resuming pr-review"
-```
-→ Exit current iteration — the shell loop (`run-critic-loop.sh`) re-runs pr-review in the next iteration per `@reference/pr-review-loop.md §Fix-chain finisher` step 3.
+**During `implement` phase (after critic-code)** — critic-quality re-runs automatically in the next shell-loop iteration after a fix is applied; no manual phase transition required.

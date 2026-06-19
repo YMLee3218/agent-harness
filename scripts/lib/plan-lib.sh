@@ -30,7 +30,7 @@ _record_blocked() {
 }
 fi
 
-VALID_CRITIC_AGENTS="critic-feature critic-spec critic-test critic-code critic-cross pr-review"
+VALID_CRITIC_AGENTS="critic-feature critic-spec critic-test critic-code critic-cross critic-quality"
 
 # ── Core helpers ──────────────────────────────────────────────────────────────
 

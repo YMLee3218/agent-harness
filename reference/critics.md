@@ -1,6 +1,6 @@
 # Critics
 
-> Single source for: verdict format, critic blocking rules, convergence policy, branching priority, review execution rules, running critics, blocked-state procedures. Phase ops: `@reference/phase-ops.md`. Ultrathink audit: `@reference/ultrathink.md`. PR-review fix loop: `@reference/pr-review-loop.md`.
+> Single source for: verdict format, critic blocking rules, convergence policy, branching priority, review execution rules, running critics, blocked-state procedures. Phase ops: `@reference/phase-ops.md`. Ultrathink audit: `@reference/ultrathink.md`.
 
 Severity rules: @reference/severity.md
 Layer rules: @reference/layers.md
@@ -61,7 +61,7 @@ All phase-gate critic reviews must run in isolated processes. Generating a verdi
 Normative implementations:
 - **`critic-spec/test/code/cross`**: shell (`run-critic-loop.sh`) calls `codex exec --dangerously-bypass-approvals-and-sandbox -` directly (worker.sb provides Tier 1 confinement; `--dangerously-bypass-approvals-and-sandbox` prevents nested Seatbelt). Codex is the isolated reviewer; Claude invoked at most once on FAIL (decision agent) and once on convergence-triggering PASS (REJECT-PASS check). Verdict via `plan-file.sh record-verdict-direct` — no SubagentStop hook.
 - **`critic-feature`**: `context: fork` + `agent: critic-feature` B-session, SubagentStop hook. Pure Claude.
-- **`pr-review-toolkit:review-pr`**: external plugin; isolation satisfied by plugin.
+- **`critic-quality`**: shell (`run-critic-loop.sh`) calls `codex exec` per-angle in parallel (angles/ directory fan-out); `aggregate_angle_verdicts` produces single merged `$_review_log`; rest of Codex path applies. Codex invoked once per angle per iteration; Claude invoked at most once on FAIL (decision agent) and once on convergence-triggering PASS (REJECT-PASS check).
 
 **Prohibited**: generating a verdict directly in the orchestrator context without subprocess isolation.
 
@@ -69,9 +69,7 @@ Normative implementations:
 
 Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. Convergence state is stored exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state`; `converged=true` requires 2 consecutive PASSes (see `@reference/markers.md §Sidecar control state`). A PARSE_ERROR between two PASSes resets the streak: `PASS → PARSE_ERROR → PASS` = streak 1. Query via `plan-file.sh is-converged <plan> <phase> <agent>` (exit 0 = converged). No plan.md marker mirrors this state.
 
-`plan-file.sh record-verdict` appends to `## Critic Verdicts` and updates sidecar convergence state for all normal verdict outcomes (PASS, FAIL, PARSE_ERROR); in exceptional cases it writes a `[BLOCKED]` marker to `## Open Questions` — second consecutive PARSE_ERROR → `[BLOCKED:code] {agent}: parse` (skips the Critic Verdicts append for this case — only sidecar + Open Questions); ceiling exceeded → `[BLOCKED:ceiling]` (appends to both `## Critic Verdicts` and `## Open Questions`). Exception: if the subagent produced no output or known infrastructure error signatures are detected, record-verdict classifies the run as `[BLOCKED:env] {agent}: critic-skill-not-run` — it writes only to `## Open Questions` and `blocked.jsonl`; no Critic Verdicts entry is written and convergence state is not updated (the run is not counted against the ceiling). The skill reads `## Open Questions` for any BLOCKED markers and queries sidecar after each run, then branches per §Skill branching logic. For pr-review, `run-critic-loop.sh` extracts `<!-- review-verdict: {nonce} PASS|FAIL -->` from stdout and calls `append-review-verdict` on the parent side.
-
-**pr-review exception**: omits category/parse — apply steps 1 → 4–5 → 7 → 8 only (see `@reference/pr-review-loop.md`); use `plan-file.sh is-converged` for step 4. Integration pipeline markers (`@reference/markers.md §Integration test markers`) do not interact with this protocol.
+`plan-file.sh record-verdict` appends to `## Critic Verdicts` and updates sidecar convergence state for all normal verdict outcomes (PASS, FAIL, PARSE_ERROR); in exceptional cases it writes a `[BLOCKED]` marker to `## Open Questions` — second consecutive PARSE_ERROR → `[BLOCKED:code] {agent}: parse` (skips the Critic Verdicts append for this case — only sidecar + Open Questions); ceiling exceeded → `[BLOCKED:ceiling]` (appends to both `## Critic Verdicts` and `## Open Questions`). Exception: if the subagent produced no output or known infrastructure error signatures are detected, record-verdict classifies the run as `[BLOCKED:env] {agent}: critic-skill-not-run` — it writes only to `## Open Questions` and `blocked.jsonl`; no Critic Verdicts entry is written and convergence state is not updated (the run is not counted against the ceiling). The skill reads `## Open Questions` for any BLOCKED markers and queries sidecar after each run, then branches per §Skill branching logic.
 
 Ceiling N defaults to **100** (runs 1–100 are allowed; the 101st run triggers `[BLOCKED:ceiling]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting; `REJECT-PASS` entries written by `clear-converged` do **not** count). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
 
@@ -115,9 +113,8 @@ Skill reads ## Open Questions and queries sidecar, checks in priority order:
 
 ## Running the critic
 
-**Shell-driven (critic-spec/test/code/cross)**: `run-critic-loop.sh` calls `codex exec` directly, records via `record-verdict-direct`, audits on FAIL (decision agent), and REJECT-PASS checks on convergence-triggering PASS. Do not call `record-verdict-direct` manually.
+**Shell-driven (critic-spec/test/code/cross/quality)**: `run-critic-loop.sh` calls `codex exec` directly, records via `record-verdict-direct`, audits on FAIL (decision agent), and REJECT-PASS checks on convergence-triggering PASS. For `critic-quality`, angles/ fan-out runs one `codex exec` per angle in parallel; `aggregate_angle_verdicts` merges into single `$_review_log` before verdict recording. Do not call `record-verdict-direct` manually.
 **B-session (critic-feature)**: `Skill("critic-feature", "{prompt}")` is synchronous — `SubagentStop` fires `record-verdict-guarded` within the **same turn**. Do not end the turn after invoking Skill; do not background the call. After Skill returns, run ultrathink audit and branch before exiting. Do not call `record-verdict-guarded` manually.
-**pr-review**: `run-critic-loop.sh` extracts the nonce-anchored verdict and calls `append-review-verdict`. Do not call it manually.
 
 **Exit codes**: 0 = converged; 1 = blocked (`[BLOCKED:{kind}]` marker in plan, or transient retry); 2 = `[BLOCKED:ceiling]`; 3 = lock contention, **non-nested invocations only** (another run already active for this plan — wait for it to finish or remove the plan's `.critic.lock` file (e.g. `plans/{slug}.md.critic.lock`)); recovery cascades using `--nested` silently inherit any existing lock and never return exit 3; any other code is a script failure: write `[BLOCKED:env] {agent}: script-failure — exit {code}` to `## Open Questions` and stop. Running critics manually is not a fallback — it is a protocol violation.
 ### New milestone
@@ -156,6 +153,8 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 4. **FAIL**: one Claude call (`ultrathink` + Read tool) → `AUDIT:/GENUINE:/FIX-PLAN:` for all findings; `append-audit`; if BLOCKED-AMBIGUOUS: write `[BLOCKED:spec]` markers; `codex exec --dangerously-bypass-approvals-and-sandbox -` with full FIX-PLAN
 5. **PASS (2nd/converged)**: one Claude call for REJECT-PASS check only; if REJECT: `clear-converged`; if ACCEPT: exit 0
 6. **PASS (1st)**: no Claude call; loop continues
+
+**critic-quality** uses the same shell-driven path with angles/ fan-out: instead of steps 1–2, `run-critic-loop.sh` detects `skills/critic-quality/angles/*.md`, runs one `codex exec` per angle file in parallel (background subshells), waits for all, then calls `aggregate_angle_verdicts` to produce a single merged `$_review_log`. Steps 3–6 proceed identically to the single-prompt path above.
 
 **B-session (critic-feature)** — one `claude` CLI session; do **not** loop; steps 1+2 in one continuous turn:
 0. **Pre-fix** (only when `prior_fail_log={path}`): apply Codex fix for each clear FAIL finding; skip ambiguous ones.

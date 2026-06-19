@@ -80,7 +80,7 @@ if [[ -n "$PLAN" ]]; then
     exec /usr/bin/env CLAUDE_PLAN_CAPABILITY=harness "$0" "$@"
   fi
   case "$current_phase" in
-    brainstorm|spec|red|implement|review|green|integration) ;;
+    brainstorm|spec|red|implement|green|integration) ;;
     done)
       # A2/A3: Merge gate + human approval gate before continuing
       _main_root="${PROJECT_DIR}"

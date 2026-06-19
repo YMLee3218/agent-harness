@@ -470,24 +470,6 @@ cmd_append_audit() {
   _append_to_verdict_audits "$plan_file" "- ${ts} ${agent} ${outcome}: ${summary}"
 }
 
-cmd_append_review_verdict() {
-  local plan_file="$1" agent="$2" verdict="$3"
-  require_file "$plan_file"
-  [ "$agent" = "pr-review" ] || die "append-review-verdict: agent must be 'pr-review', got: ${agent}"
-  case "$verdict" in
-    PASS|FAIL) ;;
-    *) die "append-review-verdict: verdict must be PASS or FAIL, got: ${verdict}" ;;
-  esac
-  local current_phase
-  current_phase=$(_require_phase "$plan_file" "append-review-verdict") || exit $?
-  local verdict_label="${current_phase}/${agent}: ${verdict}"
-  local _arv_rc=0
-  _record_loop_state "$plan_file" "$current_phase" "$agent" "$verdict" || _arv_rc=$?
-  [[ $_arv_rc -ne 0 ]] && _dispatch_rls_rc "$plan_file" "$verdict_label" "$_arv_rc" "$current_phase" "$agent"
-  cmd_append_verdict "$plan_file" "$verdict_label"
-  echo "[append-review-verdict] verdict appended: ${verdict_label}" >&2
-}
-
 # ── Record verdict ────────────────────────────────────────────────────────────
 
 # _parse_verdict_message OUTPUT → prints "<verdict>|<category>"
@@ -939,18 +921,16 @@ cmd_reset_pr_review() {
   require_file "$plan_file"
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-pr-review")
-  for phase in implement review; do
-    _sc_reset_convergence_for_scope "$plan_file" "$phase" "pr-review"
-    _clear_ceiling_sidecar_entry "$plan_file" "${phase}/pr-review"
-    local ts
-    ts=$(_iso_timestamp)
-    _append_to_critic_verdicts "$plan_file" \
-      "[MILESTONE-BOUNDARY @${ts}] ${phase}/pr-review:"
-  done
-  _clear_transient_for "$plan_file" "pr-review" 2>/dev/null || true
-  cmd_clear_marker "$plan_file" "[RECURRING] pr-review:"
-  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] pr-review:"
-  echo "[reset-pr-review] cleared pr-review convergence markers for implement and review phases" >&2
+  _sc_reset_convergence_for_scope "$plan_file" "implement" "critic-quality"
+  _clear_ceiling_sidecar_entry "$plan_file" "implement/critic-quality"
+  local ts
+  ts=$(_iso_timestamp)
+  _append_to_critic_verdicts "$plan_file" \
+    "[MILESTONE-BOUNDARY @${ts}] implement/critic-quality:"
+  _clear_transient_for "$plan_file" "critic-quality" 2>/dev/null || true
+  cmd_clear_marker "$plan_file" "[RECURRING] critic-quality:"
+  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-quality:"
+  echo "[reset-pr-review] cleared critic-quality convergence marker for implement phase" >&2
 }
 
 cmd_reset_phase_state() {
@@ -972,10 +952,12 @@ cmd_reset_phase_state() {
   cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-code:"
   cmd_clear_marker "$plan_file" "[RECURRING] critic-code:"
   _clear_ceiling_sidecar_entry "$plan_file" "implement/critic-code"
-  _clear_ceiling_sidecar_entry "$plan_file" "review/critic-code"
+  cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-quality:"
+  cmd_clear_marker "$plan_file" "[RECURRING] critic-quality:"
+  _clear_ceiling_sidecar_entry "$plan_file" "implement/critic-quality"
   _reset_all_transient_counters "$plan_file" 2>/dev/null || true
   cmd_set_phase "$plan_file" "$target_phase"
-  echo "[reset-for-rollback] phase set to ${target_phase}; all critic convergence and pr-review state cleared" >&2
+  echo "[reset-for-rollback] phase set to ${target_phase}; all critic convergence and quality-review state cleared" >&2
 }
 
 # ── Task ledger / GC ──────────────────────────────────────────────────────────
@@ -1360,8 +1342,9 @@ cmd_inter_feature_reset() {
   _state_dir=$(sc_dir "$plan_file") || return 0
   rm -f "$_state_dir"/code-reviewed-* 2>/dev/null || true
   rm -f "$_state_dir"/pr-reviewed-* 2>/dev/null || true
+  rm -f "$_state_dir"/quality-reviewed-* 2>/dev/null || true
   rm -f "$_state_dir"/test-reviewed-* 2>/dev/null || true
   rm -f "$_state_dir"/manifest-reconcile-* 2>/dev/null || true
-  echo "[inter-feature-reset] cleared task definitions, ledger rows, code-reviewed, pr-reviewed, test-reviewed, and manifest-reconcile markers in ${plan_file}" >&2
+  echo "[inter-feature-reset] cleared task definitions, ledger rows, code-reviewed, pr-reviewed, quality-reviewed, test-reviewed, and manifest-reconcile markers in ${plan_file}" >&2
 }
 

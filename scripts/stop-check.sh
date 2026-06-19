@@ -69,8 +69,7 @@ if _hmc_found=$(marker_present_human_must_clear "$active_plan" 2>/dev/null); the
 fi
 
 # Enforce in green and integration phases only (unit tests must pass in both).
-# All other phases — brainstorm, spec, red, implement, review, done — are excluded.
-# review is excluded: pr-review FAIL recovery phase; source modifications mid-cycle may break tests.
+# All other phases — brainstorm, spec, red, implement, done — are excluded.
 # implement is excluded: codex writes source to satisfy failing tests (via run-implement.sh).
 # done is excluded: see header comment — session already closed, no test run needed.
 phase_runs_stop_check "$phase" || exit 0

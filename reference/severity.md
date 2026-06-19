@@ -41,8 +41,17 @@ ENVELOPE_MISMATCH
   > MISSING_SCENARIO
   > TEST_INTEGRITY
   > TEST_QUALITY
+  > SECURITY
+  > LOGIC_ROBUSTNESS
+  > MODULARITY
+  > TYPE_DESIGN
+  > PERFORMANCE
+  > DUPLICATION
+  > ANALYSABILITY
   > STRUCTURAL
 ```
+
+The 7 quality categories (SECURITY, LOGIC_ROBUSTNESS, MODULARITY, TYPE_DESIGN, PERFORMANCE, DUPLICATION, ANALYSABILITY) are owned by `critic-quality`. They are lower priority than structural-compliance categories and higher than STRUCTURAL.
 
 ## Enum-extension escape
 

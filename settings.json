@@ -182,7 +182,6 @@
   },
   "enabledPlugins": {
     "context7-plugin@context7-marketplace": true,
-    "pr-review-toolkit@claude-plugins-official": true,
     "codex@openai-codex": true
   },
   "extraKnownMarketplaces": {
