@@ -8,6 +8,7 @@ _LLM_RUNNER_LOADED=1
 
 _LLM_RUNNER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_SANDBOX_LIB_LOADED:-}" ]] || . "$_LLM_RUNNER_DIR/sandbox-lib.sh"
+[[ -n "${_ENGINE_RUNNER_LOADED:-}" ]] || . "$_LLM_RUNNER_DIR/engine-runner.sh"
 
 # run_llm — outer ORCHESTRATOR session (brainstorm/spec/tests/implement dispatch).
 # DELIBERATELY UNGUARDED by wall-clock: a single cap would falsely kill a phase that
@@ -19,8 +20,14 @@ _LLM_RUNNER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 run_llm() {
   local prompt="$1" model="${2:-opus}"
   _CALL_RC=0
-  CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="${PLAN:-}" \
-    worker_exec env -u CLAUDE_PLAN_CAPABILITY claude --model "$model" --permission-mode auto --dangerously-skip-permissions -p "$prompt" || _CALL_RC=$?
+  local _pf; _pf=$(mktemp /tmp/run-llm.XXXXXX)
+  printf '%s' "$prompt" > "$_pf"
+  # Streaming mode (no --out/--capture): output inherits stdout/stderr, exactly as the old
+  # worker_exec form. No --timeout: the orchestrator session is deliberately unguarded (see above).
+  run_engine --engine claude --model "$model" --prompt-file "$_pf" \
+    --env CLAUDE_NONINTERACTIVE=1 --env "CLAUDE_PLAN_FILE=${PLAN:-}"
+  _CALL_RC=$_ENGINE_RC
+  rm -f "$_pf"
 }
 
 run_critic() {

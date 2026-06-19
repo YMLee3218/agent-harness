@@ -27,8 +27,10 @@ ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
 
 # Source sidecar for transient mechanism
 source "$(dirname "${BASH_SOURCE[0]}")/lib/sidecar.sh" 2>/dev/null || true
-# Source critic-helpers for Codex-driven path
+# Source critic-helpers for Codex-driven path (also pulls in engine-registry for routing)
 source "$(dirname "${BASH_SOURCE[0]}")/lib/critic-helpers.sh" 2>/dev/null || true
+# Source the single engine dispatcher (run_engine) used by every LLM/agent spawn below
+source "$(dirname "${BASH_SOURCE[0]}")/lib/engine-runner.sh" 2>/dev/null || true
 # Source sandbox-lib for Tier 1 worker confinement
 source "$(dirname "${BASH_SOURCE[0]}")/lib/sandbox-lib.sh" 2>/dev/null || true
 _init_worker_sandbox "$(dirname "$(dirname "$PLAN")")"
@@ -119,32 +121,63 @@ while true; do
   fi
   mkdir -p "$_log_dir" 2>/dev/null || true
 
-  # ── Codex-driven path (critic-spec, critic-test, critic-code, critic-cross) ──
+  # ── Codex-driven path (critic-spec, critic-test, critic-code, critic-cross, critic-quality) ──
   if _is_codex_driven_agent "$AGENT" 2>/dev/null; then
 
-    # 1. Build review prompt from SKILL.md template
-    _review_prompt=$(mktemp /tmp/critic-${AGENT}-review.XXXXXX)
-    if ! build_review_prompt "$AGENT" "$_review_prompt"; then
-      bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED:env] ${AGENT}: review-prompt-build-failed — check skills/${AGENT}/SKILL.md" 2>/dev/null || true
-      rm -f "$_review_prompt"; exit 1
-    fi
-
-    # 2. Run Codex review → fixed log path (reliably accessible for diagnosis)
+    # Common: fixed log path used by all paths below
     _review_log="${_log_dir}/codex-critic-${AGENT}-last.log"
     _codex_review_exit=0
-    _sandbox_guard || {
-      bash "$PLAN_FILE_SH" append-note "$PLAN" \
-        "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
-      exit 1
-    }
-    if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
-      "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
-        "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --dangerously-bypass-approvals-and-sandbox - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
+
+    _angles_dir="${_CRITIC_WS_ROOT}/skills/${AGENT}/angles"
+    if [[ -d "$_angles_dir" ]] && compgen -G "${_angles_dir}/*.md" >/dev/null 2>&1; then
+      # ── Fan-out path: one codex per angle, then aggregate ──
+      _sandbox_guard || {
+        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+        exit 1
+      }
+      _angle_logs=() _angle_pids=()
+      for _angle_file in "${_angles_dir}"/*.md; do
+        _angle_name=$(basename "$_angle_file" .md)
+        _angle_prompt=$(mktemp /tmp/critic-${AGENT}-angle-${_angle_name}.XXXXXX)
+        _angle_log="${_log_dir}/codex-critic-${AGENT}-angle-${_angle_name}.log"
+        if ! build_review_prompt "$AGENT" "$_angle_prompt" "$_angle_file"; then
+          rm -f "$_angle_prompt"
+          bash "$PLAN_FILE_SH" append-note "$PLAN" \
+            "[BLOCKED:env] ${AGENT}: angle-prompt-build-failed — ${_angle_file}" 2>/dev/null || true
+          exit 1
+        fi
+        _angle_logs+=("$_angle_log")
+        (
+          run_engine --role "$AGENT" --prompt-file "$_angle_prompt" --out "$_angle_log" --timeout "$SESSION_TIMEOUT"
+          _ae=$_ENGINE_RC
+          rm -f "$_angle_prompt"
+          exit $_ae
+        ) &
+        _angle_pids+=($!)
+      done
+      for _apid in "${_angle_pids[@]}"; do
+        wait "$_apid" || { _apid_exit=$?; [[ $_apid_exit -eq 124 ]] && _codex_review_exit=124; }
+      done
+      aggregate_angle_verdicts "$_review_log" "${_angle_logs[@]}"
     else
-      "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --dangerously-bypass-approvals-and-sandbox - < "$_review_prompt" > "$_review_log" 2>&1 || _codex_review_exit=$?
+      # ── Single codex path (original — no angles/ dir) ──
+      _review_prompt=$(mktemp /tmp/critic-${AGENT}-review.XXXXXX)
+      if ! build_review_prompt "$AGENT" "$_review_prompt"; then
+        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          "[BLOCKED:env] ${AGENT}: review-prompt-build-failed — check skills/${AGENT}/SKILL.md" 2>/dev/null || true
+        rm -f "$_review_prompt"; exit 1
+      fi
+      _sandbox_guard || {
+        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
+        exit 1
+      }
+      run_engine --role "$AGENT" --prompt-file "$_review_prompt" --out "$_review_log" --timeout "$SESSION_TIMEOUT"
+      _codex_review_exit=$_ENGINE_RC
+      rm -f "$_review_prompt"
     fi
-    rm -f "$_review_prompt"
+    # [continues with step 3 (infra failure detection) unchanged...]
 
     if [[ $_codex_review_exit -eq 124 ]]; then
       _record_transient "$PLAN" "$AGENT" session-timeout \
@@ -240,17 +273,11 @@ while true; do
             "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
           exit 1
         }
-        _pass_cmd=()
-        [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
-          _pass_cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
-        [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _pass_cmd+=("${_WORKER_SANDBOX_ARGS[@]}")
-        _pass_cmd+=(claude --model sonnet --dangerously-skip-permissions --permission-mode auto \
-          -p "$(cat "$_pass_audit_prompt")")
-        rm -f "$_pass_audit_prompt"
-
         _pass_exit=0
-        _pass_check_out=$(CLAUDE_NONINTERACTIVE=1 env -u CLAUDE_PLAN_CAPABILITY \
-          "${_pass_cmd[@]}" 2>/dev/null) || _pass_exit=$?
+        run_engine --role critic-pass-audit --prompt-file "$_pass_audit_prompt" \
+          --capture _pass_check_out --timeout "$SESSION_TIMEOUT" --env CLAUDE_NONINTERACTIVE=1
+        rm -f "$_pass_audit_prompt"
+        _pass_exit=$_ENGINE_RC
         if [[ "$_pass_exit" -eq 124 ]]; then
           bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
           _record_transient "$PLAN" "$AGENT" session-timeout \
@@ -293,18 +320,12 @@ while true; do
           "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
         exit 1
       }
-      _dec_cmd=()
-      [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]] && \
-        _dec_cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
-      [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _dec_cmd+=("${_WORKER_SANDBOX_ARGS[@]}")
-      _dec_cmd+=(claude --model sonnet --dangerously-skip-permissions --permission-mode auto \
-        -p "$(cat "$_decision_prompt")")
-      rm -f "$_decision_prompt"
-
       _dec_exit=0
-      _decision_out=$(CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
-        env -u CLAUDE_PLAN_CAPABILITY \
-        "${_dec_cmd[@]}" 2>/dev/null) || _dec_exit=$?
+      run_engine --role critic-decision --prompt-file "$_decision_prompt" \
+        --capture _decision_out --timeout "$SESSION_TIMEOUT" \
+        --env CLAUDE_NONINTERACTIVE=1 --env "CLAUDE_PLAN_FILE=$PLAN"
+      rm -f "$_decision_prompt"
+      _dec_exit=$_ENGINE_RC
       if [[ "$_dec_exit" -eq 124 ]]; then
         _record_transient "$PLAN" "$AGENT" session-timeout \
           "decision agent timed out after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" \
@@ -341,12 +362,8 @@ while true; do
               "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
             exit 1
           }
-          if [[ -n "$TIMEOUT_CMD" && "$SESSION_TIMEOUT" != "0" ]]; then
-            "$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT" \
-              "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --dangerously-bypass-approvals-and-sandbox - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
-          else
-            "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY codex exec --dangerously-bypass-approvals-and-sandbox - < "$_fix_prompt" > "$_fix_log" 2>&1 || _fix_exit=$?
-          fi
+          run_engine --role critic-fix --prompt-file "$_fix_prompt" --out "$_fix_log" --timeout "$SESSION_TIMEOUT"
+          _fix_exit=$_ENGINE_RC
           rm -f "$_fix_prompt"
           [[ $_fix_exit -ne 0 ]] && \
             echo "[run-critic-loop] WARN: codex fix exit ${_fix_exit} for ${AGENT}" >&2
@@ -369,48 +386,35 @@ while true; do
     # PARSE_ERROR: record-verdict-direct handled consecutive check; loop continues
 
   else
-    # ── B-session path (critic-feature, pr-review) — original logic ─────────────
+    # ── B-session path (critic-feature) ──────────────────────────────────────────
 
     _wrapped_plan_ref=$(printf 'agent=%s phase=%s plan=%s prompt: %s' "$AGENT" "$PHASE" "$PLAN" "$PROMPT")
     _prefill=""
     [[ $iter -eq 1 && -n "$PRIOR_FAIL_LOG" ]] && _prefill=" prior_fail_log=${PRIOR_FAIL_LOG}"
     ITER_PROMPT="Run one critic iteration per ${ITER_DOC}. agent=${AGENT} phase=${PHASE} plan=${PLAN} prompt: ${PROMPT} ${_wrapped_plan_ref}${_prefill}"
 
-    CRITIC_LOOP_MODEL="${CLAUDE_CRITIC_LOOP_MODEL:-opus}"
     _nonce="" _session_out="" _sid=""
-    if [[ "$AGENT" == "pr-review" ]]; then
-      _nonce=$(uuidgen 2>/dev/null || openssl rand -hex 16 2>/dev/null || printf '%s%s' "$$" "$(date +%s%N)")
-      _sid=$(uuidgen 2>/dev/null | tr 'A-Z' 'a-z' || true)
-      ITER_PROMPT="${ITER_PROMPT}
-
-MANDATORY OUTPUT CONTRACT — the session is invalid without this:
-Print the review verdict marker as a literal raw line (NOT inside a code block,
-NOT described in prose — the exact bytes must appear in your output). Emit it before
-the ultrathink audit, exactly one of:
-<!-- review-verdict: ${_nonce} PASS -->
-<!-- review-verdict: ${_nonce} FAIL -->
-Do NOT write \"I output the marker\" or refer to \"the marker above\" — actually print
-the line. The nonce ${_nonce} must appear verbatim."
-    fi
     _session_out=$(mktemp)
     _sandbox_guard || {
       bash "$PLAN_FILE_SH" append-note "$PLAN" \
         "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
       exit 1
     }
-    _cmd=()
-    [[ -n "$TIMEOUT_CMD" ]] && _cmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
-    [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _cmd+=("${_WORKER_SANDBOX_ARGS[@]}")
-    _cmd+=(claude --model "$CRITIC_LOOP_MODEL" --permission-mode auto --dangerously-skip-permissions -p "$ITER_PROMPT")
-    [[ -n "${_sid:-}" ]] && _cmd+=(--session-id "$_sid")
-    _env_unset=()
-    [[ "$AGENT" != "pr-review" ]] && _env_unset=(-u CLAUDE_PLAN_CAPABILITY)
-    CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" \
-      env "${_env_unset[@]}" "${_cmd[@]}" > "$_session_out" 2>&1 &
+    # Engine/model (critic-feature → claude opus, honouring CLAUDE_CRITIC_LOOP_MODEL) resolve from
+    # the registry. The B-session prompt is a string; stage it to a file for run_engine, and run it
+    # in a backgrounded subshell so this loop keeps PID ownership for the interrupt trap. The subshell
+    # exits with the engine's exit code so `wait` still observes 124 on timeout.
+    _iter_prompt_file=$(mktemp /tmp/critic-${AGENT}-bsession.XXXXXX)
+    printf '%s' "$ITER_PROMPT" > "$_iter_prompt_file"
+    ( run_engine --role critic-feature --prompt-file "$_iter_prompt_file" --out "$_session_out" \
+        --timeout "$SESSION_TIMEOUT" \
+        --env CLAUDE_NONINTERACTIVE=1 --env CLAUDE_CRITIC_SESSION=1 --env "CLAUDE_PLAN_FILE=$PLAN"
+      exit $_ENGINE_RC ) &
     CLAUDE_PID=$!
     wait "$CLAUDE_PID" || {
       exit_code=$?
       CLAUDE_PID=""
+      rm -f "$_iter_prompt_file"
       [[ -n "${_session_out:-}" && -s "${_session_out:-}" ]] && \
         cp "$_session_out" "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null || true
       rm -f "${_session_out:-}"
@@ -433,61 +437,11 @@ the line. The nonce ${_nonce} must appear verbatim."
       fi
     }
     CLAUDE_PID=""
+    rm -f "$_iter_prompt_file"
     _clear_transient_for "$PLAN" "$AGENT" 2>/dev/null || true
 
     [[ -n "${_session_out:-}" && -s "${_session_out:-}" ]] && \
       cp "$_session_out" "${_log_dir}/last-critic-${AGENT}.log" 2>/dev/null || true
-    if [[ -n "${_nonce:-}" ]]; then
-      cat "$_session_out"
-      _rv=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "$_session_out" | tail -1 | \
-            sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
-      if [[ "$_rv" != "PASS" && "$_rv" != "FAIL" && -n "${_sid:-}" ]]; then
-        _retry_out=$(mktemp); _rcmd=()
-        _sandbox_guard || {
-          bash "$PLAN_FILE_SH" append-note "$PLAN" \
-            "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
-          exit 1
-        }
-        [[ -n "$TIMEOUT_CMD" ]] && _rcmd+=("$TIMEOUT_CMD" --kill-after=$TG_KILL_AFTER "$SESSION_TIMEOUT")
-        [[ ${#_WORKER_SANDBOX_ARGS[@]} -gt 0 ]] && _rcmd+=("${_WORKER_SANDBOX_ARGS[@]}")
-        _rcmd+=(claude --resume "$_sid" --model "$CRITIC_LOOP_MODEL" --permission-mode auto \
-          --dangerously-skip-permissions -p "Output ONLY the review verdict marker as a literal raw line, using the final verdict you reached in this session, exactly one of: <!-- review-verdict: ${_nonce} PASS --> or <!-- review-verdict: ${_nonce} FAIL -->. Print nothing else.")
-        CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="$PLAN" "${_rcmd[@]}" > "$_retry_out" 2>&1 || true
-        cat "$_retry_out"
-        _rv=$(grep -o "<!-- review-verdict: ${_nonce} [A-Z]* -->" "$_retry_out" | tail -1 | \
-              sed "s/<!-- review-verdict: ${_nonce} //; s/ -->//" || true)
-        rm -f "$_retry_out"
-      fi
-      if [[ "$_rv" == "PASS" || "$_rv" == "FAIL" ]]; then
-        _arv_rc=0
-        # Session may have left plan in implement phase after fix-chain without restoring to review.
-        # append-review-verdict uses the plan's current phase for the verdict label and convergence
-        # sidecar key; ensure we write to review/pr-review, not implement/pr-review.
-        if [[ "$(bash "$PLAN_FILE_SH" get-phase "$PLAN" 2>/dev/null)" != "review" ]]; then
-          bash "$PLAN_FILE_SH" transition "$PLAN" review \
-            "pr-review session ended — restoring review phase for verdict recording" || {
-            bash "$PLAN_FILE_SH" append-note "$PLAN" \
-              "[BLOCKED:env] pr-review: phase-restore-failed — could not restore review phase before verdict recording" 2>/dev/null || true
-            echo "[run-critic-loop] [BLOCKED:env] pr-review: phase-restore-failed" >&2
-            exit 1
-          }
-        fi
-        bash "$PLAN_FILE_SH" append-review-verdict "$PLAN" pr-review "$_rv" || _arv_rc=$?
-        if [[ $_arv_rc -ne 0 ]]; then
-          if [[ -f "$_conv_path" ]] && jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
-            echo "[BLOCKED:ceiling] pr-review: exceeded critic ceiling — manual review required" >&2
-            exit 2
-          fi
-          exit 1
-        fi
-      else
-        bash "$PLAN_FILE_SH" append-note "$PLAN" \
-          "[BLOCKED:env] pr-review: no-verdict-marker — nonce-anchored marker absent from session output after resume retry; check last-critic-pr-review.log" 2>/dev/null || true
-        echo "[run-critic-loop] [BLOCKED:env] pr-review: no-verdict-marker" >&2
-        rm -f "${_session_out:-}"; _session_out=""
-        exit 1
-      fi
-    fi
     rm -f "${_session_out:-}"; _session_out=""
   fi
 

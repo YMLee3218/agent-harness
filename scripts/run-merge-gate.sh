@@ -22,6 +22,8 @@ if [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]]; then
 fi
 # shellcheck source=lib/llm-runner.sh
 source "$SCRIPTS_DIR/lib/llm-runner.sh"
+# shellcheck source=lib/critic-helpers.sh
+source "$SCRIPTS_DIR/lib/critic-helpers.sh"
 # shellcheck source=lib/sidecar.sh
 source "$SCRIPTS_DIR/lib/sidecar.sh"
 
@@ -132,10 +134,13 @@ echo "[merge-gate] Tier-1 deterministic checks PASSED — proceeding to LLM audi
 
 echo "[merge-gate] Running final branch integrity audit for ${SLUG}…"
 _CALL_RC=0
-CLAUDE_NONINTERACTIVE=1 CLAUDE_CRITIC_SESSION=1 CLAUDE_PLAN_FILE="${PLAN}" \
-  worker_exec env -u CLAUDE_PLAN_CAPABILITY claude --model sonnet --permission-mode auto --dangerously-skip-permissions \
-  -p "You are critic-merge. Run the merge-gate audit for plan ${PLAN} on branch ${BRANCH}. $(cat "$SCRIPTS_DIR/../agents/critic-merge.md" 2>/dev/null || echo 'See agents/critic-merge.md')" \
-  > "$REPORT_FILE" 2>&1 || _CALL_RC=$?
+_merge_prompt=$(mktemp /tmp/merge-gate.XXXXXX)
+render_prompt "$SCRIPTS_DIR/prompts/critic-merge.md" "$_merge_prompt" \
+  "merge_plan=$PLAN" "merge_branch=$BRANCH"
+run_engine --role merge-gate --prompt-file "$_merge_prompt" --out "$REPORT_FILE" \
+  --env CLAUDE_NONINTERACTIVE=1 --env CLAUDE_CRITIC_SESSION=1 --env "CLAUDE_PLAN_FILE=$PLAN"
+rm -f "$_merge_prompt"
+_CALL_RC=$_ENGINE_RC
 
 if [[ $_CALL_RC -ne 0 ]]; then
   echo "[merge-gate] critic-merge invocation failed (exit ${_CALL_RC})" >&2

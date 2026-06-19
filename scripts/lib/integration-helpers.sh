@@ -13,14 +13,18 @@ _INTEGRATION_HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=llm-runner.sh
 source "$_INTEGRATION_HELPERS_DIR/llm-runner.sh"
 
-# capture variant for categorizer — parent reads nonce-anchored stdout, not plan.md awk
+# capture variant for categorizer — writes the engine output (stdout+stderr) to outfile.
 run_llm_capture() {
   local prompt="$1" outfile="$2" _ec=0
-  _sandbox_guard || { echo "[BLOCKED:env] run_llm_capture: sandbox-unavailable" > "$outfile"; return 1; }
-  CLAUDE_NONINTERACTIVE=1 CLAUDE_PLAN_FILE="$PLAN" \
-    ${TIMEOUT_CMD:+$TIMEOUT_CMD --kill-after=$TG_KILL_AFTER $INTEGRATION_TIMEOUT} \
-    "${_WORKER_SANDBOX_ARGS[@]}" env -u CLAUDE_PLAN_CAPABILITY claude --model sonnet --permission-mode auto --dangerously-skip-permissions -p "$prompt" \
-    > "$outfile" 2>&1 || _ec=$?
+  local _pf; _pf=$(mktemp /tmp/run-llm-capture.XXXXXX)
+  printf '%s' "$prompt" > "$_pf"
+  run_engine --role integration-categorizer --prompt-file "$_pf" --out "$outfile" \
+    --timeout "$INTEGRATION_TIMEOUT" --env CLAUDE_NONINTERACTIVE=1 --env "CLAUDE_PLAN_FILE=$PLAN"
+  _ec=$_ENGINE_RC
+  rm -f "$_pf"
+  if [[ "${_ENGINE_SANDBOX_FAIL:-0}" == "1" ]]; then
+    echo "[BLOCKED:env] run_llm_capture: sandbox-unavailable" > "$outfile"; return 1
+  fi
   return "$_ec"
 }
 
