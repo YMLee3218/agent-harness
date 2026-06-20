@@ -50,14 +50,21 @@ _handle_spec_phase_rollback() {
     git -C "$PROJECT_DIR" commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
   bash "$PF" reset-milestone "$PLAN" critic-spec
   rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
+  # Integration-recovery critics review the whole feature set (cross-cutting — an integration
+  # failure is not attributable to one unit), so they key the events fact log under the reserved
+  # __integration__ scope. That scope is otherwise unused for convergence (the done gate is the
+  # runner exit, not events), so recovery verdicts never interfere with per-unit or __cross__
+  # gates. This replaces the legacy unit-less fallback (sidecar) in run-critic-loop.sh.
   CRITIC_SPEC_PATH="${_feature_specs}" \
   CRITIC_DOCS_PATHS="$(docs_paths "${_req_file:-}")" \
   CRITIC_PLAN_PATH="${PLAN}" \
+  CRITIC_UNIT=__integration__ \
   run_critic critic-spec spec "Review updated spec for integration fix. Spec: ${_feature_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
   llm_exit "critic-spec"
   CRITIC_ALL_SPEC_PATHS="${_all_specs}" \
   CRITIC_DOCS_PATHS="$(docs_paths "${_req_file:-}")" \
   CRITIC_PLAN_PATH="${PLAN}" \
+  CRITIC_UNIT=__integration__ \
   run_critic critic-cross spec "Cross-feature consistency review after integration spec fix. All specs: ${_all_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN."
   llm_exit "critic-cross"
   bash "$PF" transition "$PLAN" red "spec updated for integration fix — updating tests"
@@ -84,6 +91,7 @@ _handle_spec_phase_rollback() {
   CRITIC_TEST_FILES="${_test_files}" \
   CRITIC_PLAN_PATH="${PLAN}" \
   CRITIC_TEST_COMMAND="${UNIT_CMD}" \
+  CRITIC_UNIT=__integration__ \
   run_critic critic-test red "Review updated tests for integration fix. Spec: ${_feature_specs}. Test files: ${_test_files}. Plan: $PLAN. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
   while IFS= read -r _tf_file; do
@@ -105,6 +113,7 @@ _handle_spec_phase_rollback() {
   CRITIC_DOMAIN_ROOT="${_domain_root}" \
   CRITIC_INFRA_ROOT="${_infra_root}" \
   CRITIC_FEATURES_ROOT="${_features_root}" \
+  CRITIC_UNIT=__integration__ \
   run_critic critic-code implement "Review integration ${_cat} fix implementation. Spec: ${_feature_specs}. Docs: $(docs_paths "${_req_file:-}"). Plan: $PLAN. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
   llm_exit "critic-code"
   bash "$PF" transition "$PLAN" integration "re-entering integration after ${_cat} fix"

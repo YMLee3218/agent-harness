@@ -21,8 +21,10 @@ done
 
 ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
 
-[[ -z "$AGENT" || -z "$PHASE" || -z "$PLAN" || -z "$PROMPT" ]] && {
-  echo "Usage: run-critic-loop.sh --agent NAME --phase PHASE --plan PATH --prompt TEXT [--iteration-doc DOC] [--nested]" >&2
+[[ -z "$AGENT" || -z "$PHASE" || -z "$PLAN" || -z "$PROMPT" || -z "$UNIT" ]] && {
+  echo "Usage: run-critic-loop.sh --agent NAME --phase PHASE --plan PATH --prompt TEXT --unit UNIT [--iteration-doc DOC] [--nested]" >&2
+  echo "  --unit is required (fail-closed): the events fact-log scope — a {layer}-{slug} unit or a reserved" >&2
+  echo "  sentinel (__brainstorm__/__cross__/__integration__). The legacy unit-less sidecar path is gone." >&2
   exit 5
 }
 
@@ -37,18 +39,11 @@ STAGE="$(_ev_stage_of_agent "$AGENT" 2>/dev/null || echo "$PHASE")"
 # unit-keyed events block fact (cmd_append_note guards on empty unit/stage, so an unset
 # UNIT degrades to legacy plan.md/blocked.jsonl-only behaviour). Note arg is $1.
 _an() { bash "$PLAN_FILE_SH" append-note "$PLAN" "$1" "$UNIT" "$STAGE"; }
-# Convergence / ceiling gating — recomputed from the events log when a --unit was threaded;
-# legacy sidecar fallback for unit-less callers (integration recovery, --nested without --unit).
-# _conv_check [frozen_hash] → rc0 if converged. _ceiling_check → rc0 if ceiling reached.
-_conv_check() {
-  if [[ -n "$UNIT" ]]; then bash "$PLAN_FILE_SH" ev-converged "$PLAN" "$UNIT" "$STAGE" "${1:-}" 2>/dev/null
-  else bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; fi
-}
-_ceiling_check() {
-  if [[ -n "$UNIT" ]]; then bash "$PLAN_FILE_SH" ev-ceiling "$PLAN" "$UNIT" "$STAGE" 2>/dev/null
-  else [[ -f "${_conv_path:-/nonexistent}" ]] && command -v jq >/dev/null 2>&1 && \
-    jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; fi
-}
+# Convergence / ceiling gating — recomputed purely from the events log (UNIT is required, so
+# there is no unit-less sidecar fallback). _conv_check [frozen_hash] → rc0 if converged.
+# _ceiling_check → rc0 if ceiling reached.
+_conv_check() { bash "$PLAN_FILE_SH" ev-converged "$PLAN" "$UNIT" "$STAGE" "${1:-}" 2>/dev/null; }
+_ceiling_check() { bash "$PLAN_FILE_SH" ev-ceiling "$PLAN" "$UNIT" "$STAGE" 2>/dev/null; }
 # _audit_reject REASON — append an events audit-reject fact at the frozen hash _H so the events
 # streak breaks (pass-audit overrode the 2nd PASS / audit inconclusive). No-op without --unit.
 _audit_reject() { [[ -n "$UNIT" ]] && ev_record_audit_reject "$PLAN" "$UNIT" "$STAGE" "${_H:-}" "$1" 2>/dev/null || true; }
@@ -110,10 +105,10 @@ if ! _is_codex_driven_agent "$AGENT" 2>/dev/null; then
 fi
 
 while true; do
-  # Ceiling-blocked check (sidecar)
-  _conv_path=$(sc_conv_path "$PLAN" "$PHASE" "$AGENT" 2>/dev/null) || {
-    echo "[run-critic-loop] ERROR: sc_conv_path failed — CLAUDE_PROJECT_DIR may be unset" >&2
-    _an "[BLOCKED:env] ${AGENT}: CLAUDE_PROJECT_DIR-unset — sc_conv_path failed; re-run with CLAUDE_PROJECT_DIR set to project root" 2>/dev/null || true
+  # Fail closed if the events dir does not resolve (CLAUDE_PROJECT_DIR unset → wrong log path).
+  ev_ensure_dir "$PLAN" >/dev/null 2>&1 || {
+    echo "[run-critic-loop] ERROR: events dir unresolved — CLAUDE_PROJECT_DIR may be unset" >&2
+    _an "[BLOCKED:env] ${AGENT}: CLAUDE_PROJECT_DIR-unset — re-run with CLAUDE_PROJECT_DIR set to project root" 2>/dev/null || true
     exit 1
   }
   if _ceiling_check; then
@@ -295,7 +290,6 @@ while true; do
 
         _pass_check_out=""
         _sandbox_guard || {
-          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
           _an \
             "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
           exit 1
@@ -306,7 +300,6 @@ while true; do
         rm -f "$_pass_audit_prompt"
         _pass_exit=$_ENGINE_RC
         if [[ "$_pass_exit" -eq 124 ]]; then
-          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
           _record_transient "$PLAN" "$AGENT" session-timeout \
             "PASS audit timed out after ${SESSION_TIMEOUT}s — increase CLAUDE_CRITIC_SESSION_TIMEOUT or re-run" \
             "$PLAN_FILE_SH" 2>/dev/null || true
@@ -317,7 +310,6 @@ while true; do
           _reject_reason=$(printf '%s' "$_pass_check_out" | \
             grep 'VERDICT: REJECT-PASS' | sed 's/VERDICT: REJECT-PASS[[:space:]]*—[[:space:]]*//' | \
             head -1 | cut -c1-120 || echo "gap found")
-          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
           _audit_reject "REJECT-PASS: ${_reject_reason}"   # break events streak at frozen _H
           bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "REJECT-PASS" \
             "audit overrode PASS — ${_reject_reason}" 2>/dev/null || true
@@ -328,7 +320,6 @@ while true; do
           echo "CONVERGED"; exit 0
         else
           # Audit produced no recognisable verdict — treat as transient and retry
-          bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
           _audit_reject "audit-inconclusive: no VERDICT line"   # break events streak at frozen _H
           _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
             "PASS audit produced no VERDICT line — retrying" "$PLAN_FILE_SH" 2>/dev/null && {

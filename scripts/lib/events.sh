@@ -422,6 +422,14 @@ _ev_brainstorm_authored() {
 # (unit,stage) pair, computed from the WORKING TREE (HEAD-agnostic — see §working-tree).
 _stage_input_hash() {
   local _plan="$1" _unit="$2" _stage="$3"
+  # __integration__ is cross-cutting: its recovery critics (critic-spec/test/code/cross, run from
+  # integration-helpers.sh) review the WHOLE feature set, not one unit. Per-unit resolvers would
+  # return "empty" for this scope at the spec/test/code stages → vacuous non-convergence → ceiling.
+  # So hash the full authored tree at ANY stage: non-empty, and reopens recovery on any real change.
+  if [[ "$_unit" == "__integration__" ]]; then
+    { _ev_all_src_test; _ev_all_specs; } | _hash_file_list
+    return
+  fi
   case "$_stage" in
     brainstorm)
       local _plan_md _au _h
