@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dispatcher — exit codes: 0=success 1=error 2=not-found/blocked 3=ambiguous(find-active) 4=malformed(find-active); query commands (is-blocked, is-converged): 0=true 1=false 2=jq-missing|plan-not-found
+# Dispatcher — exit codes: 0=success 1=error 2=not-found/blocked 3=ambiguous(find-active) 4=malformed(find-active); query commands (is-blocked, ev-converged): 0=true 1=false 2=jq-missing|plan-not-found
 # Marker side-effects: reference/markers.md §Stop marker taxonomy
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Capability ring gate
 case "$1" in
   # Ring A — agent-callable: read-only or narrative-safe
-  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|is-blocked|get-envelope|get-task-unit) ;;
+  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-blocked|get-envelope|get-task-unit) ;;
   # Ring A — events-recompute query commands (pure reads over events/{scope}.jsonl)
   ev-converged|ev-implemented|ev-blocked|ev-ceiling|stage-satisfied) ;;
 
@@ -75,7 +75,6 @@ case "$1" in
   transition)           [ $# -eq 4 ] || die "Usage: plan-file.sh transition <plan-file> <to-phase> <reason>"; cmd_transition "$2" "$3" "$4" ;;
   commit-phase)         [ $# -eq 3 ] || die "Usage: plan-file.sh commit-phase <plan-file> <commit-message>"; cmd_commit_phase "$2" "$3" ;;
   tier-safe)            [ $# -ge 3 ] || die "Usage: plan-file.sh tier-safe <plan-file> <task-id>..."; cmd_tier_safe "$2" "${@:3}" ;;
-  is-converged)         [ $# -eq 4 ] || die "Usage: plan-file.sh is-converged <plan-file> <phase> <agent>"; cmd_is_converged "$2" "$3" "$4" ;;
   is-blocked) [ $# -ge 2 ] || die "Usage: plan-file.sh is-blocked <plan-file> [kind]"; cmd_is_blocked "$2" "${3:-}" ;;
   # events-recompute readers: rc0=true/SKIP, rc1=false/RUN (pure functions over events log)
   ev-converged)    [ $# -ge 4 ] || die "Usage: plan-file.sh ev-converged <plan> <unit> <stage> [frozen-hash]"; ev_is_converged "$2" "$3" "$4" "${5:-}" ;;
