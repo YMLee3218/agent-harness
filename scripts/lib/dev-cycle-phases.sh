@@ -66,6 +66,7 @@ _phase_spec_prepass() {
     [[ -n "$_other_specs" ]] && \
       _cross_ctx=" Also verify consistency against existing specs: ${_other_specs}."
 
+    _naming_path_gate "${_spec_for_critic}"
     bash "$PF" reset-milestone "$PLAN" critic-spec
     bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec_for_critic}" \
@@ -120,6 +121,7 @@ _phase_domain_infra_spec_review() {
       continue
     fi
 
+    _naming_path_gate "${_spec_rel}"
     bash "$PF" reset-milestone "$PLAN" critic-spec
     bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec}" \
@@ -345,6 +347,8 @@ _impl_run_implement_phase() {
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "implement" ]] && \
      ! bash "$PF" stage-satisfied "$PLAN" "$_unit" code 2>/dev/null; then
+    _forbidden_artifact_gate "$_unit"
+    _test_mock_gate "$_unit"
     bash "$PF" reset-milestone "$PLAN" critic-code
     CRITIC_SPEC_PATH="$_spec_path" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
@@ -463,6 +467,86 @@ _scenario_count_gate() {
       "[BLOCKED:code] coverage: under-scenario-count — ${spec_path}; ${_test_count} tests < ${_spec_scenarios} scenarios — manual investigation required"
     exit 1
   fi
+}
+
+# _forbidden_artifact_gate UNIT — grep the unit's src+test files for skip/TODO markers that have
+# NO documented exception (these are no-exception per @reference/effort.md Root-cause obligation):
+# @pytest.mark.skip, @pytest.mark.xfail, '# TODO', '# FIXME', xit(, it.skip(, xdescribe(.
+# Empty stubs (pass/.../return null) are intentionally NOT checked — ABC/Protocol/Exception bodies
+# are legal there; that is a HYBRID judgment left to the LLM critic. Any hit → block + exit 1.
+# Called before critic-code. UNIT is a layer-qualified key (e.g. domain-todo / features-add-todo).
+_forbidden_artifact_gate() {
+  local _unit="$1" _files _f _hit=""
+  _files=$( { _ev_unit_src_files "$_unit"; _ev_unit_test_files "$_unit"; } 2>/dev/null | LC_ALL=C sort -u )
+  [[ -z "$_files" ]] && return 0
+  while IFS= read -r _f; do
+    [[ -z "$_f" ]] && continue
+    [[ -f "$_f" ]] || continue
+    if grep -nE '@pytest\.mark\.skip|@pytest\.mark\.xfail|#[[:space:]]*TODO|#[[:space:]]*FIXME|xit\(|it\.skip\(|xdescribe\(' "$_f" >/dev/null 2>&1; then
+      _hit="$_f"
+      break
+    fi
+  done <<< "$_files"
+  if [[ -n "$_hit" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] forbidden-artifact: skip-or-todo — ${_hit}"
+    exit 1
+  fi
+}
+
+# _test_mock_gate UNIT — for the unit's test files under a DOMAIN layer, and for any test files
+# under tests/integration/, grep for mocking constructs. Domain tests and integration tests are
+# the two no-exception "No mocks" scopes in @reference/layers.md §Test mocking levels. Small/large
+# feature mock rules are HYBRID and deliberately NOT gated (left to critic-test). Any hit →
+# block + exit 1. Called before critic-code.
+_test_mock_gate() {
+  local _unit="$1" _ls _layer _slug _files _f _hit=""
+  _ls=$(_ev_unit_layer_slug "$_unit" 2>/dev/null || true)
+  _layer=""
+  [[ -n "$_ls" ]] && read -r _layer _slug <<< "$_ls"
+  # Only domain-layer test files are in a no-mock scope; feature-layer mocks are HYBRID. But also
+  # always include any of the unit's test files that live under tests/integration/.
+  _files=$(_ev_unit_test_files "$_unit" 2>/dev/null | LC_ALL=C sort -u)
+  [[ -z "$_files" ]] && return 0
+  while IFS= read -r _f; do
+    [[ -z "$_f" ]] && continue
+    [[ -f "$_f" ]] || continue
+    # In scope when: the unit is a domain unit, OR the file lives under tests/integration/.
+    if [[ "$_layer" != "domain" ]] && ! printf '%s' "$_f" | grep -q '/tests/integration/'; then
+      continue
+    fi
+    if grep -nE 'unittest\.mock|MagicMock|Mock|patch\(|monkeypatch' "$_f" >/dev/null 2>&1; then
+      _hit="$_f"
+      break
+    fi
+  done <<< "$_files"
+  if [[ -n "$_hit" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] test-mock: mock-in-no-mock-scope — ${_hit}"
+    exit 1
+  fi
+}
+
+# _naming_path_gate SPEC_PATH — verify the spec path matches the @reference/layers.md canonical
+# layer-to-spec mapping: features/{verb}-{noun}/spec.md, domain/{noun}/spec.md,
+# infrastructure/{noun}/spec.md (a leading src/ prefix is also accepted, matching the existing
+# resolvers _ev_find_spec_path / find_spec_path). Mismatch → block + exit 1. Called before
+# critic-spec.
+_naming_path_gate() {
+  # Arg may be a single path OR a whitespace-joined list (e.g. _spec_for_critic from git status).
+  # Validate EACH path so a multi-spec batch does not false-positive on the joined string.
+  local _arg="$1" _spec _rel
+  [[ -z "$_arg" ]] && return 0
+  for _spec in $_arg; do   # intentional word-split
+    [[ -z "$_spec" ]] && continue
+    _rel="$_spec"
+    case "$_spec" in
+      "${PROJECT_DIR%/}/"*) _rel="${_spec#${PROJECT_DIR%/}/}" ;;
+    esac
+    # Canonical: [src/]{features|domain|infrastructure}/{slug}/spec.md
+    # Slug segment: kebab-case lowercase (verb-noun for features; noun for domain/infra).
+    printf '%s' "$_rel" | grep -qE '^(src/)?(features|domain|infrastructure)/[a-z0-9]+(-[a-z0-9]+)*/spec\.md$' && continue
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] naming: spec-path — ${_spec}"
+    exit 1
+  done
 }
 
 # _manifest_reconciliation_gate SPEC_PATH UNIT_KEY — verify every RED manifest file for this unit
