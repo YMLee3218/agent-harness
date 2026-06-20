@@ -919,8 +919,8 @@ cmd_reset_milestone() {
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-milestone")
   local scope; scope=$(_scope_of "$current_phase" "$agent")
-  _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
-  _clear_all_ceiling_sidecar_entries_for_agent "$plan_file" "$agent"
+  # Convergence streak/ceiling are recomputed from the events log; the legacy sidecar writes were
+  # dead. Keep the transient-counter clear (live) and the human-facing marker clears below.
   _clear_transient_for "$plan_file" "$agent" 2>/dev/null || true
   local ts
   ts=$(_iso_timestamp)
@@ -936,8 +936,6 @@ cmd_reset_pr_review() {
   require_file "$plan_file"
   local current_phase
   current_phase=$(_require_phase "$plan_file" "reset-pr-review")
-  _sc_reset_convergence_for_scope "$plan_file" "implement" "critic-quality"
-  _clear_ceiling_sidecar_entry "$plan_file" "implement/critic-quality"
   local ts
   ts=$(_iso_timestamp)
   _append_to_critic_verdicts "$plan_file" \
@@ -952,24 +950,13 @@ cmd_reset_phase_state() {
   local plan_file="$1" target_phase="$2"
   require_file "$plan_file"
   [ -n "$target_phase" ] || die "reset-for-rollback: target-phase required"
-  local _sc_dir _conv_file _basename _cv_phase _cv_agent
-  _sc_dir=$(sc_dir "$plan_file" 2>/dev/null) || true
-  if [[ -n "$_sc_dir" && -d "$_sc_dir/convergence" ]]; then
-    for _conv_file in "$_sc_dir/convergence"/*.json; do
-      [[ -f "$_conv_file" ]] || continue
-      _basename=$(basename "$_conv_file" .json)
-      _cv_phase="${_basename%%__*}"
-      _cv_agent="${_basename#*__}"
-      _sc_reset_convergence_for_scope "$plan_file" "$_cv_phase" "$_cv_agent" 2>/dev/null || true
-    done
-  fi
+  # Convergence/ceiling are recomputed from the events log (the per-scope sidecar reset loop was
+  # dead). Keep the human-facing marker clears and the transient-counter reset (both live).
   cmd_reset_pr_review "$plan_file"
   cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-code:"
   cmd_clear_marker "$plan_file" "[RECURRING] critic-code:"
-  _clear_ceiling_sidecar_entry "$plan_file" "implement/critic-code"
   cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-quality:"
   cmd_clear_marker "$plan_file" "[RECURRING] critic-quality:"
-  _clear_ceiling_sidecar_entry "$plan_file" "implement/critic-quality"
   _reset_all_transient_counters "$plan_file" 2>/dev/null || true
   cmd_set_phase "$plan_file" "$target_phase"
   echo "[reset-for-rollback] phase set to ${target_phase}; all critic convergence and quality-review state cleared" >&2

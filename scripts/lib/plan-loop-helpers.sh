@@ -9,57 +9,9 @@ _PLAN_LOOP_STATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_PLAN_LIB_LOADED:-}" ]] || . "$_PLAN_LOOP_STATE_DIR/plan-lib.sh"
 [[ -n "${_EVENTS_LOADED:-}" ]] || . "$_PLAN_LOOP_STATE_DIR/events.sh"
 
-# Reset the sidecar convergence JSON for a phase/agent scope (increment milestone_seq).
-# Called by reset-milestone, reset-pr-review.
-_sc_reset_convergence_for_scope() {
-  local plan_file="$1" phase="$2" agent="$3"
-  command -v jq >/dev/null 2>&1 || return 0
-  sc_ensure_dir "$plan_file" || return 1
-  local conv_path
-  conv_path=$(sc_conv_path "$plan_file" "$phase" "$agent")
-  local existing_ms=0
-  if [[ -f "$conv_path" ]]; then
-    existing_ms=$(jq -r '.milestone_seq // 0' "$conv_path" 2>/dev/null || echo 0)
-  fi
-  local new_ms=$((existing_ms + 1))
-  sc_update_json "$conv_path" "$(sc_make_conv_state "$phase" "$agent" false 0 false false 0 "$new_ms")"
-}
-
-# _clear_ceiling_sidecar_entry PLAN SCOPE — marks the uncleared ceiling entry for SCOPE as cleared.
-# cmd_clear_marker's jq uses startswith($marker) which never matches ceiling entries: _record_blocked
-# strips the [BLOCKED*] prefix before storing, so messages are "exceeded N runs" (no bracket prefix).
-_clear_ceiling_sidecar_entry() {
-  local plan_file="$1" scope="$2"
-  command -v jq >/dev/null 2>&1 || return 0
-  sc_ensure_dir "$plan_file" || return 1
-  local _bpath _ts
-  _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
-  [[ -f "$_bpath" ]] || return 0
-  _ts=$(_iso_timestamp)
-  _sc_rewrite_jsonl "$_bpath" \
-    'if (.cleared_at == null and .kind == "ceiling" and .scope == $scope) then .cleared_at = $ts else . end' \
-    "reset-ceiling" \
-    --arg scope "$scope" --arg ts "$_ts" || return 1
-}
-
-# _clear_all_ceiling_sidecar_entries_for_agent PLAN AGENT
-# Marks ALL uncleared ceiling entries for AGENT as cleared, regardless of scope.
-# Used by cmd_reset_milestone so the blocked.jsonl clear is agent-wide — matching
-# cmd_clear_marker's agent-wide plan.md ceiling-marker removal (cmd_clear_marker's
-# jq never matches ceiling entries by design; see comment above _clear_ceiling_sidecar_entry).
-_clear_all_ceiling_sidecar_entries_for_agent() {
-  local plan_file="$1" agent="$2"
-  command -v jq >/dev/null 2>&1 || return 0
-  sc_ensure_dir "$plan_file" || return 1
-  local _bpath _ts
-  _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
-  [[ -f "$_bpath" ]] || return 0
-  _ts=$(_iso_timestamp)
-  _sc_rewrite_jsonl "$_bpath" \
-    'if (.cleared_at == null and .kind == "ceiling" and .agent == $agent) then .cleared_at = $ts else . end' \
-    "reset-milestone-ceiling" \
-    --arg agent "$agent" --arg ts "$_ts" || return 1
-}
+# Legacy sidecar convergence/ceiling reset helpers (_sc_reset_convergence_for_scope,
+# _clear_ceiling_sidecar_entry, _clear_all_ceiling_sidecar_entries_for_agent) were removed:
+# convergence and ceiling are recomputed from the events log, so the sidecar writes were dead.
 
 _DEFAULT_CEILING=100
 
