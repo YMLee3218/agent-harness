@@ -10,7 +10,7 @@ _PLAN_LOOP_STATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_EVENTS_LOADED:-}" ]] || . "$_PLAN_LOOP_STATE_DIR/events.sh"
 
 # Reset the sidecar convergence JSON for a phase/agent scope (increment milestone_seq).
-# Called by reset-milestone, reset-pr-review, clear-converged.
+# Called by reset-milestone, reset-pr-review.
 _sc_reset_convergence_for_scope() {
   local plan_file="$1" phase="$2" agent="$3"
   command -v jq >/dev/null 2>&1 || return 0

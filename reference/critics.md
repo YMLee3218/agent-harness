@@ -71,7 +71,7 @@ Convergence-based protocol used by every phase-gate critic (critic-feature, crit
 
 `plan-file.sh record-verdict` appends to `## Critic Verdicts` and updates sidecar convergence state for all normal verdict outcomes (PASS, FAIL, PARSE_ERROR); in exceptional cases it writes a `[BLOCKED]` marker to `## Open Questions` — second consecutive PARSE_ERROR → `[BLOCKED:code] {agent}: parse` (skips the Critic Verdicts append for this case — only sidecar + Open Questions); ceiling exceeded → `[BLOCKED:ceiling]` (appends to both `## Critic Verdicts` and `## Open Questions`). Exception: if the subagent produced no output or known infrastructure error signatures are detected, record-verdict classifies the run as `[BLOCKED:env] {agent}: critic-skill-not-run` — it writes only to `## Open Questions` and `blocked.jsonl`; no Critic Verdicts entry is written and convergence state is not updated (the run is not counted against the ceiling). The skill reads `## Open Questions` for any BLOCKED markers and queries sidecar after each run, then branches per §Skill branching logic.
 
-Ceiling N defaults to **100** (runs 1–100 are allowed; the 101st run triggers `[BLOCKED:ceiling]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting; `REJECT-PASS` entries written by `clear-converged` do **not** count). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
+Ceiling N defaults to **100** (runs 1–100 are allowed; the 101st run triggers `[BLOCKED:ceiling]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
 
 ### Skill branching logic (after each run)
 
@@ -151,7 +151,7 @@ When the cleanup phase differs from the destination phase (e.g., clearing `imple
 2. `codex exec --dangerously-bypass-approvals-and-sandbox - < prompt > plans/{slug}.state/codex-critic-{agent}-last.log`
 3. grep verdict/category markers; `plan-file.sh record-verdict-direct $PLAN $AGENT $PHASE $verdict $category`
 4. **FAIL**: one Claude call (`ultrathink` + Read tool) → `AUDIT:/GENUINE:/FIX-PLAN:` for all findings; `append-audit`; if BLOCKED-AMBIGUOUS: write `[BLOCKED:spec]` markers; `codex exec --dangerously-bypass-approvals-and-sandbox -` with full FIX-PLAN
-5. **PASS (2nd/converged)**: one Claude call for REJECT-PASS check only; if REJECT: `clear-converged`; if ACCEPT: exit 0
+5. **PASS (2nd/converged)**: one Claude call for REJECT-PASS check only; if REJECT: enter the FAIL path (the recorded FAIL breaks the events streak); if ACCEPT: exit 0
 6. **PASS (1st)**: no Claude call; loop continues
 
 **critic-quality** uses the same shell-driven path with angles/ fan-out: instead of steps 1–2, `run-critic-loop.sh` detects `skills/critic-quality/angles/*.md`, runs one `codex exec` per angle file in parallel (background subshells), waits for all, then calls `aggregate_angle_verdicts` to produce a single merged `$_review_log`. Steps 3–6 proceed identically to the single-prompt path above.

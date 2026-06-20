@@ -34,7 +34,7 @@ Include `ultrathink` in the audit prompt and check all items in §Audit checklis
 | Outcome | Condition | Action |
 |---------|-----------|--------|
 | **ACCEPT** | All findings GENUINE, or GENUINE + FALSE-POSITIVE mix with no AMBIGUOUS (item 6) | Adopt verdict; fix only GENUINE findings (FALSE-POSITIVE findings excluded from fix scope); proceed to `@reference/critics.md §Skill branching logic` |
-| **REJECT-PASS** | Subagent returned PASS but audit found a substantive gap | Call `clear-converged` (resets sidecar streak regardless of plan.md state), then record audit and enter FAIL path. **Ultrathink may demote PASS→FAIL but must never promote FAIL→PASS — except via ACCEPT-OVERRIDE when Read-tool verification confirms all cited excerpts are absent from their files (see §Audit outcomes).** |
+| **REJECT-PASS** | Subagent returned PASS but audit found a substantive gap | Record audit and enter the FAIL path; the recorded FAIL breaks the events convergence streak. **Ultrathink may demote PASS→FAIL but must never promote FAIL→PASS — except via ACCEPT-OVERRIDE when Read-tool verification confirms all cited excerpts are absent from their files (see §Audit outcomes).** |
 | **BLOCKED-AMBIGUOUS** | AMBIGUOUS ≥ 1 (per item 6) | Emit one `[BLOCKED:spec] {agent}: ambiguous — {finding-excerpt}: {audit-question}` marker per AMBIGUOUS finding. If GENUINE findings are also present, apply Codex fix for GENUINE findings only, then stop. |
 | **ACCEPT-OVERRIDE** | Verdict is FAIL and ALL blocking findings are demonstrably false: every finding satisfies either (a) its cited excerpt is absent from the cited file, or (b) it is a [MISSING] finding whose scenario keywords are confirmed present in the spec. | Exit without applying fixes (branching decision only — no sidecar state change for phase-gate critics; pr-review: additionally emit nonce marker to override recorded verdict); append-audit with "ACCEPT-OVERRIDE" and list each absent citation. |
 
@@ -49,12 +49,11 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit \
 ```
 Proceed to `@reference/critics.md §Skill branching logic`.
 
-**REJECT-PASS** — reset convergence streak before recording:
+**REJECT-PASS** — record the audit, then enter the FAIL path:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" clear-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}"
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" append-audit "$CLAUDE_PROJECT_DIR/plans/{slug}.md" "{agent}" "REJECT-PASS" "audit overrode PASS — {gap}"
 ```
-Enter the FAIL path. (`clear-converged` writes a `REJECT-PASS` streak-reset entry to `## Critic Verdicts` and resets the sidecar — excluded from ceiling counts.)
+Enter the FAIL path — recording the FAIL verdict breaks the events convergence streak (no separate sidecar reset needed).
 
 **BLOCKED-AMBIGUOUS**: apply GENUINE fixes first, then emit per-finding markers, then stop.
 

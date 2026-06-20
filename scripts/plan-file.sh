@@ -36,7 +36,7 @@ case "$1" in
 
   # Critic-loop B-session mutators — gated by .critic.lock presence only.
   # The lock proves genuine run-critic-loop.sh context for these commands regardless of capability.
-  append-audit|clear-converged)
+  append-audit)
     [ $# -ge 2 ] || die "Usage: plan-file.sh $1 <plan-file> ..."
     [ -f "$2.critic.lock" ] || die "BLOCKED: ${2##*/}.critic.lock absent — $1 requires run-critic-loop.sh context"
     ;;
@@ -68,7 +68,6 @@ case "$1" in
   update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;
   record-stop-block)    [ $# -eq 4 ] || die "Usage: plan-file.sh record-stop-block <plan-file> <phase> <reason>"; cmd_record_stop_block "$2" "$3" "$4" ;;
   unblock)              [ $# -le 2 ] || die "Usage: plan-file.sh unblock [plan-file]"; cmd_unblock "${2:-}" ;;
-  clear-converged)      [ $# -eq 3 ] || die "Usage: plan-file.sh clear-converged <plan-file> <agent>"; cmd_clear_converged "$2" "$3" ;;
   reset-milestone)      [ $# -eq 3 ] || die "Usage: plan-file.sh reset-milestone <plan-file> <agent>"; cmd_reset_milestone "$2" "$3" ;;
   reset-pr-review)      [ $# -eq 2 ] || die "Usage: plan-file.sh reset-pr-review <plan-file>"; cmd_reset_pr_review "$2" ;;
   reset-for-rollback)   [ $# -eq 3 ] || die "Usage: plan-file.sh reset-for-rollback <plan-file> <target-phase>"; cmd_reset_phase_state "$2" "$3" ;;

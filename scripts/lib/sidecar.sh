@@ -217,7 +217,7 @@ _sc_rewrite_jsonl() {
 # {"phase":"implement","agent":"critic-code","first_turn":true,"streak":2,
 #  "converged":true,"ceiling_blocked":false,"ordinal":2,"milestone_seq":0,
 #  "last_verdict_category":"","spec_fingerprint":"<sha256>"}
-# milestone_seq increments on reset-milestone/clear-converged; isolates streak history between milestones.
+# milestone_seq increments on reset-milestone; isolates streak history between milestones.
 # spec_fingerprint: SHA-256 of sorted spec.md paths+contents at last verdict time; absent on old sidecars.
 #   Values: "<sha256>" = normal hash; "empty" = no spec.md found; "no-sha-tool" = SHA tool unavailable (check skipped).
 # Blocked JSONL schema (blocked.jsonl, one record per line):

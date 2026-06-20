@@ -912,21 +912,6 @@ cmd_unblock() {
   echo "[unblock] cleared ${_count} markers in ${plan_file}" >&2
 }
 
-cmd_clear_converged() {
-  local plan_file="$1" agent="$2"
-  require_file "$plan_file"
-  _validate_critic_agent "$agent" "clear-converged"
-  local current_phase
-  current_phase=$(_require_phase "$plan_file" "clear-converged")
-  local scope; scope=$(_scope_of "$current_phase" "$agent")
-  local ts
-  ts=$(_iso_timestamp)
-  _sc_reset_convergence_for_scope "$plan_file" "$current_phase" "$agent"
-  _append_to_critic_verdicts "$plan_file" \
-    "${ts} ${scope}: REJECT-PASS (audit-override — streak reset)"
-  echo "[clear-converged] reset streak for ${scope}" >&2
-}
-
 cmd_reset_milestone() {
   local plan_file="$1" agent="$2"
   require_file "$plan_file"
