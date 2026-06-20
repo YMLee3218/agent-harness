@@ -209,6 +209,20 @@ _phase_cross_spec_review
 _phase_domain_infra_implement_cycle
 _phase_implement_cycle
 
+# ── Green barrier: ∀U is_implemented before integration (invariant 4) ──────────
+# The implement loop keeps .phase at "implement" across every unit; green is reached only here,
+# once EVERY enumerated unit is_implemented (recomputed from the events log, not the .phase
+# pointer). Fail-closed: a unit left incomplete without having BLOCKED (a block would have halted
+# the loop earlier via llm_exit) stops the run rather than flowing a half-built feature set into
+# integration. Replaces the old per-unit transition that greened the plan on the first unit.
+if _all_units_implemented; then
+  [[ "$(bash "$PF" get-phase "$PLAN")" != "green" ]] && \
+    bash "$PF" transition "$PLAN" green "all units implemented — feature set complete"
+else
+  bash "$PF" append-note "$PLAN" "[BLOCKED:code] green-barrier: units-incomplete — not every unit reached is_implemented(code∧quality); see events log"
+  exit 1
+fi
+
 # ── Integration Tests ─────────────────────────────────────────────────────────
 if [[ -n "$INTEGRATION_CMD" ]]; then
   bash "$SCRIPTS_DIR/run-integration.sh" \

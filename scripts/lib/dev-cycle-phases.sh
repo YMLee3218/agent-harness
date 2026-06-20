@@ -383,17 +383,45 @@ _impl_run_implement_phase() {
   fi
 }
 
-_impl_run_review_phase() {
-  local feature="$1" feat_slug="$2"
-  local _unit; _unit="$(_ev_qualified_unit "$feat_slug")"
-  export CLAUDE_BLOCK_UNIT="$_unit" CLAUDE_BLOCK_STAGE="quality"
-  local phase_now
-  phase_now=$(bash "$PF" get-phase "$PLAN")
-  # Per-unit implement→green pointer (CD-2): fires on is_implemented(U) = code AND quality
-  # converged. No implemented.json write — is-implemented is recomputed from the events log.
-  if [[ "$phase_now" == "implement" ]] && bash "$PF" ev-implemented "$PLAN" "$_unit" 2>/dev/null; then
-    bash "$PF" transition "$PLAN" green "critic-quality converged — feature complete"
-  fi
+# _di_spec_list — relative paths of every domain/infrastructure spec.md (pending or tracked).
+# Single source for both the implement cycle and the green barrier so they enumerate identically.
+_di_spec_list() {
+  {
+    git -C "$PROJECT_DIR" status --porcelain 2>/dev/null \
+      | awk '$0 ~ /spec\.md$/{print $NF}' | grep -E '^(src/)?(domain|infrastructure)/' || true
+    git -C "$PROJECT_DIR" ls-files '*/spec.md' 2>/dev/null \
+      | grep -E '^(src/)?(domain|infrastructure)/' || true
+  } | sort -u
+}
+
+# _unit_key_of_spec REL → {layer}-{slug} unit key for a domain/infra spec relative path.
+_unit_key_of_spec() {
+  local _rel="$1" _layer _slug
+  _layer=$(printf '%s' "$_rel" | sed 's|^src/||' | cut -d/ -f1)
+  _slug=$(printf '%s'  "$_rel" | sed 's|^src/||' | cut -d/ -f2)
+  printf '%s-%s' "$_layer" "$_slug"
+}
+
+# _all_units_implemented — phase-level ∀U green barrier (invariant 4). rc0 iff every enumerated
+# unit (domain/infra specs + features) is_implemented (code ∧ quality converged), recomputed from
+# the events log — trusts the log, not the .phase pointer. Empty enumerate → rc1 (|U|>=1
+# fail-closed: never green a plan with no units). Replaces the old per-unit transition, which
+# flipped the WHOLE plan to green on the first unit and let the phase-gated implement loop skip
+# every remaining unit.
+_all_units_implemented() {
+  local _any=0 _rel _u feature
+  while IFS= read -r _rel; do
+    [[ -z "$_rel" ]] && continue
+    _any=1
+    _u=$(_unit_key_of_spec "$_rel")
+    bash "$PF" ev-implemented "$PLAN" "$_u" 2>/dev/null || return 1
+  done < <(_di_spec_list)
+  while IFS= read -r feature; do
+    [[ -z "$feature" ]] && continue
+    _any=1
+    bash "$PF" ev-implemented "$PLAN" "features-$(_slugify_feature "$feature")" 2>/dev/null || return 1
+  done < <(get_features)
+  [[ "$_any" -eq 1 ]]
 }
 
 # _spec_coverage_gate — block implement if no tracked test files exist for this spec's concept.
@@ -690,15 +718,7 @@ _manifest_reconciliation_gate() {
 _phase_domain_infra_implement_cycle() {
   local _di_specs _spec_rel _spec _layer _slug _unit_key
 
-  _di_specs=$(
-    {
-      git -C "$PROJECT_DIR" status --porcelain 2>/dev/null \
-        | awk '$0 ~ /spec\.md$/{print $NF}' \
-        | grep -E '^(src/)?(domain|infrastructure)/' || true
-      git -C "$PROJECT_DIR" ls-files '*/spec.md' 2>/dev/null \
-        | grep -E '^(src/)?(domain|infrastructure)/' || true
-    } | sort -u
-  )
+  _di_specs=$(_di_spec_list)
   [[ -z "$_di_specs" ]] && return 0
 
   while IFS= read -r _spec_rel; do
@@ -712,7 +732,6 @@ _phase_domain_infra_implement_cycle() {
     _impl_reset_for_green "${_layer}/${_slug}"
     _impl_run_test_phase "${_layer}/${_slug}" "$_unit_key" "$_spec"
     _impl_run_implement_phase "${_layer}/${_slug}" "$_unit_key" "$_spec"
-    _impl_run_review_phase "${_layer}/${_slug}" "$_unit_key"
   done <<< "$_di_specs"
 }
 
@@ -726,6 +745,5 @@ _phase_implement_cycle() {
     _impl_reset_for_green "$feature"
     _impl_run_test_phase "$feature" "$feat_slug"
     _impl_run_implement_phase "$feature" "$feat_slug"
-    _impl_run_review_phase "$feature" "$feat_slug"
   done < <(get_features)
 }
