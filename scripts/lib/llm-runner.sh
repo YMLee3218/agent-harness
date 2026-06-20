@@ -34,6 +34,10 @@ run_critic() {
   local agent="$1" phase="$2" prompt="$3" iter_doc="${4:-}"
   local args=(--agent "$agent" --phase "$phase" --plan "$PLAN" --prompt "$prompt")
   [[ -n "$iter_doc" ]] && args+=(--iteration-doc "$iter_doc")
+  # Layer-qualified unit (or reserved singleton scope) for the events fact log. Passed via
+  # CRITIC_UNIT env var (same convention as CRITIC_SPEC_PATH etc.) so positional call sites
+  # need not change. Empty → no unit threaded (additive: events fact skipped downstream).
+  [[ -n "${CRITIC_UNIT:-}" ]] && args+=(--unit "$CRITIC_UNIT")
   _CALL_RC=0
   bash "$SCRIPTS_DIR/run-critic-loop.sh" "${args[@]}" || _CALL_RC=$?
 }

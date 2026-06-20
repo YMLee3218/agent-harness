@@ -4,7 +4,7 @@ if [[ "${CLAUDE_PLAN_CAPABILITY:-}" != "harness" ]]; then
   exec /usr/bin/env CLAUDE_PLAN_CAPABILITY=harness "$0" "$@"
 fi
 
-AGENT="" PHASE="" PLAN="" PROMPT="" ITER_DOC="" NESTED=0
+AGENT="" PHASE="" PLAN="" PROMPT="" ITER_DOC="" NESTED=0 UNIT=""
 PLAN_FILE_SH="$(dirname "${BASH_SOURCE[0]}")/plan-file.sh"
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -13,6 +13,7 @@ while [[ $# -gt 0 ]]; do
     --plan)          PLAN="$2";     shift 2 ;;
     --prompt)        PROMPT="$2";   shift 2 ;;
     --iteration-doc) ITER_DOC="$2"; shift 2 ;;
+    --unit)          UNIT="$2";     shift 2 ;;
     --nested)        NESTED=1;      shift ;;
     *) echo "Unknown argument: $1" >&2; exit 5 ;;
   esac
@@ -27,6 +28,30 @@ ITER_DOC="${ITER_DOC:-@reference/critics.md §Critic one-shot iteration}"
 
 # Source sidecar for transient mechanism
 source "$(dirname "${BASH_SOURCE[0]}")/lib/sidecar.sh" 2>/dev/null || true
+# Source events.sh for the append-only fact log + content-addressed input hashing.
+source "$(dirname "${BASH_SOURCE[0]}")/lib/events.sh" 2>/dev/null || true
+# Logical stage for this critic (brainstorm/spec/cross/test/code/quality) — drives the
+# events fact's stage field and the input-hash resolver. Constant per invocation.
+STAGE="$(_ev_stage_of_agent "$AGENT" 2>/dev/null || echo "$PHASE")"
+# append-note wrapper — always forwards UNIT + STAGE so [BLOCKED:*] notes also emit a
+# unit-keyed events block fact (cmd_append_note guards on empty unit/stage, so an unset
+# UNIT degrades to legacy plan.md/blocked.jsonl-only behaviour). Note arg is $1.
+_an() { bash "$PLAN_FILE_SH" append-note "$PLAN" "$1" "$UNIT" "$STAGE"; }
+# Convergence / ceiling gating — recomputed from the events log when a --unit was threaded;
+# legacy sidecar fallback for unit-less callers (integration recovery, --nested without --unit).
+# _conv_check [frozen_hash] → rc0 if converged. _ceiling_check → rc0 if ceiling reached.
+_conv_check() {
+  if [[ -n "$UNIT" ]]; then bash "$PLAN_FILE_SH" ev-converged "$PLAN" "$UNIT" "$STAGE" "${1:-}" 2>/dev/null
+  else bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; fi
+}
+_ceiling_check() {
+  if [[ -n "$UNIT" ]]; then bash "$PLAN_FILE_SH" ev-ceiling "$PLAN" "$UNIT" "$STAGE" 2>/dev/null
+  else [[ -f "${_conv_path:-/nonexistent}" ]] && command -v jq >/dev/null 2>&1 && \
+    jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; fi
+}
+# _audit_reject REASON — append an events audit-reject fact at the frozen hash _H so the events
+# streak breaks (pass-audit overrode the 2nd PASS / audit inconclusive). No-op without --unit.
+_audit_reject() { [[ -n "$UNIT" ]] && ev_record_audit_reject "$PLAN" "$UNIT" "$STAGE" "${_H:-}" "$1" 2>/dev/null || true; }
 # Source critic-helpers for Codex-driven path (also pulls in engine-registry for routing)
 source "$(dirname "${BASH_SOURCE[0]}")/lib/critic-helpers.sh" 2>/dev/null || true
 # Source the single engine dispatcher (run_engine) used by every LLM/agent spawn below
@@ -35,7 +60,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/engine-runner.sh" 2>/dev/null || true
 source "$(dirname "${BASH_SOURCE[0]}")/lib/sandbox-lib.sh" 2>/dev/null || true
 _init_worker_sandbox "$(dirname "$(dirname "$PLAN")")"
 if [[ "${_SANDBOX_REQUIRED_FAIL:-0}" == "1" ]]; then
-  bash "$PLAN_FILE_SH" append-note "$PLAN" "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
+  _an "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined"
   exit 1
 fi
 
@@ -88,22 +113,20 @@ while true; do
   # Ceiling-blocked check (sidecar)
   _conv_path=$(sc_conv_path "$PLAN" "$PHASE" "$AGENT" 2>/dev/null) || {
     echo "[run-critic-loop] ERROR: sc_conv_path failed — CLAUDE_PROJECT_DIR may be unset" >&2
-    bash "$PLAN_FILE_SH" append-note "$PLAN" "[BLOCKED:env] ${AGENT}: CLAUDE_PROJECT_DIR-unset — sc_conv_path failed; re-run with CLAUDE_PROJECT_DIR set to project root" 2>/dev/null || true
+    _an "[BLOCKED:env] ${AGENT}: CLAUDE_PROJECT_DIR-unset — sc_conv_path failed; re-run with CLAUDE_PROJECT_DIR set to project root" 2>/dev/null || true
     exit 1
   }
-  if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then
-    if jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
-      echo "[BLOCKED:ceiling] ${AGENT}: ${PHASE}/${AGENT} exceeded critic ceiling — manual review required" >&2
-      exit 2
-    fi
+  if _ceiling_check; then
+    echo "[BLOCKED:ceiling] ${AGENT}: ${PHASE}/${AGENT} exceeded critic ceiling — manual review required" >&2
+    exit 2
   fi
-  # General blocked check
+  # General blocked check (global; blocks remain dual-tracked this stage)
   if bash "$PLAN_FILE_SH" is-blocked "$PLAN" 2>/dev/null; then
     echo "[BLOCKED:*] active block detected — exiting critic loop" >&2
     exit 1
   fi
-  # Convergence check (authoritative)
-  if bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; then
+  # Convergence check (authoritative — events recompute when --unit threaded)
+  if _conv_check; then
     echo "CONVERGED"; exit 0
   fi
 
@@ -115,7 +138,7 @@ while true; do
 
   if [[ -L "$_log_dir" ]]; then
     echo "[run-critic-loop] FATAL: sidecar dir $_log_dir is a symlink — refusing" >&2
-    bash "$PLAN_FILE_SH" append-note "$PLAN" \
+    _an \
       "[BLOCKED:harness] run-critic-loop: sidecar-symlink — sidecar dir is a symlink, potential redirect attack; remove the symlink manually" 2>/dev/null || true
     exit 1
   fi
@@ -132,7 +155,7 @@ while true; do
     if [[ -d "$_angles_dir" ]] && compgen -G "${_angles_dir}/*.md" >/dev/null 2>&1; then
       # ── Fan-out path: one codex per angle, then aggregate ──
       _sandbox_guard || {
-        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        _an \
           "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
         exit 1
       }
@@ -143,7 +166,7 @@ while true; do
         _angle_log="${_log_dir}/codex-critic-${AGENT}-angle-${_angle_name}.log"
         if ! build_review_prompt "$AGENT" "$_angle_prompt" "$_angle_file"; then
           rm -f "$_angle_prompt"
-          bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          _an \
             "[BLOCKED:env] ${AGENT}: angle-prompt-build-failed — ${_angle_file}" 2>/dev/null || true
           exit 1
         fi
@@ -164,12 +187,12 @@ while true; do
       # ── Single codex path (original — no angles/ dir) ──
       _review_prompt=$(mktemp /tmp/critic-${AGENT}-review.XXXXXX)
       if ! build_review_prompt "$AGENT" "$_review_prompt"; then
-        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        _an \
           "[BLOCKED:env] ${AGENT}: review-prompt-build-failed — check skills/${AGENT}/SKILL.md" 2>/dev/null || true
         rm -f "$_review_prompt"; exit 1
       fi
       _sandbox_guard || {
-        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        _an \
           "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
         exit 1
       }
@@ -215,7 +238,7 @@ while true; do
     # 5. Handle missing verdict marker
     if [[ -z "$_verdict" ]]; then
       if [[ ! -s "$_review_log" ]]; then
-        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        _an \
           "[BLOCKED:env] ${AGENT}: critic-skill-not-run — codex produced empty output"
         exit 1
       fi
@@ -233,27 +256,30 @@ while true; do
       fi
     fi
 
-    # 6. Record verdict directly (validates enum, handles consecutive PARSE_ERROR)
+    # 6. Record verdict directly (validates enum, handles consecutive PARSE_ERROR).
+    # Freeze the content-addressed input hash NOW — the snapshot the critic just judged —
+    # and carry it into the verdict fact (events log). Computed once; never re-derived at
+    # append time. Skipped (empty) when no --unit was threaded (legacy/additive callers).
+    _H=""
+    [[ -n "$UNIT" ]] && _H="$(_stage_input_hash "$PLAN" "$UNIT" "$STAGE" 2>/dev/null || echo "")"
     _rvd_exit=0
     bash "$PLAN_FILE_SH" record-verdict-direct \
-      "$PLAN" "$AGENT" "$PHASE" "$_verdict" "$_category" || _rvd_exit=$?
+      "$PLAN" "$AGENT" "$PHASE" "$_verdict" "$_category" "$UNIT" "$_H" || _rvd_exit=$?
     # record-verdict-direct exits 1 BY DESIGN after persisting a FAIL/PARSE_ERROR verdict
     # (_persist_verdict:686 / _handle_parse_error:498); PASS exits 0. Only a deviation from this
     # contract is a genuine recorder failure (e.g. require_file exit 2, lock-absent die).
     _rvd_expected=0
     [[ "$_verdict" == "FAIL" || "$_verdict" == "PARSE_ERROR" ]] && _rvd_expected=1
     if [[ "$_rvd_exit" -ne "$_rvd_expected" ]]; then
-      bash "$PLAN_FILE_SH" append-note "$PLAN" \
+      _an \
         "[BLOCKED:env] ${AGENT}: verdict-record-failure — record-verdict-direct exited ${_rvd_exit} (expected ${_rvd_expected}); check plan-file.sh" \
         2>/dev/null || true
       echo "[BLOCKED:env] ${AGENT}: record-verdict-direct failed (exit ${_rvd_exit}, expected ${_rvd_expected})" >&2; exit 1
     fi
 
     # 7. Re-check blocked/ceiling after verdict recording
-    if [[ -f "$_conv_path" ]] && command -v jq >/dev/null 2>&1; then
-      if jq -r '.ceiling_blocked // false' "$_conv_path" 2>/dev/null | grep -q '^true$'; then
-        echo "[BLOCKED:ceiling] ${AGENT}: exceeded critic ceiling" >&2; exit 2
-      fi
+    if _ceiling_check; then
+      echo "[BLOCKED:ceiling] ${AGENT}: exceeded critic ceiling" >&2; exit 2
     fi
     if bash "$PLAN_FILE_SH" is-blocked "$PLAN" 2>/dev/null; then
       echo "[BLOCKED:*] active block after verdict record — exiting" >&2; exit 1
@@ -261,7 +287,8 @@ while true; do
 
     # 8. Branch on verdict
     if [[ "$_verdict" == "PASS" ]]; then
-      if bash "$PLAN_FILE_SH" is-converged "$PLAN" "$PHASE" "$AGENT" 2>/dev/null; then
+      # Pass-audit gate uses the FROZEN hash (_H) so 1st/2nd PASS share input identity (no racy re-read).
+      if _conv_check "$_H"; then
         # 2nd consecutive PASS — one Claude call for REJECT-PASS check only
         _pass_audit_prompt=$(mktemp /tmp/critic-${AGENT}-passaudit.XXXXXX)
         build_pass_audit_prompt "$AGENT" "$_review_log" "$PLAN" "$_pass_audit_prompt"
@@ -269,7 +296,7 @@ while true; do
         _pass_check_out=""
         _sandbox_guard || {
           bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
-          bash "$PLAN_FILE_SH" append-note "$PLAN" \
+          _an \
             "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
           exit 1
         }
@@ -291,6 +318,7 @@ while true; do
             grep 'VERDICT: REJECT-PASS' | sed 's/VERDICT: REJECT-PASS[[:space:]]*—[[:space:]]*//' | \
             head -1 | cut -c1-120 || echo "gap found")
           bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
+          _audit_reject "REJECT-PASS: ${_reject_reason}"   # break events streak at frozen _H
           bash "$PLAN_FILE_SH" append-audit "$PLAN" "$AGENT" "REJECT-PASS" \
             "audit overrode PASS — ${_reject_reason}" 2>/dev/null || true
           # Fall through to NOOP check and loop again
@@ -301,6 +329,7 @@ while true; do
         else
           # Audit produced no recognisable verdict — treat as transient and retry
           bash "$PLAN_FILE_SH" clear-converged "$PLAN" "$AGENT" 2>/dev/null || true
+          _audit_reject "audit-inconclusive: no VERDICT line"   # break events streak at frozen _H
           _record_transient "$PLAN" "$AGENT" thinking-block-api-error \
             "PASS audit produced no VERDICT line — retrying" "$PLAN_FILE_SH" 2>/dev/null && {
             echo "[transient] promoted pass-audit failure to [BLOCKED:env] after threshold" >&2; exit 1
@@ -316,7 +345,7 @@ while true; do
 
       _decision_out=""
       _sandbox_guard || {
-        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        _an \
           "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
         exit 1
       }
@@ -336,7 +365,7 @@ while true; do
       _audit_outcome=$(parse_audit_outcome "$_decision_out")
 
       if [[ -z "$_audit_outcome" ]]; then
-        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        _an \
           "[BLOCKED:env] ${AGENT}: decision-parse-failure — claude decision agent produced no AUDIT: line; check decision prompt output" 2>/dev/null || true
         echo "[run-critic-loop] [BLOCKED:env] ${AGENT}: decision-parse-failure" >&2
         exit 1
@@ -358,7 +387,7 @@ while true; do
           _fix_log="${_log_dir}/codex-critic-${AGENT}-fix.log"
           _fix_exit=0
           _sandbox_guard || {
-            bash "$PLAN_FILE_SH" append-note "$PLAN" \
+            _an \
               "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
             exit 1
           }
@@ -374,7 +403,7 @@ while true; do
       if [[ "$_audit_outcome" == "BLOCKED-AMBIGUOUS" ]]; then
         while IFS= read -r _bs_line; do
           [[ -n "$_bs_line" ]] || continue
-          bash "$PLAN_FILE_SH" append-note "$PLAN" "$_bs_line" 2>/dev/null || true
+          _an "$_bs_line" 2>/dev/null || true
         done < <(printf '%s' "$_decision_out" | grep -E '^\[BLOCKED:(spec|docs)\]' || true)
       fi
 
@@ -396,7 +425,7 @@ while true; do
     _nonce="" _session_out="" _sid=""
     _session_out=$(mktemp)
     _sandbox_guard || {
-      bash "$PLAN_FILE_SH" append-note "$PLAN" \
+      _an \
         "[BLOCKED:env] ${AGENT}: sandbox-unavailable — Tier 1 sandbox inactive; set CLAUDE_ALLOW_UNSANDBOXED=1 to run unconfined" 2>/dev/null || true
       exit 1
     }
@@ -406,6 +435,14 @@ while true; do
     # exits with the engine's exit code so `wait` still observes 124 on timeout.
     _iter_prompt_file=$(mktemp /tmp/critic-${AGENT}-bsession.XXXXXX)
     printf '%s' "$ITER_PROMPT" > "$_iter_prompt_file"
+    # critic-feature records its verdict via the in-session record-verdict hook (transcript-driven,
+    # no record-verdict-direct). Carry the unit + frozen input_hash through the environment so the
+    # hook's cmd_record_verdict emits the events fact under the correct (unit,stage). Frozen now —
+    # critic-feature only edits machine plan.md sections, so the brainstorm authored-section hash is stable.
+    if [[ -n "$UNIT" ]]; then
+      export CLAUDE_VERDICT_UNIT="$UNIT"
+      export CLAUDE_VERDICT_INPUT_HASH="$(_stage_input_hash "$PLAN" "$UNIT" "$STAGE" 2>/dev/null || echo "")"
+    fi
     ( run_engine --role critic-feature --prompt-file "$_iter_prompt_file" --out "$_session_out" \
         --timeout "$SESSION_TIMEOUT" \
         --env CLAUDE_NONINTERACTIVE=1 --env CLAUDE_CRITIC_SESSION=1 --env "CLAUDE_PLAN_FILE=$PLAN"
@@ -431,7 +468,7 @@ while true; do
           echo "[transient] thinking-block-api-error — retrying session" >&2; continue
         fi
       else
-        bash "$PLAN_FILE_SH" append-note "$PLAN" \
+        _an \
           "[BLOCKED:env] ${AGENT}: script-failure — exit ${exit_code}; check session logs" 2>/dev/null || true
         echo "[BLOCKED:env] script-failure: ${exit_code}" >&2; exit 1
       fi
@@ -450,7 +487,7 @@ while true; do
   if [[ "$plan_hash" == "$LAST_PLAN_HASH" ]]; then
     CONSECUTIVE_NOOP=$((CONSECUTIVE_NOOP + 1))
     if [[ $CONSECUTIVE_NOOP -ge 2 ]]; then
-      bash "$PLAN_FILE_SH" append-note "$PLAN" \
+      _an \
         "[BLOCKED:env] ${AGENT}: plan-unchanged — for ${CONSECUTIVE_NOOP} iterations; check session logs" 2>/dev/null || true
       echo "[BLOCKED:env] plan-unchanged for $CONSECUTIVE_NOOP consecutive iterations" >&2; exit 1
     fi

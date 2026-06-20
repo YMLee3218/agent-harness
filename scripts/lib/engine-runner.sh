@@ -77,6 +77,20 @@ run_engine() {
   [[ -n "$_prompt_file" ]] || { echo "[engine] ERROR: --prompt-file is required" >&2; return 2; }
   [[ -n "$_out_file" && -n "$_capture_var" ]] && { echo "[engine] ERROR: --out and --capture are mutually exclusive" >&2; return 2; }
 
+  # Hermetic test seam: when CLAUDE_ENGINE_STUB points to an executable, the entire real engine
+  # spawn (registry resolution, sandbox gate, codex/claude binary) is replaced by the stub. The
+  # stub receives (role, prompt-file, cwd) and writes the engine's stdout; its exit code becomes
+  # _ENGINE_RC. NEVER set in production — it bypasses the Tier-1 sandbox by design, for tests only.
+  if [[ -n "${CLAUDE_ENGINE_STUB:-}" ]]; then
+    local _stub_out="" _stub_rc=0
+    _stub_out=$("$CLAUDE_ENGINE_STUB" "$_role" "$_prompt_file" "${_cwd:-$PWD}" 2>/dev/null) || _stub_rc=$?
+    _ENGINE_RC=$_stub_rc
+    if [[ -n "$_capture_var" ]]; then printf -v "$_capture_var" '%s' "$_stub_out"
+    elif [[ -n "$_out_file" ]]; then printf '%s\n' "$_stub_out" > "$_out_file"
+    else printf '%s\n' "$_stub_out"; fi
+    return 0
+  fi
+
   # Resolve engine/model from the registry when not explicitly provided.
   if [[ -z "$_engine" ]]; then
     _engine=$(engine_for "$_role") || { echo "[engine] ERROR: unknown role: ${_role:-<none>}" >&2; return 2; }

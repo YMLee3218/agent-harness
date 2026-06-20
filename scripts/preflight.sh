@@ -63,6 +63,12 @@ if ! command -v jq >/dev/null 2>&1; then
   _append_blocked "jq" "install jq (brew install jq or apt install jq)"
 fi
 
+# Check: a SHA-256 tool (sha256sum or shasum) — events input-hash content-addressing requires it.
+# Halting here ensures the events "no-sha-tool" sentinel never arises at runtime.
+if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+  _append_blocked "sha256" "install coreutils (sha256sum) or perl/openssl (shasum) — events content-addressing requires a SHA-256 tool"
+fi
+
 # Check: context7-plugin
 if ! claude plugin list 2>/dev/null | grep -q 'context7-plugin'; then
   _append_blocked "context7-plugin" "install via settings.json enabledPlugins or 'claude plugin install'"

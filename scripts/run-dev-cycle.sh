@@ -152,7 +152,7 @@ if [[ -z "$PLAN" ]]; then
 fi
 
 if [[ -n "${current_phase:-}" ]] && [[ "$current_phase" == "brainstorm" ]] && \
-   ! bash "$PF" is-converged "$PLAN" brainstorm critic-feature 2>/dev/null; then
+   ! bash "$PF" ev-converged "$PLAN" __brainstorm__ brainstorm 2>/dev/null; then
   run_llm "Invoke the brainstorming skill." opus
   llm_exit "brainstorming"
   find_rc=0
@@ -171,6 +171,7 @@ if [[ -n "${current_phase:-}" ]] && [[ "$current_phase" == "brainstorm" ]] && \
   fi
   bash "$PF" reset-milestone "$PLAN" critic-feature
   CRITIC_PLAN_PATH="${PLAN}" \
+  CRITIC_UNIT="__brainstorm__" \
   run_critic critic-feature brainstorm \
     "Review docs/requirements/$(basename "$PLAN" .md).md."
   llm_exit "critic-feature"

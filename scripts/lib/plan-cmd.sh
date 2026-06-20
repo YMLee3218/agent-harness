@@ -272,7 +272,13 @@ cmd_commit_phase() {
 # ── Notes / stop-block / context ──────────────────────────────────────────────
 
 cmd_append_note() {
-  local plan_file="$1" note="$2"
+  local plan_file="$1" note="$2" _unit="${3:-}" _stage="${4:-}"
+  # Ambient fallback: orchestrator phase-functions export CLAUDE_BLOCK_UNIT / CLAUDE_BLOCK_STAGE
+  # around per-unit work so the ~50 scattered [BLOCKED:*] append-note sites emit unit-keyed
+  # events block facts without each threading explicit args. Explicit args (run-critic-loop's
+  # _an) take precedence; absent both → legacy plan.md/blocked.jsonl-only behaviour.
+  [[ -z "$_unit"  ]] && _unit="${CLAUDE_BLOCK_UNIT:-}"
+  [[ -z "$_stage" ]] && _stage="${CLAUDE_BLOCK_STAGE:-}"
   require_file "$plan_file"
   # [BLOCKED:transient] must never reach plan.md — route to sidecar transient counter only.
   if printf '%s' "${note:-}" | grep -qF '[BLOCKED:transient]'; then
@@ -306,6 +312,12 @@ cmd_append_note() {
     if ! _record_blocked "$plan_file" "$_kind" "$_agent" "$(basename "$plan_file" .md)" "$note"; then
       echo "[append-note] FATAL: blocked.jsonl write failed — plan.md NOT marked" >&2
       return 2
+    fi
+    # Group-additive: emit the unit-keyed block fact ALONGSIDE legacy blocked.jsonl when the
+    # caller threaded a unit + stage. ceiling kind is NOT an events block fact (count-derived
+    # predicate, invariant 10); transient already returned above. Dedup is invariant-3.
+    if [[ -n "$_unit" && -n "$_stage" && "$_kind" != "ceiling" ]]; then
+      ev_record_block "$plan_file" "$_unit" "$_stage" "$_kind" "$note" 2>/dev/null || true
     fi
   fi
   _append_to_open_questions "$plan_file" "$note"
@@ -404,6 +416,7 @@ _dispatch_rls_rc() {
 _check_consecutive_and_block() {
   local plan_file="$1" phase="$2" agent="$3"
   local jq_prev_query="$4" match_val="$5" kind="$6" msg="$7" log_label="$8"
+  local _unit="${9:-}"
   local _ms _prev_val _vpath _scope
   _scope=$(_scope_of "$phase" "$agent")
   _ms=$(jq -r '.milestone_seq // 0' "$(sc_conv_path "$plan_file" "$phase" "$agent")" 2>/dev/null || echo 0)
@@ -433,6 +446,8 @@ _check_consecutive_and_block() {
         echo "[record-verdict] FATAL: blocked.jsonl write failed for ${log_label} — plan.md NOT marked" >&2
         return 2
       fi
+      # Group-additive: unit-keyed block fact (channel G). Stage derived from the agent.
+      [[ -n "$_unit" ]] && ev_record_block "$plan_file" "$_unit" "$(_ev_stage_of_agent "$agent")" "code" "$msg" 2>/dev/null || true
       _append_to_open_questions "$plan_file" "[BLOCKED:code] ${agent}: ${kind} — ${msg}"
       echo "[record-verdict] ${log_label}" >&2
       return 0
@@ -484,15 +499,17 @@ _parse_verdict_message() {
 
 _handle_parse_error() {
   local plan_file="$1" current_phase="$2" agent="$3" log_msg="$4" block_msg="$5" retry_msg="$6"
+  local _unit="${7:-}" _input_hash="${8:-}"
   echo "[record-verdict] ${log_msg}" >&2
   local _hpe_rc=0
-  _record_loop_state "$plan_file" "$current_phase" "$agent" "PARSE_ERROR" || _hpe_rc=$?
+  _record_loop_state "$plan_file" "$current_phase" "$agent" "PARSE_ERROR" "" "$_unit" "$_input_hash" || _hpe_rc=$?
   [[ $_hpe_rc -ne 0 ]] && _dispatch_rls_rc "$plan_file" "${current_phase}/${agent}: PARSE_ERROR" "$_hpe_rc" "$current_phase" "$agent"
   local _ccb_parse_rc=0
   _check_consecutive_and_block "$plan_file" "$current_phase" "$agent" \
       '[.[] | select(.phase == $p and .agent == $a and .milestone_seq == $ms)] | .[-2].verdict // ""' \
       "PARSE_ERROR" "parse" "$block_msg" \
-      "BLOCKED parse: ${agent} two consecutive PARSE_ERRORs" || _ccb_parse_rc=$?
+      "BLOCKED parse: ${agent} two consecutive PARSE_ERRORs" \
+      "$_unit" || _ccb_parse_rc=$?
   case $_ccb_parse_rc in
     0) : ;;
     1) echo "[record-verdict] ${retry_msg}" >&2
@@ -668,10 +685,11 @@ _resolve_verdict_payload() {
 
 _persist_verdict() {
   local _plan="$1" _phase="$2" _agent="$3" _verdict="$4" _category="$5" _output="${6:-}"
+  local _unit="${7:-}" _input_hash="${8:-}"
   local _label="${_phase}/${_agent}: ${_verdict}"
   [ -n "$_category" ] && _label="${_label} [category: ${_category}]"
   local _rls_rc=0
-  _record_loop_state "$_plan" "$_phase" "$_agent" "$_verdict" "$_category" || _rls_rc=$?
+  _record_loop_state "$_plan" "$_phase" "$_agent" "$_verdict" "$_category" "$_unit" "$_input_hash" || _rls_rc=$?
   [[ $_rls_rc -ne 0 ]] && _dispatch_rls_rc "$_plan" "$_label" "$_rls_rc" "$_phase" "$_agent"
   if [ "$_verdict" = "FAIL" ] && [ -n "$_category" ]; then
     local _ccb_rc=0
@@ -679,7 +697,8 @@ _persist_verdict() {
       '[.[] | select(.phase == $p and .agent == $a and .milestone_seq == $ms and .verdict != "PARSE_ERROR")] | .[-2] | select(.verdict == "FAIL") | .category // ""' \
       "$_category" "category" \
       "${_category} flagged 2× consecutively — next fix must resolve the root cause behind every ${_category} finding, not only the latest" \
-      "consecutive same-category FAIL (${_category}) from ${_agent} — feedforward note written" || _ccb_rc=$?
+      "consecutive same-category FAIL (${_category}) from ${_agent} — feedforward note written" \
+      "$_unit" || _ccb_rc=$?
     case $_ccb_rc in
       1) : ;;
       2) cmd_append_verdict "$_plan" "[BLOCKED:harness] sidecar: corrupt-check — ${_label}"; exit 1 ;;
@@ -695,11 +714,15 @@ cmd_record_verdict() {
   local input; input=$(cat)
   local plan_file agent_name current_phase verdict category _output
   _resolve_verdict_payload "$input"
-  _persist_verdict "$plan_file" "$current_phase" "$agent_name" "$verdict" "$category" "$_output"
+  # Transcript-driven (hook) path: no CLI unit/hash. critic-feature's run-critic-loop exports
+  # CLAUDE_VERDICT_UNIT / CLAUDE_VERDICT_INPUT_HASH so the events fact is keyed correctly.
+  _persist_verdict "$plan_file" "$current_phase" "$agent_name" "$verdict" "$category" "$_output" \
+    "${CLAUDE_VERDICT_UNIT:-}" "${CLAUDE_VERDICT_INPUT_HASH:-}"
 }
 
 cmd_record_verdict_direct() {
   local plan_file="$1" agent="$2" phase="$3" verdict="$4" category="${5:-}"
+  local _unit="${6:-}" _input_hash="${7:-}"
   require_file "$plan_file"
   _validate_critic_agent "$agent" "record-verdict-direct"
 
@@ -714,7 +737,8 @@ cmd_record_verdict_direct() {
     _handle_parse_error "$plan_file" "$current_phase" "$agent" \
       "PARSE_ERROR (no verdict markers in codex output) for ${agent}" \
       "verdict marker missing (two consecutive parse errors) — check codex output format before retrying" \
-      "first PARSE_ERROR for ${agent} — will retry automatically"
+      "first PARSE_ERROR for ${agent} — will retry automatically" \
+      "$_unit" "$_input_hash"
     return
   fi
 
@@ -722,7 +746,8 @@ cmd_record_verdict_direct() {
     _handle_parse_error "$plan_file" "$current_phase" "$agent" \
       "FAIL without category from ${agent} (shell-driven path)" \
       "FAIL without category (two consecutive parse errors) — check codex output format" \
-      "first FAIL-without-category for ${agent} — will retry automatically"
+      "first FAIL-without-category for ${agent} — will retry automatically" \
+      "$_unit" "$_input_hash"
     return
   fi
 
@@ -730,7 +755,8 @@ cmd_record_verdict_direct() {
     _handle_parse_error "$plan_file" "$current_phase" "$agent" \
       "PASS with non-NONE category '${category}' from ${agent} (shell-driven path)" \
       "PASS with non-NONE category (two consecutive parse errors)" \
-      "first PASS-with-non-NONE-category for ${agent} — will retry automatically"
+      "first PASS-with-non-NONE-category for ${agent} — will retry automatically" \
+      "$_unit" "$_input_hash"
     return
   fi
 
@@ -745,13 +771,14 @@ cmd_record_verdict_direct() {
         _handle_parse_error "$plan_file" "$current_phase" "$agent" \
           "invalid category '${category}' from ${agent} (shell-driven path) — not in severity.md enum" \
           "invalid category (two consecutive parse errors) — check codex output format" \
-          "first invalid-category PARSE_ERROR for ${agent} — will retry automatically"
+          "first invalid-category PARSE_ERROR for ${agent} — will retry automatically" \
+          "$_unit" "$_input_hash"
     fi
   fi
 
   local _final_cat="$category"
   [[ "$_final_cat" == "NONE" ]] && _final_cat=""
-  _persist_verdict "$plan_file" "$current_phase" "$agent" "$verdict" "$_final_cat"
+  _persist_verdict "$plan_file" "$current_phase" "$agent" "$verdict" "$_final_cat" "" "$_unit" "$_input_hash"
 }
 
 cmd_record_verdict_guarded() {
@@ -879,6 +906,9 @@ cmd_unblock() {
     s && /^## /           { exit }
     s && /^\[BLOCKED:(envelope|docs|spec|code|env|harness|ceiling)\]/ { print }
   ' "$plan_file" 2>/dev/null || true)
+  # Events model: append human-clear facts so ev-blocked / ev-ceiling recompute as cleared.
+  # This is what actually unblocks an events-keyed stage (the legacy sidecar above is dead).
+  ev_unblock_all "$plan_file" 2>/dev/null || true
   echo "[unblock] cleared ${_count} markers in ${plan_file}" >&2
 }
 
@@ -1244,39 +1274,8 @@ cmd_is_blocked() {
   return 1
 }
 
-cmd_is_implemented() {
-  local plan_file="$1" feat_slug="$2"
-  require_file "$plan_file"
-  local impl_path
-  impl_path=$(sc_path "$plan_file" "$SC_IMPLEMENTED")
-  command -v jq >/dev/null 2>&1 || return 1
-  if [[ ! -f "$impl_path" ]]; then
-    echo "[is-implemented] WARNING: sidecar implemented.json absent — treating as not-implemented" >&2
-    return 1
-  fi
-  local result
-  result=$(jq -r --arg slug "$feat_slug" '.features | map(. == $slug) | any' "$impl_path" 2>/dev/null || echo false)
-  [[ "$result" == "true" ]]
-}
-
-cmd_mark_implemented() {
-  local plan_file="$1" feat_slug="$2"
-  require_file "$plan_file"
-  sc_ensure_dir "$plan_file" || die "ERROR: sidecar dir setup failed for $plan_file"
-  require_jq
-  local impl_path existing new_state
-  impl_path=$(sc_path "$plan_file" "$SC_IMPLEMENTED")
-  if [[ -f "$impl_path" ]]; then
-    existing=$(cat "$impl_path")
-  else
-    existing='{"features":[]}'
-  fi
-  new_state=$(printf '%s' "$existing" | jq --arg slug "$feat_slug" \
-    '.features |= (. + [$slug] | unique)')
-  sc_update_json "$impl_path" "$new_state"
-  _append_to_open_questions "$plan_file" "[IMPLEMENTED: ${feat_slug}]"
-  echo "[mark-implemented] ${feat_slug} marked implemented in ${plan_file}" >&2
-}
+# is-implemented / mark-implemented (implemented.json) removed — feature completion is now a
+# pure recompute over the events log via ev-implemented (code∧quality convergence).
 
 cmd_get_envelope() {
   local plan_file="$1"

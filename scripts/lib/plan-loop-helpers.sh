@@ -7,6 +7,7 @@ _PLAN_LOOP_HELPERS_LOADED=1
 
 _PLAN_LOOP_STATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -n "${_PLAN_LIB_LOADED:-}" ]] || . "$_PLAN_LOOP_STATE_DIR/plan-lib.sh"
+[[ -n "${_EVENTS_LOADED:-}" ]] || . "$_PLAN_LOOP_STATE_DIR/events.sh"
 
 # Reset the sidecar convergence JSON for a phase/agent scope (increment milestone_seq).
 # Called by reset-milestone, reset-pr-review, clear-converged.
@@ -155,11 +156,16 @@ _compute_streak() {
 _record_loop_state_body() {
   local plan_file="$1" current_phase="$2" agent="$3" verdict="$4" category="$5"
   local scope="$6" ceiling="$7" verdicts_path="$8" convergence_path="$9"
+  local unit="${10:-}" input_hash="${11:-}"
   local conv_state; conv_state=$(sc_read_json "$convergence_path" \
     '{"first_turn":false,"streak":0,"converged":false,"ceiling_blocked":false,"ordinal":0,"milestone_seq":0}')
-  # if already ceiling-blocked, return immediately.
+  # Events mode (unit threaded): the events ceiling predicate (ev-ceiling, enforced by
+  # run-critic-loop) is authoritative. Skip the legacy sidecar ceiling so a ceiling-crossing
+  # PASS does not return rc1 here and trip record-verdict-direct's exit-code contract.
+  local _events_mode=0; [[ -n "$unit" ]] && _events_mode=1
+  # if already ceiling-blocked, return immediately (legacy mode only).
   local prior_cb; prior_cb=$(printf '%s' "$conv_state" | jq -r '.ceiling_blocked // false')
-  if [[ "$prior_cb" == "true" ]]; then
+  if [[ "$_events_mode" -eq 0 && "$prior_cb" == "true" ]]; then
     echo "[record-loop-state] [BLOCKED:ceiling]: ${scope} already ceiling-blocked — run reset-milestone to resume" >&2
     return 1
   fi
@@ -169,8 +175,10 @@ _record_loop_state_body() {
   # Compute streak BEFORE ceiling_block: rc=3 failure returns with no sidecar mutation.
   local streak; streak=$(_compute_streak "$plan_file" "$verdicts_path" "$verdict" \
     "$current_phase" "$agent" "$ms") || return 3
-  _ceiling_block "$plan_file" "$current_phase" "$agent" "$scope" \
-    "$run_ordinal" "$ceiling" "$conv_state" "$convergence_path" || return 1
+  if [[ "$_events_mode" -eq 0 ]]; then
+    _ceiling_block "$plan_file" "$current_phase" "$agent" "$scope" \
+      "$run_ordinal" "$ceiling" "$conv_state" "$convergence_path" || return 1
+  fi
   # Re-read conv_state after _ceiling_block (which may have updated ceiling_blocked — L3)
   conv_state=$(sc_read_json "$convergence_path" \
     '{"first_turn":false,"streak":0,"converged":false,"ceiling_blocked":false,"ordinal":0,"milestone_seq":0}')
@@ -193,15 +201,28 @@ _record_loop_state_body() {
     echo "[record-loop-state] ERROR: verdicts.jsonl append failed for ${scope} — verdict not persisted to jsonl" >&2
     return 4
   fi
-  sc_update_json "$convergence_path" \
-    "$(sc_make_conv_state "$current_phase" "$agent" \
-      "$([ "$new_first_turn" = "true" ] && echo true || echo false)" \
-      "$streak" \
-      "$([ "$new_converged" = "true" ] && echo true || echo false)" \
-      "$([ "$prior_cb" = "true" ] && echo true || echo false)" \
-      "$run_ordinal" "$ms" \
-    | jq --arg cat "$category" --arg fp "$(_spec_fingerprint)" \
-      '. + {last_verdict_category: $cat, spec_fingerprint: $fp}')"
+  # Group-additive: emit the append-only events fact ALONGSIDE the legacy verdicts.jsonl /
+  # convergence sidecar (which remain authoritative until reader cutover). Only when the
+  # caller threaded a unit + frozen input_hash; legacy callers (no unit) skip this, so
+  # behaviour is byte-identical to before. stage is derived from the agent.
+  if [[ -n "$unit" && -n "$input_hash" ]]; then
+    local _ev_stage; _ev_stage=$(_ev_stage_of_agent "$agent")
+    ev_record_verdict "$plan_file" "$unit" "$_ev_stage" "$input_hash" "$verdict" "$category" \
+      2>/dev/null || echo "[record-loop-state] WARN: events verdict-fact append failed for ${unit}/${_ev_stage}" >&2
+  fi
+  # Events mode: the convergence sidecar is dead (ev-converged/ev-ceiling are authoritative).
+  # Skip writing it entirely — this is the group-delete of the dual-truth derived cache.
+  if [[ "$_events_mode" -eq 0 ]]; then
+    sc_update_json "$convergence_path" \
+      "$(sc_make_conv_state "$current_phase" "$agent" \
+        "$([ "$new_first_turn" = "true" ] && echo true || echo false)" \
+        "$streak" \
+        "$([ "$new_converged" = "true" ] && echo true || echo false)" \
+        "$([ "$prior_cb" = "true" ] && echo true || echo false)" \
+        "$run_ordinal" "$ms" \
+      | jq --arg cat "$category" --arg fp "$(_spec_fingerprint)" \
+        '. + {last_verdict_category: $cat, spec_fingerprint: $fp}')"
+  fi
   if [[ "$verdict" != "PARSE_ERROR" ]] && [[ "$was_first_turn" != "true" ]]; then
     echo "[record-loop-state] first real verdict for ${scope}" >&2
   fi
@@ -211,6 +232,7 @@ _record_loop_state_body() {
 }
 _record_loop_state() {
   local plan_file="$1" current_phase="$2" agent="$3" verdict="$4" category="${5:-}"
+  local unit="${6:-}" input_hash="${7:-}"
   command -v jq >/dev/null 2>&1 || \
     die "_record_loop_state: jq is required — install jq (brew install jq or apt install jq)"
   local scope; scope=$(_scope_of "$current_phase" "$agent")
@@ -222,5 +244,5 @@ _record_loop_state() {
   # Use .rls.lock suffix to avoid deadlock with sc_update_json's .lock suffix.
   _with_lock "${convergence_path}.rls.lock" _record_loop_state_body \
     "$plan_file" "$current_phase" "$agent" "$verdict" "$category" \
-    "$scope" "$ceiling" "$verdicts_path" "$convergence_path"
+    "$scope" "$ceiling" "$verdicts_path" "$convergence_path" "$unit" "$input_hash"
 }

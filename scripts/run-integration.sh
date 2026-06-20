@@ -18,6 +18,9 @@ done
 [[ -z "$PLAN" || -z "$INTEGRATION_CMD" ]] && {
   echo "Usage: run-integration.sh --plan PATH --integration-cmd CMD [--unit-cmd CMD]" >&2; exit 1; }
 [[ -f "$PLAN" ]] || { echo "Plan file not found: $PLAN" >&2; exit 1; }
+# Ambient events context for this whole process (and its integration-helpers children):
+# integration blocks are keyed to the __integration__ singleton scope (invariant 13).
+export CLAUDE_BLOCK_UNIT="__integration__" CLAUDE_BLOCK_STAGE="integration"
 [[ "$UNIT_CMD" == _\(run* || "$UNIT_CMD" == \{* ]] && UNIT_CMD=""
 [[ "$INTEGRATION_CMD" == _\(run* || "$INTEGRATION_CMD" == \{* ]] && { echo "run-integration: integration-cmd is unfilled — run /initializing-project first" >&2; exit 1; }
 

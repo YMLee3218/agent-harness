@@ -7,7 +7,7 @@ _SIDECAR_LOADED=1
 
 SC_VERDICTS="verdicts.jsonl"
 SC_BLOCKED="blocked.jsonl"
-SC_IMPLEMENTED="implemented.json"
+# implemented.json removed — feature completion is recomputed via ev-implemented (events log).
 
 # Defined here so sidecar helpers can use it without active-plan.sh dependency.
 # active-plan.sh re-exports the same function if loaded first; both definitions are identical.

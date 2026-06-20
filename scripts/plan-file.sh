@@ -12,12 +12,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Capability ring gate
 case "$1" in
   # Ring A — agent-callable: read-only or narrative-safe
-  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|is-blocked|is-implemented|get-envelope|get-task-unit) ;;
+  init|get-phase|find-active|find-latest|context|append-note|tier-safe|is-converged|is-blocked|get-envelope|get-task-unit) ;;
+  # Ring A — events-recompute query commands (pure reads over events/{scope}.jsonl)
+  ev-converged|ev-implemented|ev-blocked|ev-ceiling|stage-satisfied) ;;
 
   # Ring B — CLAUDE_PLAN_CAPABILITY=harness required (harness scripts; human operators: export CLAUDE_PLAN_CAPABILITY=harness): state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
   reset-for-rollback|record-verdict|record-verdict-guarded|record-verdict-direct|\
-  gc-events|gc-verdicts|record-task-completed|record-stop-block|mark-implemented|\
+  gc-events|gc-verdicts|record-task-completed|record-stop-block|\
   inter-feature-reset|set-task-unit|clear-task-state)
     require_capability "$1" B
     if [ "$1" = "record-verdict" ]; then
@@ -52,12 +54,12 @@ case "$1" in
   get-phase)            [ $# -eq 2 ] || die "Usage: plan-file.sh get-phase <plan-file>"; cmd_get_phase "$2" ;;
   set-phase)            [ $# -eq 3 ] || die "Usage: plan-file.sh set-phase <plan-file> <phase>"; cmd_set_phase "$2" "$3" ;;
   append-audit)         [ $# -eq 5 ] || die "Usage: plan-file.sh append-audit <plan-file> <agent> <ACCEPT|ACCEPT-OVERRIDE|REJECT-PASS|BLOCKED-AMBIGUOUS> <summary>"; cmd_append_audit "$2" "$3" "$4" "$5" ;;
-  append-note)          [ $# -eq 3 ] || die "Usage: plan-file.sh append-note <plan-file> <note>"; cmd_append_note "$2" "$3" ;;
+  append-note)          [ $# -ge 3 ] || die "Usage: plan-file.sh append-note <plan-file> <note> [unit] [stage]"; cmd_append_note "$2" "$3" "${4:-}" "${5:-}" ;;
   find-active)          cmd_find_active ;;
   find-latest)          cmd_find_latest ;;
   record-verdict)         cmd_record_verdict ;;
   record-verdict-guarded)   cmd_record_verdict_guarded ;;
-  record-verdict-direct) [ $# -ge 5 ] || die "Usage: plan-file.sh record-verdict-direct <plan-file> <agent> <phase> <verdict> [category]"; cmd_record_verdict_direct "$2" "$3" "$4" "$5" "${6:-}" ;;
+  record-verdict-direct) [ $# -ge 5 ] || die "Usage: plan-file.sh record-verdict-direct <plan-file> <agent> <phase> <verdict> [category] [unit] [input-hash]"; cmd_record_verdict_direct "$2" "$3" "$4" "$5" "${6:-}" "${7:-}" "${8:-}" ;;
   record-task-completed)  cmd_record_task_completed ;;
   context)              cmd_context "${2:-}" ;;
   gc-events)            cmd_gc_events ;;
@@ -74,9 +76,13 @@ case "$1" in
   commit-phase)         [ $# -eq 3 ] || die "Usage: plan-file.sh commit-phase <plan-file> <commit-message>"; cmd_commit_phase "$2" "$3" ;;
   tier-safe)            [ $# -ge 3 ] || die "Usage: plan-file.sh tier-safe <plan-file> <task-id>..."; cmd_tier_safe "$2" "${@:3}" ;;
   is-converged)         [ $# -eq 4 ] || die "Usage: plan-file.sh is-converged <plan-file> <phase> <agent>"; cmd_is_converged "$2" "$3" "$4" ;;
-  is-implemented)       [ $# -eq 3 ] || die "Usage: plan-file.sh is-implemented <plan-file> <feat-slug>"; cmd_is_implemented "$2" "$3" ;;
-  mark-implemented)     [ $# -eq 3 ] || die "Usage: plan-file.sh mark-implemented <plan-file> <feat-slug>"; cmd_mark_implemented "$2" "$3" ;;
   is-blocked) [ $# -ge 2 ] || die "Usage: plan-file.sh is-blocked <plan-file> [kind]"; cmd_is_blocked "$2" "${3:-}" ;;
+  # events-recompute readers: rc0=true/SKIP, rc1=false/RUN (pure functions over events log)
+  ev-converged)    [ $# -ge 4 ] || die "Usage: plan-file.sh ev-converged <plan> <unit> <stage> [frozen-hash]"; ev_is_converged "$2" "$3" "$4" "${5:-}" ;;
+  ev-implemented)  [ $# -eq 3 ] || die "Usage: plan-file.sh ev-implemented <plan> <unit>"; ev_is_implemented "$2" "$3" ;;
+  ev-blocked)      [ $# -eq 4 ] || die "Usage: plan-file.sh ev-blocked <plan> <unit> <stage>"; ev_is_blocked "$2" "$3" "$4" ;;
+  ev-ceiling)      [ $# -eq 4 ] || die "Usage: plan-file.sh ev-ceiling <plan> <unit> <stage>"; ev_ceiling_reached "$2" "$3" "$4" ;;
+  stage-satisfied) [ $# -eq 4 ] || die "Usage: plan-file.sh stage-satisfied <plan> <unit> <stage>"; stage_is_satisfied "$2" "$3" "$4" ;;
   get-envelope)         [ $# -eq 2 ] || die "Usage: plan-file.sh get-envelope <plan-file>"; cmd_get_envelope "$2" ;;
   inter-feature-reset)  [ $# -eq 2 ] || die "Usage: plan-file.sh inter-feature-reset <plan-file>"; cmd_inter_feature_reset "$2" ;;
   set-task-unit)        [ $# -eq 3 ] || die "Usage: plan-file.sh set-task-unit <plan-file> <unit-key>"; cmd_set_task_unit "$2" "$3" ;;

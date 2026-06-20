@@ -5,6 +5,9 @@ set -euo pipefail
 [[ -n "${_DEV_CYCLE_PHASES_LOADED:-}" ]] && return 0
 _DEV_CYCLE_PHASES_LOADED=1
 
+# events.sh provides _ev_qualified_unit / _ev_stage_of_agent used to set CRITIC_UNIT below.
+[[ -n "${_EVENTS_LOADED:-}" ]] || . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/events.sh"
+
 # All functions use globals set by run-dev-cycle.sh:
 #   PF PLAN PROJECT_DIR SCRIPTS_DIR UNIT_CMD LINT_CMD _lang _domain_root _infra_root _features_root
 
@@ -21,14 +24,14 @@ _finalize_pr() {
 _phase_spec_prepass() {
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
-    local feat_slug _spec_path _new_specs _spec_for_critic _other_specs _csp _cross_ctx _sp_file _rev_marker
+    local feat_slug _spec_path _new_specs _spec_for_critic _other_specs _csp _cross_ctx _sp_file
     feat_slug=$(_slugify_feature "$feature")
+    export CLAUDE_BLOCK_UNIT="features-${feat_slug}" CLAUDE_BLOCK_STAGE="spec"
     _spec_path=$(find_spec_path "$feat_slug")
-    # Per-feature marker avoids false-skip: global is-converged scope would let A's convergence skip B.
-    _rev_marker="${PLAN%.md}.state/spec-reviewed-${feat_slug}"
-    [[ -f "$_spec_path" ]] && git -C "$PROJECT_DIR" ls-files --error-unmatch "$_spec_path" 2>/dev/null && \
-      [[ -z "$(git -C "$PROJECT_DIR" status --porcelain "$_spec_path" 2>/dev/null)" ]] && \
-      [[ -f "$_rev_marker" ]] && continue
+    # Per-unit events skip — converged spec is recomputed from the log. The old check also
+    # required git-committed+clean, which permanently skipped committed-but-changed specs
+    # (root defect #1); the working-tree hash now reopens on any edit regardless of commit state.
+    bash "$PF" stage-satisfied "$PLAN" "features-${feat_slug}" spec 2>/dev/null && continue
 
     if [[ ! -f "$_spec_path" ]]; then
       WRITING_SPEC_PLAN_PATH="${PLAN}" \
@@ -45,9 +48,7 @@ _phase_spec_prepass() {
     if [[ "$_ph" == "brainstorm" ]]; then
       bash "$PF" transition "$PLAN" spec "spec already committed — advancing to spec phase for critic-spec"
     elif [[ "$_ph" != "spec" ]]; then
-      # Plan is past spec phase; spec was already reviewed in a prior run.
-      # Recreate rev_marker to prevent re-entry on next run and skip.
-      touch "$_rev_marker" 2>/dev/null || true
+      # Plan is past spec phase; spec was already reviewed in a prior run (events-converged).
       continue
     fi
 
@@ -67,14 +68,13 @@ _phase_spec_prepass() {
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
     bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
-    rm -f "$_rev_marker" 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec_for_critic}" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
     CRITIC_PLAN_PATH="${PLAN}" \
+    CRITIC_UNIT="features-${feat_slug}" \
     run_critic critic-spec spec \
       "Review spec for feature: ${feature}. Spec: ${_spec_for_critic}. Docs: $(docs_paths). Plan: ${PLAN}.${_cross_ctx}"
     llm_exit "critic-spec"
-    touch "$_rev_marker" 2>/dev/null || true
 
     while IFS= read -r _sp_file; do
       [[ -n "$_sp_file" ]] && git -C "$PROJECT_DIR" add "$_sp_file"
@@ -87,7 +87,7 @@ _phase_spec_prepass() {
 
 # _phase_domain_infra_spec_review — run critic-spec independently for each domain/infra spec.md.
 _phase_domain_infra_spec_review() {
-  local _di_specs _spec_rel _spec _layer _slug _rev_marker _ph
+  local _di_specs _spec_rel _spec _layer _slug _ph
 
   # Collect domain/ + infrastructure/ spec.md from both untracked/modified and committed files.
   _di_specs=$(
@@ -107,32 +107,28 @@ _phase_domain_infra_spec_review() {
     _spec="${PROJECT_DIR}/${_spec_rel}"
     _layer=$(printf '%s' "$_spec_rel" | sed 's|^src/||' | cut -d/ -f1)
     _slug=$(printf '%s' "$_spec_rel"  | sed 's|^src/||' | cut -d/ -f2)
-    _rev_marker="${PLAN%.md}.state/spec-reviewed-${_layer}-${_slug}"
+    export CLAUDE_BLOCK_UNIT="${_layer}-${_slug}" CLAUDE_BLOCK_STAGE="spec"
 
-    # Skip if spec is already committed (clean, no uncommitted changes) AND review marker exists.
-    git -C "$PROJECT_DIR" ls-files --error-unmatch "$_spec_rel" 2>/dev/null && \
-      [[ -z "$(git -C "$PROJECT_DIR" status --porcelain "$_spec_rel" 2>/dev/null)" ]] && \
-      [[ -f "$_rev_marker" ]] && continue
+    # Per-unit events skip (replaces committed+clean+marker; see _phase_spec_prepass).
+    bash "$PF" stage-satisfied "$PLAN" "${_layer}-${_slug}" spec 2>/dev/null && continue
 
     # Ensure plan is in spec phase before critic-spec runs.
     _ph=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo "")
     if [[ "$_ph" == "brainstorm" ]]; then
       bash "$PF" transition "$PLAN" spec "advancing to spec phase for ${_layer}/${_slug} critic-spec"
     elif [[ "$_ph" != "spec" ]]; then
-      touch "$_rev_marker" 2>/dev/null || true
       continue
     fi
 
     bash "$PF" reset-milestone "$PLAN" critic-spec
     bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
-    rm -f "$_rev_marker" 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec}" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
     CRITIC_PLAN_PATH="${PLAN}" \
+    CRITIC_UNIT="${_layer}-${_slug}" \
     run_critic critic-spec spec \
       "Review spec for ${_layer} concept: ${_slug}. Spec: ${_spec}. Docs: $(docs_paths). Plan: ${PLAN}."
     llm_exit "critic-spec"
-    touch "$_rev_marker" 2>/dev/null || true
 
     git -C "$PROJECT_DIR" add "$_spec_rel" 2>/dev/null || true
     git -C "$PROJECT_DIR" diff --cached --quiet || \
@@ -142,7 +138,8 @@ _phase_domain_infra_spec_review() {
 
 # _phase_cross_spec_review — run critic-cross once across all spec files.
 _phase_cross_spec_review() {
-  bash "$PF" is-converged "$PLAN" spec critic-cross 2>/dev/null && return 0
+  export CLAUDE_BLOCK_UNIT="__cross__" CLAUDE_BLOCK_STAGE="cross"
+  bash "$PF" ev-converged "$PLAN" __cross__ cross 2>/dev/null && return 0
   # Ensure plan is in spec phase before running critic-cross so record-verdict writes
   # to the spec/critic-cross scope that this function's is-converged check reads.
   local _cph; _cph=$(bash "$PF" get-phase "$PLAN" 2>/dev/null || echo "")
@@ -164,6 +161,7 @@ _phase_cross_spec_review() {
     CRITIC_ALL_SPEC_PATHS="${_all_specs}" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
     CRITIC_PLAN_PATH="${PLAN}" \
+    CRITIC_UNIT="__cross__" \
     run_critic critic-cross spec \
       "Cross-feature consistency review. All specs: ${_all_specs}. Docs: $(docs_paths). Plan: ${PLAN}."
     llm_exit "critic-cross"
@@ -174,12 +172,13 @@ _impl_reset_for_green() {
   local feature="$1"
   local phase_now; phase_now=$(bash "$PF" get-phase "$PLAN")
   [[ "$phase_now" != "green" ]] && return 0
-  bash "$PF" reset-pr-review "$PLAN"
+  # Next unit starting after a completed one. Per-unit events scopes mean no cross-feature
+  # convergence contamination, so the old milestone/pr-review sidecar resets are unnecessary
+  # (and transient counters are already cleared on each critic's successful completion). Only
+  # clear the prior unit's task ledger (+ manifest-reconcile counters) and move the phase pointer.
   bash "$PF" inter-feature-reset "$PLAN"
-  bash "$PF" transition "$PLAN" implement "inter-feature reset: clearing stale implement-phase markers"
-  bash "$PF" reset-milestone "$PLAN" critic-code
+  bash "$PF" transition "$PLAN" implement "inter-feature reset: starting next unit ${feature}"
   bash "$PF" transition "$PLAN" red "inter-feature reset: starting tests for ${feature}"
-  bash "$PF" reset-milestone "$PLAN" critic-test
 }
 
 # _green_preexisting_integrity_gate SINCE_SHA — Tier-1 deterministic enforcement of the
@@ -214,12 +213,11 @@ _impl_run_test_phase() {
   local feature="$1" feat_slug="$2"
   local _spec_path="${3:-}"
   [[ -z "$_spec_path" ]] && _spec_path="$(find_spec_path "$feat_slug")"
-  # Per-feature marker must precede the global phase guard.
-  # Phase guard first causes the same false-skip as the old is-converged check:
-  # Feature A's implement step advancing phase to "implement" skips Feature B's test
-  # phase in the same loop iteration even when B's marker is absent.
-  local _test_marker="${PLAN%.md}.state/test-reviewed-${feat_slug}"
-  [[ -f "$_test_marker" ]] && return 0
+  export CLAUDE_BLOCK_UNIT="$(_ev_qualified_unit "$feat_slug")" CLAUDE_BLOCK_STAGE="test"
+  # Per-unit events skip — recomputed from the log, so a later spec/test edit (hash change)
+  # auto-reopens this stage (cascade), unlike the old sticky touch marker that blocked re-review.
+  local _unit; _unit="$(_ev_qualified_unit "$feat_slug")"
+  bash "$PF" stage-satisfied "$PLAN" "$_unit" test 2>/dev/null && return 0
   local phase_now; phase_now=$(bash "$PF" get-phase "$PLAN")
   # Transition to red before run_llm: writing-tests runs with CLAUDE_PLAN_CAPABILITY stripped
   # and cannot call plan-file.sh transition from within the session.
@@ -258,6 +256,7 @@ _impl_run_test_phase() {
   CRITIC_TEST_FILES="${_test_files}" \
   CRITIC_PLAN_PATH="${PLAN}" \
   CRITIC_TEST_COMMAND="${UNIT_CMD}" \
+  CRITIC_UNIT="$(_ev_qualified_unit "$feat_slug")" \
   run_critic critic-test red "Review tests for feature: ${feature}. Spec: ${_spec_path}. Test files: ${_test_files}. Plan: ${PLAN}. Test command: ${UNIT_CMD}."
   llm_exit "critic-test"
   # critic-test fixes tests in-place (no commit). Commit them now so the implement worktree
@@ -269,21 +268,19 @@ _impl_run_test_phase() {
            | grep -E '(^|/)tests/|(^|/)conftest\.|_test\.|(^|/)test_|\.test\.|\.spec\.|_spec\.' | grep -v '\.spec\.md$')
   git -C "$PROJECT_DIR" diff --cached --quiet || \
     git -C "$PROJECT_DIR" commit -m "test(red): apply critic-test fixes for ${feature}"
-  touch "$_test_marker" 2>/dev/null || true
+  # No marker touch — convergence is recomputed from the events log (stage-satisfied above).
 }
 
 _impl_run_implement_phase() {
   local feature="$1" feat_slug="$2"
   local _spec_path="${3:-}"
   [[ -z "$_spec_path" ]] && _spec_path="$(find_spec_path "$feat_slug")"
+  export CLAUDE_BLOCK_UNIT="$(_ev_qualified_unit "$feat_slug")" CLAUDE_BLOCK_STAGE="code"
   local phase_now has_task_defs pending any_task_in_ledger
-  # Per-feature marker must precede phase guards — same false-skip pattern as _impl_run_test_phase.
-  # When _impl_reset_for_green fires (phase==green) it deletes _code_marker via inter-feature-reset;
-  # this early-return is needed for re-entry where reset did NOT fire (phase!=green) and the marker
-  # survived — without it the implement phase leaves phase at red and _impl_run_review_phase skips.
-  local _code_marker="${PLAN%.md}.state/code-reviewed-${feat_slug}"
-  local _quality_marker="${PLAN%.md}.state/quality-reviewed-${feat_slug}"
-  if [[ -f "$_code_marker" && -f "$_quality_marker" ]]; then
+  local _unit; _unit="$(_ev_qualified_unit "$feat_slug")"
+  # Per-unit events re-entry guard (replaces code+quality touch markers). is_implemented(U) =
+  # code AND quality converged in the events log; recomputed, so a later src/spec edit reopens it.
+  if bash "$PF" ev-implemented "$PLAN" "$_unit" 2>/dev/null; then
     phase_now=$(bash "$PF" get-phase "$PLAN")
     [[ "$phase_now" != "implement" && "$phase_now" != "green" ]] && \
       bash "$PF" transition "$PLAN" implement "implement re-entry: code and quality already reviewed for ${feature}"
@@ -303,10 +300,11 @@ _impl_run_implement_phase() {
       # This occurs when smoke failed after run-implement succeeded — the manifest gate checks
       # whether the coverage gap (multi-file RED not all represented in task failing_tests)
       # is the cause. If so, clear task state so Step 1 replays below.
-      local _trap_pending _trap_any
+      local _trap_pending _trap_any _code_done=0
       _trap_pending=$(awk '/^## Task Ledger/{f=1;next} f&&/^## /{exit} f&&/\| pending[ |]|\| in_progress[ |]|\| blocked[ |]/' "$PLAN" 2>/dev/null || true)
       _trap_any=$(awk '/^## Task Ledger$/{f=1;next} f&&/^## /{exit} f&&/\| (pending|in_progress|completed|blocked)[ |]/{print;exit}' "$PLAN" 2>/dev/null || true)
-      if [[ -z "$_trap_pending" && -n "$_trap_any" && ! -f "$_code_marker" ]]; then
+      bash "$PF" stage-satisfied "$PLAN" "$_unit" code 2>/dev/null && _code_done=1
+      if [[ -z "$_trap_pending" && -n "$_trap_any" && "$_code_done" -eq 0 ]]; then
         _manifest_reconciliation_gate "$_spec_path" "$feat_slug" || has_task_defs=0
       fi
     fi
@@ -346,7 +344,7 @@ _impl_run_implement_phase() {
   done
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "implement" ]] && \
-     [[ ! -f "$_code_marker" ]]; then
+     ! bash "$PF" stage-satisfied "$PLAN" "$_unit" code 2>/dev/null; then
     bash "$PF" reset-milestone "$PLAN" critic-code
     CRITIC_SPEC_PATH="$_spec_path" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
@@ -355,13 +353,14 @@ _impl_run_implement_phase() {
     CRITIC_DOMAIN_ROOT="${_domain_root}" \
     CRITIC_INFRA_ROOT="${_infra_root}" \
     CRITIC_FEATURES_ROOT="${_features_root}" \
+    CRITIC_UNIT="$(_ev_qualified_unit "$feat_slug")" \
     run_critic critic-code implement "Review changed files for feature: ${feature}. Spec: ${_spec_path}. Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}. domain_root: ${_domain_root}. infra_root: ${_infra_root}. features_root: ${_features_root}."
     llm_exit "critic-code"
-    touch "$_code_marker" 2>/dev/null || true
+    # No marker touch — code convergence is recomputed from the events log.
   fi
   phase_now=$(bash "$PF" get-phase "$PLAN")
   if [[ "$phase_now" == "implement" ]] && \
-     [[ ! -f "$_quality_marker" ]]; then
+     ! bash "$PF" stage-satisfied "$PLAN" "$_unit" quality 2>/dev/null; then
     bash "$PF" reset-milestone "$PLAN" critic-quality
     CRITIC_SPEC_PATH="$_spec_path" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
@@ -370,20 +369,23 @@ _impl_run_implement_phase() {
     CRITIC_DOMAIN_ROOT="${_domain_root}" \
     CRITIC_INFRA_ROOT="${_infra_root}" \
     CRITIC_FEATURES_ROOT="${_features_root}" \
+    CRITIC_UNIT="$(_ev_qualified_unit "$feat_slug")" \
     run_critic critic-quality implement "Review quality for feature: ${feature}. Spec: ${_spec_path}. Docs: $(docs_paths). Plan: ${PLAN}. language: ${_lang}."
     llm_exit "critic-quality"
-    touch "$_quality_marker" 2>/dev/null || true
+    # No marker touch — quality convergence is recomputed from the events log.
   fi
 }
 
 _impl_run_review_phase() {
   local feature="$1" feat_slug="$2"
-  local phase_now _quality_marker
-  _quality_marker="${PLAN%.md}.state/quality-reviewed-${feat_slug}"
+  local _unit; _unit="$(_ev_qualified_unit "$feat_slug")"
+  export CLAUDE_BLOCK_UNIT="$_unit" CLAUDE_BLOCK_STAGE="quality"
+  local phase_now
   phase_now=$(bash "$PF" get-phase "$PLAN")
-  if [[ "$phase_now" == "implement" ]] && [[ -f "$_quality_marker" ]]; then
+  # Per-unit implement→green pointer (CD-2): fires on is_implemented(U) = code AND quality
+  # converged. No implemented.json write — is-implemented is recomputed from the events log.
+  if [[ "$phase_now" == "implement" ]] && bash "$PF" ev-implemented "$PLAN" "$_unit" 2>/dev/null; then
     bash "$PF" transition "$PLAN" green "critic-quality converged — feature complete"
-    bash "$PF" mark-implemented "$PLAN" "$feat_slug"
   fi
 }
 
@@ -552,7 +554,7 @@ _phase_domain_infra_implement_cycle() {
     _slug=$(printf '%s' "$_spec_rel"  | sed 's|^src/||' | cut -d/ -f2)
     _unit_key="${_layer}-${_slug}"
 
-    bash "$PF" is-implemented "$PLAN" "$_unit_key" 2>/dev/null && continue
+    bash "$PF" ev-implemented "$PLAN" "$_unit_key" 2>/dev/null && continue
     _impl_reset_for_green "${_layer}/${_slug}"
     _impl_run_test_phase "${_layer}/${_slug}" "$_unit_key" "$_spec"
     _impl_run_implement_phase "${_layer}/${_slug}" "$_unit_key" "$_spec"
@@ -566,7 +568,7 @@ _phase_implement_cycle() {
     [[ -z "$feature" ]] && continue
     local feat_slug
     feat_slug=$(_slugify_feature "$feature")
-    bash "$PF" is-implemented "$PLAN" "$feat_slug" 2>/dev/null && continue
+    bash "$PF" ev-implemented "$PLAN" "features-${feat_slug}" 2>/dev/null && continue
     _impl_reset_for_green "$feature"
     _impl_run_test_phase "$feature" "$feat_slug"
     _impl_run_implement_phase "$feature" "$feat_slug"
