@@ -49,7 +49,6 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 [BLOCKED:code] integration: tests-failing — after 1 fix attempt(s); manual review required
 [BLOCKED:code] smoke: tests-failing — full suite not passing after all tiers
 [BLOCKED:env] preflight:jq: not-installed — install via brew install jq
-[BLOCKED:env] critic-code: no-timeout-binary — install GNU coreutils (brew install coreutils)
 [BLOCKED:env] critic-code: session-timeout — recurred 3 times: after 3600s
 [BLOCKED:harness] critic-code: protocol-violation — invoked outside run-critic-loop.sh context
 [BLOCKED:harness] sidecar: corrupt-check — manual sidecar repair required
@@ -74,11 +73,11 @@ export CLAUDE_PLAN_CAPABILITY=human
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "$CLAUDE_PROJECT_DIR/plans/{slug}.md"
 ```
 
-Clears all 7 human-must kinds (`envelope`, `docs`, `spec`, `code`, `env`, `harness`, `ceiling`) from `## Open Questions` in one pass and sets `cleared_at` on their open sidecar records. `[BLOCKED:transient]` is intentionally excluded — it has its own auto lifecycle. Non-stop markers (`[UNVERIFIED CLAIM]`, `[INFO]`, `[AUTO-DECIDED]`, etc.) are also left untouched.
+Clears all 7 human-must kinds (`envelope`, `docs`, `spec`, `code`, `env`, `harness`, `ceiling`) from `## Open Questions` in one pass. It also appends `human-clear` facts to every events scope so `ev-blocked`/`ev-ceiling` recompute as cleared (the authoritative events state), and stamps `cleared_at` on the legacy `blocked.jsonl` records. `[BLOCKED:transient]` is intentionally excluded — it has its own auto lifecycle. Non-stop markers (`[UNVERIFIED CLAIM]`, `[INFO]`, `[AUTO-DECIDED]`, etc.) are left untouched.
 
-After resolving the root cause, run `unblock` then restart the autonomous run. Exception: for `[BLOCKED:ceiling]`, do **not** use `unblock` alone — use `reset-milestone {agent}` (Ring B — `export CLAUDE_PLAN_CAPABILITY=harness` required, not `=human`) instead (see the note below).
+After resolving the root cause, run `unblock` then restart the autonomous run. In events mode `unblock` clears `[BLOCKED:ceiling]` too (via a `human-clear(ceiling)` fact) — no separate `reset-milestone` step is required.
 
-> **Ceiling block only**: for `[BLOCKED:ceiling]`, always use `reset-milestone {agent}` — never `unblock` alone. `reset-milestone` both clears the ceiling marker and increments `milestone_seq` so the next run's ordinal count starts at 0. `unblock` alone does not increment `milestone_seq`, so the next run recomputes `run_ordinal` from the same verdict history, finds it still exceeds the ceiling, and immediately re-blocks.
+> **Ceiling block**: `[BLOCKED:ceiling]` fires when a stage's total attempt count exceeds the ceiling (`ev-ceiling`, a count predicate over the events log — not a stored flag). Because the count is input-hash-agnostic, merely editing the input does **not** clear it (that safety boundary stops a wiggling critic from self-clearing); resuming requires the `human-clear(ceiling)` fact that `unblock` appends.
 
 ## Transient auto-handling
 
@@ -126,7 +125,7 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 
 | Marker | Section | Emitter | Effect |
 |--------|---------|---------|--------|
-| `[MILESTONE-BOUNDARY @ts] {scope}:` | `## Critic Verdicts` | `reset-milestone`, `reset-pr-review` | Breaks trailing-PASS streak; prior milestone verdicts do not count toward new streak |
+| `[MILESTONE-BOUNDARY @ts] {scope}:` | `## Critic Verdicts` | `reset-milestone` | Render of a `milestone` fact; bounds the streak/ceiling recompute window in `events/` |
 
 ## Inline plan-file markers
 
@@ -135,7 +134,7 @@ Written to `## Critic Verdicts`; not subject to `gc-events`.
 | `[UNVERIFIED CLAIM]` | brainstorming skill | Yes | Provisional assumption that was not web-verified; critic-spec will flag it |
 | `[AUTO-DECIDED] {skill}/{step}: {decision}` | implementing skill | No | Architectural choice made without asking |
 | `[INFO] {message}` | Various skills | Yes | Informational log entry |
-| `[IMPLEMENTED: {feat-slug}]` | `plan-file.sh mark-implemented` (Ring B) | Yes | Records a completed feature slug; authoritative state is in `plans/{slug}.state/implemented.json` |
+| `[IMPLEMENTED: {feat-slug}]` | implementing skill (render only) | Yes | Human-readable note; authoritative completion is recomputed by `ev-implemented` from the events log (no `implemented.json`) |
 | `[RECURRING] {agent}: {msg}` | `plan-file.sh record-verdict` (consecutive same-category FAIL) | No | Advisory: next Codex fix must address root cause of all {category} findings, not only the latest |
 
 ## Sidecar control state
@@ -146,11 +145,12 @@ Persistent harness state lives in `plans/{slug}.state/` — written only by harn
 
 | File | Format | Written by | Read by | Lifecycle |
 |------|--------|------------|---------|-----------|
-| `convergence/{phase}__{agent}.json` | JSON | `_record_loop_state` (via `record-verdict-direct` in `run-critic-loop.sh` for critic-spec/test/code/cross/quality; via SubagentStop hook for critic-feature) | `is-converged` (`run-dev-cycle.sh`, `run-critic-loop.sh`) | Created on first verdict or first `reset-milestone`/`reset-pr-review`/`clear-converged` call; `reset-milestone`/`reset-pr-review` also increment `milestone_seq`; `converged=true` requires ≥2 consecutive PASSes |
-| `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | `_record_loop_state` (streak input) | Appended per verdict; no automatic GC |
-| `blocked.jsonl` | JSONL (append-only) | `_record_loop_state` (ceiling), `cmd_record_verdict` (parse), `cmd_append_note` (BLOCKED mirror), `_record_transient` (transient) | `is-blocked` (`stop-check.sh`, `run-critic-loop.sh`, `run-dev-cycle.sh`) | `cleared_at:null` = open; non-transient kinds cleared by `unblock`; kind enum: `envelope\|docs\|spec\|code\|env\|harness\|ceiling\|transient` (transient `cleared_at` is set by `_record_transient` at threshold promotion, not by `unblock` or `_clear_transient_for` — see §Transient auto-handling) |
-| `implemented.json` | JSON | `mark-implemented` | `is-implemented` (`run-dev-cycle.sh`) | Feature slugs accumulate; never cleared |
-| `transient_counters.json` | JSON | `_record_transient` in `sidecar.sh` | `_record_transient`, `_clear_transient_for`, `_reset_all_transient_counters` | Counter per `{agent}__{sub-kind}` key; cleared on any completed session; reset-milestone clears target agent only; reset-for-rollback clears all |
+| `events/{scope}.jsonl` | JSONL (append-only) | `_record_loop_state` + `ev_record_*` (verdict/block/audit-reject/milestone/human-clear facts; via `record-verdict-direct`/`append-note` with `--unit`) | `ev-converged`/`ev-implemented`/`ev-blocked`/`ev-ceiling`/`stage-satisfied` — **pure recompute, never stored** | **Authoritative state.** One file per layer-qualified unit (+ `__brainstorm__`/`__cross__`/`__integration__` singletons). Convergence = streak ≥2 PASS at the current working-tree input hash; a spec/src edit changes the hash and auto-reopens the stage. Truncated past a size threshold by `ev_gc` (keeps last-N per stage + open blocks) |
+| `convergence/{phase}__{agent}.json` | JSON | — (legacy; only unit-less critics, e.g. integration recovery) | — (**superseded by `events/`**) | No longer written in events mode; live convergence/ceiling are recomputed from the events log |
+| `verdicts.jsonl` | JSONL (append-only) | `_record_loop_state` | legacy consecutive-FAIL / PARSE-error feed-forward only | Still appended; not the convergence source (events is) |
+| `blocked.jsonl` | JSONL (append-only) | `cmd_append_note` (BLOCKED mirror), `_record_transient` (transient) | global `is-blocked` (`stop-check.sh`, `run-dev-cycle.sh`) — coarse "any block?" check | `cleared_at:null` = open; non-transient kinds cleared by `unblock`. Per-unit block state lives in `events/`; this remains the global aggregate |
+| `implemented.json` | JSON | — (**removed**) | — (superseded; `ev-implemented` recomputes code∧quality convergence) | No longer written; feature completion is a pure function of the events log |
+| `transient_counters.json` | JSON | `_record_transient` in `sidecar.sh` | `_record_transient`, `_clear_transient_for` | Counter per `{agent}__{sub-kind}`; cleared on any completed critic session |
 
 ### Block-state queries (Ring A — agent-callable)
 
@@ -163,11 +163,12 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked "$CLAUDE_PROJ
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked "$CLAUDE_PROJECT_DIR/plans/{slug}.md" ceiling
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-blocked "$CLAUDE_PROJECT_DIR/plans/{slug}.md" env
 
-# Returns 0 if sidecar convergence file says converged=true; 1 otherwise
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" is-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" implement critic-code
+# Recompute convergence/skip from the events log (rc0 = converged/SKIP, rc1 = RUN)
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" ev-converged "$CLAUDE_PROJECT_DIR/plans/{slug}.md" features-add-todo code
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" stage-satisfied "$CLAUDE_PROJECT_DIR/plans/{slug}.md" features-add-todo code
 ```
 
-`is-blocked` reads `blocked.jsonl` as its primary source. If `blocked.jsonl` is absent (no blocks ever written), corrupt (parse error), or reports 0 active records, `is-blocked` applies the divergence safety check: if `## Open Questions` in the plan file still contains active `[BLOCKED:*]` lines, `is-blocked` treats the state as blocked and logs a DIVERGENCE warning; otherwise returns "not blocked". `is-converged` reads `convergence/{phase}__{agent}.json` as its primary source and returns "not converged" if the file is absent. When the sidecar reports `converged=true`, two additional guards run: (1) **plan.md divergence guard** — if the last `{phase}/{agent}` verdict in `## Critic Verdicts` is FAIL, treats as not-converged; (2) **spec-fingerprint guard** — if the spec set has changed since convergence was recorded (or the sidecar lacks a `spec_fingerprint` field), treats as not-converged (fail-safe; populates on next verdict).
+`is-blocked` reads `blocked.jsonl` as its global "any block?" source; if it is absent/corrupt/empty, it falls back to a divergence check against active `[BLOCKED:*]` lines in `## Open Questions`. Per-unit block state lives in `events/` (`ev-blocked`). **Convergence is recomputed, not stored**: `ev-converged`/`stage-satisfied` read `events/{scope}.jsonl` and return converged when the streak is ≥2 PASS at the *current* working-tree input hash. A spec/src/test edit changes that hash, so past verdicts no longer match and the stage auto-reopens — this replaces the old stored `converged` flag, the plan.md divergence guard, and the spec-fingerprint guard (all removed). The frozen pass-audit hash and `audit-reject` facts break a streak when an audit overrides a 2nd PASS.
 
 ## HTML verdict envelopes
 Format and rules: `@reference/critics.md §Verdict format` (single source of truth).
@@ -184,17 +185,16 @@ Detected by `implement-helpers.sh` (`verify_task`) via `grep 'coder-status:' "$l
 Written by parent-context ultrathink audit to `## Verdict Audits` via `plan-file.sh append-audit`. Full protocol and outcome table: `@reference/ultrathink.md §Audit outcomes`.
 Category enum values and priority: `@reference/severity.md §Category priority`
 
-## Phase-scoped convergence markers
+## Critic stages and units
 
-Cleared agent-wide by `plan-file.sh reset-milestone {agent}` (invokes `cmd_reset_milestone` in `scripts/lib/plan-cmd.sh`, which calls `cmd_clear_marker` + `_clear_all_ceiling_sidecar_entries_for_agent`): `[BLOCKED:ceiling]`. Both clears are agent-wide (all scopes for the agent) — symmetric with the plan.md marker clear. All markers require `{phase}` to equal the current plan phase — stale markers from prior phases do not satisfy a check.
+Each critic reviews a logical **stage** for a layer-qualified **unit** (or a singleton scope); convergence is tracked per `(unit, stage)` in `events/{scope}.jsonl`. `ev-ceiling` (count > ceiling) replaces the stored ceiling flag; `human-clear`/`milestone` facts and working-tree input changes reopen a stage (there is no `reset-milestone`-driven convergence reset in events mode).
 
-| Phase | Agent | Invocation site |
-|-------|-------|-----------------|
-| `brainstorm` | `critic-feature` | `scripts/run-dev-cycle.sh` (feature brainstorm phase) |
-| `spec` | `critic-spec` | `scripts/run-dev-cycle.sh` (Phase 1: per-feature spec pre-pass) |
-| `spec` | `critic-cross` | `scripts/run-dev-cycle.sh` (Phase 2: cross-feature spec consistency review, once per plan) |
-| `red` | `critic-test` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature test/implement loop) |
-| `implement` | `critic-code` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature test/implement loop) |
-| `implement` | `critic-quality` | `scripts/run-dev-cycle.sh` (Phase 3: per-feature quality/pr-review step, after `critic-code` converges — `scripts/lib/dev-cycle-phases.sh` `run_critic critic-quality implement`; `reset-pr-review` clears `implement/critic-quality`) |
-
-Markers written under `{phase}/{agent}` use the phase value from the plan file at the time `record-verdict` runs — not the agent's conceptual owner phase. (`critic-code` runs at scope `implement/critic-code` — `cmd_reset_phase_state` clears this scope's ceiling entry and resets every existing convergence sidecar it finds.)
+| Stage | Agent | Unit / scope |
+|-------|-------|--------------|
+| `brainstorm` | `critic-feature` | `__brainstorm__` singleton (plan.md authored sections + docs) |
+| `spec` | `critic-spec` | per feature/domain/infra unit (`features-{slug}`, `domain-{slug}`, …) |
+| `cross` | `critic-cross` | `__cross__` singleton (all specs) |
+| `test` | `critic-test` | per unit (spec + test files) |
+| `code` | `critic-code` | per unit (spec + test + src + `Depends-on` closure) |
+| `quality` | `critic-quality` | per unit (src) |
+| `integration` | runner (not a critic) | `__integration__` singleton; `done` gates on a single PASS at the all-src/test/spec hash |
