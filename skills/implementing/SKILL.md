@@ -88,7 +88,7 @@ After writing the JSON block, stop. Do not proceed to Step 2. `run-implement.sh`
 
 ## Session Recovery
 
-Read `plans/{slug}.md` and check the `## Task Ledger` section. Mark any `in_progress` task as `pending` (interrupted session — no commit was made). Then branch:
+Run `bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" resume-sweep plans/{slug}.md` to demote any `in_progress` task back to `pending` (interrupted session — no commit was made). The `## Task Ledger` table is a rendered view of the events fact-log — do not hand-edit it; the sweep appends the corrective facts. Then branch:
 
 | Phase / Ledger state | Entry point |
 |---|---|

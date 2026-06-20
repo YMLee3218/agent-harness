@@ -20,7 +20,7 @@ case "$1" in
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
   reset-for-rollback|record-verdict|record-verdict-guarded|record-verdict-direct|\
   gc-events|gc-verdicts|record-task-completed|record-stop-block|\
-  inter-feature-reset|set-task-unit|clear-task-state)
+  inter-feature-reset|set-task-unit|clear-task-state|resume-sweep)
     require_capability "$1" B
     if [ "$1" = "record-verdict" ]; then
       _rv_plan=$(cmd_find_active 2>/dev/null) || _rv_plan=""
@@ -88,5 +88,6 @@ case "$1" in
   set-task-unit)        [ $# -eq 3 ] || die "Usage: plan-file.sh set-task-unit <plan-file> <unit-key>"; cmd_set_task_unit "$2" "$3" ;;
   get-task-unit)        [ $# -eq 2 ] || die "Usage: plan-file.sh get-task-unit <plan-file>"; cmd_get_task_unit "$2" ;;
   clear-task-state)     [ $# -eq 2 ] || die "Usage: plan-file.sh clear-task-state <plan-file>"; cmd_clear_task_state "$2" ;;
+  resume-sweep)         [ $# -eq 2 ] || die "Usage: plan-file.sh resume-sweep <plan-file>"; cmd_resume_sweep "$2" ;;
   *) die "Unknown command: $1" ;;
 esac

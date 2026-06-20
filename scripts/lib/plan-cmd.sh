@@ -992,31 +992,64 @@ cmd_reset_phase_state() {
 
 # ── Task ledger / GC ──────────────────────────────────────────────────────────
 
+# Task state is an append-only events fact-log (events/__tasks__.jsonl); the ## Task Ledger
+# markdown table is a read-only RENDERED VIEW regenerated from the fold after every write, so
+# all existing table readers (scheduler, merge-gate, dev-cycle gates) keep working unchanged.
+
+# _tasks_backfill_if_needed PLAN — one-time seed of the events log from a pre-existing markdown
+# ledger (in-flight plans / fresh checkout where __tasks__.jsonl is absent but the committed
+# table has rows). No-op once the events log exists (it is then authoritative). Prevents the
+# first render-from-empty-fold from wiping committed task history (invariant 5/1a).
+_tasks_backfill_if_needed() {
+  local plan_file="$1" _path
+  _path=$(ev_file "$plan_file" "__tasks__" 2>/dev/null) || return 0
+  [[ -f "$_path" ]] && return 0
+  awk '/^## Task Ledger$/{s=1;next} s&&/^## /{s=0} s&&/^\| / {
+        n=split($0,f,"|"); if(n>=5){
+          id=f[2]; gsub(/^[ \t]+|[ \t]+$/,"",id)
+          if(id=="task-id"||id ~ /^-+$/||id=="") next
+          tier=f[3]; gsub(/^[ \t]+|[ \t]+$/,"",tier)
+          st=f[4];   gsub(/^[ \t]+|[ \t]+$/,"",st)
+          sha=f[5];  gsub(/^[ \t]+|[ \t]+$/,"",sha)
+          print id"\t"tier"\t"st"\t"sha
+        }
+      }' "$plan_file" 2>/dev/null | while IFS=$'\t' read -r _id _tier _st _sha; do
+    [[ -n "$_id" ]] && ev_record_task "$plan_file" "$_id" "$_tier" "$_st" "${_sha:--}"
+  done
+}
+
+# _render_task_ledger PLAN — regenerate the read-only ## Task Ledger view from the events fold.
+_render_task_ledger() {
+  local plan_file="$1" _body
+  grep -q "^## Task Ledger$" "$plan_file" || printf '\n## Task Ledger\n' >> "$plan_file"
+  _body=$(ev_tasks_fold "$plan_file" | while IFS=$'\t' read -r _id _tier _st _sha; do
+    [[ -n "$_id" ]] && printf '| %s | %s | %s | %s |\n' "$_id" "$_tier" "$_st" "${_sha:--}"
+  done)
+  # Pass the multi-line body via the environment (awk -v cannot carry literal newlines).
+  export _RENDER_BODY="$_body"
+  _awk_inplace "$plan_file" '
+    /^## Task Ledger$/ {
+      print
+      print "| task-id | layer | status | commit-sha |"
+      print "|---------|-------|--------|------------|"
+      if (ENVIRON["_RENDER_BODY"] != "") print ENVIRON["_RENDER_BODY"]
+      insec=1; next
+    }
+    insec && /^## / { insec=0; print; next }
+    insec { next }
+    { print }
+  '
+  unset _RENDER_BODY
+}
+
 cmd_add_task() {
   local plan_file="$1" task_id="$2" layer="$3"
   require_file "$plan_file"
-  awk '/^## Task Ledger$/{in_section=1;next} in_section&&/^## /{in_section=0} in_section{print}' \
-    "$plan_file" 2>/dev/null | grep -qF "| ${task_id} |" && return 0
-  local row="| ${task_id} | ${layer} | pending | - |"
-  if grep -q "^## Task Ledger$" "$plan_file"; then
-    _awk_inplace "$plan_file" -v row="$row" '
-      /^## Task Ledger$/ { print; in_section=1; next }
-      in_section && /^\| task-id/ { print; next }
-      in_section && /^\|---/ { print; next }
-      in_section && /^[[:space:]]*$/ { next }
-      in_section && /^## / { print row; print ""; print; in_section=0; next }
-      { print }
-      END { if (in_section) print row }
-    '
-  else
-    {
-      echo ""
-      echo "## Task Ledger"
-      echo "| task-id | layer | status | commit-sha |"
-      echo "|---------|-------|--------|------------|"
-      echo "$row"
-    } >> "$plan_file"
-  fi
+  _tasks_backfill_if_needed "$plan_file"
+  # idempotent: skip if this task_id is already active in the fold
+  ev_tasks_fold "$plan_file" | cut -f1 | grep -qxF "$task_id" && return 0
+  ev_record_task "$plan_file" "$task_id" "$layer" pending "-"
+  _render_task_ledger "$plan_file"
 }
 
 cmd_update_task() {
@@ -1026,24 +1059,26 @@ cmd_update_task() {
   local valid=0
   for s in $valid_statuses; do [ "$s" = "$status" ] && valid=1 && break; done
   [ "$valid" -eq 1 ] || die "invalid status: $status (must be one of: $valid_statuses)"
-  _awk_inplace "$plan_file" -v tid="$task_id" -v status="$status" -v sha="$commit_sha" '
-    /^## Task Ledger$/ { in_section=1; print; next }
-    in_section && /^## / { in_section=0 }
-    in_section && /^\| / {
-      n = split($0, fields, "|")
-      if (n >= 5) {
-        id = fields[2]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", id)
-        if (id == tid) {
-          layer = fields[3]
-          printf "| %s |%s| %s | %s |\n", tid, layer, status, sha
-          matched++
-          next
-        }
-      }
-    }
-    { print }
-    END { exit (matched == 0) ? 1 : 0 }
-  ' || { echo "ERROR: task id '$task_id' not found in $plan_file" >&2; exit 1; }
+  _tasks_backfill_if_needed "$plan_file"
+  # carry the task's existing tier; absence ⇒ unregistered id ⇒ error (mirrors old not-found)
+  local tier; tier=$(ev_tasks_fold "$plan_file" | awk -F'\t' -v t="$task_id" '$1==t{print $2; exit}')
+  [ -n "$tier" ] || { echo "ERROR: task id '$task_id' not found in $plan_file" >&2; exit 1; }
+  ev_record_task "$plan_file" "$task_id" "$tier" "$status" "$commit_sha"
+  _render_task_ledger "$plan_file"
+}
+
+# cmd_resume_sweep PLAN — interrupted-session recovery: any in_progress task (no commit made)
+# is demoted to pending via a synthetic fact append (append-only; replaces the old LLM-driven
+# markdown edit at skills/implementing/SKILL.md §Session Recovery).
+cmd_resume_sweep() {
+  local plan_file="$1"
+  require_file "$plan_file"
+  _tasks_backfill_if_needed "$plan_file"
+  local _id _tier _st _sha
+  ev_tasks_fold "$plan_file" | while IFS=$'\t' read -r _id _tier _st _sha; do
+    [ "$_st" = "in_progress" ] && ev_record_task "$plan_file" "$_id" "$_tier" pending "-"
+  done
+  _render_task_ledger "$plan_file"
 }
 
 cmd_tier_safe() {
@@ -1318,19 +1353,24 @@ cmd_get_task_unit() {
 cmd_clear_task_state() {
   local plan_file="$1"
   require_file "$plan_file"
+  # Delete the (separate) task-definitions JSON block — unchanged.
   _awk_inplace "$plan_file" '
     /<!-- task-definitions-start -->/{skip=1;next}
     /<!-- task-definitions-end -->/{skip=0;next}
     skip{next}
     {print}
   '
-  _awk_inplace "$plan_file" '
-    /^## Task Ledger$/{sec=1;print;next}
-    sec&&/^## /{sec=0}
-    sec&&/\| pending[ |]|\| in_progress[ |]|\| completed[ |]|\| blocked[ |]/{next}
-    {print}
-  '
-  echo "[clear-task-state] cleared task definitions and ledger rows in ${plan_file}" >&2
+  # Tombstone every active ledger task: append-only, so we cannot delete rows — append a
+  # `superseded` fact per task (the fold drops superseded), then regenerate the empty view.
+  # Carries the inter-feature/rollback tombstone of invariant 7 (stale completed/in_progress
+  # from a prior unit no longer resurface in the fold or the merge gate).
+  _tasks_backfill_if_needed "$plan_file"
+  local _id _tier _st _sha
+  ev_tasks_fold "$plan_file" | while IFS=$'\t' read -r _id _tier _st _sha; do
+    [ -n "$_id" ] && ev_record_task "$plan_file" "$_id" "$_tier" superseded "-"
+  done
+  _render_task_ledger "$plan_file"
+  echo "[clear-task-state] superseded ledger tasks and cleared task definitions in ${plan_file}" >&2
 }
 
 cmd_inter_feature_reset() {

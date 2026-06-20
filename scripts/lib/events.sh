@@ -200,6 +200,37 @@ ev_record_milestone() {
     '{ts:$ts,type:"milestone",unit:$unit,stage:$stage}')"
 }
 
+# ── task ledger (__tasks__ single log + latest-status-wins fold, invariant 2 note 4) ───
+# Task facts live in their own reserved scope, never per-unit: the key is task_id/tier, not a
+# unit, and the scheduler consumes them as one tier-ordered array. Append order (line position)
+# is authoritative for the fold, NOT ts (whole-second ts is not tie-safe — invariant 12).
+
+# ev_record_task PLAN TASK_ID TIER STATUS [COMMIT_SHA] — append a task fact to __tasks__.
+ev_record_task() {
+  local _plan="$1" _tid="$2" _tier="$3" _status="$4" _sha="${5:--}" _ts
+  [[ -n "$_tid" ]] || return 0
+  _ts=$(_iso_timestamp)
+  ev_append "$_plan" "__tasks__" "$(jq -nc \
+    --arg ts "$_ts" --arg tid "$_tid" --arg tier "$_tier" --arg st "$_status" --arg sha "$_sha" \
+    '{ts:$ts,type:"task",task_id:$tid,tier:$tier,status:$st,commit_sha:$sha}')"
+}
+
+# ev_tasks_fold PLAN — emit the active ledger as TSV "task_id\ttier\tstatus\tsha", one row per
+# task_id (latest status by append order), EXCLUDING superseded tombstones, in first-appearance
+# (registration) order so the rendered view is stable.
+ev_tasks_fold() {
+  local _plan="$1" _path; _path=$(ev_file "$_plan" "__tasks__") || return 1
+  [[ -f "$_path" ]] || return 0
+  jq -rs '
+    [ to_entries[] | (.value + {__i: .key}) | select(.type == "task") ]
+    | group_by(.task_id)
+    | map((max_by(.__i)) + {__first: (min_by(.__i).__i)})
+    | map(select(.status != "superseded"))
+    | sort_by(.__first)
+    | .[] | [.task_id, .tier, .status, (.commit_sha // "-")] | @tsv
+  ' "$_path" 2>/dev/null || true
+}
+
 # ── input hashing (generalized from _spec_fingerprint) ──────────────────────────
 # _ev_sha STREAM → sha256 of stdin (sha256sum/shasum); echoes empty on no tool.
 _ev_sha() {
