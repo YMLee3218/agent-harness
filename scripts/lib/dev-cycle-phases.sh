@@ -67,6 +67,8 @@ _phase_spec_prepass() {
       _cross_ctx=" Also verify consistency against existing specs: ${_other_specs}."
 
     _naming_path_gate "${_spec_for_critic}"
+    _bdd_format_gate "${_spec_for_critic}"
+    _envelope_axes_gate "${_spec_for_critic}"
     bash "$PF" reset-milestone "$PLAN" critic-spec
     bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec_for_critic}" \
@@ -122,6 +124,7 @@ _phase_domain_infra_spec_review() {
     fi
 
     _naming_path_gate "${_spec_rel}"
+    _bdd_format_gate "${_spec}"
     bash "$PF" reset-milestone "$PLAN" critic-spec
     bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
     CRITIC_SPEC_PATH="${_spec}" \
@@ -546,6 +549,73 @@ _naming_path_gate() {
     printf '%s' "$_rel" | grep -qE '^(src/)?(features|domain|infrastructure)/[a-z0-9]+(-[a-z0-9]+)*/spec\.md$' && continue
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] naming: spec-path — ${_spec}"
     exit 1
+  done
+}
+
+# _bdd_format_gate SPEC_PATH — structural Gherkin check against @reference/bdd-templates.md §Rules:
+# (1) the spec must contain a 'Feature:' declaration; (2) every 'Scenario Outline:' must be
+# followed (later in the same file) by an 'Examples:' block. PRESENCE/STRUCTURE only — Given/When/Then
+# per scenario is NOT required (a 'Background:' may hold the common Given — legal Gherkin; gating it
+# would false-positive). Missing Feature OR an Outline with no later Examples → block + exit 1.
+# Called before critic-spec. Arg may be a single path OR a whitespace-joined list — validate EACH.
+_bdd_format_gate() {
+  local _arg="$1" _spec _outline_line _ex_line
+  [[ -z "$_arg" ]] && return 0
+  for _spec in $_arg; do   # intentional word-split
+    [[ -z "$_spec" ]] && continue
+    [[ -f "$_spec" ]] || continue   # missing input → no-op for this path
+    # (1) Feature: declaration must be present.
+    if ! grep -qE '^[[:space:]]*Feature:' "$_spec"; then
+      bash "$PF" append-note "$PLAN" "[BLOCKED:spec] bdd-format: missing-Feature — ${_spec}"
+      exit 1
+    fi
+    # (2) Every 'Scenario Outline:' must have an 'Examples:' on a LATER line.
+    #     Walk each Outline's 1-based line number; require an Examples: at a greater line number.
+    while IFS= read -r _outline_line; do
+      [[ -z "$_outline_line" ]] && continue
+      _outline_line="${_outline_line%%:*}"
+      _ex_line=$(grep -nE '^[[:space:]]*Examples:' "$_spec" 2>/dev/null \
+        | awk -F: -v n="$_outline_line" '$1 > n {print $1; exit}')
+      if [[ -z "$_ex_line" ]]; then
+        bash "$PF" append-note "$PLAN" "[BLOCKED:spec] bdd-format: scenario-outline-without-Examples — ${_spec}"
+        exit 1
+      fi
+    done < <(grep -nE '^[[:space:]]*Scenario Outline:' "$_spec" 2>/dev/null)
+  done
+}
+
+# _envelope_axes_gate SPEC_PATH — for FEATURE specs only (per @reference/operating-envelope.md §Scope,
+# domain/infrastructure specs do NOT carry an Operating Envelope and are skipped). Within the spec's
+# '## Operating Envelope' markdown-list section, verify the PRESENCE of each of the six canonical axis
+# names: Actors, Frequency, Concurrency, Persistence, Failure model, External I/O. A missing axis name
+# → block '[BLOCKED:envelope] envelope-axes: missing-{axis}' + exit 1. PRESENCE ONLY — placeholder-vs-
+# filled judgment stays the LLM critic's job. Called before critic-spec for feature specs. Multi-path safe.
+_envelope_axes_gate() {
+  local _arg="$1" _spec _rel _section _axis _key
+  [[ -z "$_arg" ]] && return 0
+  for _spec in $_arg; do   # intentional word-split
+    [[ -z "$_spec" ]] && continue
+    [[ -f "$_spec" ]] || continue   # missing input → no-op for this path
+    _rel="$_spec"
+    case "$_spec" in
+      "${PROJECT_DIR%/}/"*) _rel="${_spec#${PROJECT_DIR%/}/}" ;;
+    esac
+    # Scope: features only. domain/ + infrastructure/ specs carry no envelope — skip them.
+    printf '%s' "$_rel" | grep -qE '^(src/)?features/' || continue
+    # Extract the '## Operating Envelope' section: from its heading to the next '## ' heading (or EOF).
+    _section=$(awk '
+      /^##[[:space:]]+Operating Envelope[[:space:]]*$/ {f=1; next}
+      f && /^##[[:space:]]/ {exit}
+      f {print}
+    ' "$_spec" 2>/dev/null)
+    # Check presence of each axis name within the section. Each axis name is a fixed literal.
+    for _axis in "Actors" "Frequency" "Concurrency" "Persistence" "Failure model" "External I/O"; do
+      if ! printf '%s' "$_section" | grep -qF "$_axis"; then
+        _key=$(printf '%s' "$_axis" | tr '[:upper:] ' '[:lower:]-')
+        bash "$PF" append-note "$PLAN" "[BLOCKED:envelope] envelope-axes: missing-${_key} — ${_spec}"
+        exit 1
+      fi
+    done
   done
 }
 
