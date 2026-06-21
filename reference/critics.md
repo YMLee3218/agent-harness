@@ -67,9 +67,9 @@ Normative implementations:
 
 ## Loop convergence
 
-Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. Convergence state is stored exclusively in `plans/{slug}.state/convergence/{phase}__{agent}.json` — updated on every verdict by `_record_loop_state`; `converged=true` requires 2 consecutive PASSes (see `@reference/markers.md §Sidecar control state`). A PARSE_ERROR between two PASSes resets the streak: `PASS → PARSE_ERROR → PASS` = streak 1. Query via `plan-file.sh is-converged <plan> <phase> <agent>` (exit 0 = converged). No plan.md marker mirrors this state.
+Convergence-based protocol used by every phase-gate critic (critic-feature, critic-spec, critic-test, critic-code, critic-cross) and the pr-review step. Convergence is recomputed from the append-only events log `plans/{slug}.state/events/{scope}.jsonl`, never stored — `_record_loop_state` appends a verdict fact per run; a `(unit, stage)` is converged when its streak is ≥2 consecutive PASSes at the *current* working-tree input hash (see `@reference/markers.md §Sidecar control state`). A PARSE_ERROR between two PASSes resets the streak: `PASS → PARSE_ERROR → PASS` = streak 1. Query via `plan-file.sh ev-converged <plan> <unit> <stage>` (exit 0 = converged); the single skip predicate is `stage-satisfied`. No plan.md marker mirrors this state.
 
-`plan-file.sh record-verdict` appends to `## Critic Verdicts` and updates sidecar convergence state for all normal verdict outcomes (PASS, FAIL, PARSE_ERROR); in exceptional cases it writes a `[BLOCKED]` marker to `## Open Questions` — second consecutive PARSE_ERROR → `[BLOCKED:code] {agent}: parse` (skips the Critic Verdicts append for this case — only sidecar + Open Questions); ceiling exceeded → `[BLOCKED:ceiling]` (appends to both `## Critic Verdicts` and `## Open Questions`). Exception: if the subagent produced no output or known infrastructure error signatures are detected, record-verdict classifies the run as `[BLOCKED:env] {agent}: critic-skill-not-run` — it writes only to `## Open Questions` and `blocked.jsonl`; no Critic Verdicts entry is written and convergence state is not updated (the run is not counted against the ceiling). The skill reads `## Open Questions` for any BLOCKED markers and queries sidecar after each run, then branches per §Skill branching logic.
+`plan-file.sh record-verdict` appends to `## Critic Verdicts` and the events log for all normal verdict outcomes (PASS, FAIL, PARSE_ERROR); in exceptional cases it writes a `[BLOCKED]` marker to `## Open Questions` — second consecutive PARSE_ERROR → `[BLOCKED:code] {agent}: parse` (skips the Critic Verdicts append for this case — only the events fact + Open Questions); ceiling exceeded → `[BLOCKED:ceiling]` (appends to both `## Critic Verdicts` and `## Open Questions`). Exception: if the subagent produced no output or known infrastructure error signatures are detected, record-verdict classifies the run as `[BLOCKED:env] {agent}: critic-skill-not-run` — no Critic Verdicts entry and no verdict fact are written (the run is not counted against the ceiling). The skill reads `## Open Questions` for any BLOCKED markers and recomputes from the events log after each run, then branches per §Skill branching logic.
 
 Ceiling N defaults to **100** (runs 1–100 are allowed; the 101st run triggers `[BLOCKED:ceiling]`; PARSE_ERROR verdicts count toward this ceiling — the transparency at §Consecutive same-category escalation applies only to streak resetting, not to ceiling counting). Override with env var `CLAUDE_CRITIC_LOOP_CEILING`.
 
@@ -77,13 +77,13 @@ Ceiling N defaults to **100** (runs 1–100 are allowed; the 101st run triggers 
 
 ```
 After critic/review run → script records verdict + emits markers
-Skill reads ## Open Questions and queries sidecar, checks in priority order:
+Skill reads ## Open Questions and recomputes from the events log, checks in priority order:
 
   1. [BLOCKED:ceiling] {agent}: ...   → stop (manual review; use reset-milestone)
   2. [BLOCKED:spec] {agent}: ambiguous → stop (human decision required)
   3. [BLOCKED:docs] {agent}: ...      → stop (human decision required; apply DOCS CONTRADICTION cascade)
   4. [BLOCKED:{any kind}] ...         → stop (read reason; fix root cause; run unblock; retry)
-  5. is-converged exits 0             → proceed to next step
+  5. ev-converged exits 0             → proceed to next step
   6. (no terminal marker, PARSE_ERROR in last ## Critic Verdicts entry)
                                 → re-run automatically (one retry allowed;
                                   second consecutive PARSE_ERROR triggers [BLOCKED:code] {agent}: parse)
