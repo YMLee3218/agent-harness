@@ -71,13 +71,22 @@ EV_GC_KEEP_N="${CLAUDE_EVENTS_GC_KEEP_N:-50}"
 ev_gc() {
   local _plan="$1" _scope="$2" _path; _path=$(ev_file "$_plan" "$_scope") || return 1
   [[ -f "$_path" ]] || return 0
+  # Keep-floor per stage: last-N verdicts normally, but when a stage has crossed the ceiling keep
+  # last (ceil+1) so the input-agnostic ceiling COUNT survives truncation — otherwise GC silently
+  # clears a reached ceiling and defeats the infinite-loop backstop (invariant 1). A ceiling-reached
+  # stage is blocked and stops producing verdicts, so (ceil+1) stays bounded. Audit-rejects keep
+  # last-N too; all non-verdict rows (blocks, human-clears, milestones, tasks) are kept whole.
   _sc_rewrite_jsonl "$_path" \
     '[ to_entries[] | .value + {__i:.key} ] as $rows
      | ( [ $rows[] | select(.type=="verdict" or .type=="audit-reject") ]
-         | group_by(.stage) | map(.[-($n):][]) ) as $kv
+         | group_by(.stage)
+         | map( ([.[]|select(.type=="verdict")]) as $v
+                | ([.[]|select(.type=="audit-reject")]) as $a
+                | (if ($v|length) > $ceil then $v[-($ceil+1):] else $v[-($n):] end) + ($a[-($n):]) )
+         | add ) as $kv
      | ( [ $rows[] | select((.type=="verdict" or .type=="audit-reject")|not) ] ) as $ko
-     | ($kv + $ko) | sort_by(.__i) | .[] | del(.__i)' \
-    "events-gc" --slurp --argjson n "$EV_GC_KEEP_N" 2>/dev/null || true
+     | (($kv // []) + $ko) | sort_by(.__i) | .[] | del(.__i)' \
+    "events-gc" --slurp --argjson n "$EV_GC_KEEP_N" --argjson ceil "$(_ev_ceiling)" 2>/dev/null || true
 }
 
 # ev_append PLAN SCOPE RECORD_JSON — append one fact line to events/{scope}.jsonl.
