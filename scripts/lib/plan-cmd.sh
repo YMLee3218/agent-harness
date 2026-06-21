@@ -309,10 +309,11 @@ cmd_append_note() {
     sc_ensure_dir "$plan_file" || return 1
     local _agent; _agent=$(printf '%s' "$note" | sed -n 's/^\[BLOCKED:[a-z]*\] \([^ :]*\).*/\1/p')
     [[ -z "$_agent" ]] && _agent="harness"
-    # _record_blocked is the single block writer: legacy blocked.jsonl + the events block fact
-    # (unit scope when threaded, else __harness__; ceiling/transient excluded). invariant 3 dedup.
+    # _record_blocked is the single block writer: for the 6 real kinds the events block fact is the
+    # sole durable record (unit scope when threaded, else __harness__); ceiling/transient keep the
+    # legacy blocked.jsonl belt. invariant 3 dedup.
     if ! _record_blocked "$plan_file" "$_kind" "$_agent" "$(basename "$plan_file" .md)" "$note" "" "$_unit" "$_stage"; then
-      echo "[append-note] FATAL: blocked.jsonl write failed — plan.md NOT marked" >&2
+      echo "[append-note] FATAL: block fact write failed — plan.md NOT marked" >&2
       return 2
     fi
   fi
@@ -456,7 +457,7 @@ _check_consecutive_and_block() {
     else
       # parse (and any future kinds): hard block — write [BLOCKED:code] and stop the loop.
       if ! _record_blocked "$plan_file" "code" "$agent" "$_scope" "$msg"; then
-        echo "[record-verdict] FATAL: blocked.jsonl write failed for ${log_label} — plan.md NOT marked" >&2
+        echo "[record-verdict] FATAL: block fact write failed for ${log_label} — plan.md NOT marked" >&2
         return 2
       fi
       # Group-additive: unit-keyed block fact (channel G). Stage derived from the agent.
@@ -597,7 +598,7 @@ _extract_or_handle_missing_verdict() {
     if [ -n "$_infra_detail" ]; then
       if ! _record_blocked "$_plan" "env" "$_agent" "$(basename "$_plan" .md)" \
           "critic-skill-not-run — ${_infra_detail}"; then
-        echo "[record-verdict] FATAL: blocked.jsonl write failed for [BLOCKED:env] ${_agent}: critic-skill-not-run — plan.md NOT marked" >&2
+        echo "[record-verdict] FATAL: block fact write failed for [BLOCKED:env] ${_agent}: critic-skill-not-run — plan.md NOT marked" >&2
         exit 2
       fi
       _append_to_open_questions "$_plan" "[BLOCKED:env] ${_agent}: critic-skill-not-run — ${_infra_detail}"
@@ -813,7 +814,7 @@ cmd_record_verdict_guarded() {
       sc_ensure_dir "$_plan" || { echo "ERROR: [record-verdict-guarded] sc_ensure_dir failed: $_plan" >&2; exit 2; }
       if ! _record_blocked "$_plan" "harness" "$_agent" "$(basename "$_plan" .md)" \
           "protocol-violation — invoked outside run-critic-loop.sh context"; then
-        echo "[record-verdict-guarded] FATAL: blocked.jsonl write failed — plan.md NOT marked" >&2
+        echo "[record-verdict-guarded] FATAL: block fact write failed — plan.md NOT marked" >&2
         exit 2
       fi
       _append_to_open_questions "$_plan" \

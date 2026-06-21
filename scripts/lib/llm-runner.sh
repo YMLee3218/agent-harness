@@ -47,7 +47,7 @@ llm_exit() {
   _CALL_RC=0
   case $rc in
     0) return 0 ;;
-    1) echo "[BLOCKED] ${label} failed — see ## Open Questions for [BLOCKED:*] markers; if no markers are present, check sidecar at plans/<slug>.state/blocked.jsonl" >&2; exit 1 ;;
+    1) echo "[BLOCKED] ${label} failed — see ## Open Questions for [BLOCKED:*] markers; if no markers are present, check the events log at plans/<slug>.state/events/ (transient infra blocks are in blocked.jsonl)" >&2; exit 1 ;;
     2) echo "[BLOCKED:ceiling] ${label} — manual review required" >&2; exit 2 ;;
     3) echo "[BLOCKED] ${label}: critic loop already running — wait or remove .critic.lock" >&2; exit 1 ;;
     *) echo "Script failure: ${label} exited ${rc}" >&2
