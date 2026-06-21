@@ -950,20 +950,57 @@ cmd_reset_pr_review() {
   echo "[reset-pr-review] cleared critic-quality convergence marker for implement phase" >&2
 }
 
+# cmd_milestone PLAN UNIT STAGE — append a milestone fact (the streak/ceiling recompute floor).
+# An external force-re-review boundary (rollback / operator). Wires the events primitive into the
+# dispatcher. Does NOT clear blocks — those need human-clear (boundary §6b).
+cmd_milestone() {
+  local plan_file="$1" unit="${2:-}" stage="${3:-}"
+  require_file "$plan_file"
+  [ -n "$unit" ]  || die "record-milestone: unit required"
+  [ -n "$stage" ] || die "record-milestone: stage required"
+  ev_record_milestone "$plan_file" "$unit" "$stage" \
+    || die "record-milestone: events append failed for ${unit}/${stage}"
+}
+
+# _rollback_clear_ceilings PLAN — append a milestone to every (unit,stage) currently at ceiling.
+# Ceiling is an input-agnostic verdict COUNT, so hash-reopen (the spec edit a rollback performs)
+# resets the streak but NOT the ceiling — a stage that hit ceiling would re-block immediately on
+# re-entry, deadlocking the rollback (invariant 7a). A rollback is integration-fail-driven
+# (external), so milestoning here is the sanctioned escape, not a critic self-clearing its own
+# ceiling (that still needs human-clear). Only ceiling-reached stages are touched (minimal blast
+# radius); non-ceiling streaks reopen naturally via the changed input hash.
+_rollback_clear_ceilings() {
+  local plan_file="$1" _scope _stage _file
+  while IFS= read -r _scope; do
+    [ -n "$_scope" ] || continue
+    case "$_scope" in __tasks__|__legacy__) continue ;; esac
+    _file=$(ev_file "$plan_file" "$_scope" 2>/dev/null) || continue
+    [ -f "$_file" ] || continue
+    while IFS= read -r _stage; do
+      [ -n "$_stage" ] || continue
+      if ev_ceiling_reached "$plan_file" "$_scope" "$_stage"; then
+        ev_record_milestone "$plan_file" "$_scope" "$_stage" 2>/dev/null || true
+      fi
+    done < <(jq -rs '[.[]|select(.type=="verdict")|.stage]|unique|.[]' "$_file" 2>/dev/null)
+  done < <(ev_list_scopes "$plan_file")
+}
+
 cmd_reset_phase_state() {
   local plan_file="$1" target_phase="$2"
   require_file "$plan_file"
   [ -n "$target_phase" ] || die "reset-for-rollback: target-phase required"
-  # Convergence/ceiling are recomputed from the events log (the per-scope sidecar reset loop was
-  # dead). Keep the human-facing marker clears and the transient-counter reset (both live).
+  # Convergence/streak are recomputed from the events log and reopen automatically via the changed
+  # input hash. Ceiling is input-agnostic, so it needs an explicit milestone or the rolled-back
+  # stage deadlocks (invariant 7a). Keep the human-facing marker clears and transient reset (live).
   cmd_reset_pr_review "$plan_file"
   cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-code:"
   cmd_clear_marker "$plan_file" "[RECURRING] critic-code:"
   cmd_clear_marker "$plan_file" "[BLOCKED:ceiling] critic-quality:"
   cmd_clear_marker "$plan_file" "[RECURRING] critic-quality:"
   _reset_all_transient_counters "$plan_file" 2>/dev/null || true
+  _rollback_clear_ceilings "$plan_file"
   cmd_set_phase "$plan_file" "$target_phase"
-  echo "[reset-for-rollback] phase set to ${target_phase}; all critic convergence and quality-review state cleared" >&2
+  echo "[reset-for-rollback] phase set to ${target_phase}; ceiling milestoned, quality-review and transient state cleared" >&2
 }
 
 # ── Task ledger / GC ──────────────────────────────────────────────────────────

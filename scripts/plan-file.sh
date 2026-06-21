@@ -18,7 +18,7 @@ case "$1" in
 
   # Ring B — CLAUDE_PLAN_CAPABILITY=harness required (harness scripts; human operators: export CLAUDE_PLAN_CAPABILITY=harness): state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
-  reset-for-rollback|record-verdict|record-verdict-guarded|record-verdict-direct|\
+  reset-for-rollback|record-verdict|record-verdict-guarded|record-verdict-direct|record-milestone|\
   gc-events|gc-verdicts|record-task-completed|record-stop-block|\
   inter-feature-reset|set-task-unit|clear-task-state|resume-sweep)
     require_capability "$1" B
@@ -71,6 +71,7 @@ case "$1" in
   reset-milestone)      [ $# -eq 3 ] || die "Usage: plan-file.sh reset-milestone <plan-file> <agent>"; cmd_reset_milestone "$2" "$3" ;;
   reset-pr-review)      [ $# -eq 2 ] || die "Usage: plan-file.sh reset-pr-review <plan-file>"; cmd_reset_pr_review "$2" ;;
   reset-for-rollback)   [ $# -eq 3 ] || die "Usage: plan-file.sh reset-for-rollback <plan-file> <target-phase>"; cmd_reset_phase_state "$2" "$3" ;;
+  record-milestone)     [ $# -eq 4 ] || die "Usage: plan-file.sh record-milestone <plan-file> <unit> <stage>"; cmd_milestone "$2" "$3" "$4" ;;
   transition)           [ $# -eq 4 ] || die "Usage: plan-file.sh transition <plan-file> <to-phase> <reason>"; cmd_transition "$2" "$3" "$4" ;;
   commit-phase)         [ $# -eq 3 ] || die "Usage: plan-file.sh commit-phase <plan-file> <commit-message>"; cmd_commit_phase "$2" "$3" ;;
   tier-safe)            [ $# -ge 3 ] || die "Usage: plan-file.sh tier-safe <plan-file> <task-id>..."; cmd_tier_safe "$2" "${@:3}" ;;
