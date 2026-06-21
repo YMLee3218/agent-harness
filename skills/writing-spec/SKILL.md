@@ -87,6 +87,8 @@ For the feature spec (`features/{verb}-{noun}/spec.md`): start with the `## Oper
 
 This is the only phase where domain concepts and infrastructure components are identified.
 
+**Dependency declaration** (feature and infrastructure specs only — domain specs import nothing and MUST NOT declare one): immediately after the `## Operating Envelope` section (feature) or as the first line (infrastructure), write a single `Depends-on: {concept}, {concept}` line naming every other unit this one will import — the domain concepts, infrastructure components, and (for large features) features it composes — by kebab concept name (e.g. `Depends-on: todo, todo-store`). Omit the line only if the unit imports nothing cross-unit. This declaration is authoritative: it feeds the code-stage input hash (so editing a declared dependency's spec re-opens this unit) and is reconciled against the actual imports by a deterministic gate — every cross-unit import must be declared and every declared dependency must be imported (`@reference/layers.md §Forbidden imports` still bounds which edges are legal).
+
 Plan phase transition to `spec`: in autonomous mode the harness (`dev-cycle-phases.sh`) transitions `brainstorm`→`spec` **after** this skill completes, so the plan is still in `brainstorm` during skill execution and advances to `spec` immediately after. In interactive use, the agent cannot call `plan-file.sh transition` (Ring B requires `CLAUDE_PLAN_CAPABILITY=harness`); after the skill completes, run this from a human terminal:
 ```bash
 _boot=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null) || _boot="${CLAUDE_PROJECT_DIR:-$(pwd)}"

@@ -354,6 +354,7 @@ _impl_run_implement_phase() {
     _forbidden_artifact_gate "$_unit"
     _test_mock_gate "$_unit"
     _forbidden_import_gate "$_unit"
+    _dep_reconciliation_gate "$_unit"
     bash "$PF" reset-milestone "$PLAN" critic-code
     CRITIC_SPEC_PATH="$_spec_path" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
@@ -555,6 +556,78 @@ _forbidden_import_gate() {
   done <<< "$_files"
   if [[ -n "$_hit" ]]; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] forbidden-import: ${_layer}-cross-boundary — ${_hit} imports a forbidden layer (${_pat//|/ or }); see reference/layers.md §Forbidden imports"
+    exit 1
+  fi
+}
+
+# _dep_reconciliation_gate UNIT — §invariant 11. At code-stage RUN, verify the spec's Depends-on
+# DECLARATIONS equal the unit's actual cross-unit IMPORTS (compared at concept level — Depends-on
+# names concepts, not layers). Declared deps feed the code-stage input hash, so an undeclared
+# import means a dependency edit will not reopen this stage (the cascade bootstrap hole), and an
+# over-declaration hashes a spec that is not a real dep. Either → block [BLOCKED:code]. This is the
+# forcing half of the declaration-based cascade (writing-spec emits Depends-on). Python + JS/TS
+# import grammar only — other languages are skipped with a note (anti-hallucination: their import
+# grammar is not assumed). Domain units carry no deps (forbidden-import covers them) → skipped.
+# Self-imports are excluded by (layer,slug). critic-code stays backup.
+_dep_reconciliation_gate() {
+  local _unit="$1" _ls _layer _slug
+  _ls=$(_ev_unit_layer_slug "$_unit" 2>/dev/null || true)
+  [[ -z "$_ls" ]] && return 0
+  read -r _layer _slug <<< "$_ls"
+  [[ "$_layer" == "domain" ]] && return 0
+  local _files; _files=$(_ev_unit_src_files "$_unit" 2>/dev/null | LC_ALL=C sort -u)
+  [[ -z "$_files" ]] && return 0
+  if ! printf '%s\n' "$_files" | grep -qE '\.(py|ts|js|tsx|jsx|mjs|cjs)$'; then
+    echo "[SKIP] dep-reconciliation — ${_unit}: non-python/js sources; import grammar not assumed" >&2
+    return 0
+  fi
+  local _own; _own=$(printf '%s' "$_slug" | tr '_' '-')
+
+  # Imported cross-unit concepts (kebab), self (layer,slug) excluded. Three import forms emit
+  # "<layer> <concept>" pairs: (A) python path-into-concept `from|import …layer.concept[.sub]`
+  # (absolute or relative); (B) python path-to-layer `from …layer import c1, c2` (lowercase module
+  # names are concepts); (C) js/ts `from '…/layer/concept'` / `require('…/layer/concept')`.
+  local _imported _f
+  _imported=$( {
+    while IFS= read -r _f; do
+      [[ -f "$_f" ]] || continue
+      grep -oE "^[[:space:]]*(from|import)[[:space:]]+[A-Za-z0-9_.]*(domain|infrastructure|features)\.[a-z0-9_]+" "$_f" 2>/dev/null \
+        | grep -oE "(domain|infrastructure|features)\.[a-z0-9_]+" | tr '.' ' '
+      grep -oE "^[[:space:]]*from[[:space:]]+[A-Za-z0-9_.]*(domain|infrastructure|features)[[:space:]]+import[[:space:]]+[a-zA-Z0-9_,[:space:]]+" "$_f" 2>/dev/null \
+        | sed -E 's/^[[:space:]]*from[[:space:]]+//' \
+        | awk '{ n=split($1, mp, "."); layer="";
+                 for (i=1;i<=n;i++) if (mp[i]=="domain"||mp[i]=="infrastructure"||mp[i]=="features") layer=mp[i];
+                 if (layer=="") next;
+                 for (i=3;i<=NF;i++) { name=$i; gsub(/,/,"",name); if (name ~ /^[a-z][a-z0-9_]*$/) print layer" "name } }'
+      grep -oE "(from|require[[:space:]]*\()[[:space:]]*['\"][^'\"]*(domain|infrastructure|features)/[a-z0-9_-]+" "$_f" 2>/dev/null \
+        | grep -oE "(domain|infrastructure|features)/[a-z0-9_-]+" | tr '/' ' '
+    done <<< "$_files"
+  } | while read -r _il _ic; do
+        [[ -z "$_ic" ]] && continue
+        _ic=$(printf '%s' "$_ic" | tr '_' '-')
+        [[ "$_il" == "$_layer" && "$_ic" == "$_own" ]] && continue
+        printf '%s\n' "$_ic"
+      done | LC_ALL=C sort -u )
+
+  # Declared concepts (kebab) from the spec's Depends-on line.
+  local _spec _declared=""
+  _spec=$(_ev_unit_spec_path "$_unit" 2>/dev/null)
+  if [[ -f "$_spec" ]]; then
+    _declared=$(grep -iE '^[[:space:]]*Depends-on:' "$_spec" 2>/dev/null \
+      | sed 's/^[[:space:]]*[Dd]epends-on:[[:space:]]*//' | tr ',' '\n' \
+      | while read -r _d; do _d=$(printf '%s' "$_d" | tr -dc 'a-z0-9-'); [[ -n "$_d" ]] && printf '%s\n' "$_d"; done \
+      | LC_ALL=C sort -u)
+  fi
+
+  local _undeclared _overdeclared
+  _undeclared=$(comm -23 <(printf '%s\n' "$_imported" | sed '/^$/d') <(printf '%s\n' "$_declared" | sed '/^$/d'))
+  _overdeclared=$(comm -13 <(printf '%s\n' "$_imported" | sed '/^$/d') <(printf '%s\n' "$_declared" | sed '/^$/d'))
+  if [[ -n "$_undeclared" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] dep-reconciliation: undeclared-import — ${_unit} imports [$(printf '%s' "$_undeclared" | tr '\n' ' ')] not in the spec Depends-on; declare them so a dependency edit reopens the code stage (reference/layers.md dependency declaration)"
+    exit 1
+  fi
+  if [[ -n "$_overdeclared" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] dep-reconciliation: over-declared-dep — ${_unit} declares Depends-on [$(printf '%s' "$_overdeclared" | tr '\n' ' ')] but never imports them; remove the stale declaration"
     exit 1
   fi
 }
