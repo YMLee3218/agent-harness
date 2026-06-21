@@ -353,6 +353,7 @@ _impl_run_implement_phase() {
      ! bash "$PF" stage-satisfied "$PLAN" "$_unit" code 2>/dev/null; then
     _forbidden_artifact_gate "$_unit"
     _test_mock_gate "$_unit"
+    _forbidden_import_gate "$_unit"
     bash "$PF" reset-milestone "$PLAN" critic-code
     CRITIC_SPEC_PATH="$_spec_path" \
     CRITIC_DOCS_PATHS="$(docs_paths)" \
@@ -513,6 +514,47 @@ _red_failure_gate() {
   [[ -z "$_cmd" ]] && return 0
   if ( cd "$PROJECT_DIR" && eval "$_cmd" ) >/dev/null 2>&1; then
     bash "$PF" append-note "$PLAN" "[BLOCKED:code] red-failure: tests-pass-without-impl — '${_cmd}' exited 0 in the Red phase; new tests must fail before any implementation exists (vacuous tests or a pre-existing implementation). Make the tests genuinely RED before proceeding."
+    exit 1
+  fi
+}
+
+# _forbidden_import_gate UNIT — deterministic boundary check for the EXCEPTION-FREE forbidden
+# edges in @reference/layers.md §Forbidden imports: a domain unit must not import infrastructure/
+# or features/; an infrastructure unit must not import features/. These edges have no documented
+# exception, so they are promoted from critic-code (LLM) to a pre-critic deterministic gate
+# (critic-code stays backup). The HYBRID edges — features→domain (small features may import value
+# objects; large features may type-import) — are NOT gated here; they remain LLM judgment. Feature
+# units therefore get no check. The domain→external-system rule stays in critic-code's curated
+# STDLIB_PATTERNS (per-language; not re-derived here per anti-hallucination). The grep anchors on
+# import syntax with the forbidden layer as a *module-path* token so a domain symbol merely *named*
+# `features`/`infrastructure` is not a false positive. Any hit → block + exit 1. Called before
+# critic-code. UNIT is layer-qualified (domain-todo / infrastructure-store / features-add-todo).
+_forbidden_import_gate() {
+  local _unit="$1" _ls _layer _slug _files _f _hit="" _pat=""
+  _ls=$(_ev_unit_layer_slug "$_unit" 2>/dev/null || true)
+  [[ -z "$_ls" ]] && return 0
+  read -r _layer _slug <<< "$_ls"
+  case "$_layer" in
+    domain)         _pat='infrastructure|features' ;;
+    infrastructure) _pat='features' ;;
+    *)              return 0 ;;   # feature-layer edges are HYBRID — left to critic-code
+  esac
+  _files=$(_ev_unit_src_files "$_unit" 2>/dev/null | LC_ALL=C sort -u)
+  [[ -z "$_files" ]] && return 0
+  # Three import forms: python `from <path-with-layer> import …`, python `import <path-with-layer>`,
+  # and js/ts `… from '<path-with-layer>'` / `require('<path-with-layer>')`. The layer token must be
+  # in the module path (before `import` for `from`, or inside the quoted module string), never the
+  # imported symbol — that excludes `from src.domain.x import features` and bare comment mentions.
+  local _re="^[[:space:]]*from[[:space:]]+[A-Za-z0-9_.]*(${_pat})[A-Za-z0-9_.]*[[:space:]]+import|^[[:space:]]*import[[:space:]]+[A-Za-z0-9_.]*(${_pat})|(from|require[[:space:]]*[(])[[:space:]]*['\"][^'\"]*(${_pat})"
+  while IFS= read -r _f; do
+    [[ -z "$_f" ]] && continue
+    [[ -f "$_f" ]] || continue
+    if grep -nE "$_re" "$_f" >/dev/null 2>&1; then
+      _hit="$_f"; break
+    fi
+  done <<< "$_files"
+  if [[ -n "$_hit" ]]; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] forbidden-import: ${_layer}-cross-boundary — ${_hit} imports a forbidden layer (${_pat//|/ or }); see reference/layers.md §Forbidden imports"
     exit 1
   fi
 }
