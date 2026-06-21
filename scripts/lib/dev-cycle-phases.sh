@@ -411,20 +411,54 @@ _unit_key_of_spec() {
 # fail-closed: never green a plan with no units). Replaces the old per-unit transition, which
 # flipped the WHOLE plan to green on the first unit and let the phase-gated implement loop skip
 # every remaining unit.
-_all_units_implemented() {
-  local _any=0 _rel _u feature
-  while IFS= read -r _rel; do
-    [[ -z "$_rel" ]] && continue
-    _any=1
-    _u=$(_unit_key_of_spec "$_rel")
-    bash "$PF" ev-implemented "$PLAN" "$_u" 2>/dev/null || return 1
-  done < <(_di_spec_list)
+# _depends_on_closure_units — emit {layer}-{slug} unit keys for every concept any feature spec
+# declares in its Depends-on line (1-level closure). Each concept is resolved through the canonical
+# _ev_find_spec_path resolver, so a declared-but-UNWRITTEN dep still resolves (to its default path)
+# and is therefore STILL enumerated — fail-closed: its events log is empty → ev-implemented false →
+# the ∀U barrier blocks instead of greening over a missing declared dependency (invariant 4).
+_depends_on_closure_units() {
+  local feature _slug _spec _concept _dep _rel _layer _dslug
   while IFS= read -r feature; do
     [[ -z "$feature" ]] && continue
-    _any=1
-    bash "$PF" ev-implemented "$PLAN" "features-$(_slugify_feature "$feature")" 2>/dev/null || return 1
+    _slug=$(_slugify_feature "$feature")
+    _spec=$(find_spec_path "$_slug" 2>/dev/null) || _spec=""
+    [[ -f "$_spec" ]] || continue
+    grep -iE '^[[:space:]]*Depends-on:' "$_spec" 2>/dev/null \
+      | sed 's/^[[:space:]]*[Dd]epends-on:[[:space:]]*//' | tr ',' '\n' \
+      | while read -r _concept; do
+          _concept=$(printf '%s' "$_concept" | tr -dc 'a-z0-9-')
+          [[ -z "$_concept" ]] && continue
+          _dep=$(_ev_find_spec_path "$_concept")
+          _rel=${_dep#"${PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-}}/"}
+          _layer=$(printf '%s' "$_rel" | sed 's|^src/||' | cut -d/ -f1)
+          _dslug=$(printf '%s' "$_rel" | sed 's|^src/||' | cut -d/ -f2)
+          [[ -n "$_layer" && -n "$_dslug" ]] && printf '%s-%s\n' "$_layer" "$_dslug"
+        done
   done < <(get_features)
-  [[ "$_any" -eq 1 ]]
+}
+
+# _enumerate_units — the phase-transition unit set (invariant 4): every feature, every disk
+# domain/infra spec, AND the Depends-on closure (declared deps, written or not). Deduped. This is
+# the authoritative ∀U enumerate — distinct from _di_spec_list, which only drives the implement
+# loop. Using the declaration closure (not just disk) makes the gate fail-closed for a feature that
+# declares a dependency whose spec has not been written yet.
+_enumerate_units() {
+  {
+    local _rel feature
+    while IFS= read -r _rel; do [[ -n "$_rel" ]] && _unit_key_of_spec "$_rel"; done < <(_di_spec_list)
+    while IFS= read -r feature; do [[ -n "$feature" ]] && printf 'features-%s\n' "$(_slugify_feature "$feature")"; done < <(get_features)
+    _depends_on_closure_units
+  } | LC_ALL=C sort -u
+}
+
+_all_units_implemented() {
+  local _any=0 _u
+  while IFS= read -r _u; do
+    [[ -z "$_u" ]] && continue
+    _any=1
+    bash "$PF" ev-implemented "$PLAN" "$_u" 2>/dev/null || return 1
+  done < <(_enumerate_units)
+  [[ "$_any" -eq 1 ]]   # |enumerate| >= 1 fail-closed: never green a plan with no units
 }
 
 # _spec_coverage_gate — block implement if no tracked test files exist for this spec's concept.
