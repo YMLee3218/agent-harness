@@ -265,6 +265,33 @@ _hash_file_list() {
   done < <(printf '%s\n' "$_files" | sed '/^$/d')
   _sorted=$(printf '%s' "$_existing" | sed '/^$/d' | LC_ALL=C sort -u)
   [[ -z "$_sorted" ]] && { echo "empty"; return 0; }
+  # hash_cache (§저장 #4): memoize the result keyed by a cheap stat fingerprint (abs path + mtime +
+  # size of each sorted input). A cache MISS recomputes the IDENTICAL content hash below — no
+  # algorithm change, so in-flight frozen hashes stay valid — while a HIT skips the content read.
+  # Always falsifiable: any stat change → new key → recompute. Racy-safe: a file modified within
+  # the last second ("hot", or un-stat-able) bypasses the cache, so a same-second same-size in-place
+  # edit can never return a stale sha. Opt-in via _EV_HASH_CACHE (unset → no caching).
+  local _cache="${_EV_HASH_CACHE:-}" _key="" _hot=0
+  if [[ -n "$_cache" ]]; then
+    local _now _st _mt _statfp=""
+    _now=$(date +%s 2>/dev/null || echo 0)
+    while IFS= read -r _f; do
+      [[ -z "$_f" ]] && continue
+      _st=$(stat -f '%m %z' "$_f" 2>/dev/null || stat -c '%Y %s' "$_f" 2>/dev/null || echo "")
+      if [[ -z "$_st" ]]; then _hot=1; else
+        _mt=${_st%% *}
+        [[ "$_mt" =~ ^[0-9]+$ && "$_mt" -ge $(( _now - 1 )) ]] && _hot=1
+      fi
+      _statfp="${_statfp}${_f}|${_st}"$'\n'
+    done <<< "$_sorted"
+    if [[ "$_hot" -eq 0 ]]; then
+      _key=$(printf '%s' "$_statfp" | _ev_sha 2>/dev/null) || _key=""
+      if [[ -n "$_key" && -f "$_cache" ]]; then
+        local _hit; _hit=$(grep -aF "${_key} " "$_cache" 2>/dev/null | tail -1)
+        [[ -n "$_hit" ]] && { printf '%s\n' "${_hit#* }"; return 0; }
+      fi
+    fi
+  fi
   local _fp _rc=0
   _fp=$( {
     while IFS= read -r _f; do
@@ -275,6 +302,9 @@ _hash_file_list() {
     done <<< "$_sorted"
   } | _ev_sha ) || _rc=$?
   if [[ $_rc -eq 3 || -z "$_fp" ]]; then echo "no-sha-tool"; return 0; fi
+  # Store only a real content hash, and only when non-hot with a valid key (short append is atomic;
+  # latest-wins on read). Failure to write the cache is non-fatal.
+  [[ -n "$_cache" && "$_hot" -eq 0 && -n "$_key" ]] && printf '%s %s\n' "$_key" "$_fp" >> "$_cache" 2>/dev/null || true
   echo "$_fp"
 }
 
@@ -431,6 +461,10 @@ _ev_brainstorm_authored() {
 # (unit,stage) pair, computed from the WORKING TREE (HEAD-agnostic — see §working-tree).
 _stage_input_hash() {
   local _plan="$1" _unit="$2" _stage="$3"
+  # Per-plan content-addressed hash cache (runtime-only, lives in .state/). _hash_file_list reads it
+  # via this inherited var; a miss recomputes the identical hash, so enabling it changes nothing but
+  # cost. The big win is singleton scopes (cross/integration hash the whole tree every loop).
+  local _EV_HASH_CACHE; _EV_HASH_CACHE=$(sc_path "$_plan" "hash_cache" 2>/dev/null) || _EV_HASH_CACHE=""
   # __integration__ is cross-cutting: its recovery critics (critic-spec/test/code/cross, run from
   # integration-helpers.sh) review the WHOLE feature set, not one unit. Per-unit resolvers would
   # return "empty" for this scope at the spec/test/code stages → vacuous non-convergence → ceiling.
