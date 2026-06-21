@@ -416,22 +416,37 @@ _dispatch_rls_rc() {
 _check_consecutive_and_block() {
   local plan_file="$1" phase="$2" agent="$3"
   local jq_prev_query="$4" match_val="$5" kind="$6" msg="$7" log_label="$8"
-  local _unit="${9:-}"
+  local _unit="${9:-}" _input_hash="${10:-}"
   local _prev_val _vpath _scope
   _scope=$(_scope_of "$phase" "$agent")
-  # milestone_seq is fixed at 0 since the convergence sidecar (its only writer) was retired;
-  # the consecutive check operates over the whole (phase,agent) verdict stream.
-  local _ms=0
-  _vpath=$(sc_path "$plan_file" "$SC_VERDICTS")
   _prev_val=""
-  if [[ -f "$_vpath" ]]; then
-    local _jq_rc=0
-    _prev_val=$(jq -rs --arg p "$phase" --arg a "$agent" --argjson ms "$_ms" \
-      "$jq_prev_query" "$_vpath" 2>/dev/null) || _jq_rc=$?
-    if [[ $_jq_rc -ne 0 ]]; then
+  if [[ -n "$_unit" && -n "$_input_hash" ]]; then
+    # Channel G: key the consecutive read on (unit,stage) over the events log. The current
+    # verdict was already appended by _record_loop_state (unit+input_hash present), so the
+    # second-to-last verdict fact for this unit/stage is the prior one — a different unit
+    # sharing (phase,agent) can no longer mis-attribute a consecutive PARSE_ERROR/FAIL here.
+    local _ev_jq_rc=0
+    _prev_val=$(_ev_consecutive_prev "$plan_file" "$_unit" "$(_ev_stage_of_agent "$agent")" "$kind") \
+      || _ev_jq_rc=$?
+    if [[ $_ev_jq_rc -ne 0 ]]; then
       _record_blocked_runtime "$plan_file" "$agent" "$_scope" \
-        "corrupt verdicts.jsonl — jq failed in consecutive check; fix manually (delete or repair the file)"
+        "corrupt events log — jq failed in unit-keyed consecutive check; fix manually"
       return 2
+    fi
+  else
+    # Legacy unit-less path (hook-driven callers without --unit): whole (phase,agent) stream.
+    # milestone_seq is fixed at 0 since the convergence sidecar (its only writer) was retired.
+    local _ms=0
+    _vpath=$(sc_path "$plan_file" "$SC_VERDICTS")
+    if [[ -f "$_vpath" ]]; then
+      local _jq_rc=0
+      _prev_val=$(jq -rs --arg p "$phase" --arg a "$agent" --argjson ms "$_ms" \
+        "$jq_prev_query" "$_vpath" 2>/dev/null) || _jq_rc=$?
+      if [[ $_jq_rc -ne 0 ]]; then
+        _record_blocked_runtime "$plan_file" "$agent" "$_scope" \
+          "corrupt verdicts.jsonl — jq failed in consecutive check; fix manually (delete or repair the file)"
+        return 2
+      fi
     fi
   fi
   if [[ -n "$_prev_val" ]] && [[ "$_prev_val" == "$match_val" ]]; then
@@ -511,7 +526,7 @@ _handle_parse_error() {
       '[.[] | select(.phase == $p and .agent == $a and .milestone_seq == $ms)] | .[-2].verdict // ""' \
       "PARSE_ERROR" "parse" "$block_msg" \
       "BLOCKED parse: ${agent} two consecutive PARSE_ERRORs" \
-      "$_unit" || _ccb_parse_rc=$?
+      "$_unit" "$_input_hash" || _ccb_parse_rc=$?
   case $_ccb_parse_rc in
     0) : ;;
     1) echo "[record-verdict] ${retry_msg}" >&2
@@ -700,7 +715,7 @@ _persist_verdict() {
       "$_category" "category" \
       "${_category} flagged 2× consecutively — next fix must resolve the root cause behind every ${_category} finding, not only the latest" \
       "consecutive same-category FAIL (${_category}) from ${_agent} — feedforward note written" \
-      "$_unit" || _ccb_rc=$?
+      "$_unit" "$_input_hash" || _ccb_rc=$?
     case $_ccb_rc in
       1) : ;;
       2) cmd_append_verdict "$_plan" "[BLOCKED:harness] sidecar: corrupt-check — ${_label}"; exit 1 ;;

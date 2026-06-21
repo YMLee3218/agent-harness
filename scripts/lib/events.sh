@@ -465,6 +465,29 @@ _ev_scope_path() {
   [[ -f "$_p" ]] && printf '%s\n' "$_p" || printf '%s\n' "/dev/null"
 }
 
+# _ev_consecutive_prev PLAN UNIT STAGE KIND → echo the value the consecutive-block check
+# compares against its match value, keyed by (unit,stage) over the events log (channel G).
+# Mirrors the verdicts.jsonl .[-2] queries but per-unit, so a different unit sharing
+# (phase,agent) cannot mis-attribute a consecutive block. The current verdict is already
+# appended (caller gates on unit+input_hash present), so .[-2] is the prior verdict here.
+#   kind=category → prior non-PARSE_ERROR verdict's .category if it was a FAIL, else ""
+#   kind=parse (or any other) → prior verdict's .verdict, else ""
+# Returns jq's exit code so the caller can detect a corrupt events log.
+_ev_consecutive_prev() {
+  local _plan="$1" _unit="$2" _stage="$3" _kind="$4" _scope _path
+  _scope=$(scope "$_unit") || return 2
+  _path=$(_ev_scope_path "$_plan" "$_scope")
+  if [[ "$_kind" == "category" ]]; then
+    jq -rs --arg u "$_unit" --arg s "$_stage" '
+      [ .[] | select(.type=="verdict" and .unit==$u and .stage==$s and .verdict!="PARSE_ERROR") ]
+      | .[-2] | select(.verdict=="FAIL") | .category // ""' "$_path"
+  else
+    jq -rs --arg u "$_unit" --arg s "$_stage" '
+      [ .[] | select(.type=="verdict" and .unit==$u and .stage==$s) ]
+      | .[-2].verdict // ""' "$_path"
+  fi
+}
+
 # ev_streak PLAN UNIT STAGE INPUT_HASH → prints streak count (PASS@H run, newest-first,
 # milestone-bounded). FAIL/PARSE_ERROR stop H-agnostically; audit-reject@H stops;
 # audit-reject@!=H is skipped (not a stop). See §계산.
