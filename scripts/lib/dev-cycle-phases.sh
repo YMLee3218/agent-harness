@@ -257,6 +257,7 @@ _impl_run_test_phase() {
     exit 1
   fi
   _green_preexisting_integrity_gate "$_pre_test_sha"
+  _red_failure_gate "${UNIT_CMD}"
   CRITIC_SPEC_PATH="$_spec_path" \
   CRITIC_TEST_FILES="${_test_files}" \
   CRITIC_PLAN_PATH="${PLAN}" \
@@ -496,6 +497,22 @@ _scenario_count_gate() {
   if [[ "$_test_count" -lt "$_spec_scenarios" ]]; then
     bash "$PF" append-note "$PLAN" \
       "[BLOCKED:code] coverage: under-scenario-count — ${spec_path}; ${_test_count} tests < ${_spec_scenarios} scenarios — manual investigation required"
+    exit 1
+  fi
+}
+
+# _red_failure_gate TEST_CMD — deterministic RED verification. In the Red phase the implementation
+# does not exist yet, so the test suite must FAIL; the test runner is the oracle (not an LLM
+# judgment — critic-test stays backup). A clean exit 0 means the suite passes with no
+# implementation (vacuous tests or a pre-existing impl), violating TDD red → block. Any non-zero
+# exit (assertion failures, import errors, pytest's exit 5 "no tests collected") is a valid red.
+# Empty TEST_CMD is a no-op (the no-unit-test-cmd case is handled upstream). Called after the
+# test(red) commit, before critic-test. Language-agnostic: only a clean pass triggers the block.
+_red_failure_gate() {
+  local _cmd="$1"
+  [[ -z "$_cmd" ]] && return 0
+  if ( cd "$PROJECT_DIR" && eval "$_cmd" ) >/dev/null 2>&1; then
+    bash "$PF" append-note "$PLAN" "[BLOCKED:code] red-failure: tests-pass-without-impl — '${_cmd}' exited 0 in the Red phase; new tests must fail before any implementation exists (vacuous tests or a pre-existing implementation). Make the tests genuinely RED before proceeding."
     exit 1
   fi
 }
