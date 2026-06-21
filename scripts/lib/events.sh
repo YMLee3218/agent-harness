@@ -22,7 +22,7 @@ EV_CEILING_DEFAULT=100
 # ── scope keys (invariant 8: layer-qualified + reserved sentinels) ──────────────
 # Reserved singleton/aggregate scopes. Real unit keys must NOT match ^__[a-z]+__$.
 _EV_RESERVED_RE='^__[a-z]+__$'
-_EV_RESERVED_SCOPES="__brainstorm__ __cross__ __integration__ __tasks__ __legacy__"
+_EV_RESERVED_SCOPES="__brainstorm__ __cross__ __integration__ __tasks__ __legacy__ __harness__"
 
 # _ev_is_reserved SCOPE → rc0 if SCOPE is a reserved sentinel scope.
 _ev_is_reserved() {

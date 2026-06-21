@@ -15,9 +15,14 @@ VALID_PHASES="$(list_phases)"
 if [[ -z "${_BLOCKED_RECORD_LOADED:-}" ]]; then
 _BLOCKED_RECORD_LOADED=1
 
-# _record_blocked PLAN KIND AGENT SCOPE MSG [NOLCK]
+# _record_blocked PLAN KIND AGENT SCOPE MSG [NOLCK] [UNIT] [STAGE]
+# The single block writer. Writes the legacy blocked.jsonl record (transition belt) AND — for the
+# real block kinds (not ceiling/transient) — an events block fact: to the (UNIT,STAGE) scope when a
+# unit is threaded (so stage_is_satisfied sees it per-unit), else to the reserved __harness__ scope
+# (plan-level harness/env/runtime blocks) so ev_any_blocked still catches them at plan level. This
+# makes the events log a COMPLETE block record — the basis for the block-channel cutover.
 _record_blocked() {
-  local _plan="$1" _kind="$2" _agent="$3" _scope="$4" _msg="$5" _nolck="${6:-}"
+  local _plan="$1" _kind="$2" _agent="$3" _scope="$4" _msg="$5" _nolck="${6:-}" _unit="${7:-}" _stage="${8:-}"
   local _bpath _ts _safe_msg _rec
   [[ -z "$_nolck" ]] && { sc_ensure_dir "$_plan" || return 1; }
   _bpath=$(sc_path "$_plan" "$SC_BLOCKED") || return 1
@@ -26,7 +31,20 @@ _record_blocked() {
   _rec=$(jq -nc --arg ts "$_ts" --arg kind "$_kind" --arg agent "$_agent" \
     --arg scope "$_scope" --arg msg "$_safe_msg" \
     '{ts:$ts,kind:$kind,agent:$agent,scope:$scope,message:$msg,cleared_at:null}')
-  [[ -z "$_nolck" ]] && sc_append_jsonl "$_bpath" "$_rec" || sc_append_jsonl_unlocked "$_bpath" "$_rec"
+  # Legacy write first; its failure is the FATAL contract that gates plan.md marking, so capture and
+  # propagate it BEFORE the (best-effort) events write — otherwise a trailing success masks it.
+  local _wrc=0
+  if [[ -z "$_nolck" ]]; then sc_append_jsonl "$_bpath" "$_rec" || _wrc=$?; else sc_append_jsonl_unlocked "$_bpath" "$_rec" || _wrc=$?; fi
+  [[ "$_wrc" -ne 0 ]] && return "$_wrc"
+  # Events block fact (ceiling is a count predicate, transient is sidecar-only — both excluded).
+  if [[ "$_kind" != "ceiling" && "$_kind" != "transient" ]]; then
+    if [[ -n "$_unit" && -n "$_stage" ]]; then
+      ev_record_block "$_plan" "$_unit" "$_stage" "$_kind" "$_safe_msg" 2>/dev/null || true
+    else
+      ev_record_block "$_plan" "__harness__" "harness" "$_kind" "$_safe_msg" 2>/dev/null || true
+    fi
+  fi
+  return 0
 }
 fi
 

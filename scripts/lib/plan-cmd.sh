@@ -309,15 +309,11 @@ cmd_append_note() {
     sc_ensure_dir "$plan_file" || return 1
     local _agent; _agent=$(printf '%s' "$note" | sed -n 's/^\[BLOCKED:[a-z]*\] \([^ :]*\).*/\1/p')
     [[ -z "$_agent" ]] && _agent="harness"
-    if ! _record_blocked "$plan_file" "$_kind" "$_agent" "$(basename "$plan_file" .md)" "$note"; then
+    # _record_blocked is the single block writer: legacy blocked.jsonl + the events block fact
+    # (unit scope when threaded, else __harness__; ceiling/transient excluded). invariant 3 dedup.
+    if ! _record_blocked "$plan_file" "$_kind" "$_agent" "$(basename "$plan_file" .md)" "$note" "" "$_unit" "$_stage"; then
       echo "[append-note] FATAL: blocked.jsonl write failed — plan.md NOT marked" >&2
       return 2
-    fi
-    # Group-additive: emit the unit-keyed block fact ALONGSIDE legacy blocked.jsonl when the
-    # caller threaded a unit + stage. ceiling kind is NOT an events block fact (count-derived
-    # predicate, invariant 10); transient already returned above. Dedup is invariant-3.
-    if [[ -n "$_unit" && -n "$_stage" && "$_kind" != "ceiling" ]]; then
-      ev_record_block "$plan_file" "$_unit" "$_stage" "$_kind" "$note" 2>/dev/null || true
     fi
   fi
   _append_to_open_questions "$plan_file" "$note"
