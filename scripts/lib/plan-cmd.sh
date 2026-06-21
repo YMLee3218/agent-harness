@@ -1056,7 +1056,7 @@ _migration_needed() {
   _bpath=$(sc_path "$plan_file" "$SC_BLOCKED" 2>/dev/null) || return 1
   [[ -f "$_bpath" ]] || return 1
   command -v jq >/dev/null 2>&1 || return 1
-  jq -es 'any(.[]; .cleared_at == null)' "$_bpath" >/dev/null 2>&1
+  jq -es 'any(.[]; .cleared_at == null and .kind != "transient")' "$_bpath" >/dev/null 2>&1
 }
 
 # ── Task ledger / GC ──────────────────────────────────────────────────────────
@@ -1278,35 +1278,27 @@ _is_blocked_plan_md_count() {
 cmd_is_blocked() {
   local plan_file="$1" kind="${2:-}"
   require_file "$plan_file"
-  local _bpath
-  _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
-  local _count=0
-  if [[ -f "$_bpath" ]]; then
-    if ! command -v jq >/dev/null 2>&1; then
-      echo "[is-blocked] jq required but not found — preflight should have blocked this run" >&2
-      return 2
-    fi
-    local _jq_rc=0
-    if [[ -n "$kind" ]]; then
-      _count=$(jq -r --arg k "$kind" 'select(.cleared_at == null and .kind == $k) | 1' \
-        "$_bpath" 2>/dev/null | awk 'END{print NR}') || _jq_rc=$?
-    else
-      _count=$(jq -r 'select(.cleared_at == null and .kind != "transient") | 1' \
-        "$_bpath" 2>/dev/null | awk 'END{print NR}') || _jq_rc=$?
-    fi
-    if [[ "$_jq_rc" -ne 0 ]]; then
-      echo "[is-blocked] WARNING: corrupt blocked.jsonl${kind:+ (kind=${kind})} — falling back to plan.md divergence check" >&2
-      _count=0
-    fi
-  else
-    echo "[is-blocked] WARNING: blocked.jsonl absent — treating as not-blocked" >&2
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "[is-blocked] jq required but not found — preflight should have blocked this run" >&2
+    return 2
   fi
-  [[ "$_count" -gt 0 ]] && return 0
-  # Divergence check: JSONL has 0 active records — verify plan.md agrees (hard divergence only).
+  # Events is the block authority (block-channel cutover): the 6 real kinds live in the events log
+  # (per-unit scopes + the plan-level __harness__ + migrated __legacy__). transient is sidecar-only
+  # and ceiling is a count predicate — neither is an events block, so both are correctly excluded.
+  if ev_any_blocked "$plan_file" "$kind"; then return 0; fi
+  # Safety net 1 — plan.md divergence: a [BLOCKED:*] line in plan.md with no matching events block
+  # (manual marker / a lost events write) is still treated as blocked.
   local _plan_md_active
   _plan_md_active=$(_is_blocked_plan_md_count "$plan_file" "$kind")
   if [[ "$_plan_md_active" -gt 0 ]]; then
-    echo "[is-blocked] DIVERGENCE: plan.md has ${_plan_md_active} active [BLOCKED:*] line(s) but blocked.jsonl has 0 active records — treating as blocked" >&2
+    echo "[is-blocked] DIVERGENCE: plan.md has ${_plan_md_active} active [BLOCKED:*] line(s) but the events log has none — treating as blocked" >&2
+    return 0
+  fi
+  # Safety net 2 — unmigrated legacy blocks: a pre-cutover blocked.jsonl with unresolved (non-
+  # transient) records the events log doesn't reflect would otherwise be silently unblocked. Treat
+  # as blocked (fail-closed) and tell the operator to run migrate-events, rather than dropping it.
+  if _migration_needed "$plan_file"; then
+    echo "[is-blocked] unmigrated legacy blocked.jsonl present — run 'plan-file.sh migrate-events'; treating as blocked" >&2
     return 0
   fi
   return 1
