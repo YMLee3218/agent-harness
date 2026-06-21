@@ -36,7 +36,6 @@ _handle_spec_phase_rollback() {
   bash "$PF" inter-feature-reset "$PLAN"
   bash "$PF" reset-milestone "$PLAN" critic-cross 2>/dev/null || true
   bash "$PF" reset-milestone "$PLAN" critic-spec
-  rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
   bash "$PF" transition "$PLAN" red "clearing stale red/critic-test marker before restoring spec"
   bash "$PF" reset-milestone "$PLAN" critic-test
   bash "$PF" transition "$PLAN" spec "restoring spec phase for writing-spec invocation"
@@ -49,7 +48,6 @@ _handle_spec_phase_rollback() {
   git -C "$PROJECT_DIR" diff --cached --quiet || \
     git -C "$PROJECT_DIR" commit -m "fix(spec): update scenarios for integration ${_cat//' '/-} fix ($(basename "$PLAN" .md))"
   bash "$PF" reset-milestone "$PLAN" critic-spec
-  rm -f "${PLAN%.md}.state"/spec-reviewed-* 2>/dev/null || true
   # Integration-recovery critics review the whole feature set (cross-cutting — an integration
   # failure is not attributable to one unit), so they key the events fact log under the reserved
   # __integration__ scope. That scope is otherwise unused for convergence (the done gate is the

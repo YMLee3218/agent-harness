@@ -30,7 +30,7 @@ follow this protocol exactly — write all user-facing output in the conversatio
 | `code` | Root-cause bug in code or tests | 1. Fix the actual defect in production code → 2. `unblock`. Tests are critic-approved red-phase output — modifying them is justified only when the spec is ambiguous or the test was not critic-approved. Default to fixing the implementation, not the tests. | Running `unblock` without reviewing the code; modifying tests to force a pass instead of fixing production code |
 | `env` | Environment/session/tooling issue (persistent or recurring) | 1. Install missing tool or fix environment → 2. `unblock` | Bypassing with `unblock` without fixing the environment |
 | `harness` | Harness call path, sidecar integrity, or reference-data extension needed | 1. Fix harness file or extend reference enum → 2. `unblock` | Running `unblock` without fixing the harness |
-| `ceiling` | Critic loop ceiling exceeded — recurring failure needs fixing | 1. Fix root cause of recurring failure → 2. `reset-milestone {agent}` | Running `reset-milestone` alone without a fix; running `unblock` alone (`milestone_seq` not incremented → immediately re-blocked) |
+| `ceiling` | Critic loop ceiling exceeded — recurring failure needs fixing | 1. Fix root cause of recurring failure → 2. `unblock` (human terminal; appends a `human-clear(ceiling)` fact) | Running `unblock` alone without a fix. Note: `reset-milestone` does NOT clear an events ceiling — use `unblock` |
 | `transient` | ⚠️ Should not appear in plan.md — harness handles automatically | If marker is in plan.md, notify the harness maintainer instead of unblocking | Attempting to remove with `unblock` (intentionally unsupported) |
 
 ---
@@ -49,7 +49,7 @@ When option A (fix root cause, may be large scope) and option B (workaround, sma
 
 | Situation | Wrong recommendation | Correct recommendation |
 |-----------|---------------------|------------------------|
-| `[BLOCKED:ceiling]` | "Just run `reset-milestone`" | "Fix the root cause of the recurring failure, then run `reset-milestone`" |
+| `[BLOCKED:ceiling]` | "Just run `unblock`" | "Fix the root cause of the recurring failure, then run `unblock`" |
 | `[BLOCKED:code]` | "Run `unblock` to proceed" | "Fix the code bug, then run `unblock`" |
 | `[BLOCKED:spec]` | "Unblock and continue" | "Clarify the ambiguous spec item, then run `unblock`" |
 

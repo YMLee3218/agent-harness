@@ -79,7 +79,7 @@ Ceiling N defaults to **100** (runs 1–100 are allowed; the 101st run triggers 
 After critic/review run → script records verdict + emits markers
 Skill reads ## Open Questions and recomputes from the events log, checks in priority order:
 
-  1. [BLOCKED:ceiling] {agent}: ...   → stop (manual review; use reset-milestone)
+  1. [BLOCKED:ceiling] {agent}: ...   → stop (manual review; human-terminal unblock clears it)
   2. [BLOCKED:spec] {agent}: ambiguous → stop (human decision required)
   3. [BLOCKED:docs] {agent}: ...      → stop (human decision required; apply DOCS CONTRADICTION cascade)
   4. [BLOCKED:{any kind}] ...         → stop (read reason; fix root cause; run unblock; retry)
@@ -191,8 +191,4 @@ All `[BLOCKED:{kind}]` markers are cleared by `unblock` in a single pass — no 
 export CLAUDE_PLAN_CAPABILITY=human
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" unblock "$CLAUDE_PROJECT_DIR/plans/{slug}.md"
 ```
-Re-run the critic. **Exception: for `[BLOCKED:ceiling]`, never use `unblock` alone** — use `reset-milestone {agent}` instead (Ring B — `CLAUDE_PLAN_CAPABILITY=harness` required, not `=human`; `unblock` alone does not increment `milestone_seq` and immediately re-triggers the ceiling block):
-```bash
-export CLAUDE_PLAN_CAPABILITY=harness
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {agent}
-```
+Re-run the critic. In events mode `[BLOCKED:ceiling]` is cleared by the **same `unblock`** (it appends a `human-clear(ceiling)` fact the recompute honors). `reset-milestone` does **not** clear an events ceiling — do not use it for that. Keeping ceiling clear human-gated (Ring C `unblock`) is the infinite-loop backstop: a harness-capability command must not self-clear it.

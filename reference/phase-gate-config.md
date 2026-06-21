@@ -34,7 +34,7 @@ Per-run timeout (seconds) applied to each reviewer subprocess in `run-critic-loo
 CLAUDE_CRITIC_LOOP_CEILING=100
 ```
 
-Maximum critic loop iterations per milestone (ordinals 1–N allowed; the (N+1)th triggers `[BLOCKED:ceiling]`; counter accumulates across harness restarts — resets only on `reset-milestone`). Default: `100`. Must be a numeric integer ≥ 2; invalid values or values below 2 fall back to 100. See `@reference/critics.md` for how PARSE_ERROR verdicts count toward the ceiling.
+Maximum critic loop iterations per milestone (ordinals 1–N allowed; the (N+1)th triggers `[BLOCKED:ceiling]`; the count is recomputed from the events log per `(unit, stage)` and resets on a `milestone` fact (`record-milestone` / rollback), a `human-clear(ceiling)` fact (`unblock`), or a working-tree input change). Default: `100`. Must be a numeric integer ≥ 2; invalid values or values below 2 fall back to 100. See `@reference/critics.md` for how PARSE_ERROR verdicts count toward the ceiling.
 
 ```bash
 CLAUDE_CRITIC_LOOP_MODEL=opus

@@ -640,20 +640,10 @@ ev_is_implemented() {
   ev_is_converged "$1" "$2" code && ev_is_converged "$1" "$2" quality
 }
 
-# ev_is_integration_passed PLAN → rc0 if __integration__ has a PASS verdict at the
-# current H_int. Single-pass-at-hash (NOT streak); gates `transition done` only — the
-# runner itself always re-runs (invariant 13).
-ev_is_integration_passed() {
-  local _plan="$1" _H _path
-  _H=$(_stage_input_hash "$_plan" "__integration__" integration)
-  [[ "$_H" == "empty" || "$_H" == "no-sha-tool" || -z "$_H" ]] && return 1
-  _path=$(_ev_scope_path "$_plan" "__integration__")
-  local _r
-  _r=$(jq -sr --arg H "$_H" '
-    [ .[] | select(.type=="verdict" and .stage=="integration" and .verdict=="PASS" and .input_hash==$H) ] | length
-  ' "$_path" 2>/dev/null || echo 0)
-  [[ "${_r:-0}" -ge 1 ]]
-}
+# Integration "done" is gated inline by run-integration.sh — `transition done` is reached only after
+# the integration runner exits 0 (its sole caller, run-integration.sh). The runner always re-runs
+# (invariant 13), so done is unreachable without a fresh green run; no stored PASS-fact predicate is
+# needed (and none is recorded for __integration__).
 
 # stage_is_satisfied PLAN UNIT STAGE → rc0=SKIP, rc1=RUN.
 # Single predicate replacing marker existence + is-converged + is-implemented.

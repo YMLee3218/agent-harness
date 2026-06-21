@@ -30,7 +30,7 @@ All stop markers use the unified prefix `[BLOCKED:{kind}]`. The `{kind}` encodes
 | `[BLOCKED:code]` | Code/test root cause (coder, integration, smoke) | human-must | 1 |
 | `[BLOCKED:env]` | Environment/session/tool (persistent or recurring) | human-must | 1 |
 | `[BLOCKED:harness]` | Harness call path, sidecar integrity, or reference data (enum/axis) extension | human-must | 1 |
-| `[BLOCKED:ceiling]` | Critic loop ceiling exceeded → `reset-milestone` | human-must | 2 |
+| `[BLOCKED:ceiling]` | Critic loop ceiling exceeded → `unblock` (human-clear fact) | human-must | 2 |
 | `[BLOCKED:transient]` | **1-time transient state** (session timeout, lock clash) | **auto** — harness self-retries; never requires `unblock` | 1,3 |
 | `[BLOCKED:merge-approval]` | Merge gate passed — awaiting human merge approval | human-must (merge action from main checkout) | 3 |
 
@@ -108,7 +108,7 @@ Written by scripts outside the critic convergence protocol.
 | `[BLOCKED:code] {scope}: {sub-kind} — {detail}` | Various scripts | `plan-file.sh unblock` | Yes |
 | `[BLOCKED:env] {scope}: {sub-kind} — {detail}` | `preflight.sh`, `run-critic-loop.sh`, scripts | `plan-file.sh unblock` | Yes |
 | `[BLOCKED:harness] {scope}: {sub-kind} — {detail}` | `plan-cmd.sh`, `run-critic-loop.sh` | `plan-file.sh unblock` | Yes |
-| `[BLOCKED:ceiling] {scope}: {sub-kind} — {detail}` | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh reset-milestone {agent}` | Yes |
+| `[BLOCKED:ceiling] {scope}: {sub-kind} — {detail}` | `plan-loop-helpers.sh _record_loop_state` | `plan-file.sh unblock` (events `human-clear(ceiling)`) | Yes |
 | `[STOP-BLOCKED @ts] phase={p} — {reason}` | `stop-check.sh` | Informational — survives `gc-events` | Yes |
 
 ## Integration test markers (written to `## Integration Failures`)
