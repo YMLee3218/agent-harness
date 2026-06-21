@@ -444,8 +444,13 @@ _ev_all_src_test() {
 # every other section is excluded by default so machine-mutated sections never enter the
 # hash (else brainstorm self-reference deadlocks). See §단계별 입력.
 _ev_brainstorm_authored() {
-  local _plan_md="$1" _tmp
-  _tmp=$(mktemp)
+  local _plan_md="$1" _out
+  # STABLE per-plan path, NOT mktemp: _hash_file_list keys the hash on each input file's path, so a
+  # random mktemp path would change the brainstorm input hash on every call (the stage would never
+  # converge — brainstorm→spec could never fire). The scratch file lives under the runtime-only
+  # .state/ dir and is rewritten each call, so the hash depends only on the authored content.
+  _out="${_plan_md%.md}.state/.brainstorm-authored"
+  mkdir -p "$(dirname "$_out")" 2>/dev/null || true
   awk '
     /^## / {
       sec=$0
@@ -453,8 +458,8 @@ _ev_brainstorm_authored() {
       next
     }
     keep { print }
-  ' "$_plan_md" > "$_tmp" 2>/dev/null || true
-  echo "$_tmp"
+  ' "$_plan_md" > "$_out" 2>/dev/null || true
+  echo "$_out"
 }
 
 # _stage_input_hash PLAN UNIT STAGE → echoes the content-addressed input hash for the

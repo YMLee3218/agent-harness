@@ -46,7 +46,7 @@ Full iteration protocol: §Loop convergence.
 
 ## Consecutive same-category escalation
 
-`plan-file.sh record-verdict` tracks the last FAIL category per critic (agent-scoped, milestone-scoped — the streak resets on `reset-milestone` and is computed within the current phase+milestone boundary). If the same critic emits **two consecutive FAILs with the same category** (PARSE_ERROR verdicts between them are transparent — they do not reset the streak; `reset-milestone` writes a `[MILESTONE-BOUNDARY @ts]` sentinel that **does** reset the streak — streaks are therefore isolated per milestone), the script writes a **non-halting advisory**:
+`plan-file.sh record-verdict` tracks the last FAIL category per `(unit, stage)` from the events log; the window is the immediately-preceding verdict fact (`.[-2]`), so any differing verdict ends it (PARSE_ERROR verdicts between FAILs are transparent — they do not break the pair). If the same critic emits **two consecutive FAILs with the same category**, the script writes a **non-halting advisory**:
 
 ```
 [RECURRING] {agent}: {CATEGORY} flagged 2× consecutively — next fix must resolve the root cause behind every {CATEGORY} finding, not only the latest
@@ -119,17 +119,15 @@ Skill reads ## Open Questions and recomputes from the events log, checks in prio
 **Exit codes**: 0 = converged; 1 = blocked (`[BLOCKED:{kind}]` marker in plan, or transient retry); 2 = `[BLOCKED:ceiling]`; 3 = lock contention, **non-nested invocations only** (another run already active for this plan — wait for it to finish or remove the plan's `.critic.lock` file (e.g. `plans/{slug}.md.critic.lock`)); recovery cascades using `--nested` silently inherit any existing lock and never return exit 3; any other code is a script failure: write `[BLOCKED:env] {agent}: script-failure — exit {code}` to `## Open Questions` and stop. Running critics manually is not a fallback — it is a protocol violation.
 ### New milestone
 
-Before starting a critic run for a new milestone within the same phase, call:
+To force a fresh critic run on **unchanged input** (a deliberate re-review boundary), append a `milestone` fact — it raises the streak/ceiling recompute floor for that `(unit, stage)`:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {agent}
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {unit} {stage}
 ```
-This clears the 1 phase-scoped convergence marker (`[BLOCKED:ceiling]`) (see `@reference/markers.md §Phase-scoped convergence markers`) for this phase+agent from `## Open Questions`, and appends a `[MILESTONE-BOUNDARY]` sentinel to `## Critic Verdicts` so prior-milestone history does not contribute to the new streak. `transition` must run before `reset-milestone` when also changing phase (`transition` calls `set-phase` internally and writes a Phase Transitions log entry; using `plan-file.sh set-phase` directly would skip the log entry), so `reset-milestone` reads the correct phase when clearing phase-scoped markers. For the full list of markers written and cleared by `reset-milestone`, `reset-pr-review`, and `reset-for-rollback`, see `reference/markers.md §Stop marker taxonomy`.
+When the input actually changes (e.g. editing a spec), the working-tree hash change reopens the stage automatically — no milestone fact needed. `reset-milestone {agent}` is a separate legacy helper that clears the displayed `[BLOCKED:ceiling]`/`[RECURRING]` markers and the agent's transient counters; it does **not** write a `milestone` fact, so it does not by itself reset the events streak or ceiling. For the full marker taxonomy see `reference/markers.md §Stop marker taxonomy`.
 
-Re-brainstorming the same requirements doc: transition to `brainstorm` first (required before `reset-milestone` so the correct phase-scoped markers are cleared — see line above), then reset the prior critic-feature streak:
+Re-brainstorming the same requirements doc: edit the authored sections (`## Vision`/`## Scenarios`/`## Test Manifest`) — that changes the brainstorm input hash and reopens the critic-feature streak automatically. To re-review byte-identical sections, append a milestone fact instead:
 ```bash
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJECT_DIR/plans/{slug}.md" brainstorm \
-  "re-brainstorming"
-bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" critic-feature
+bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" record-milestone "$CLAUDE_PROJECT_DIR/plans/{slug}.md" __brainstorm__ brainstorm
 ```
 Then re-invoke the `brainstorming` skill.
 
@@ -142,7 +140,7 @@ bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" transition "$CLAUDE_PROJ
 bash "$CLAUDE_PROJECT_DIR/.claude/scripts/plan-file.sh" reset-for-rollback "$CLAUDE_PROJECT_DIR/plans/{slug}.md" {target-phase}
 ```
 
-When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`. After `transition {destination-phase}`, additionally call `reset-milestone {destination-critic}` if a prior milestone's sidecar streak needs resetting (e.g., rolling back to `red` may require `reset-milestone critic-test` to isolate the new streak). When a milestone must be reset at a non-destination phase (e.g., resetting `red/critic-test` while destination is `spec`): use a phase round-trip — `transition {milestone-phase}`, `reset-milestone {milestone-critic}`, `transition {destination-phase}` — because `reset-milestone` scopes to the current plan phase (implemented by `run-integration.sh`'s spec-gap recovery path).
+When the cleanup phase differs from the destination phase (e.g., clearing `implement` markers while rolling back to `red`): use a 3-call sequence — `transition {cleanup-phase}`, `reset-for-rollback {cleanup-phase}`, then `transition {destination-phase}`. This is necessary because `reset-for-rollback` calls `set-phase` internally, which would overwrite a prior `transition {destination-phase}`. After `transition {destination-phase}`, additionally call `reset-milestone {destination-critic}` to clear that critic's stale `[BLOCKED:ceiling]`/`[RECURRING]` markers (the events streak itself reopens from the rolled-back input change — reset-milestone does not reset it). When a critic's markers must be cleared at a non-destination phase (e.g., clearing `red/critic-test` markers while destination is `spec`): use a phase round-trip — `transition {milestone-phase}`, `reset-milestone {milestone-critic}`, `transition {destination-phase}` — because `reset-milestone` scopes its marker clearing to the current plan phase (implemented by `run-integration.sh`'s spec-gap recovery path).
 
 ## §Critic one-shot iteration
 
