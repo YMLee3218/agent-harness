@@ -611,16 +611,19 @@ _dep_reconciliation_gate() {
   [[ "$_layer" == "domain" ]] && return 0
   local _files; _files=$(_ev_unit_src_files "$_unit" 2>/dev/null | LC_ALL=C sort -u)
   [[ -z "$_files" ]] && return 0
-  if ! printf '%s\n' "$_files" | grep -qE '\.(py|ts|js|tsx|jsx|mjs|cjs)$'; then
-    echo "[SKIP] dep-reconciliation — ${_unit}: non-python/js sources; import grammar not assumed" >&2
+  if ! printf '%s\n' "$_files" | grep -qE '\.(py|ts|js|tsx|jsx|mjs|cjs|go|rs|rb|java|kt|kts)$'; then
+    echo "[SKIP] dep-reconciliation — ${_unit}: import grammar not assumed for these sources (e.g. C# PascalCase namespaces have no reliable dir mapping)" >&2
     return 0
   fi
   local _own; _own=$(printf '%s' "$_slug" | tr '_' '-')
 
-  # Imported cross-unit concepts (kebab), self (layer,slug) excluded. Three import forms emit
-  # "<layer> <concept>" pairs: (A) python path-into-concept `from|import …layer.concept[.sub]`
-  # (absolute or relative); (B) python path-to-layer `from …layer import c1, c2` (lowercase module
-  # names are concepts); (C) js/ts `from '…/layer/concept'` / `require('…/layer/concept')`.
+  # Imported cross-unit concepts (kebab), self (layer,slug) excluded. Import forms emit
+  # "<layer> <concept>" pairs across the supported languages: (A) dotted module path — python /
+  # java / kotlin `from|import …layer.concept[.sub]` (absolute or relative); (B) python path-to-
+  # layer `from …layer import c1, c2` (lowercase module names are concepts); (C) quoted path —
+  # js/ts / go / ruby `from|import|require[_relative] '…/layer/concept'`; (D) rust `use …layer::
+  # concept`. C# (PascalCase namespaces, no reliable dir mapping) and go *block* imports are not
+  # parsed here — they stay LLM-backed in critic-code (the file-extension gate above skips C#).
   local _imported _f
   _imported=$( {
     while IFS= read -r _f; do
@@ -633,8 +636,11 @@ _dep_reconciliation_gate() {
                  for (i=1;i<=n;i++) if (mp[i]=="domain"||mp[i]=="infrastructure"||mp[i]=="features") layer=mp[i];
                  if (layer=="") next;
                  for (i=3;i<=NF;i++) { name=$i; gsub(/,/,"",name); if (name ~ /^[a-z][a-z0-9_]*$/) print layer" "name } }'
-      grep -oE "(from|require[[:space:]]*\()[[:space:]]*['\"][^'\"]*(domain|infrastructure|features)/[a-z0-9_-]+" "$_f" 2>/dev/null \
+      grep -oE "(from|require_relative|require|import)[[:space:]]*[(]?[[:space:]]*['\"][^'\"]*(domain|infrastructure|features)/[a-z0-9_-]+" "$_f" 2>/dev/null \
         | grep -oE "(domain|infrastructure|features)/[a-z0-9_-]+" | tr '/' ' '
+      # (D) rust path: use crate::…::layer::concept
+      grep -oE "^[[:space:]]*use[[:space:]]+[A-Za-z0-9_:]*(domain|infrastructure|features)::[a-z0-9_]+" "$_f" 2>/dev/null \
+        | grep -oE "(domain|infrastructure|features)::[a-z0-9_]+" | sed 's/::/ /'
     done <<< "$_files"
   } | while read -r _il _ic; do
         [[ -z "$_ic" ]] && continue
