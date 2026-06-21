@@ -599,6 +599,30 @@ ev_is_blocked() {
   [[ "$_r" == "true" ]]
 }
 
+# ev_any_blocked PLAN [KIND] → rc0 if ANY open block (of KIND, if given) exists in ANY event scope.
+# The plan-level aggregate equivalent of the legacy cmd_is_blocked — scans every scope INCLUDING
+# __legacy__ (so migrate-events'd old blocks are caught here). Per (stage,kind) newest-clear-wins,
+# matching ev_is_blocked. This is the events-native reader the block-channel cutover routes the
+# plan-level is-blocked call sites to.
+ev_any_blocked() {
+  local _plan="$1" _kind="${2:-}" _scope _path _r
+  while IFS= read -r _scope; do
+    [[ -z "$_scope" ]] && continue
+    _path=$(_ev_scope_path "$_plan" "$_scope")
+    [[ "$_path" == "/dev/null" ]] && continue
+    _r=$(jq -sr --arg kf "$_kind" '
+      [ to_entries[] | (.value + {__i:.key}) ] as $rows
+      | [ $rows[] | select(.type=="block" and ($kf=="" or .kind==$kf)) | {stage,kind} ] | unique as $sk
+      | any($sk[]; . as $b
+          | ( [ range(0;($rows|length)) as $i | select($rows[$i].type=="block" and $rows[$i].stage==$b.stage and $rows[$i].kind==$b.kind) | $i ] | last ) as $lb
+          | ( [ range(0;($rows|length)) as $i | select($rows[$i].type=="human-clear" and $rows[$i].stage==$b.stage and $rows[$i].kind==$b.kind) | $i ] | last ) as $lc
+          | ($lb != null) and ($lc == null or $lb > $lc) ) // false
+    ' "$_path" 2>/dev/null || echo "false")
+    [[ "$_r" == "true" ]] && return 0
+  done < <(ev_list_scopes "$_plan")
+  return 1
+}
+
 # ev_is_converged PLAN UNIT STAGE [FROZEN_HASH] → rc0 if converged (SKIP). empty-guard fail-closed.
 # FROZEN_HASH (optional): use this pre-computed hash instead of recomputing — required by the
 # pass-audit gate so the 1st/2nd PASS see the same input identity (no racy working-tree re-read).
