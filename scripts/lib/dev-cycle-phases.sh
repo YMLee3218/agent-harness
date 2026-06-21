@@ -624,8 +624,11 @@ _dep_reconciliation_gate() {
   # js/ts / go / ruby `from|import|require[_relative] '…/layer/concept'`; (D) rust `use …layer::
   # concept`. C# (PascalCase namespaces, no reliable dir mapping) and go *block* imports are not
   # parsed here — they stay LLM-backed in critic-code (the file-extension gate above skips C#).
-  local _imported _f
-  _imported=$( {
+  local _imported _raw _f
+  # _raw = structured "<layer> <concept>" pairs BEFORE self-exclusion. A self-import DOES match the
+  # structured patterns (it is dropped later as own layer+slug), so a non-empty _raw distinguishes a
+  # legit self-import/leaf unit from a true extractor miss (invariant 11 fail-closed below).
+  _raw=$( {
     while IFS= read -r _f; do
       [[ -f "$_f" ]] || continue
       grep -oE "^[[:space:]]*(from|import)[[:space:]]+[A-Za-z0-9_.]*(domain|infrastructure|features)\.[a-z0-9_]+" "$_f" 2>/dev/null \
@@ -642,12 +645,33 @@ _dep_reconciliation_gate() {
       grep -oE "^[[:space:]]*use[[:space:]]+[A-Za-z0-9_:]*(domain|infrastructure|features)::[a-z0-9_]+" "$_f" 2>/dev/null \
         | grep -oE "(domain|infrastructure|features)::[a-z0-9_]+" | sed 's/::/ /'
     done <<< "$_files"
-  } | while read -r _il _ic; do
+  } )
+  _imported=$( printf '%s\n' "$_raw" | while read -r _il _ic; do
         [[ -z "$_ic" ]] && continue
         _ic=$(printf '%s' "$_ic" | tr '_' '-')
         [[ "$_il" == "$_layer" && "$_ic" == "$_own" ]] && continue
         printf '%s\n' "$_ic"
       done | LC_ALL=C sort -u )
+
+  # Fail-closed on a probable extractor miss (invariant 11): the structured patterns matched nothing
+  # (_raw empty) yet a coarse import line references a layer path → the import form is unsupported,
+  # and passing would void the declared-import completeness guarantee (a missed import is never
+  # checked against the Depends-on declaration, leaving the cascade hole open). A leaf unit (no layer
+  # token in any import line) and a self-import-only unit (matches the structured patterns, _raw≠∅)
+  # are NOT misses. Go *block* imports and C# stay LLM-backed: their member lines carry no import
+  # keyword (coarse skips) / the file-extension gate above already skipped C#.
+  if [[ -z "$_raw" ]]; then
+    local _coarse=""
+    while IFS= read -r _f; do
+      [[ -f "$_f" ]] || continue
+      grep -hE "^[[:space:]]*(from|import|use|require|require_relative)[[:space:](]" "$_f" 2>/dev/null \
+        | grep -qE "(domain|infrastructure|features)[./:]" && { _coarse=1; break; }
+    done <<< "$_files"
+    if [[ -n "$_coarse" ]]; then
+      bash "$PF" append-note "$PLAN" "[BLOCKED:code] dep-reconciliation: import-extraction-miss — ${_unit} has import lines referencing domain/infrastructure/features but the reconciliation extractor parsed none (unsupported import form); fix the import form or declare the dep so the gate can verify import completeness (reference/layers.md)"
+      exit 1
+    fi
+  fi
 
   # Declared concepts (kebab) from the spec's Depends-on line.
   local _spec _declared=""
