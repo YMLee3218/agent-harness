@@ -19,7 +19,7 @@ case "$1" in
   # Ring B — CLAUDE_PLAN_CAPABILITY=harness required (harness scripts; human operators: export CLAUDE_PLAN_CAPABILITY=harness): state mutators
   set-phase|transition|commit-phase|add-task|update-task|reset-milestone|reset-pr-review|\
   reset-for-rollback|record-verdict|record-verdict-guarded|record-verdict-direct|record-milestone|\
-  gc-events|gc-verdicts|record-task-completed|record-stop-block|\
+  gc-events|gc-verdicts|record-task-completed|record-stop-block|migrate-events|\
   inter-feature-reset|set-task-unit|clear-task-state|resume-sweep)
     require_capability "$1" B
     if [ "$1" = "record-verdict" ]; then
@@ -63,6 +63,7 @@ case "$1" in
   record-task-completed)  cmd_record_task_completed ;;
   context)              cmd_context "${2:-}" ;;
   gc-events)            cmd_gc_events ;;
+  migrate-events)       [ $# -eq 2 ] || die "Usage: plan-file.sh migrate-events <plan-file>"; cmd_migrate_events "$2" ;;
   gc-verdicts)          [ $# -eq 2 ] || die "Usage: plan-file.sh gc-verdicts <plan-file>"; cmd_gc_verdicts "$2" ;;
   add-task)             [ $# -eq 4 ] || die "Usage: plan-file.sh add-task <plan-file> <task-id> <layer>"; cmd_add_task "$2" "$3" "$4" ;;
   update-task)          [ $# -ge 4 ] || die "Usage: plan-file.sh update-task <plan-file> <task-id> <status> [commit-sha]"; cmd_update_task "$2" "$3" "$4" "${5:--}" ;;

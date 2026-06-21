@@ -1003,6 +1003,66 @@ cmd_reset_phase_state() {
   echo "[reset-for-rollback] phase set to ${target_phase}; ceiling milestoned, quality-review and transient state cleared" >&2
 }
 
+# ── Legacy migration (invariant 2) ─────────────────────────────────────────────
+
+# cmd_migrate_events PLAN — one-time conversion of the legacy schema-less verdicts.jsonl /
+# blocked.jsonl into the type-keyed events log. Legacy lines carry neither `type` nor `unit`, so
+# they cannot be restored to a real (unit,stage); both go to the reserved __legacy__ scope:
+#   - verdicts → {type:verdict, unit:__legacy__, input_hash:"legacy"}: recompute enumerates real
+#     units only and never reads __legacy__, so convergence history is discarded and every unit is
+#     re-verified from scratch (the safe, intended outcome).
+#   - unresolved blocks (cleared_at==null) → {type:block, unit:__legacy__}: record-keeping only;
+#     the live cmd_is_blocked still enforces the originals in blocked.jsonl until the legacy block
+#     reader is retired (the fail-closed halt belongs at that cutover, not here — wiring it now
+#     would falsely block plans whose legacy blocks are still correctly enforced).
+# Idempotent via the events/.migrated marker.
+cmd_migrate_events() {
+  local plan_file="$1"
+  require_file "$plan_file"
+  command -v jq >/dev/null 2>&1 || die "migrate-events: jq required"
+  sc_ensure_dir "$plan_file" || die "migrate-events: sidecar dir setup failed for ${plan_file}"
+  local _marker; _marker=$(sc_path "$plan_file" "events/.migrated")
+  if [[ -f "$_marker" ]]; then
+    echo "[migrate-events] already migrated (${_marker} present) — no-op" >&2
+    return 0
+  fi
+  local _vpath _bpath _line _rec _n_v=0 _n_b=0
+  _vpath=$(sc_path "$plan_file" "$SC_VERDICTS")
+  _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
+  if [[ -f "$_vpath" ]]; then
+    while IFS= read -r _line; do
+      [[ -z "$_line" ]] && continue
+      _rec=$(printf '%s' "$_line" | jq -c '{ts:(.ts//""),type:"verdict",unit:"__legacy__",stage:(.phase//""),input_hash:"legacy",verdict:(.verdict//""),category:(.category//"")}' 2>/dev/null) || continue
+      ev_append "$plan_file" "__legacy__" "$_rec" && _n_v=$((_n_v+1))
+    done < "$_vpath"
+  fi
+  if [[ -f "$_bpath" ]]; then
+    while IFS= read -r _line; do
+      [[ -z "$_line" ]] && continue
+      printf '%s' "$_line" | jq -e '.cleared_at == null' >/dev/null 2>&1 || continue
+      _rec=$(printf '%s' "$_line" | jq -c '{ts:(.ts//""),type:"block",unit:"__legacy__",stage:(.scope//""),kind:(.kind//""),detail:(.message//"")}' 2>/dev/null) || continue
+      ev_append "$plan_file" "__legacy__" "$_rec" && _n_b=$((_n_b+1))
+    done < "$_bpath"
+  fi
+  : > "$_marker"
+  echo "[migrate-events] migrated ${_n_v} verdict(s) and ${_n_b} unresolved block(s) to __legacy__" >&2
+}
+
+# _migration_needed PLAN — rc0 if a legacy migration is pending: blocked.jsonl has unresolved
+# (cleared_at==null) entries AND the events log was not migrated (no .migrated marker). The
+# fail-closed detector for invariant 2 — a SOLO-events block reader would silently drop these, so
+# the block-channel cutover must halt on this until migrate-events runs. (Not yet wired to a halt:
+# cmd_is_blocked still enforces legacy blocks, so halting now would be a false positive.)
+_migration_needed() {
+  local plan_file="$1" _bpath _marker
+  _marker=$(sc_path "$plan_file" "events/.migrated" 2>/dev/null) || return 1
+  [[ -f "$_marker" ]] && return 1
+  _bpath=$(sc_path "$plan_file" "$SC_BLOCKED" 2>/dev/null) || return 1
+  [[ -f "$_bpath" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  jq -es 'any(.[]; .cleared_at == null)' "$_bpath" >/dev/null 2>&1
+}
+
 # ── Task ledger / GC ──────────────────────────────────────────────────────────
 
 # Task state is an append-only events fact-log (events/__tasks__.jsonl); the ## Task Ledger
