@@ -139,20 +139,3 @@ _record_blocked_runtime() {
   _append_to_open_questions "$_plan" "[BLOCKED:harness] ${_agent}: runtime — ${_msg}"
 }
 
-# ── Convergence compute helpers ───────────────────────────────────────────────
-
-# _jcob_body TMP_FILE JQ_FILTER JSONL_PATH [JQ_ARGS...] — used by _jq_compute_or_fail
-_jcob_body() { local _tmp="$1" _filter="$2" _path="$3"; shift 3; jq -r "$@" "$_filter" "$_path" 2>/dev/null > "$_tmp"; }
-
-# _jq_compute_or_fail PLAN_FILE JSONL_PATH LABEL JQ_FILTER [JQ_ARGS...]
-# Runs jq inside _with_lock; returns 1 on failure. Caller is responsible for writing blocked records.
-_jq_compute_or_fail() {
-  local plan_file="$1" jsonl_path="$2" label="$3" jq_filter="$4"
-  shift 4
-  local _out _rc=0 _tmp
-  _tmp=$(mktemp)
-  _with_lock "${jsonl_path}.lock" _jcob_body "$_tmp" "$jq_filter" "$jsonl_path" "$@" || _rc=$?
-  _out=$(cat "$_tmp" 2>/dev/null); rm -f "$_tmp"
-  [[ $_rc -ne 0 ]] && return 1
-  printf '%s' "${_out:-}"
-}

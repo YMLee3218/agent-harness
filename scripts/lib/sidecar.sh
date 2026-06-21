@@ -162,17 +162,6 @@ _with_lock() {
   return $_rc
 }
 
-sc_read_json() {
-  local path="$1"
-  local default="${2}"
-  [[ -n "$default" ]] || default='{}'
-  if [[ -f "$path" ]]; then
-    cat "$path"
-  else
-    printf '%s' "$default"
-  fi
-}
-
 # sc_update_json PATH JSON — atomic write via tmp+mv (_with_lock-protected)
 sc_update_json() {
   local _path="$1" _json="$2" _tmp
@@ -213,60 +202,10 @@ _sc_rewrite_jsonl() {
   fi
 }
 
-# Convergence JSON schema (convergence/{phase}__{agent}.json):
-# {"phase":"implement","agent":"critic-code","first_turn":true,"streak":2,
-#  "converged":true,"ceiling_blocked":false,"ordinal":2,"milestone_seq":0,
-#  "last_verdict_category":"","spec_fingerprint":"<sha256>"}
-# milestone_seq increments on reset-milestone; isolates streak history between milestones.
-# spec_fingerprint: SHA-256 of sorted spec.md paths+contents at last verdict time; absent on old sidecars.
-#   Values: "<sha256>" = normal hash; "empty" = no spec.md found; "no-sha-tool" = SHA tool unavailable (check skipped).
 # Blocked JSONL schema (blocked.jsonl, one record per line):
 # {"ts":"2025-05-10T12:00:00Z","kind":"ceiling","agent":"critic-code",
 #  "scope":"implement/critic-code","message":"exceeded 100 runs","cleared_at":null}
 # kind enum: envelope | docs | spec | code | env | harness | ceiling | transient
-# sc_make_conv_state PHASE AGENT [FT STREAK CONV CB ORD MS]
-# Builds a convergence JSON object. All keys emitted in canonical order.
-# Defaults: first_turn=false streak=0 converged=false ceiling_blocked=false ordinal=0 milestone_seq=0
-sc_make_conv_state() {
-  local _phase="$1" _agent="$2"
-  local _ft="${3:-false}" _streak="${4:-0}" _conv="${5:-false}"
-  local _cb="${6:-false}" _ord="${7:-0}" _ms="${8:-0}"
-  jq -nc \
-    --arg phase "$_phase" --arg agent "$_agent" \
-    --argjson ft "$_ft" --argjson streak "$_streak" \
-    --argjson conv "$_conv" --argjson cb "$_cb" \
-    --argjson ord "$_ord" --argjson ms "$_ms" \
-    '{"phase":$phase,"agent":$agent,"first_turn":$ft,"streak":$streak,"converged":$conv,"ceiling_blocked":$cb,"ordinal":$ord,"milestone_seq":$ms}'
-}
-
-# _spec_fingerprint — SHA-256 of sorted spec.md paths+contents under CLAUDE_PROJECT_DIR.
-# Returns "empty" when no spec.md files exist; "no-sha-tool" when no SHA tool (spec-change check skipped).
-# Stored in convergence JSON at every verdict; checked by cmd_is_converged to detect spec-set drift.
-_spec_fingerprint() {
-  local _project_dir="${CLAUDE_PROJECT_DIR:-}"
-  # Empty string = CLAUDE_PROJECT_DIR unset/missing; callers treat absent as ABSENT (safe fallback).
-  [[ -z "$_project_dir" || ! -d "$_project_dir" ]] && { echo ""; return 0; }
-  local _files
-  _files=$(find "$_project_dir" -name "spec.md" \
-    -not -path "*/.git/*" -not -path "*/plans/*" \
-    -not -path "${_project_dir}/.claude/worktrees/*" -not -path "*/node_modules/*" -not -path "*/.venv/*" \
-    2>/dev/null | LC_ALL=C sort) || _files=""
-  [[ -z "$_files" ]] && { echo "empty"; return 0; }
-  local _fp=""
-  if command -v sha256sum >/dev/null 2>&1; then
-    _fp=$( { printf '%s\n' "$_files"; while IFS= read -r _f; do
-      [[ -f "$_f" ]] && cat "$_f" 2>/dev/null || true
-    done <<< "$_files"; } | sha256sum 2>/dev/null | awk '{print $1}' )
-  elif command -v shasum >/dev/null 2>&1; then
-    _fp=$( { printf '%s\n' "$_files"; while IFS= read -r _f; do
-      [[ -f "$_f" ]] && cat "$_f" 2>/dev/null || true
-    done <<< "$_files"; } | shasum -a 256 2>/dev/null | awk '{print $1}' )
-  else
-    echo "no-sha-tool"
-    return 0
-  fi
-  [[ -z "$_fp" ]] && echo "no-sha-tool" || echo "$_fp"
-}
 
 # ── Transient mechanism ────────────────────────────────────────────────────────
 # Transient sub-kind enum (closed set): session-timeout loop-lock thinking-block-api-error
