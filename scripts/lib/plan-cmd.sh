@@ -417,9 +417,11 @@ _check_consecutive_and_block() {
   local plan_file="$1" phase="$2" agent="$3"
   local jq_prev_query="$4" match_val="$5" kind="$6" msg="$7" log_label="$8"
   local _unit="${9:-}"
-  local _ms _prev_val _vpath _scope
+  local _prev_val _vpath _scope
   _scope=$(_scope_of "$phase" "$agent")
-  _ms=$(jq -r '.milestone_seq // 0' "$(sc_conv_path "$plan_file" "$phase" "$agent")" 2>/dev/null || echo 0)
+  # milestone_seq is fixed at 0 since the convergence sidecar (its only writer) was retired;
+  # the consecutive check operates over the whole (phase,agent) verdict stream.
+  local _ms=0
   _vpath=$(sc_path "$plan_file" "$SC_VERDICTS")
   _prev_val=""
   if [[ -f "$_vpath" ]]; then
@@ -876,25 +878,11 @@ cmd_unblock() {
     local _bpath _ts
     _bpath=$(sc_path "$plan_file" "$SC_BLOCKED")
     _ts=$(_iso_timestamp)
-    local _ceiling_scopes=()
-    if [[ -f "$_bpath" ]]; then
-      while IFS= read -r _s; do
-        [[ -n "$_s" ]] && _ceiling_scopes+=("$_s")
-      done < <(jq -r 'select(.cleared_at == null and .kind == "ceiling") | .scope' "$_bpath" 2>/dev/null || true)
-    fi
     # SYNC: HUMAN_MUST_CLEAR_MARKERS in phase-policy.sh has same 7 kinds — update both together.
+    # blocked.jsonl is the legacy block store still read by cmd_is_blocked; clear its open records.
     _sc_rewrite_jsonl "$_bpath" \
       'if (.cleared_at == null and (.kind | IN("envelope","docs","spec","code","env","harness","ceiling"))) then .cleared_at = $ts else . end' \
       "unblock" --arg ts "$_ts" || return 1
-    for _scope in "${_ceiling_scopes[@]+"${_ceiling_scopes[@]}"}"; do
-      local _cp_phase="${_scope%%/*}" _cp_agent="${_scope##*/}"
-      local _cpath; _cpath=$(sc_conv_path "$plan_file" "$_cp_phase" "$_cp_agent" 2>/dev/null) || continue
-      [[ -f "$_cpath" ]] || continue
-      local _cs; _cs=$(jq '.ceiling_blocked = false' "$_cpath" 2>/dev/null) \
-        || { echo "[unblock] WARN: jq read failed for ${_cpath} — ceiling_blocked may remain true" >&2; continue; }
-      sc_update_json "$_cpath" "$_cs" 2>/dev/null \
-        || echo "[unblock] WARN: failed to write ceiling_blocked=false to ${_cpath}" >&2
-    done
   fi
   local _count=0 _m
   while IFS= read -r _m; do
@@ -907,7 +895,8 @@ cmd_unblock() {
     s && /^\[BLOCKED:(envelope|docs|spec|code|env|harness|ceiling)\]/ { print }
   ' "$plan_file" 2>/dev/null || true)
   # Events model: append human-clear facts so ev-blocked / ev-ceiling recompute as cleared.
-  # This is what actually unblocks an events-keyed stage (the legacy sidecar above is dead).
+  # This is what actually unblocks an events-keyed stage; the blocked.jsonl rewrite above only
+  # clears the legacy block store that cmd_is_blocked still reads.
   ev_unblock_all "$plan_file" 2>/dev/null || true
   echo "[unblock] cleared ${_count} markers in ${plan_file}" >&2
 }

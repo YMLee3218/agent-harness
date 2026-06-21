@@ -17,11 +17,6 @@ _iso_timestamp() {
 
 _scope_of() { printf '%s/%s\n' "$1" "$2"; }
 
-# sc_conv_path PLAN PHASE AGENT → path to convergence JSON for the given scope
-sc_conv_path() {
-  sc_path "$1" "convergence/${2}__${3}.json"
-}
-
 # sc_dir PLAN → absolute path to plans/{slug}.state/
 # Anchors check to the git root (or CLAUDE_PROJECT_DIR fallback) /plans/ to prevent path-traversal.
 # Note: worktree git roots are accepted only when they are subdirectories of CLAUDE_PROJECT_DIR.
@@ -65,7 +60,7 @@ sc_path() {
   echo "$_d/$2"
 }
 
-# sc_ensure_dir PLAN — creates sidecar dir (and convergence/ subdir) if absent.
+# sc_ensure_dir PLAN — creates the sidecar dir if absent (events/ subdir is created by ev_ensure_dir).
 # Dies if the sidecar dir already exists as a symlink (symlink redirect attack prevention).
 sc_ensure_dir() {
   local dir _tmp
@@ -76,7 +71,6 @@ sc_ensure_dir() {
   fi
   if [[ ! -d "$dir" ]]; then
     _tmp=$(mktemp -d "${dir}.tmp.XXXXXX") || return 1
-    mkdir -p "${_tmp}/convergence"
     if ! mv -n "$_tmp" "$dir" 2>/dev/null; then
       if [[ -L "$_tmp" ]]; then
         echo "[sidecar] FATAL: tmp dir became a symlink — refusing rm: $_tmp" >&2; return 1

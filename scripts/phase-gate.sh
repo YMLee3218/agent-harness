@@ -93,7 +93,7 @@ _guard_plan_phase_mutation() {
     exit 2
   fi
   if printf '%s' "$_new" | grep -qF '[CONVERGED]'; then
-    echo "BLOCKED [phase-gate]: '[CONVERGED]' is not a valid plan-file marker — convergence state lives in the sidecar only (plans/{slug}.state/convergence/)" >&2
+    echo "BLOCKED [phase-gate]: '[CONVERGED]' is not a valid plan-file marker — convergence is recomputed from the events log (plans/{slug}.state/events/)" >&2
     exit 2
   fi
 }
